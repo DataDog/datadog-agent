@@ -100,21 +100,21 @@ func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
 
 // setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
 func setSecurityEventsTags(span span, events json.RawMessage, headers, respHeaders map[string][]string) {
-	if err := SetEventSpanTags(span, events); err != nil {
+	if err := setEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
 	}
-	for h, v := range NormalizeHTTPHeaders(headers) {
+	for h, v := range normalizeHTTPHeaders(headers) {
 		span.SetMetaTag("http.request.headers."+h, v)
 	}
-	for h, v := range NormalizeHTTPHeaders(respHeaders) {
+	for h, v := range normalizeHTTPHeaders(respHeaders) {
 		span.SetMetaTag("http.response.headers."+h, v)
 	}
 }
 
-// NormalizeHTTPHeaders returns the HTTP headers following Datadog's
+// normalizeHTTPHeaders returns the HTTP headers following Datadog's
 // normalization format.
-func NormalizeHTTPHeaders(headers map[string][]string) (normalized map[string]string) {
+func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]string) {
 	if len(headers) == 0 {
 		return nil
 	}

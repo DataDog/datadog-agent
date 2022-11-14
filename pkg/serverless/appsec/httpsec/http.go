@@ -157,13 +157,45 @@ func makeContext(ctx *context, path *string, headers, queryParams map[string][]s
 		requestCookies:    cookies,
 		requestQuery:      queryParams,
 		requestPathParams: pathParams,
-		requestBody:       rawBody, // TODO: parse it according to the content-type
+		requestBody:       body,
+	}
+}
+
+func parseBody(headers map[string][]string, rawBody *string) (body interface{}) {
+	if rawBody == nil {
+		return nil
+	}
+
+	rawStr := *rawBody
+	if rawStr == "" {
+		return rawStr
+	}
+	raw := []byte(*rawBody)
+
+	var ct string
+	if values, ok := headers["content-type"]; !ok {
+		return rawStr
+	} else if len(values) > 1 {
+		return rawStr
+	} else {
+		ct = values[0]
+	}
+
+	switch ct {
+	case "application/json":
+		if err := json.Unmarshal(raw, &body); err != nil {
+			return rawStr
+		}
+		return body
+
+	default:
+		return rawStr
 	}
 }
 
 func (c *context) toAddresses() map[string]interface{} {
 	addr := make(map[string]interface{})
-	if c.requestRawURI != nil {
+	if c.requestClientIP != nil {
 		addr["http.client_ip"] = *c.requestClientIP
 	}
 	if c.requestRawURI != nil {

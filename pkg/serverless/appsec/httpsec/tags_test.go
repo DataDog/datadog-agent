@@ -46,7 +46,7 @@ func TestNormalizeHTTPHeaders(t *testing.T) {
 			},
 		},
 	} {
-		headers := NormalizeHTTPHeaders(tc.headers)
+		headers := normalizeHTTPHeaders(tc.headers)
 		require.Equal(t, tc.expected, headers)
 	}
 }
