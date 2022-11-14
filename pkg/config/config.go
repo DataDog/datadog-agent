@@ -281,6 +281,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("fips.enabled", false)
 	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
+	config.BindEnvAndSetDefault("fips.https", true)
+	config.BindEnvAndSetDefault("fips.tls_verify", true)
 
 	// Remote config
 	config.BindEnvAndSetDefault("remote_configuration.enabled", false)
@@ -1364,9 +1366,6 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		// these variables are used by serverless, but not via the Config struct
 		"DD_SERVICE":            {},
 		"DD_DOTNET_TRACER_HOME": {},
-		// these variables are used by system-probe, but not via the Config struct
-		"DD_TESTS_RUNTIME_COMPILED": {},
-		"DD_TESTS_CO_RE":            {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
@@ -1540,6 +1539,10 @@ func setupFipsEndpoints(config Config) error {
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
+	if config.GetBool("fips.https") {
+		protocol = "https://"
+		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
+	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
@@ -1558,6 +1561,9 @@ func setupFipsEndpoints(config Config) error {
 	// Logs
 	config.Set("logs_config.use_http", true)
 	config.Set("logs_config.logs_no_ssl", true)
+	if config.GetBool("fips.https") {
+		config.Set("logs_config.logs_no_ssl", false)
+	}
 	config.Set("logs_config.logs_dd_url", urlFor(logs))
 
 	// Database monitoring

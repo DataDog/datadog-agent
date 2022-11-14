@@ -140,7 +140,7 @@ func StartServer(configService *remoteconfig.Service) error {
 		TLSConfig: &tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},
-			MinVersion:   tls.VersionTLS13,
+			MinVersion:   tls.VersionTLS12,
 		},
 		ErrorLog: stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {

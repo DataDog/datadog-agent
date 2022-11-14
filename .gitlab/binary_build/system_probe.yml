@@ -12,6 +12,7 @@
     - mkdir -p $NIKOS_EMBEDDED_PATH
     - tar -xf /tmp/nikos.tar.gz -C $NIKOS_EMBEDDED_PATH
   script:
+    - inv check-go-version
     - inv -e system-probe.build --nikos-embedded-path=$NIKOS_EMBEDDED_PATH --strip-object-files
     # fail if references to glibc >= 2.18
     - objdump -p $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])' && exit 1

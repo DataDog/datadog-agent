@@ -1,3 +1,2 @@
-system_probe_config:
-    enabled: true
+network_config:
     enable_protocol_classification: false

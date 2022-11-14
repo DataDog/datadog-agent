@@ -10,14 +10,15 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/gopsutil/host"
 	"github.com/cilium/ebpf/btf"
 	"github.com/mholt/archiver/v3"
 
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,10 +52,14 @@ func GetBTF(userProvidedBtfPath, bpfDir string) (*btf.Spec, COREResult) {
 }
 
 func checkEmbeddedCollection(collectionPath string) (*btf.Spec, error) {
-	si := host.GetStatusInformation()
-	platform := si.Platform
-	platformVersion := si.PlatformVersion
-	kernelVersion := si.KernelVersion
+	info, err := host.Info()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve host info: %s", err)
+	}
+
+	platform := info.Platform
+	platformVersion := info.PlatformVersion
+	kernelVersion := info.KernelVersion
 
 	btfSubdirectory := filepath.Join(platform)
 	if platform == "ubuntu" {
@@ -97,6 +102,7 @@ func loadBTFFrom(path string) (*btf.Spec, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer data.Close()
 
 	return btf.LoadSpecFromReader(data)
 }

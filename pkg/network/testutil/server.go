@@ -23,12 +23,12 @@ import (
 
 // StartServerTCPNs is identical to StartServerTCP, but it operates with the
 // network namespace provided by name.
-func StartServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
+func StartServerTCPNs(t testing.TB, ip net.IP, port int, ns string) io.Closer {
 	h, err := netns.GetFromName(ns)
 	require.NoError(t, err)
 
 	var closer io.Closer
-	_ = util.WithNS("/proc", h, func() error {
+	_ = util.WithNS(h, func() error {
 		closer = StartServerTCP(t, ip, port)
 		return nil
 	})
@@ -39,7 +39,7 @@ func StartServerTCPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 // StartServerTCP starts a TCP server listening at provided IP address and port.
 // It will respond to any connection with "hello" and then close the connection.
 // It returns an io.Closer that should be Close'd when you are finished with it.
-func StartServerTCP(t *testing.T, ip net.IP, port int) io.Closer {
+func StartServerTCP(t testing.TB, ip net.IP, port int) io.Closer {
 	ch := make(chan struct{})
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
@@ -78,7 +78,7 @@ func StartServerUDPNs(t *testing.T, ip net.IP, port int, ns string) io.Closer {
 	require.NoError(t, err)
 
 	var closer io.Closer
-	_ = util.WithNS("/proc", h, func() error {
+	_ = util.WithNS(h, func() error {
 		closer = StartServerUDP(t, ip, port)
 		return nil
 	})

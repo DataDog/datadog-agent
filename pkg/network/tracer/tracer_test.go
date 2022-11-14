@@ -39,8 +39,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
-	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -66,9 +66,6 @@ var (
 	payloadSizesTCP   = []int{2 << 5, 2 << 8, 2 << 10, 2 << 12, 2 << 14, 2 << 15}
 	payloadSizesUDP   = []int{2 << 5, 2 << 8, 2 << 12, 2 << 14}
 )
-
-// runtimeCompilationEnvVar forces use of the runtime compiler for ebpf functionality
-const runtimeCompilationEnvVar = "DD_TESTS_RUNTIME_COMPILED"
 
 func TestMain(m *testing.M) {
 	logLevel := os.Getenv("DD_LOG_LEVEL")
@@ -1738,7 +1735,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
 	}
 	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not available supported for this setup")
+		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
 	tlsLibs := []*regexp.Regexp{
@@ -1858,23 +1855,10 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	}, 10*time.Second, 1*time.Second, "couldn't find HTTPS stats")
 }
 
-func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
-	cfg := testConfig()
-	enabled := os.Getenv(runtimeCompilationEnvVar) != ""
-	assert.Equal(t, enabled, cfg.EnableRuntimeCompiler)
-	assert.NotEqual(t, enabled, cfg.AllowPrecompiledFallback)
-}
-
 func testConfig() *config.Config {
 	cfg := config.New()
 	if os.Getenv("BPF_DEBUG") != "" {
 		cfg.BPFDebug = true
-	}
-	if os.Getenv(runtimeCompilationEnvVar) != "" {
-		cfg.EnableRuntimeCompiler = true
-		cfg.AllowPrecompiledFallback = false
-	} else {
-		cfg.EnableRuntimeCompiler = false
 	}
 	return cfg
 }
@@ -1912,7 +1896,7 @@ func TestOpenSSLVersions(t *testing.T) {
 	}
 
 	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not available supported for this setup")
+		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
 	cfg := testConfig()
@@ -1978,7 +1962,7 @@ func TestOpenSSLVersions(t *testing.T) {
 // this is reason the fallback behavior may require a few warmup requests before we start capturing traffic.
 func TestOpenSSLVersionsSlowStart(t *testing.T) {
 	if !httpsSupported(t) {
-		t.Skip("HTTPS feature not available supported for this setup")
+		t.Skip("HTTPS feature not available/supported for this setup")
 	}
 
 	cfg := testConfig()
