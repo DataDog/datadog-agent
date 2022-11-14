@@ -16,7 +16,6 @@ BPF_HASH_MAP(connection_protocol, conn_tuple_t, protocol_t, 1024)
 // one we extract from the sock object, and then we are not able to correctly classify those protocols.
 // To overcome those problems, we save two maps that translates from conn tuple of sk_buff to conn tuple of sock* and vice
 // versa (the vice versa is used for cleanup purposes).
-BPF_HASH_MAP(skb_conn_tuple_to_socket_conn_tuple, conn_tuple_t, conn_tuple_t, 1024)
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 1024)
 
 // Maps a connection tuple to latest tcp segment we've processed. Helps to detect same packets that travels multiple
