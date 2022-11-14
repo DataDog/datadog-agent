@@ -298,8 +298,6 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 		log.Debugf("no processes left for ino %d", ino)
 		p.unhookBinary(ino)
 	}
-
-	return
 }
 
 func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBinary, error) {
