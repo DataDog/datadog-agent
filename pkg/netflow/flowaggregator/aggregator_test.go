@@ -191,7 +191,7 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	port := uint16(52055)
+	port := uint16(52056)
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -216,7 +216,17 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
 	aggregator.flushFlowsToSendInterval = 1 * time.Second
-	go aggregator.Start()
+
+	stoppedFlushLoop := make(chan struct{})
+	stoppedRun := make(chan struct{})
+	go func() {
+		aggregator.run()
+		stoppedRun <- struct{}{}
+	}()
+	go func() {
+		aggregator.flushLoop()
+		stoppedFlushLoop <- struct{}{}
+	}()
 
 	flowState, err := goflowlib.StartFlowRoutine(common.TypeNetFlow5, "127.0.0.1", port, 1, "default", aggregator.GetFlowInChan())
 	assert.NoError(t, err)
@@ -293,10 +303,14 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flows", 1, "", []string{"device_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 6, "", []string{"device_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 312, "", []string{"listener_port:52055", "device_ip:127.0.0.1"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52055", "device_ip:127.0.0.1"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 312, "", []string{"listener_port:52056", "device_ip:127.0.0.1"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52056", "device_ip:127.0.0.1"})
 
 	flowState.Shutdown()
+	aggregator.Stop()
+
+	<-stoppedFlushLoop
+	<-stoppedRun
 }
 
 func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
