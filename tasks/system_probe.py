@@ -541,6 +541,17 @@ def test(
     ctx.run(cmd.format(**args), env=env)
 
 
+@contextlib.contextmanager
+def chdir(dirname=None):
+    curdir = os.getcwd()
+    try:
+        if dirname is not None:
+            os.chdir(dirname)
+        yield
+    finally:
+        os.chdir(curdir)
+
+
 @task
 def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
@@ -596,6 +607,14 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
             extra_path = os.path.join(pkg, extra)
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
+
+        gotls_client_dir = os.path.join("testutil", "gotls_client")
+        gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
+        gotls_extra_path = os.path.join(pkg, gotls_client_dir)
+        if not windows and os.path.isdir(gotls_extra_path):
+            gotls_binary_path = os.path.join(target_path, gotls_client_binary)
+            with chdir(gotls_extra_path):
+                ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
