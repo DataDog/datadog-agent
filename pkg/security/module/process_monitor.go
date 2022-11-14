@@ -33,7 +33,8 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 
 	var cmdline []string
 	if entry.ArgsEntry != nil {
-		cmdline = entry.ArgsEntry.Values
+		// ignore if the args have been truncated
+		cmdline, _ = entry.ArgsEntry.ToArray()
 	}
 
 	e := &model.ProcessEvent{
