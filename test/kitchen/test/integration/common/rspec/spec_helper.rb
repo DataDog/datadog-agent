@@ -850,6 +850,11 @@ shared_examples_for 'an Agent that is removed' do
     if os == :windows
       expect(File).not_to exist("C:\\Program Files\\Datadog\\Datadog Agent\\")
     else
+      remaining_files = []
+      if Dir.exists?("/opt/datadog-agent")
+        Find.find('/opt/datadog-agent').each { |f| remaining_files.push(f) }
+      end
+      expect(remaining_files).to be_empty
       expect(File).not_to exist("/opt/datadog-agent/")
     end
   end

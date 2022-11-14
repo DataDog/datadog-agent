@@ -112,13 +112,12 @@ remove_version_history()
 
 remove_sysprobe_files()
 {
-    if [ -f "$INSTALL_DIR/run/runtime-security-registry.json" ]; then
-        rm "$INSTALL_DIR/run/runtime-security-registry.json" || true
-    fi
-
-    if [ -e "$INSTALL_DIR/run/sysprobe.sock" ]; then
-        rm "$INSTALL_DIR/run/sysprobe.sock" || true
-    fi
+    for file in run/runtime-security-registry.json run/sysprobe.sock run/system-probe.pid
+    do
+        if [ -e "$INSTALL_DIR/$file" ]; then
+            rm "$INSTALL_DIR/$file" || true
+        fi
+    done
 
     if [ -d "$INSTALL_DIR/run" ]; then
         rmdir "$INSTALL_DIR/run" || true
