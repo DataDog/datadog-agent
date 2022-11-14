@@ -9,7 +9,6 @@
 package http
 
 import (
-	"context"
 	"debug/elf"
 	"errors"
 	"fmt"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/jellydator/ttlcache/v3"
 	"github.com/vishvananda/netlink"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -105,6 +103,7 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 type pid = uint32
 type inodeNumber = uint64
 type runningProcessesSet map[pid]struct{}
+type hookedBinariesMap map[inodeNumber]*hookedBinary
 
 // hookedBinary represents a binary currently being hooked
 type hookedBinary struct {
@@ -132,7 +131,7 @@ type GoTLSProgram struct {
 	offsetsDataMap *ebpf.Map
 
 	// hookedBinaries keeps track of the currently hooked binary.
-	hookedBinaries ttlcache.Cache[inodeNumber, *hookedBinary]
+	hookedBinaries hookedBinariesMap
 
 	// pidToIno keeps track of the inode numbers of the hooked binaries
 	// associated with running processes.
@@ -153,17 +152,10 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		return nil
 	}
 	p := &GoTLSProgram{
-		procRoot: c.ProcRoot,
-		hookedBinaries: *ttlcache.New(
-			ttlcache.WithTTL[inodeNumber, *hookedBinary](2 * time.Minute),
-		),
-		pidToIno: make(map[pid]inodeNumber),
+		procRoot:       c.ProcRoot,
+		hookedBinaries: make(hookedBinariesMap),
+		pidToIno:       make(map[pid]inodeNumber),
 	}
-
-	// Detach the hooks and cleanup old eBPF map entries on eviction
-	p.hookedBinaries.OnEviction(p.cacheEntryCleanup)
-
-	go p.hookedBinaries.Start()
 
 	p.procMonitor.done = make(chan struct{})
 	p.procMonitor.events = make(chan netlink.ProcEvent, 10)
@@ -274,19 +266,17 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		return
 	}
 
-	hookedBin := p.hookedBinaries.Get(stat.Ino)
-	if hookedBin == nil {
+	hookedBin, present := p.hookedBinaries[stat.Ino]
+	if !present {
 		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
 		if err != nil {
 			log.Errorf("could not hook new binary: %s", err)
 			return
 		}
-	} else {
-		log.Debugf("resetting TTL on %s (%d)", binPath, stat.Ino)
-		hookedBin = p.hookedBinaries.Set(stat.Ino, hookedBin.Value(), ttlcache.NoTTL)
+		p.hookedBinaries[stat.Ino] = hookedBin
 	}
 
-	hookedBin.Value().running_processes[pid] = struct{}{}
+	hookedBin.running_processes[pid] = struct{}{}
 	p.pidToIno[pid] = stat.Ino
 }
 
@@ -297,22 +287,22 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 	}
 	delete(p.pidToIno, pid)
 
-	hookedBin := p.hookedBinaries.Get(ino)
-	if hookedBin == nil {
-		log.Error("could not retrieve binary entry from cache")
+	hookedBin, present := p.hookedBinaries[ino]
+	if !present {
+		log.Error("could not retrieve hooked binary")
 		return
 	}
 
-	delete(hookedBin.Value().running_processes, pid)
-	if len(hookedBin.Value().running_processes) == 0 {
+	delete(hookedBin.running_processes, pid)
+	if len(hookedBin.running_processes) == 0 {
 		log.Debugf("no processes left for ino %d", ino)
-		p.hookedBinaries.Set(ino, hookedBin.Value(), ttlcache.DefaultTTL)
+		p.unhookBinary(ino)
 	}
 
 	return
 }
 
-func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*ttlcache.Item[inodeNumber, *hookedBinary], error) {
+func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBinary, error) {
 	start := time.Now()
 
 	f, err := os.Open(binPath)
@@ -348,7 +338,7 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*ttlcache
 	p.binAnalysisMetric.Set(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%d) in %s", binPath, ino, elapsed)
 
-	return p.hookedBinaries.Set(ino, &hookedBinary{probeIDs, make(runningProcessesSet)}, ttlcache.NoTTL), nil
+	return &hookedBinary{probeIDs, make(runningProcessesSet)}, nil
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
@@ -447,7 +437,6 @@ func (p *GoTLSProgram) Stop() {
 	}
 
 	close(p.procMonitor.done)
-	p.hookedBinaries.Stop()
 }
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
@@ -457,14 +446,12 @@ func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
 	}
 }
 
-func (p *GoTLSProgram) cacheEntryCleanup(ctx context.Context, reason ttlcache.EvictionReason, i *ttlcache.Item[inodeNumber, *hookedBinary]) {
-	if reason != ttlcache.EvictionReasonExpired {
-		log.Warnf("unhandled eviction reason: %d", reason)
-		return
-	}
+func (p *GoTLSProgram) unhookBinary(ino inodeNumber) {
+	bin := p.hookedBinaries[ino]
 
-	p.detachHooks(i.Value().probeIDs)
-	p.removeInspectionResultFromMap(i.Key())
+	p.detachHooks(bin.probeIDs)
+	p.removeInspectionResultFromMap(ino)
 
-	log.Debugf("detached hooks on ino %d", i.Key())
+	log.Debugf("detached hooks on ino %d", ino)
+	delete(p.hookedBinaries, ino)
 }
