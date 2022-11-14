@@ -549,8 +549,12 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 				ns.telemetry.statsUnderflows++
 				log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), st, *c)
 
-				counters = counters.Max(st)
-				last, _ = counters.Sub(st)
+				// assume it is a new connection,
+				// latest counter values will be
+				// inserted into the cookie collection
+				// so that the next calculation
+				// should not have an underflow
+				last = counters
 			}
 
 			c.Last = c.Last.Add(last)
