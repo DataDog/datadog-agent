@@ -64,7 +64,7 @@ func (r *RequestHandler) SetMetricsTag(tag string, value float64) {
 }
 
 // Event returns the invocation event parsed by the LifecycleProcessor. It is nil if the event type is not supported
-// yet. The actual event type can be figured out thanks to a Go type switch on the event types of the pacakge
+// yet. The actual event type can be figured out thanks to a Go type switch on the event types of the package
 // github.com/aws/aws-lambda-go/events
 func (r *RequestHandler) Event() interface{} {
 	return r.event
