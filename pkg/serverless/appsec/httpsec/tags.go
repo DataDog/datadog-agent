@@ -72,15 +72,14 @@ func setAppSecEnabledTags(span span) {
 	span.SetMetricsTag("_dd.appsec.enabled", 1)
 }
 
-// SetEventSpanTags sets the security event span tags into the service entry span.
-func SetEventSpanTags(span span, events json.RawMessage) error {
+// setEventSpanTags sets the security event span tags into the service entry span.
+func setEventSpanTags(span span, events json.RawMessage) error {
 	// Set the appsec event span tag
 	val, err := makeEventsTagValue(events)
 	if err != nil {
 		return err
 	}
 	span.SetMetaTag("_dd.appsec.json", string(val))
-	// TODO: can this span be sampled out and should we enforce the priority to avoid it?
 	// Set the appsec.event tag needed by the appsec backend
 	span.SetMetaTag("appsec.event", "true")
 	return nil

@@ -141,7 +141,7 @@ type context struct {
 	requestCookies    map[string][]string // server.request.cookies
 	requestQuery      map[string][]string // server.request.query
 	requestPathParams map[string]string   // server.request.path_params
-	requestBody       *string             // server.request.body
+	requestBody       interface{}         // server.request.body
 	responseStatus    *string             // server.response.status
 }
 
@@ -149,6 +149,7 @@ type context struct {
 func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
+	body := parseBody(headers, rawBody)
 	*ctx = context{
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
