@@ -2,6 +2,7 @@
 #define __KAFKA_MAPS_H
 
 #include "kafka-types.h"
+#include "tracer.h"
 
 /* This map is used to keep track of in-flight Kafka transactions for each TCP connection */
 BPF_LRU_MAP(kafka_in_flight, conn_tuple_t, kafka_transaction_t, 0)
