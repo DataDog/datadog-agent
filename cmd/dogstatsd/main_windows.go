@@ -31,12 +31,6 @@ var (
 
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
-
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
 )
 
 func init() {

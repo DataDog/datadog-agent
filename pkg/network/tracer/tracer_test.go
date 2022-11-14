@@ -1863,22 +1863,6 @@ func testConfig() *config.Config {
 	return cfg
 }
 
-func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
-	queryMsg := new(dns.Msg)
-	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-	queryMsg.RecursionDesired = true
-	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	defer dnsConn.Close()
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-	require.NoError(t, err)
-
-	return dnsClientAddr, dnsServerAddr
-}
-
 func skipIfWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test unavailable on windows")

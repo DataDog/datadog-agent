@@ -74,12 +74,6 @@ type SearchPaths map[string]string
 // The key is the filepath of the file.
 type permissionsInfos map[string]filePermsInfo
 
-type filePermsInfo struct {
-	mode  os.FileMode
-	owner string
-	group string
-}
-
 // ProfileData maps (pprof) profile names to the profile data.
 type ProfileData map[string][]byte
 

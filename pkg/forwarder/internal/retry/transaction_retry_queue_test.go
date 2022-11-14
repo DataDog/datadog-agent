@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+// +build test
+
 package retry
 
 import (
@@ -14,6 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
+
+// only used for testing
+// GetCurrentMemSizeInBytes gets the current memory usage in bytes
+func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
+	tc.mutex.RLock()
+	defer tc.mutex.RUnlock()
+
+	return tc.currentMemSizeInBytes
+}
 
 func TestTransactionRetryQueueAdd(t *testing.T) {
 	a := assert.New(t)

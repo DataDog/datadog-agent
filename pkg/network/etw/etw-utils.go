@@ -34,6 +34,7 @@ const EPOCH_DIFFERENCE_SECS uint64 = 116444736000000000
 
 // Copied from github.com\DataDog\datadog-agent\pkg\network\http\http_stats.go
 // Note: cannot refer to it due to package circularity
+//nolint:deadcode
 const (
 	methodUnknown uint32 = iota
 	methodGet
@@ -47,6 +48,7 @@ const (
 )
 
 // From HTTP_VERB enumeration (http.h)
+//nolint:deadcode
 const (
 	httpVerbUnparsed uint32 = iota
 	httpVerbUnknown
@@ -109,6 +111,7 @@ func verbToMethod(verb uint32) uint32 {
 	return verb2method[verb]
 }
 
+//nolint:deadcode
 func httpVerbToStr(httVerb uint32) string {
 	if httVerb >= httpVerbMaximum {
 		return "<UNKNOWN>"
@@ -271,6 +274,7 @@ func parseUnicodeString(data []byte, offset int) (val string, nextOffset int, va
 	return
 }
 
+//nolint:deadcode
 func parseAsciiString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
 	singleZeroSlice := []byte{0}
 	termZeroIdx := bytes.Index(data[offset:], singleZeroSlice)
@@ -281,6 +285,7 @@ func parseAsciiString(data []byte, offset int) (val string, nextOffset int, valF
 	return string(data[offset : offset+termZeroIdx]), (offset + termZeroIdx + 1), true, (offset + termZeroIdx + 1)
 }
 
+//nolint:deadcode
 func skipAsciiString(data []byte, offset int) (nextOffset int, valFound bool, foundTermZeroIdx int) {
 	singleZeroSlice := []byte{0}
 	termZeroIdx := bytes.Index(data[offset:], singleZeroSlice)

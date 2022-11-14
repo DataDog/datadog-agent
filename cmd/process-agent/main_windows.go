@@ -33,13 +33,11 @@ const ServiceName = "datadog-process-agent"
 // opts are the command-line options
 var defaultConfigPath = flags.DefaultConfPath
 var defaultSysProbeConfigPath = flags.DefaultSysProbeConfPath
-var defaultConfdPath = flags.DefaultConfdPath
-var defaultLogFilePath = flags.DefaultLogFilePath
 
 var winopts struct {
-	startService     bool
-	stopService      bool
-	foreground       bool
+	startService bool
+	stopService  bool
+	foreground   bool
 }
 
 func init() {
@@ -47,8 +45,6 @@ func init() {
 	if err == nil {
 		defaultConfigPath = filepath.Join(pd, "datadog.yaml")
 		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
-		defaultConfdPath = filepath.Join(pd, "conf.d")
-		defaultLogFilePath = filepath.Join(pd, "logs", "process-agent.log")
 	}
 }
 
@@ -201,14 +197,6 @@ func stopService() error {
 	return controlService(svc.Stop, svc.Stopped)
 }
 
-func restartService() error {
-	var err error
-	if err = stopService(); err == nil {
-		err = startService()
-	}
-	return err
-}
-
 func controlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -237,4 +225,3 @@ func controlService(c svc.Cmd, to svc.State) error {
 	}
 	return nil
 }
-

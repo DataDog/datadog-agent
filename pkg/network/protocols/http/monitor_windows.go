@@ -18,10 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultMaxTrackedConnections = 65536
-)
-
 // Monitor is the interface to HTTP monitoring
 type Monitor interface {
 	Start()
