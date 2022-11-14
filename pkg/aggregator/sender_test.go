@@ -193,15 +193,13 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 
-	aggregatorInstance.SetHostname(altDefaultHostname)
-
 	sender, err := demux.GetSender(checkID1)
 	require.NoError(t, err)
 
 	checksender, ok := sender.(*checkSender)
 	require.True(t, ok)
 
-	assert.Equal(t, altDefaultHostname, checksender.defaultHostname)
+	assert.Equal(t, demux.Aggregator().hostname, checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 
 	aggregatorInstance.Stop()
@@ -596,28 +594,4 @@ func TestCheckSenderHostname(t *testing.T) {
 			assert.Equal(t, []string{"foo", "bar"}, event.Tags)
 		})
 	}
-}
-
-func TestChangeAllSendersDefaultHostname(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-
-	s := initSender(checkID1, "hostname1")
-	demux.SetSender(s.sender, checkID1)
-
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
-
-	demux.ChangeAllSendersDefaultHostname("hostname2")
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname2", gaugeSenderSample.metricSample.Host)
-
-	demux.ChangeAllSendersDefaultHostname("hostname1")
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
 }
