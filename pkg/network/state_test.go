@@ -1178,7 +1178,8 @@ func TestStatsResetOnUnderflow(t *testing.T) {
 	conns = state.GetDelta(client, latestEpochTime(), []ConnectionStats{conn}, nil, nil).Conns
 	require.Len(t, conns, 1)
 	expected := conn
-	expected.Last.SentBytes = 3 // 2 for cookie:0 + 1 for cookie:1
+	expected.Last.SentBytes = 1
+	// We expect the LastStats to be 0
 	assert.Equal(t, expected, conns[0])
 }
 
