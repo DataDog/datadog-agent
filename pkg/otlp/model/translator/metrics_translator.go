@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationlibrary"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/instrumentationscope"
@@ -128,6 +129,11 @@ func (t *Translator) mapNumberMetrics(
 	}
 }
 
+// getProcessStartTime returns the start time of the Agent process in seconds since epoch
+func getProcessStartTime() uint64 {
+	return uint64(config.StartTime.Unix())
+}
+
 // mapNumberMonotonicMetrics maps monotonic datapoints into Datadog metrics
 func (t *Translator) mapNumberMonotonicMetrics(
 	ctx context.Context,
@@ -135,7 +141,8 @@ func (t *Translator) mapNumberMonotonicMetrics(
 	dims *Dimensions,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	for i := 0; i < slice.Len(); i++ {
+	i := 0
+	for ; i < slice.Len(); i++ {
 		p := slice.At(i)
 		ts := uint64(p.Timestamp())
 		startTs := uint64(p.StartTimestamp())
@@ -151,6 +158,11 @@ func (t *Translator) mapNumberMonotonicMetrics(
 
 		if t.isSkippable(pointDims.name, val) {
 			continue
+		}
+
+		if i == 0 && getProcessStartTime() < startTs {
+			// Report the first value if the timeseries started after the Datadog Agent process started.
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, val)
 		}
 
 		if dx, ok := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val); ok {

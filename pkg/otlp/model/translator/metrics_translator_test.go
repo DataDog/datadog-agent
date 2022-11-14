@@ -354,6 +354,33 @@ func TestMapIntMonotonicWithReboot(t *testing.T) {
 	)
 }
 
+func TestMapIntMonotonicReportFirstValue(t *testing.T) {
+	values := []int64{10, 15, 20}
+	slice := pmetric.NewNumberDataPointSlice()
+	slice.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		point := slice.AppendEmpty()
+		point.SetStartTimestamp(seconds(startTs))
+		point.SetTimestamp(seconds(startTs + i))
+		point.SetIntValue(val)
+	}
+
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockTimeSeriesConsumer{}
+	tr.mapNumberMonotonicMetrics(ctx, consumer, exampleDims, slice)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCount(exampleDims, uint64(seconds(startTs)), 10),
+			newCount(exampleDims, uint64(seconds(startTs+1)), 5),
+			newCount(exampleDims, uint64(seconds(startTs+2)), 5),
+		},
+	)
+}
+
 func TestMapIntMonotonicOutOfOrder(t *testing.T) {
 	stamps := []int{1, 0, 2, 3}
 	values := []int64{0, 1, 2, 3}
@@ -477,6 +504,33 @@ func TestMapDoubleMonotonicWithReboot(t *testing.T) {
 		[]metric{
 			newCount(exampleDims, uint64(seconds(2)), 30),
 			newCount(exampleDims, uint64(seconds(6)), 20),
+		},
+	)
+}
+
+func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
+	values := []float64{10, 15, 20}
+	slice := pmetric.NewNumberDataPointSlice()
+	slice.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		point := slice.AppendEmpty()
+		point.SetStartTimestamp(seconds(startTs))
+		point.SetTimestamp(seconds(startTs + i))
+		point.SetDoubleValue(val)
+	}
+
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockTimeSeriesConsumer{}
+	tr.mapNumberMonotonicMetrics(ctx, consumer, exampleDims, slice)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCount(exampleDims, uint64(seconds(startTs)), 10),
+			newCount(exampleDims, uint64(seconds(startTs+1)), 5),
+			newCount(exampleDims, uint64(seconds(startTs+2)), 5),
 		},
 	)
 }
