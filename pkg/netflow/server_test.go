@@ -8,6 +8,7 @@ package netflow
 import (
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"strings"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ network_devices:
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = sendUDPPacket(port, mockNetflowV5Data)
+	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
