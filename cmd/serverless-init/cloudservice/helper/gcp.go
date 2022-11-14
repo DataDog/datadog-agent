@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metadata
+package helper
 
 import (
 	"fmt"
@@ -22,44 +22,45 @@ const defaultRegionURL = "/instance/region"
 const defaultProjectID = "/project/project-id"
 const defaultTimeout = 300 * time.Millisecond
 
-// Config holds the metadata configuration
-type Config struct {
+// GCPConfig holds the metadata configuration
+type GCPConfig struct {
 	containerIDURL string
 	regionURL      string
 	projectIDURL   string
 	timeout        time.Duration
 }
 
-type info struct {
-	tagName string
-	value   string
+// Info holds the GCP tag value format
+type Info struct {
+	TagName string
+	Value   string
 }
 
-// Metadata holds the container's metadata
-type Metadata struct {
-	containerID *info
-	region      *info
-	projectID   *info
+// GCPMetadata holds the container's metadata
+type GCPMetadata struct {
+	ContainerID *Info
+	Region      *Info
+	ProjectID   *Info
 }
 
 // TagMap returns the container's metadata in a map
-func (metadata *Metadata) TagMap() map[string]string {
+func (metadata *GCPMetadata) TagMap() map[string]string {
 	tagMap := map[string]string{}
-	if metadata.containerID != nil {
-		tagMap[metadata.containerID.tagName] = metadata.containerID.value
+	if metadata.ContainerID != nil {
+		tagMap[metadata.ContainerID.TagName] = metadata.ContainerID.Value
 	}
-	if metadata.region != nil {
-		tagMap[metadata.region.tagName] = metadata.region.value
+	if metadata.Region != nil {
+		tagMap[metadata.Region.TagName] = metadata.Region.Value
 	}
-	if metadata.projectID != nil {
-		tagMap[metadata.projectID.tagName] = metadata.projectID.value
+	if metadata.ProjectID != nil {
+		tagMap[metadata.ProjectID.TagName] = metadata.ProjectID.Value
 	}
 	return tagMap
 }
 
 // GetDefaultConfig returns the medatadata's default config
-func GetDefaultConfig() *Config {
-	return &Config{
+func GetDefaultConfig() *GCPConfig {
+	return &GCPConfig{
 		containerIDURL: fmt.Sprintf("%s%s", defaultBaseURL, defaultContainerIDURL),
 		regionURL:      fmt.Sprintf("%s%s", defaultBaseURL, defaultRegionURL),
 		projectIDURL:   fmt.Sprintf("%s%s", defaultBaseURL, defaultProjectID),
@@ -68,49 +69,49 @@ func GetDefaultConfig() *Config {
 }
 
 // GetMetaData returns the container's metadata
-func GetMetaData(config *Config) *Metadata {
+func GetMetaData(config *GCPConfig) *GCPMetadata {
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 	httpClient := &http.Client{
 		Timeout: config.timeout,
 	}
-	metadata := &Metadata{}
+	metadata := &GCPMetadata{}
 	go func() {
-		metadata.containerID = getContainerID(httpClient, config)
+		metadata.ContainerID = getContainerID(httpClient, config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.region = getRegion(httpClient, config)
+		metadata.Region = getRegion(httpClient, config)
 		wg.Done()
 	}()
 	go func() {
-		metadata.projectID = getProjectID(httpClient, config)
+		metadata.ProjectID = getProjectID(httpClient, config)
 		wg.Done()
 	}()
 	wg.Wait()
 	return metadata
 }
 
-func getContainerID(httpClient *http.Client, config *Config) *info {
-	return &info{
-		tagName: "container_id",
-		value:   getSingleMetadata(httpClient, config.containerIDURL),
+func getContainerID(httpClient *http.Client, config *GCPConfig) *Info {
+	return &Info{
+		TagName: "container_id",
+		Value:   getSingleMetadata(httpClient, config.containerIDURL),
 	}
 }
 
-func getRegion(httpClient *http.Client, config *Config) *info {
+func getRegion(httpClient *http.Client, config *GCPConfig) *Info {
 	value := getSingleMetadata(httpClient, config.regionURL)
 	tokens := strings.Split(value, "/")
-	return &info{
-		tagName: "location",
-		value:   tokens[len(tokens)-1],
+	return &Info{
+		TagName: "location",
+		Value:   tokens[len(tokens)-1],
 	}
 }
 
-func getProjectID(httpClient *http.Client, config *Config) *info {
-	return &info{
-		tagName: "project_id",
-		value:   getSingleMetadata(httpClient, config.projectIDURL),
+func getProjectID(httpClient *http.Client, config *GCPConfig) *Info {
+	return &Info{
+		TagName: "project_id",
+		Value:   getSingleMetadata(httpClient, config.projectIDURL),
 	}
 }
 
