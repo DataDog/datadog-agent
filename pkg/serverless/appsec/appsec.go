@@ -32,7 +32,7 @@ func New() (*AppSec, error) {
 	if enabled, _, err := isEnabled(); err != nil {
 		return nil, err
 	} else if !enabled {
-		log.Debug("appsec: security monitoring is not enabled: DD_APPSEC_ENABLED is not set to true")
+		log.Debug("appsec: security monitoring is not enabled: DD_SERVERLESS_APPSEC_ENABLED is not set to true")
 		return nil, nil
 	}
 
