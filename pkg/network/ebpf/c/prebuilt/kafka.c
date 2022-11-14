@@ -14,16 +14,13 @@
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-//SEC("socket/http_filter_entry")
 SEC("socket/kafka_filter_entry")
 int socket__kafka_filter_entry(struct __sk_buff *skb) {
     bpf_tail_call_compat(skb, &kafka_progs, KAFKA_PROG);
     return 0;
 }
 
-//SEC("socket/http_filter")
 SEC("socket/kafka_filter")
-//int socket__http_filter(struct __sk_buff* skb) {
 int socket__kafka_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     u32 zero = 0;
