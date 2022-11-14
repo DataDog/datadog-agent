@@ -177,6 +177,8 @@ require (
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.64.1
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.64.1
 	go.opentelemetry.io/collector/pdata v0.64.1
+	go.opentelemetry.io/collector/processor/batchprocessor v0.64.1
+	go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/multierr v1.8.0
@@ -419,11 +421,7 @@ require (
 
 require google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 
-require (
-	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
-	go.opentelemetry.io/collector/processor/batchprocessor v0.64.1
-	go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1
-)
+require github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
