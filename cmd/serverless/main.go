@@ -259,8 +259,8 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 			log.Error("appsec: could not start: ", err)
 		} else if appsec != nil {
 			log.Info("appsec: started successfully")
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 		}
-		httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 	}()
 
 	wg.Wait()
