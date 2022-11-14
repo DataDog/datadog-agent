@@ -98,12 +98,6 @@ type senderOrchestratorManifest struct {
 	clusterID string
 }
 
-type checkSenderPool struct {
-	agg     *BufferedAggregator
-	senders map[check.ID]Sender
-	m       sync.Mutex
-}
-
 func newCheckSender(
 	id check.ID,
 	defaultHostname string,
@@ -138,41 +132,20 @@ func newCheckSender(
 	}
 }
 
-// GetSender returns a Sender with passed ID, properly registered with the aggregator
-// If no error is returned here, DestroySender must be called with the same ID
-// once the sender is not used anymore
-func GetSender(id check.ID) (Sender, error) {
-	if demultiplexerInstance == nil {
-		return nil, errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.GetSender(id)
-}
-
-// DestroySender frees up the resources used by the sender with passed ID (by deregistering it from the aggregator)
-// Should be called when no sender with this ID is used anymore
-// The metrics of this (these) sender(s) that haven't been flushed yet will be lost
-func DestroySender(id check.ID) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.DestroySender(id)
-}
-
-// SetSender returns the passed sender with the passed ID.
-// This is largely for testing purposes
-func SetSender(sender Sender, id check.ID) error {
-	if demultiplexerInstance == nil {
-		return errors.New("Demultiplexer was not initialized")
-	}
-	return demultiplexerInstance.SetSender(sender, id)
-}
-
 // GetDefaultSender returns the default sender
 func GetDefaultSender() (Sender, error) {
 	if demultiplexerInstance == nil {
 		return nil, errors.New("Demultiplexer was not initialized")
 	}
 	return demultiplexerInstance.GetDefaultSender()
+}
+
+// NewSender returns a new instance of a sender
+func NewSender(id check.ID) (Sender, error) {
+	if demultiplexerInstance == nil {
+		return nil, errors.New("Demultiplexer was not initialized")
+	}
+	return demultiplexerInstance.NewSender(id), nil
 }
 
 // DisableDefaultHostname allows check to override the default hostname that will be injected
@@ -422,50 +395,4 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 }
 func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
-}
-
-func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-
-	if sender, ok := sp.senders[id]; ok {
-		return sender, nil
-	}
-	return nil, fmt.Errorf("Sender not found")
-}
-
-func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-
-	sender := newCheckSender(
-		id,
-		sp.agg.hostname,
-		sp.agg.checkItems,
-		sp.agg.serviceCheckIn,
-		sp.agg.eventIn,
-		sp.agg.orchestratorMetadataIn,
-		sp.agg.orchestratorManifestIn,
-		sp.agg.eventPlatformIn,
-		sp.agg.contLcycleIn,
-		sp.agg.tagsStore,
-	)
-	sp.senders[id] = sender
-	return sender, nil
-}
-
-func (sp *checkSenderPool) setSender(sender Sender, id check.ID) error {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-
-	sp.senders[id] = sender
-
-	return nil
-}
-
-func (sp *checkSenderPool) removeSender(id check.ID) {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-
-	delete(sp.senders, id)
 }

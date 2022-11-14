@@ -122,6 +122,11 @@ func (c *JMXCheck) GetWarnings() []error {
 	return []error{}
 }
 
+// GetSender2 implements Check#GetSender2
+func (c *JMXCheck) GetSender2() interface{} {
+	return nil
+}
+
 // GetSenderStats TODO <agent-core> : IML-199
 func (c *JMXCheck) GetSenderStats() (check.SenderStats, error) {
 	return check.NewSenderStats(), nil

@@ -44,6 +44,9 @@ func (c *StubCheck) ID() ID { return ID(c.String()) }
 // GetWarnings returns an empty slice
 func (c *StubCheck) GetWarnings() []error { return []error{} }
 
+// GetSender2
+func (c *StubCheck) GetSender2() interface{} { return nil }
+
 // GetSenderStats returns an empty map
 func (c *StubCheck) GetSenderStats() (SenderStats, error) { return NewSenderStats(), nil }
 

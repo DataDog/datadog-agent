@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 )
 
 // FIXTURE
@@ -109,7 +108,7 @@ func (suite *CollectorTestSuite) TestRunCheck() {
 	assert.NotNil(suite.T(), id)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 1, len(suite.c.checks))
-	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"].Inner())
+	assert.Equal(suite.T(), ch, suite.c.checks["TestCheck"])
 
 	// schedule the same check twice
 	_, err = suite.c.RunCheck(ch)
@@ -147,7 +146,7 @@ func (suite *CollectorTestSuite) TestGet() {
 	_, found := suite.c.get("bar")
 	assert.False(suite.T(), found)
 
-	suite.c.checks["bar"] = middleware.NewCheckWrapper(NewCheck())
+	suite.c.checks["bar"] = NewCheck()
 	_, found = suite.c.get("foo")
 	assert.False(suite.T(), found)
 	c, found := suite.c.get("bar")

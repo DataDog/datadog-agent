@@ -71,12 +71,8 @@ type Demultiplexer interface {
 
 	// Senders API, mainly used by collectors/checks
 	// --
-
-	GetSender(id check.ID) (Sender, error)
-	SetSender(sender Sender, id check.ID) error
-	DestroySender(id check.ID)
+	NewSender(id check.ID) Sender
 	GetDefaultSender() (Sender, error)
-	cleanSenders()
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.

@@ -6,7 +6,6 @@
 package corechecks
 
 import (
-	"fmt"
 	"time"
 
 	yaml "gopkg.in/yaml.v2"
@@ -46,6 +45,7 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	sender         aggregator.Sender
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -78,12 +78,7 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 	}
 
 	// Add the possibly configured service as a tag for this check
-	s, err := c.GetSender()
-	if err != nil {
-		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-		return err
-	}
-	s.FinalizeCheckServiceTag()
+	c.sender.FinalizeCheckServiceTag()
 
 	return nil
 }
@@ -91,6 +86,12 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
 func (c *CheckBase) CommonConfigure(initConfig, instanceConfig integration.Data, source string) error {
+	if sender, err := aggregator.NewSender(c.checkID); err == nil {
+		c.sender = sender
+	} else {
+		return err
+	}
+
 	handleConf := func(conf integration.Data, c *CheckBase) error {
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)
@@ -106,32 +107,17 @@ func (c *CheckBase) CommonConfigure(initConfig, instanceConfig integration.Data,
 
 		// Disable default hostname if specified
 		if commonOptions.EmptyDefaultHostname {
-			s, err := c.GetSender()
-			if err != nil {
-				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-				return err
-			}
-			s.DisableDefaultHostname(true)
+			c.sender.DisableDefaultHostname(true)
 		}
 
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
-			s, err := c.GetSender()
-			if err != nil {
-				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-				return err
-			}
-			s.SetCheckCustomTags(commonOptions.Tags)
+			c.sender.SetCheckCustomTags(commonOptions.Tags)
 		}
 
 		// Set configured service for this check, overriding the one possibly defined globally
 		if len(commonOptions.Service) > 0 {
-			s, err := c.GetSender()
-			if err != nil {
-				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
-				return err
-			}
-			s.SetCheckService(commonOptions.Service)
+			c.sender.SetCheckService(commonOptions.Service)
 		}
 
 		c.source = source
@@ -240,23 +226,24 @@ func (c *CheckBase) GetWarnings() []error {
 //
 // See `safesender.go` for details on the managed errors.
 func (c *CheckBase) GetSender() (aggregator.Sender, error) {
-	sender, err := c.GetRawSender()
-	if err != nil {
-		return nil, err
-	}
-	return newSafeSender(sender), err
+	return newSafeSender(c.sender), nil
+}
+
+func (c *CheckBase) GetSender2() interface{} {
+	return c.sender
 }
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
 func (c *CheckBase) GetRawSender() (aggregator.Sender, error) {
-	return aggregator.GetSender(c.ID())
+	return c.sender, nil
 }
 
 // GetSenderStats returns the stats from the last run of the check.
 func (c *CheckBase) GetSenderStats() (check.SenderStats, error) {
-	sender, err := c.GetSender()
-	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("failed to retrieve a sender: %v", err)
-	}
-	return sender.GetSenderStats(), nil
+	return c.sender.GetSenderStats(), nil
+}
+
+// SetSender for tests (FIXME(vf))
+func (c *CheckBase) SetSender(s aggregator.Sender) {
+	c.sender = s
 }

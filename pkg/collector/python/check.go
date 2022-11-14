@@ -49,6 +49,7 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	sender         aggregator.Sender
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -93,11 +94,7 @@ func (c *PythonCheck) runCheck(commitMetrics bool) error {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
-		s, err := aggregator.GetSender(c.ID())
-		if err != nil {
-			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-		}
-		s.Commit()
+		c.sender.Commit()
 	}
 
 	// grab the warnings and add them to the struct
@@ -211,6 +208,12 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	// Generate check ID
 	c.id = check.Identify(c, data, initConfig)
 
+	if sender, err := aggregator.NewSender(c.id); err == nil {
+		c.sender = sender
+	} else {
+		return err
+	}
+
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {
 		log.Errorf("invalid init_config section for check %s: %s", string(c.id), err)
@@ -219,12 +222,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
-		} else {
-			s.SetCheckService(commonGlobalOptions.Service)
-		}
+		c.sender.SetCheckService(commonGlobalOptions.Service)
 	}
 
 	commonOptions := integration.CommonInstanceConfig{}
@@ -240,22 +238,12 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := aggregator.GetSender(c.id)
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
-		} else {
-			s.DisableDefaultHostname(true)
-		}
+		c.sender.DisableDefaultHostname(true)
 	}
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := aggregator.GetSender(c.id)
-		if err != nil {
-			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
-		} else {
-			s.SetCheckService(commonOptions.Service)
-		}
+		c.sender.SetCheckService(commonOptions.Service)
 	}
 
 	cInitConfig := TrackedCString(string(initConfig))
@@ -297,12 +285,7 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	c.source = source
 
 	// Add the possibly configured service as a tag for this check
-	s, err := aggregator.GetSender(c.id)
-	if err != nil {
-		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
-	} else {
-		s.FinalizeCheckServiceTag()
-	}
+	c.sender.FinalizeCheckServiceTag()
 
 	c.initConfig = string(initConfig)
 	c.instanceConfig = string(data)
@@ -311,13 +294,13 @@ func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Da
 	return nil
 }
 
+func (c *PythonCheck) GetSender2() interface{} {
+	return c.sender
+}
+
 // GetSenderStats returns the stats from the last run of the check
 func (c *PythonCheck) GetSenderStats() (check.SenderStats, error) {
-	sender, err := aggregator.GetSender(c.ID())
-	if err != nil {
-		return check.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
-	}
-	return sender.GetSenderStats(), nil
+	return c.sender.GetSenderStats(), nil
 }
 
 // Interval returns the scheduling time for the check

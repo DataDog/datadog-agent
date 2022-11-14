@@ -12,8 +12,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
@@ -28,6 +28,12 @@ const (
 
 const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 
+// FIXME(vf) workaround for pkg/aggregator not being importable in pkg/collector/check
+type CheckWithSender interface {
+	check.Check
+	GetSender(aggregator.Sender, error)
+}
+
 // Collector abstract common operations about running a Check
 type Collector struct {
 	checkInstances int64
@@ -37,7 +43,7 @@ type Collector struct {
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	checks    map[check.ID]*middleware.CheckWrapper
+	checks    map[check.ID]check.Check
 
 	m sync.RWMutex
 }
@@ -45,7 +51,7 @@ type Collector struct {
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
 	c := &Collector{
-		checks:         make(map[check.ID]*middleware.CheckWrapper),
+		checks:         make(map[check.ID]check.Check),
 		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
@@ -110,11 +116,9 @@ func (c *Collector) Stop() {
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
+func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
-
-	ch := middleware.NewCheckWrapper(inner)
 
 	var emptyID check.ID
 

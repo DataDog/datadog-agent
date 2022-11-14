@@ -31,6 +31,9 @@ type Check interface {
 	ID() ID
 	// GetWarnings returns the last warning registered by the check
 	GetWarnings() []error
+	// GetSender returns an instance of sender.
+	// FIXME(vf): refactor aggregator.Sender to be nameable here and merge with checkbase.GetSender
+	GetSender2() interface{}
 	// GetSenderStats returns the stats from the last run of the check.
 	GetSenderStats() (SenderStats, error)
 	// Version returns the version of the check if available

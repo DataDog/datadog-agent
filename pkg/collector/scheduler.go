@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -263,4 +264,15 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 // GetLoaderErrors returns the check loader errors
 func GetLoaderErrors() map[string]map[string]string {
 	return errorStats.getLoaderErrors()
+}
+
+// GetSender returns a sender for the check, or an error if the check is not scheduled.
+//
+// Must only be called after InitCheckScheduler completes.
+func GetSender(id check.ID) (aggregator.Sender, error) {
+	if c, ok := checkScheduler.collector.checks[id]; ok {
+		return c.GetSender2().(aggregator.Sender), nil
+	} else {
+		return nil, fmt.Errorf("check not found: %s", id)
+	}
 }

@@ -70,91 +70,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	assert.Equal(t, defaultSender1.id, defaultSender2.id)
 }
 
-func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-	aggregatorInstance := demux.Aggregator()
-	go aggregatorInstance.run()
-	defer aggregatorInstance.Stop()
-
-	s, err := demux.GetSender(checkID1)
-	assert.Nil(t, err)
-	sender1 := s.(*checkSender)
-
-	s, err = demux.GetSender(checkID2)
-	assert.Nil(t, err)
-	sender2 := s.(*checkSender)
-	assert.NotEqual(t, sender1.id, sender2.id)
-
-	s, err = demux.GetDefaultSender()
-	assert.Nil(t, err)
-	defaultSender := s.(*checkSender)
-	assert.NotEqual(t, sender1.id, defaultSender.id)
-	assert.NotEqual(t, sender2.id, defaultSender.id)
-}
-
-func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-
-	sender1, err := demux.GetSender(checkID1)
-	assert.Nil(t, err)
-
-	assert.Len(t, demux.senderPool.senders, 1)
-
-	sender2, err := demux.GetSender(checkID1)
-	assert.Nil(t, err)
-	assert.Equal(t, sender1, sender2)
-
-	assert.Len(t, demux.senderPool.senders, 1)
-}
-
-func TestDestroySender(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-
-	_, err := demux.GetSender(checkID1)
-	assert.Nil(t, err)
-	assert.Len(t, demux.senderPool.senders, 1)
-
-	_, err = demux.GetSender(checkID2)
-	assert.Nil(t, err)
-	assert.Len(t, demux.senderPool.senders, 2)
-
-	demux.DestroySender(checkID1)
-	assert.Len(t, demux.senderPool.senders, 1)
-}
-
-func TestGetAndSetSender(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-
-	itemChan := make(chan senderItem, 10)
-	serviceCheckChan := make(chan metrics.ServiceCheck, 10)
-	eventChan := make(chan metrics.Event, 10)
-	orchestratorChan := make(chan senderOrchestratorMetadata, 10)
-	orchestratorManifestChan := make(chan senderOrchestratorManifest, 10)
-	eventPlatformChan := make(chan senderEventPlatformEvent, 10)
-	contlcycleChan := make(chan senderContainerLifecycleEvent, 10)
-	testCheckSender := newCheckSender(checkID1, "", itemChan, serviceCheckChan, eventChan, orchestratorChan, orchestratorManifestChan, eventPlatformChan, contlcycleChan, tags.NewStore(false, "test"))
-
-	err := demux.SetSender(testCheckSender, checkID1)
-	assert.Nil(t, err)
-
-	sender, err := demux.GetSender(checkID1)
-	assert.Nil(t, err)
-	assert.Equal(t, testCheckSender, sender)
-}
-
-func TestGetSenderDefaultHostname(t *testing.T) {
+func TestNewSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
@@ -162,8 +78,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 
-	sender, err := demux.GetSender(checkID1)
-	require.NoError(t, err)
+	sender := demux.NewSender(checkID1)
 
 	checksender, ok := sender.(*checkSender)
 	require.True(t, ok)

@@ -936,7 +936,12 @@ func TestCheck_Run(t *testing.T) {
 				return sess, nil
 			}
 			sess.ConnectErr = tt.sessionConnError
-			chk := Check{sessionFactory: sessionFactory}
+
+			sender := new(mocksender.MockSender)
+			chk := Check{
+				sessionFactory: sessionFactory,
+			}
+			chk.SetSender(sender)
 
 			// language=yaml
 			rawInstanceConfig := []byte(fmt.Sprintf(`
@@ -949,14 +954,10 @@ namespace: '%s'
 			err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
 
-			sender := new(mocksender.MockSender)
-
 			if !tt.disableAggregator {
 				aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 			}
-
-			mocksender.SetSender(sender, chk.ID())
 
 			sess.On("GetNext", []string{"1.0"}).Return(&tt.reachableValuesPacket, tt.reachableGetNextError)
 			sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&tt.sysObjectIDPacket, tt.sysObjectIDError)
@@ -1015,8 +1016,7 @@ metrics:
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
-
-	mocksender.SetSender(sender, chk.ID())
+	chk.SetSender(sender)
 
 	packet := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{},
