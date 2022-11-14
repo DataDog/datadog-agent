@@ -262,7 +262,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 
 	var stat syscall.Stat_t
 	if err = syscall.Stat(binPath, &stat); err != nil {
-		log.Errorf("could not stat binary path %s: %s", binPath, err)
+		log.Debugf("could not stat binary path %s: %s", binPath, err)
 		return
 	}
 
@@ -270,7 +270,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	if !present {
 		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
 		if err != nil {
-			log.Errorf("could not hook new binary: %s", err)
+			log.Debugf("could not hook new binary: %s", err)
 			return
 		}
 		p.hookedBinaries[stat.Ino] = hookedBin
