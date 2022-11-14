@@ -273,11 +273,6 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	enableProbe(p, probes.SockGetSockOpt)
 	enableProbe(p, probes.IPMakeSkb)
 
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, err
-	}
-
 	if kprobe.ClassificationSupported(c) {
 		enableProbe(p, probes.NetDevQueue)
 		enableProbe(p, probes.TCPSendMsg)
@@ -286,6 +281,11 @@ func offsetGuessProbes(c *config.Config) (map[probes.ProbeName]string, error) {
 	if c.CollectIPv6Conns {
 		enableProbe(p, probes.TCPv6Connect)
 		enableProbe(p, probes.TCPv6ConnectReturn)
+
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, err
+		}
 
 		if kv < kernel.VersionCode(4, 7, 0) {
 			enableProbe(p, probes.IP6MakeSkbPre470)
@@ -577,6 +577,7 @@ func checkAndUpdateCurrentOffset(mp *ebpf.Map, status *netebpf.TracerStatus, exp
 				break
 			}
 		}
+		fmt.Println("captured ", string(status.Msghdr_buffer[:strSize]))
 		if string(status.Msghdr_buffer[:strSize]) == "this is a test string" {
 			logAndAdvance(status, status.Offset_msghdr_buffer_head, netebpf.GuessDAddrIPv6)
 			break
@@ -722,7 +723,7 @@ func guessOffsets(m *manager.Manager, cfg *config.Config) ([]manager.ConstantEdi
 			status.Offset_netns >= threshold || status.Offset_family >= threshold ||
 			status.Offset_daddr_ipv6 >= threshold || status.Offset_rtt >= thresholdInetSock ||
 			status.Offset_socket_sk >= threshold || status.Offset_sk_buff_sock >= threshold ||
-			status.Offset_msghdr_buffer_head >= 100 {
+			status.Offset_msghdr_buffer_head >= threshold {
 			return nil, fmt.Errorf("overflow while guessing %v, bailing out", whatString[netebpf.GuessWhat(status.What)])
 		}
 	}
