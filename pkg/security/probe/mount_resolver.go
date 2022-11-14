@@ -11,7 +11,6 @@ package probe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -213,11 +212,6 @@ func (mr *MountResolver) Get(mountID, pid uint32) (*model.MountEvent, error) {
 func (mr *MountResolver) Insert(e model.MountEvent) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
-
-	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
-		// do not insert an invalid value
-		return fmt.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
-	}
 
 	mr.insert(e)
 

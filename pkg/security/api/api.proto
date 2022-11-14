@@ -154,7 +154,9 @@ message ActivityDumpListMessage {
 }
 
 message ActivityDumpStopParams {
-    string Comm = 2;
+    string Name = 1;
+    string ContainerID = 2;
+    string Comm = 3;
 }
 
 message ActivityDumpStopMessage {

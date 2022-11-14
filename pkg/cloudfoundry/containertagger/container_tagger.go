@@ -9,9 +9,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"code.cloudfoundry.org/garden"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -32,6 +34,8 @@ type ContainerTagger struct {
 	store                 workloadmeta.Store
 	seen                  map[string]struct{}
 	tagsHashByContainerID map[string]string
+	retryCount            int
+	retryInterval         time.Duration
 }
 
 // NewContainerTagger creates a new container tagger.
@@ -41,11 +45,17 @@ func NewContainerTagger() (*ContainerTagger, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	retryCount := config.Datadog.GetInt("cloud_foundry_container_tagger.retry_count")
+	retryInterval := time.Second * time.Duration(config.Datadog.GetInt("cloud_foundry_container_tagger.retry_interval"))
+
 	return &ContainerTagger{
 		gardenUtil:            gu,
 		store:                 workloadmeta.GetGlobalStore(),
 		seen:                  make(map[string]struct{}),
 		tagsHashByContainerID: make(map[string]string),
+		retryCount:            retryCount,
+		retryInterval:         retryInterval,
 	}, nil
 }
 
@@ -108,12 +118,22 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 			return fmt.Errorf("error retrieving container %s from the garden API: %v", containerID, err)
 		}
 
-		log.Infof("Updating tags in container %s", containerID)
 		go func() {
-			err = updateTagsInContainer(container, tags)
-			if err != nil {
-				log.Errorf("Error running a process inside container %s: %v", containerID, err)
+			var exitCode int
+			var err error
+			for retry := 0; retry < c.retryCount; retry++ {
+				log.Infof("Updating tags in container `%s` retry #%d", containerID, retry)
+				exitCode, err = updateTagsInContainer(container, tags)
+				if err != nil {
+					log.Warnf("Error running a process inside container `%s`: %v", containerID, err)
+				} else if exitCode == 0 {
+					log.Debugf("Successfully updated tags in container `%s`", containerID)
+					return
+				}
+				log.Debugf("Process for container '%s' exited with code: %d", containerID, exitCode)
+				time.Sleep(c.retryInterval)
 			}
+			log.Debugf("Could not inject tags into container '%s' exit code is: %d", containerID, exitCode)
 		}()
 
 	} else if evt.Type == workloadmeta.EventTypeUnset {
@@ -125,20 +145,16 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 }
 
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
-func updateTagsInContainer(container garden.Container, tags []string) error {
+func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
+	shell_path := config.Datadog.GetString("cloud_foundry_container_tagger.shell_path")
 	process, err := container.Run(garden.ProcessSpec{
-		Path: "/bin/sh",
+		Path: shell_path,
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
 		User: "vcap",
 		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},
 	}, garden.ProcessIO{})
 	if err != nil {
-		return err
+		return -1, err
 	}
-	exitCode, err := process.Wait()
-	if err != nil {
-		return err
-	}
-	log.Debugf("Process %s exited with code: %d", process.ID(), exitCode)
-	return nil
+	return process.Wait()
 }
