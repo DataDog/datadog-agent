@@ -45,7 +45,7 @@ var flowsetMapper = map[string]string{
 
 // metricNameMapping maps goflow prometheus metrics to datadog netflow telemetry metrics
 var metricNameMapping = map[string]mappedMetric{
-	"flow_decoder_count": mappedMetric{
+	"flow_decoder_count": {
 		name:           "decoder.messages",
 		allowedTagKeys: []string{"name", "worker"},
 		valueRemapper: map[string]remapperType{
@@ -55,7 +55,7 @@ var metricNameMapping = map[string]mappedMetric{
 			"name": "collector_type",
 		},
 	},
-	"flow_decoder_error_count": mappedMetric{
+	"flow_decoder_error_count": {
 		name:           "decoder.errors",
 		allowedTagKeys: []string{"name", "worker"},
 		valueRemapper: map[string]remapperType{
@@ -65,7 +65,7 @@ var metricNameMapping = map[string]mappedMetric{
 			"name": "collector_type",
 		},
 	},
-	"flow_process_nf_count": mappedMetric{
+	"flow_process_nf_count": {
 		name:           "processor.flows",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
@@ -73,7 +73,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_process_nf_flowset_sum": mappedMetric{
+	"flow_process_nf_flowset_sum": {
 		name:           "processor.flowsets",
 		allowedTagKeys: []string{"router", "type", "version"},
 		valueRemapper: map[string]remapperType{
@@ -84,7 +84,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:netflow"},
 	},
-	"flow_traffic_bytes": mappedMetric{
+	"flow_traffic_bytes": {
 		name:           "traffic.bytes",
 		allowedTagKeys: []string{"local_port", "remote_ip", "name"},
 		keyRemapper: map[string]string{
@@ -96,7 +96,7 @@ var metricNameMapping = map[string]mappedMetric{
 			"name": remapCollectorType,
 		},
 	},
-	"flow_traffic_packets": mappedMetric{
+	"flow_traffic_packets": {
 		name:           "traffic.packets",
 		allowedTagKeys: []string{"local_port", "remote_ip", "name"},
 		keyRemapper: map[string]string{
@@ -108,7 +108,7 @@ var metricNameMapping = map[string]mappedMetric{
 			"name": remapCollectorType,
 		},
 	},
-	"flow_process_sf_count": mappedMetric{
+	"flow_process_sf_count": {
 		name:           "processor.flows",
 		allowedTagKeys: []string{"router", "version"},
 		keyRemapper: map[string]string{
@@ -116,7 +116,7 @@ var metricNameMapping = map[string]mappedMetric{
 		},
 		extraTags: []string{"flow_protocol:sflow"},
 	},
-	"flow_process_sf_errors_count": mappedMetric{
+	"flow_process_sf_errors_count": {
 		name:           "processor.errors",
 		allowedTagKeys: []string{"router", "error"},
 		keyRemapper: map[string]string{

@@ -366,11 +366,11 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 	aggregator := NewFlowAggregator(sender, &conf, "my-hostname")
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
 		return []*promClient.MetricFamily{
-			&promClient.MetricFamily{
+			{
 				Name: proto.String("flow_decoder_count"),
 				Type: promClient.MetricType_COUNTER.Enum(),
 				Metric: []*promClient.Metric{
-					&promClient.Metric{
+					{
 						Counter: &promClient.Counter{Value: proto.Float64(10)},
 						Label: []*promClient.LabelPair{
 							{Name: proto.String("name"), Value: proto.String("NetFlowV5")},
@@ -379,11 +379,11 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 					},
 				},
 			},
-			&promClient.MetricFamily{
+			{
 				Name: proto.String("flow_decoder_error_count"),
 				Type: promClient.MetricType_GAUGE.Enum(),
 				Metric: []*promClient.Metric{
-					&promClient.Metric{
+					{
 						Gauge: &promClient.Gauge{Value: proto.Float64(20)},
 						Label: []*promClient.LabelPair{
 							{Name: proto.String("name"), Value: proto.String("NetFlowV5")},
@@ -392,11 +392,11 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 					},
 				},
 			},
-			&promClient.MetricFamily{
+			{
 				Name: proto.String("flow_decoder_error_count"),
 				Type: promClient.MetricType_UNTYPED.Enum(), // unsupported type is ignored
 				Metric: []*promClient.Metric{
-					&promClient.Metric{
+					{
 						Gauge: &promClient.Gauge{Value: proto.Float64(20)},
 						Label: []*promClient.LabelPair{
 							{Name: proto.String("name"), Value: proto.String("NetFlowV5")},
