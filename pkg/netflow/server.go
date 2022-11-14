@@ -7,14 +7,14 @@ package netflow
 
 import (
 	"context"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
