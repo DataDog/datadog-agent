@@ -170,26 +170,9 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		})
 	}
 
-	// Chunking resources based on the serialized size of their manifest and maximum messages number
-	// Chunk metadata messages and use resourceManifestModels as weight indicator
-	metadataChunker := &collectorOrchestratorChunker{}
-	chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, metadataChunker)
-	// Chunk manifest messages and use itself as weight indicator
-	manifestChunker := &collectorOrchestratorChunker{}
-	chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, manifestChunker)
-
-	chunkCount := len(metadataChunker.collectorOrchestratorList)
-	metadataMessages := make([]model.MessageBody, 0, len(metadataChunker.collectorOrchestratorList))
-	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
-
-	for i := 0; i < chunkCount; i++ {
-		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
-	}
-
 	processResult = ProcessResult{
-		MetadataMessages: metadataMessages,
-		ManifestMessages: manifestMessages,
+		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
+		ManifestMessages: ChunkManifest(ctx, resourceManifestModels),
 	}
 
 	return processResult, len(resourceMetadataModels)
@@ -210,4 +193,37 @@ func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interfa
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 	}
+}
+
+// ChunkManifest is to chunk Manifest payloads
+func ChunkManifest(ctx *ProcessorContext, resourceManifestModels []interface{}) []model.MessageBody {
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk manifest messages and use itself as weight indicator
+	manifestChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceManifestModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, manifestChunker)
+
+	chunkCount := len(manifestChunker.collectorOrchestratorList)
+	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
+
+	for i := 0; i < chunkCount; i++ {
+		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
+	}
+
+	return manifestMessages
+}
+
+// ChunkMetadata is to chunk Metadata payloads
+func ChunkMetadata(ctx *ProcessorContext, p *Processor, resourceMetadataModels, resourceManifestModels []interface{}) []model.MessageBody {
+	// Chunking resources based on the serialized size of their manifest and maximum messages number
+	// Chunk metadata messages and use resourceManifestModels as weight indicator
+	metadataChunker := &collectorOrchestratorChunker{}
+	chunkOrchestratorPayloadsBySizeAndWeight(resourceMetadataModels, resourceManifestModels, ctx.Cfg.MaxPerMessage, ctx.Cfg.MaxWeightPerMessageBytes, metadataChunker)
+
+	chunkCount := len(metadataChunker.collectorOrchestratorList)
+	metadataMessages := make([]model.MessageBody, 0, len(metadataChunker.collectorOrchestratorList))
+	for i := 0; i < chunkCount; i++ {
+		metadataMessages = append(metadataMessages, p.h.BuildMessageBody(ctx, metadataChunker.collectorOrchestratorList[i], chunkCount))
+	}
+
+	return metadataMessages
 }
