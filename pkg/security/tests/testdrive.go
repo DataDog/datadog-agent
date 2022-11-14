@@ -124,7 +124,10 @@ func (td *testDrive) unmount() error {
 	return td.mount.unmount(syscall.MNT_FORCE)
 }
 
-func (td *testDrive) cleanup() {
+func (td *testDrive) Close() {
+	if err := td.unmount(); err != nil {
+		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
+	}
 	if td.dev != nil {
 		if err := td.dev.Detach(); err != nil {
 			fmt.Printf("failed to detach test drive: %s (lsof: %s)", err, td.lsof())
@@ -135,11 +138,4 @@ func (td *testDrive) cleanup() {
 	}
 	os.Remove(td.file.Name())
 	os.RemoveAll(td.Root())
-}
-
-func (td *testDrive) Close() {
-	if err := td.unmount(); err != nil {
-		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
-	}
-	td.cleanup()
 }

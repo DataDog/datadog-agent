@@ -153,8 +153,9 @@ func TestMountPropagated(t *testing.T) {
 	// - testroot
 	// 		/ dir1
 	// 			/ test-drive (xfs mount)
-	// 		/ dir-bind-mounted (bind mount de testroot/dir1)
+	// 		/ dir-bind-mounted (bind mount of testroot/dir1)
 	// 			/ test-drive (propagated)
+	//				/ test-file
 
 	ruleDefs := []*rules.RuleDefinition{{
 		ID:         "test_rule",
@@ -171,18 +172,18 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir1Path)
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(testDrivePath)
 
 	testDrive, err := newTestDrive(t, "xfs", []string{}, testDrivePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDrive.cleanup()
+	defer testDrive.Close()
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
@@ -191,6 +192,7 @@ func TestMountPropagated(t *testing.T) {
 	if err := os.MkdirAll(dir1BindMntPath, 0755); err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir1BindMntPath)
 
 	bindMnt := newTestMount(
 		dir1BindMntPath,

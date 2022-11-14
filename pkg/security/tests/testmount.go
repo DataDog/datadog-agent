@@ -49,7 +49,6 @@ func withMountOpts(mountOpts ...string) func(tm *testMount) {
 func newTestMount(target string, opts ...func(tm *testMount)) *testMount {
 	mount := &testMount{
 		target: target,
-		source: "/",
 	}
 
 	for _, opt := range opts {
