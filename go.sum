@@ -139,8 +139,6 @@ github.com/DataDog/datadog-go/v5 v5.1.1 h1:JLZ6s2K1pG2h9GkvEvMdEGqMDyVLEAccdX5Tl
 github.com/DataDog/datadog-go/v5 v5.1.1/go.mod h1:KhiYb2Badlv9/rofz+OznKoEF5XKTonWyhx5K83AP8E=
 github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f h1:A7WPfKHAeZB+yD83KtY8Y4mZKFAbZgBziulshnpErK4=
 github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f/go.mod h1:KAQEFctpgWNlJ2/ef9PRKqy79UAa/URSOWZzgaCrwug=
-github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52 h1:xNo7KJXnD5YEUKXQc5/4GPzMogPsQ5r21dA+vkx04xs=
-github.com/DataDog/ebpf-manager v0.0.0-20221012225856-cd406734ee52/go.mod h1:oUCSIP1dv/SGMlSzJ8ZII3nCHdUqFQOjXD5QvQcdk+8=
 github.com/DataDog/ebpf-manager v0.1.0 h1:IsyrQibXHXNfxicihzMJ4mEbursWuwn6fVEtQL1Bo28=
 github.com/DataDog/ebpf-manager v0.1.0/go.mod h1:oUCSIP1dv/SGMlSzJ8ZII3nCHdUqFQOjXD5QvQcdk+8=
 github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 h1:XDD6SEIEpe5CAa7esIWlgdXLQgLKN4hvPw+Wd8pJQFU=
@@ -151,8 +149,6 @@ github.com/DataDog/go-tuf v0.3.0--fix-localmeta h1:lM/fRQNIaJpsnLU7edjV3jYHylCym
 github.com/DataDog/go-tuf v0.3.0--fix-localmeta/go.mod h1:E5XP0wXitrFUHe4b8cUcAAdxBW4LbfnqF4WXXGLgWNo=
 github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda h1:0xPsvJrSNeob7C1fvh0i47XBX76HedF3LOFKsY/cqUM=
 github.com/DataDog/gohai v0.0.0-20221011094921-fcc1e3d5ddda/go.mod h1:MsW+WM5jOyvzu7KUfg5DB4nmTBYFdm4g0Bq3JhGy1oQ=
-github.com/DataDog/gopsutil v1.2.1 h1:FO3AZvwBUWlJZ0TL4T5/fsEoWxsGz0DFtaIB2bHn/OQ=
-github.com/DataDog/gopsutil v1.2.1/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gopsutil v1.2.2 h1:8lmthwyyCXa1NKiYcHlrtl9AAFdfbNI2gPcioCJcBPU=
 github.com/DataDog/gopsutil v1.2.2/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.5.0 h1:jb72P6GFHPHz2W0onsN51cS3FkaMDcjb0QzgxxA4gDk=
@@ -1008,8 +1004,8 @@ github.com/imdario/mergo v0.3.12/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/inconshreveable/mousetrap v1.0.1 h1:U3uMjPSQEBMNp1lFxmllqCPM6P5u/Xq7Pgzkat/bFNc=
 github.com/inconshreveable/mousetrap v1.0.1/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/invopop/jsonschema v0.4.0 h1:Yuy/unfgCnfV5Wl7H0HgFufp/rlurqPOOuacqyByrws=
-github.com/invopop/jsonschema v0.4.0/go.mod h1:O9uiLokuu0+MGFlyiaqtWxwqJm41/+8Nj0lD7A36YH0=
+github.com/invopop/jsonschema v0.7.0 h1:2vgQcBz1n256N+FpX3Jq7Y17AjYt46Ig3zIWyy770So=
+github.com/invopop/jsonschema v0.7.0/go.mod h1:O9uiLokuu0+MGFlyiaqtWxwqJm41/+8Nj0lD7A36YH0=
 github.com/iovisor/gobpf v0.2.0 h1:34xkQxft+35GagXBk3n23eqhm0v7q0ejeVirb8sqEOQ=
 github.com/iovisor/gobpf v0.2.0/go.mod h1:WSY9Jj5RhdgC3ci1QaacvbFdQ8cbrEjrpiZbLHLt2s4=
 github.com/itchyny/gojq v0.12.9 h1:biKpbKwMxVYhCU1d6mR7qMr3f0Hn9F5k5YykCVb3gmM=
@@ -2227,8 +2223,6 @@ golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220829200755-d48e67d00261/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220908164124-27713097b956/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.1.0 h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=
-golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.2.0 h1:ljd4t30dBnAvMZaQCevtY0xLLD0A+bRZXbgLMLU1F/A=
 golang.org/x/sys v0.2.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201117132131-f5c789dd3221/go.mod h1:Nr5EML6q2oocZ2LXRh80K7BxOlk5/8JxuGnuhpl+muw=
