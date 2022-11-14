@@ -56,12 +56,8 @@ type BundleParams struct {
 	// LoggerName is the name that appears in the logfile
 	LoggerName string
 
-	// ExcludeDefaultConfPath determines whether the default config path must be excluded.
-	ExcludeDefaultConfPath bool
-
 	// DefaultConfPath determines the default configuration path.
-	// if DefaultConfPath is empty, then the default configuration path of the Agent is used.
-	// if ExcludeDefaultConfPath is true this field is ignored.
+	// if DefaultConfPath is empty, then no default configuration path is used.
 	DefaultConfPath string
 
 	// LogLevelFn returns the log level. This field is set by methods on this

@@ -114,12 +114,11 @@ func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(core.CreateBundleParams(
+			defaultConfPath,
 			core.WithConfFilePath(cliParams.confPath),
 			core.WithConfigLoadSecrets(true),
 			core.WithConfigMissingOK(true),
 			core.WithConfigName("dogstatsd"),
-			core.WithExcludeDefaultConfPath(true),
-			core.WithDefaultConfPath(defaultConfPath),
 		)),
 		core.Bundle,
 	)
