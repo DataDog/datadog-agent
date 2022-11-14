@@ -110,7 +110,7 @@ type hookedBinary struct {
 	// IDs of the probes currently attached on the binary
 	probeIDs []manager.ProbeIdentificationPair
 	// Set containing the PIDs of running processes spawned from this binary
-	running_processes runningProcessesSet
+	runningProcesses runningProcessesSet
 }
 
 type GoTLSProgram struct {
@@ -276,7 +276,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		p.hookedBinaries[stat.Ino] = hookedBin
 	}
 
-	hookedBin.running_processes[pid] = struct{}{}
+	hookedBin.runningProcesses[pid] = struct{}{}
 	p.pidToIno[pid] = stat.Ino
 }
 
@@ -293,8 +293,8 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 		return
 	}
 
-	delete(hookedBin.running_processes, pid)
-	if len(hookedBin.running_processes) == 0 {
+	delete(hookedBin.runningProcesses, pid)
+	if len(hookedBin.runningProcesses) == 0 {
 		log.Debugf("no processes left for ino %d", ino)
 		p.unhookBinary(ino)
 	}
