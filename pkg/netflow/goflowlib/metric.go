@@ -167,14 +167,21 @@ func ConvertMetric(metric *promClient.Metric, metricFamily *promClient.MetricFam
 
 	for _, labelPair := range metric.GetLabel() {
 		tagKey := labelPair.GetName()
+
+		// check is allowed tag key
 		if !aMappedMetric.isAllowedTagKey(tagKey) {
 			continue
 		}
+
 		tagVal := labelPair.GetValue()
+
+		// remap metric value
 		valueRemapperFn, ok := aMappedMetric.valueRemapper[tagKey]
 		if ok {
 			tagVal = valueRemapperFn(tagVal)
 		}
+
+		// remap metric key
 		newKey, ok := aMappedMetric.keyRemapper[tagKey]
 		if ok {
 			tagKey = newKey
