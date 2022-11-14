@@ -10,26 +10,45 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/gogo/protobuf/proto"
-	"github.com/prometheus/client_golang/prometheus"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
+	"github.com/gogo/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
 	promClient "github.com/prometheus/client_model/go"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
+
+func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
+	timeout := time.After(timeoutDuration)
+	tick := time.Tick(500 * time.Millisecond)
+	// Keep trying until we're timed out or got a result or got an error
+	for {
+		select {
+		// Got a timeout! fail with a timeout error
+		case <-timeout:
+			return fmt.Errorf("timeout error waiting for events")
+		// Got a tick, we should check on doSomething()
+		case <-tick:
+			if aggregator.flushedFlowCount.Load() >= minEvents {
+				return nil
+			}
+		}
+	}
+}
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
@@ -172,8 +191,6 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
-	//stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
-
 	port := uint16(52055)
 
 	sender := mocksender.NewMockSender("")
@@ -207,16 +224,6 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
 	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
 	require.NoError(t, err, "error sending udp packet")
-
-	//
-	//expectStartExisted := false
-	//go func() {
-	//	aggregator.Start()
-	//	stoppedMu.Lock()
-	//	expectStartExisted = true
-	//	stoppedMu.Unlock()
-	//}()
-	//inChan <- flow
 
 	// language=json
 	event := []byte(`
@@ -290,24 +297,6 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52055", "device_ip:127.0.0.1"})
 
 	flowState.Shutdown()
-}
-
-func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {
-	timeout := time.After(timeoutDuration)
-	tick := time.Tick(500 * time.Millisecond)
-	// Keep trying until we're timed out or got a result or got an error
-	for {
-		select {
-		// Got a timeout! fail with a timeout error
-		case <-timeout:
-			return fmt.Errorf("timeout error waiting for events")
-		// Got a tick, we should check on doSomething()
-		case <-tick:
-			if aggregator.flushedFlowCount.Load() >= minEvents {
-				return nil
-			}
-		}
-	}
 }
 
 func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
