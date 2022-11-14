@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -270,6 +271,11 @@ func (p *GoTLSProgram) Start() {
 			}
 		}
 	}()
+
+	util.WithAllProcs(p.procRoot, func(pid int) error {
+		p.handleProcessStart(uint32(pid))
+		return nil
+	})
 }
 
 func (p *GoTLSProgram) Stop() {
