@@ -1496,17 +1496,18 @@ func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir
 	return files, nil
 }
 
-func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
-		Comm: comm,
+		Name:        name,
+		ContainerID: containerID,
+		Comm:        comm,
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
-		t.Errorf("failed to stop activity dump: %s", err)
 		return err
 	}
 	return nil
