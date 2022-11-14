@@ -401,3 +401,49 @@ functions:
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+
+  appsec-go:
+    runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/trace
+    handler: src/bin/trace
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_SERVERLESS_APPSEC_ENABLED: true
+      DD_UNIVERSAL_INSTRUMENTATION: true
+
+  appsec-csharp:
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      DD_SERVERLESS_APPSEC_ENABLED: true
+      CORECLR_ENABLE_PROFILING: 1
+      CORECLR_PROFILER: "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+      CORECLR_PROFILER_PATH: "/opt/datadog/Datadog.Trace.ClrProfiler.Native.so"
+      DD_DOTNET_TRACER_HOME: "/opt/datadog"
+
+  appsec-java:
+    runtime: java8.al2
+    handler: TraceHandler
+    package:
+      individually: true
+      artifact: src/java-tests/trace/target/trace-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      DD_SERVERLESS_APPSEC_ENABLED: true
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
