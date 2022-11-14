@@ -59,7 +59,6 @@ type TestTimeSeries struct {
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
 func AssertTranslatorMap(t *testing.T, translator *Translator, otlpfilename string, datadogfilename string) {
-
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {

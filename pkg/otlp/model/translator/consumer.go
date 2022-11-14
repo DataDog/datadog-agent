@@ -35,7 +35,7 @@ const (
 	Count
 )
 
-// UnmarshalText unmarshals a type into its lowercase type name.
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (t *MetricDataType) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "gauge":
@@ -45,7 +45,6 @@ func (t *MetricDataType) UnmarshalText(text []byte) error {
 		*t = Count
 		return nil
 	}
-
 	return fmt.Errorf("invalid metric data type %q", text)
 }
 
