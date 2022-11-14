@@ -74,8 +74,7 @@ typedef struct {
     // page_num can be obtained from (kafka_batch_state_t->idx % KAFKA_BATCHES_PER_CPU)
     __u32 page_num;
 } kafka_batch_key_t;
-//
-// HTTP transaction information associated to a certain socket (tuple_t)
+
 // Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
@@ -100,9 +99,6 @@ typedef struct {
     // the TCP segment containing the beginning of a given HTTP request
     __u16 owned_by_src_port;
 
-//
-//    __u64 tags;
-//} http_transaction_t;
 } kafka_transaction_t;
 //
 typedef struct {
