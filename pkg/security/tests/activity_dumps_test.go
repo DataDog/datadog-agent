@@ -67,7 +67,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDumpComm(t, "")
+		err = test.StopActivityDump(dump.Name, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +111,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDumpComm(t, "")
+		err = test.StopActivityDump(dump.Name, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +149,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDumpComm(t, "")
+		err = test.StopActivityDump(dump.Name, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +191,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDumpComm(t, "")
+		err = test.StopActivityDump(dump.Name, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +246,7 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDumpComm(t, "")
+		err = test.StopActivityDump(dump.Name, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
