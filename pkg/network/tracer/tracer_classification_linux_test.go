@@ -11,7 +11,6 @@ package tracer
 import (
 	"bufio"
 	"context"
-	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"net"
 	nethttp "net/http"
 	"syscall"
@@ -28,17 +27,17 @@ import (
 
 func TestProtocolClassification(t *testing.T) {
 	cfg := testConfig()
-	cfg.EnableRuntimeCompiler = true
+	cfg.EnableRuntimeCompiler = false
 	if !classificationSupported(cfg) {
 		t.Skip("Classification is not supported")
 	}
 
-	t.Run("with dnat", func(t *testing.T) {
-		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
-		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
-		//testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
-	})
+	//t.Run("with dnat", func(t *testing.T) {
+	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
+	//netlink.SetupDNAT(t)
+	//testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+	//testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+	//})
 	//
 	//t.Run("with snat", func(t *testing.T) {
 	//	// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7

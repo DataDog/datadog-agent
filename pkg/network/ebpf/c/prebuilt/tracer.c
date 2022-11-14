@@ -140,6 +140,7 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
     void *buffer_ptr = NULL;
 
     if (args->msghdr != NULL) {
+        log_debug("guy tcp_recvmsg: %d", args->msghdr != NULL);
         buffer_ptr = get_msghdr_buffer_ptr(args->msghdr);
     }
 
@@ -885,6 +886,16 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
         return 0;
     }
     sock_tup.netns = 0;
+
+    log_debug("guy net_dev_queue sock_tup addr %llu %llu\n", sock_tup.saddr_l, sock_tup.daddr_l);
+    log_debug("guy net_dev_queue sock_tup port %d %d\n", sock_tup.sport, sock_tup.dport);
+    log_debug("guy net_dev_queue sock_tup pid %d %lu\n", sock_tup.pid, sock_tup.netns);
+    log_debug("guy net_dev_queue sock_tup metadata %d\n", sock_tup.metadata);
+
+    log_debug("guy net_dev_queue skb_tup addr %llu %llu\n", skb_tup.saddr_l, skb_tup.daddr_l);
+    log_debug("guy net_dev_queue skb_tup port %d %d\n", skb_tup.sport, skb_tup.dport);
+    log_debug("guy net_dev_queue skb_tup pid %d %lu\n", skb_tup.pid, skb_tup.netns);
+    log_debug("guy net_dev_queue skb_tup metadata %d\n", skb_tup.metadata);
 
     bpf_map_update_with_telemetry(skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
     bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);

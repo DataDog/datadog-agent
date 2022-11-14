@@ -138,12 +138,35 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
 static __always_inline void read_into_buffer1(char *buffer, char *data, size_t data_size) {
+    log_debug("guy read into buffer %p", buffer);
     // we read CLASSIFICATION_MAX_BUFFER-1 bytes to ensure that the string is always null terminated
-    if (bpf_probe_read_user_with_telemetry(buffer, CLASSIFICATION_MAX_BUFFER - 1, data) < 0) {
+    int ret = bpf_probe_read_user_with_telemetry(buffer, CLASSIFICATION_MAX_BUFFER - 1, data);
+    if (ret < 0) {
+        log_debug("guy err %d %p", ret, buffer);
+        ret = bpf_probe_read_kernel_with_telemetry(buffer, CLASSIFICATION_MAX_BUFFER - 1, data);
+        if (ret >= 0) {
+            return;
+        }
+
+        log_debug("guy err2 %d %p", ret, buffer);
 // note: arm64 bpf_probe_read_user() could page fault if the CLASSIFICATION_MAX_BUFFER overlap a page
 #pragma unroll(CLASSIFICATION_MAX_BUFFER - 1)
         for (int i = 0; i < CLASSIFICATION_MAX_BUFFER - 1; i++) {
             bpf_probe_read_user(&buffer[i], 1, &data[i]);
+            if (buffer[i] == 0) {
+                return;
+            }
+        }
+    }
+}
+
+static __always_inline void read_into_buffer2(char *buffer, char *data, size_t data_size) {
+    // we read CLASSIFICATION_MAX_BUFFER-1 bytes to ensure that the string is always null terminated
+    if (bpf_probe_read_kernel_with_telemetry(buffer, CLASSIFICATION_MAX_BUFFER - 1, data) < 0) {
+// note: arm64 bpf_probe_read_kernel() could page fault if the CLASSIFICATION_MAX_BUFFER overlap a page
+#pragma unroll(CLASSIFICATION_MAX_BUFFER - 1)
+        for (int i = 0; i < CLASSIFICATION_MAX_BUFFER - 1; i++) {
+            bpf_probe_read_kernel(&buffer[i], 1, &data[i]);
             if (buffer[i] == 0) {
                 return;
             }
@@ -163,8 +186,10 @@ static __always_inline void tcp_sendmsg_helper(struct sock *sk, void *buffer_ptr
         return;
     }
 
-    log_debug("%d guy send addr %llu %llu\n", pid_tgid >> 32, args.conn_tuple.saddr_l, args.conn_tuple.daddr_l);
-    log_debug("%d guy send port %d %d\n", pid_tgid >> 32, args.conn_tuple.sport, args.conn_tuple.dport);
+    log_debug("%llu guy send addr %llu %llu\n", pid_tgid, args.conn_tuple.saddr_l, args.conn_tuple.daddr_l);
+    log_debug("%llu guy send port %d %d\n", pid_tgid, args.conn_tuple.sport, args.conn_tuple.dport);
+    log_debug("%llu guy send pid %d %lu\n", pid_tgid, args.conn_tuple.pid, args.conn_tuple.netns);
+    log_debug("%llu guy send metadata %d\n", pid_tgid, args.conn_tuple.metadata);
     protocol_t protocol = get_cached_protocol_or_default(&args.conn_tuple);
     if (protocol != PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED) {
         goto final;

@@ -56,6 +56,7 @@ static __always_inline void* get_msghdr_buffer_ptr(struct msghdr *ptr) {
 
     struct iovec vec = {0};
     bpf_probe_read_kernel_with_telemetry(&vec, sizeof(vec), iov);
+
     return vec.iov_base;
 }
 
@@ -133,9 +134,11 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-    void *buffer_ptr = get_msghdr_buffer_ptr(args->msghdr);
+//    log_debug("guy tcp_recvmsg: %d %p", recv, msghdr);
+//
+//    void *buffer_ptr = get_msghdr_buffer_ptr(msghdr);
 
-    return handle_tcp_recv(pid_tgid, skp, buffer_ptr, recv);
+    return handle_tcp_recv(pid_tgid, skp, NULL, recv);
 }
 
 SEC("kprobe/tcp_close")
