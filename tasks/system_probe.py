@@ -6,6 +6,7 @@ import platform
 import re
 import shutil
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
@@ -521,9 +522,13 @@ def test(
     _, _, env = get_build_flags(ctx)
     env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
-    if co_re:
-        env['DD_TESTS_CO_RE'] = "1"
+        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        env['DD_ENABLE_CO_RE'] = "false"
+    elif co_re:
+        env['DD_ENABLE_CO_RE'] = "true"
+        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -592,10 +597,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
-    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    gopath = os.getenv("GOPATH")
+    copy_files = [
+        "/opt/datadog-agent/embedded/bin/clang-bpf",
+        "/opt/datadog-agent/embedded/bin/llc-bpf",
+        f"{gopath}/bin/gotestsum",
+    ]
+
+    files_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "..")
+    for cf in copy_files:
+        if os.path.exists(cf):
+            shutil.copy(cf, files_dir)
+
+    ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
 
 @task
@@ -1121,3 +1135,31 @@ def generate_minimized_btfs(
             tar_working_directory = os.path.join(output_dir, path_from_root)
             ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
             ctx.run(f"rm {output_btf_path}")
+
+
+@task
+def print_failed_tests(_, output_dir):
+    fail_count = 0
+    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
+        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            with tarfile.open(testjson_tgz) as tgz:
+                tgz.extractall(path=unpack_dir)
+
+            for test_json in glob.glob(f"{unpack_dir}/*.json"):
+                bundle, _ = os.path.splitext(os.path.basename(test_json))
+                with open(test_json) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                fail_count += 1
+
+    if fail_count > 0:
+        raise Exit(code=1)

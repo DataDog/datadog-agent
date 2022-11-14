@@ -11,7 +11,6 @@ package probe
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -35,6 +34,8 @@ var (
 	ErrMountNotFound = errors.New("unknown mount ID")
 	// ErrMountUndefined is used when a mount identifier is undefined
 	ErrMountUndefined = errors.New("undefined mountID")
+	// ErrMountLoop is returned when there is a resolution loop
+	ErrMountLoop = errors.New("mount resolution loop")
 )
 
 const (
@@ -187,36 +188,30 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 }
 
 // GetFilesystem returns the name of the filesystem
-func (mr *MountResolver) GetFilesystem(mountID, pid uint32) string {
+func (mr *MountResolver) GetFilesystem(mountID, pid uint32) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	mount, err := mr.resolveMount(mountID, pid)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return mount.GetFSType()
+	return mount.GetFSType(), nil
 }
 
 // Get returns a mount event from the mount id
-func (mr *MountResolver) Get(mountID, pid uint32) *model.MountEvent {
+func (mr *MountResolver) Get(mountID, pid uint32) (*model.MountEvent, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _ := mr.resolveMount(mountID, pid)
-	return mount
+	return mr.resolveMount(mountID, pid)
 }
 
 // Insert a new mount point in the cache
 func (mr *MountResolver) Insert(e model.MountEvent) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
-
-	if e.MountPointPathResolutionError != nil || e.RootPathResolutionError != nil {
-		// do not insert an invalid value
-		return fmt.Errorf("couldn't insert mount_id %d: mount_point_error:%v root_error:%v", e.MountID, e.MountPointPathResolutionError, e.RootPathResolutionError)
-	}
 
 	mr.insert(e)
 
@@ -232,7 +227,11 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	// Retrieve the parent paths and strip it from the event
 	p, ok := mr.mounts[e.ParentMountID]
 	if ok {
-		prefix := mr.getParentPath(p.MountID)
+		prefix, err := mr.getParentPath(p.MountID)
+		if err != nil {
+			// do not log error here. it will be report during the next path resolution
+			return
+		}
 		if len(prefix) > 0 && prefix != "/" {
 			e.MountPointStr = strings.TrimPrefix(e.MountPointStr, prefix)
 		}
@@ -248,23 +247,27 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 	mr.mounts[e.MountID] = &e
 }
 
-func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) string {
+func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (string, error) {
 	mount, exists := mr.mounts[mountID]
 	if !exists {
-		return ""
+		return "", ErrMountNotFound
 	}
 
 	mountPointStr := mount.MountPointStr
+	if mountPointStr == "/" {
+		return mountPointStr, nil
+	}
 
+	// avoid infinite loop
 	if _, exists := cache[mountID]; exists {
-		return ""
+		return "", ErrMountLoop
 	}
 	cache[mountID] = true
 
 	if mount.ParentMountID != 0 {
-		p := mr._getParentPath(mount.ParentMountID, cache)
-		if p == "" {
-			return mountPointStr
+		p, err := mr._getParentPath(mount.ParentMountID, cache)
+		if err != nil {
+			return "", err
 		}
 
 		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
@@ -272,17 +275,20 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) s
 		}
 	}
 
-	return mountPointStr
+	return mountPointStr, nil
 }
 
-func (mr *MountResolver) getParentPath(mountID uint32) string {
+func (mr *MountResolver) getParentPath(mountID uint32) (string, error) {
 	if entry, found := mr.parentPathCache.Get(mountID); found {
-		return entry.(string)
+		return entry.(string), nil
 	}
 
-	path := mr._getParentPath(mountID, map[uint32]bool{})
+	path, err := mr._getParentPath(mountID, map[uint32]bool{})
+	if err != nil {
+		return "", err
+	}
 	mr.parentPathCache.Add(mountID, path)
-	return path
+	return path, nil
 }
 
 func (mr *MountResolver) _getAncestor(mount *model.MountEvent, cache map[uint32]bool) *model.MountEvent {
@@ -308,9 +314,9 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent 
 }
 
 // getOverlayPath uses deviceID to find overlay path
-func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
+func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) (string, error) {
 	if entry, found := mr.overlayPathCache.Get(mount.MountID); found {
-		return entry.(string)
+		return entry.(string), nil
 	}
 
 	if ancestor := mr.getAncestor(mount); ancestor != nil {
@@ -319,14 +325,19 @@ func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) string {
 
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.MountID != deviceMount.MountID && deviceMount.IsOverlayFS() {
-			if p := mr.getParentPath(deviceMount.MountID); p != "" {
+			p, err := mr.getParentPath(deviceMount.MountID)
+			if err != nil {
+				return "", err
+			}
+
+			if p != "" {
 				mr.overlayPathCache.Add(mount.MountID, p)
-				return p
+				return p, nil
 			}
 		}
 	}
 
-	return ""
+	return "", nil
 }
 
 func (mr *MountResolver) dequeue(now time.Time) {
@@ -423,10 +434,20 @@ func (mr *MountResolver) GetMountPath(mountID, pid uint32) (string, string, stri
 
 	mount, err := mr.resolveMount(mountID, pid)
 	if err != nil {
-		return "", "", "", nil
+		return "", "", "", ErrMountNotFound
 	}
 
-	return mr.getOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
+	overlayPath, err := mr.getOverlayPath(mount)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	parentPath, err := mr.getParentPath(mountID)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return overlayPath, parentPath, mount.RootStr, nil
 }
 
 func getMountIDOffset(probe *Probe) uint64 {

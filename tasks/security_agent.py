@@ -584,10 +584,11 @@ def cws_go_generate(ctx):
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path):
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 
@@ -623,7 +624,9 @@ def generate_ad_proto(ctx):
 @task
 def generate_cws_proto(ctx):
     # API
-    ctx.run("protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
+    ctx.run(
+        "protoc -I. --go_out=. --go_opt=paths=source_relative --go-grpc_out=require_unimplemented_servers=false,paths=source_relative:. pkg/security/api/api.proto"
+    )
 
     # Activity Dumps
     generate_ad_proto(ctx)

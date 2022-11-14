@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package metadata
+package helper
 
 import (
 	"net/http"
@@ -50,11 +50,11 @@ func TestGetContainerID(t *testing.T) {
 		w.Write([]byte("1234"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        1 * time.Second,
 		containerIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "container_id", value: "1234"}, getContainerID(&http.Client{}, testConfig))
+	assert.Equal(t, &Info{TagName: "container_id", Value: "1234"}, getContainerID(&http.Client{}, testConfig))
 }
 
 func TestGetRegionUnknown(t *testing.T) {
@@ -62,11 +62,11 @@ func TestGetRegionUnknown(t *testing.T) {
 		w.Write([]byte("unknown"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "location", value: "unknown"}, getRegion(&http.Client{}, testConfig))
+	assert.Equal(t, &Info{TagName: "location", Value: "unknown"}, getRegion(&http.Client{}, testConfig))
 }
 
 func TestGetRegionOK(t *testing.T) {
@@ -74,11 +74,11 @@ func TestGetRegionOK(t *testing.T) {
 		w.Write([]byte("projects/xxx/regions/us-central1"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:   1 * time.Second,
 		regionURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "location", value: "us-central1"}, getRegion(&http.Client{}, testConfig))
+	assert.Equal(t, &Info{TagName: "location", Value: "us-central1"}, getRegion(&http.Client{}, testConfig))
 }
 
 func TestGetProjectID(t *testing.T) {
@@ -86,11 +86,11 @@ func TestGetProjectID(t *testing.T) {
 		w.Write([]byte("superproject"))
 	}))
 	defer ts.Close()
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:      1 * time.Second,
 		projectIDURL: ts.URL,
 	}
-	assert.Equal(t, &info{tagName: "project_id", value: "superproject"}, getProjectID(&http.Client{}, testConfig))
+	assert.Equal(t, &Info{TagName: "project_id", Value: "superproject"}, getProjectID(&http.Client{}, testConfig))
 }
 
 func TestGetMetaDataComplete(t *testing.T) {
@@ -107,7 +107,7 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        1 * time.Second,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -115,9 +115,9 @@ func TestGetMetaDataComplete(t *testing.T) {
 	}
 
 	metadata := GetMetaData(testConfig)
-	assert.Equal(t, &info{tagName: "container_id", value: "acb54"}, metadata.containerID)
-	assert.Equal(t, &info{tagName: "location", value: "greatregion"}, metadata.region)
-	assert.Equal(t, &info{tagName: "project_id", value: "superprojectid"}, metadata.projectID)
+	assert.Equal(t, &Info{TagName: "container_id", Value: "acb54"}, metadata.ContainerID)
+	assert.Equal(t, &Info{TagName: "location", Value: "greatregion"}, metadata.Region)
+	assert.Equal(t, &Info{TagName: "project_id", Value: "superprojectid"}, metadata.ProjectID)
 }
 
 func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
@@ -135,7 +135,7 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}))
 	defer tsContainerID.Close()
 
-	testConfig := &Config{
+	testConfig := &GCPConfig{
 		timeout:        500 * time.Millisecond,
 		projectIDURL:   tsProjectID.URL,
 		regionURL:      tsRegion.URL,
@@ -143,24 +143,24 @@ func TestGetMetaDataIncompleteDueToTimeout(t *testing.T) {
 	}
 
 	metadata := GetMetaData(testConfig)
-	assert.Equal(t, &info{tagName: "container_id", value: "acb54"}, metadata.containerID)
-	assert.Equal(t, &info{tagName: "location", value: "unknown"}, metadata.region)
-	assert.Equal(t, &info{tagName: "project_id", value: "superprojectid"}, metadata.projectID)
+	assert.Equal(t, &Info{TagName: "container_id", Value: "acb54"}, metadata.ContainerID)
+	assert.Equal(t, &Info{TagName: "location", Value: "unknown"}, metadata.Region)
+	assert.Equal(t, &Info{TagName: "project_id", Value: "superprojectid"}, metadata.ProjectID)
 }
 
 func TestTagMap(t *testing.T) {
-	metadata := Metadata{
-		projectID: &info{
-			tagName: "project_id",
-			value:   "myprojectid",
+	metadata := GCPMetadata{
+		ProjectID: &Info{
+			TagName: "project_id",
+			Value:   "myprojectid",
 		},
-		region: &info{
-			tagName: "location",
-			value:   "mylocation",
+		Region: &Info{
+			TagName: "location",
+			Value:   "mylocation",
 		},
-		containerID: &info{
-			tagName: "container_id",
-			value:   "f45ab",
+		ContainerID: &Info{
+			TagName: "container_id",
+			Value:   "f45ab",
 		},
 	}
 	tagMap := metadata.TagMap()

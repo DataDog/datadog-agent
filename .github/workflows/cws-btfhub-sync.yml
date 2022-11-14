@@ -3,7 +3,7 @@ name: "CWS BTFHub constants sync"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * 2' # at 4:30 UTC every Tuesday https://crontab.guru/#30_4_*_*_2
+    - cron: '30 4 * * *' # at 4:30 UTC every day
 
 jobs:
   sync:

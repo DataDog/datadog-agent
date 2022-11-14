@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+features:
   - |
-    Suggest installing the IoT Agent on armv7l.
+    Collect network devices topology metadata.
