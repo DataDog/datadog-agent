@@ -412,6 +412,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 	err := aggregator.submitCollectorMetrics()
 	assert.NoError(t, err)
 
+	// 3/ Assert
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 10, "", []string{"collector_type:netflow5", "worker:1"})
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.decoder.errors", 20.0, "", []string{"collector_type:netflow5", "worker:2"})
 }
