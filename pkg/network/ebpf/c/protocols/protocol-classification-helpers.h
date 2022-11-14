@@ -96,19 +96,10 @@ static __always_inline protocol_t get_cached_protocol_or_default(conn_tuple_t *t
     if (cached_protocol_ptr == NULL) { // Checking the invert version
         conn_tuple_t conn_tuple_copy = *tup;
         conn_tuple_copy.netns = 0;
-        log_debug("guy getcache conn_tuple_copy addr %llu %llu\n", conn_tuple_copy.saddr_l, conn_tuple_copy.daddr_l);
-        log_debug("guy getcache conn_tuple_copy port %d %d\n", conn_tuple_copy.sport, conn_tuple_copy.dport);
-        log_debug("guy getcache conn_tuple_copy pid %d %lu\n", conn_tuple_copy.pid, conn_tuple_copy.netns);
-        log_debug("guy getcache conn_tuple_copy metadata %d\n", conn_tuple_copy.metadata);
         conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, tup);
         if (skb_tup_ptr == NULL) {
             return PROTOCOL_UNKNOWN;
         }
-
-        log_debug("guy getcache skb addr %llu %llu\n", skb_tup_ptr->saddr_l, skb_tup_ptr->daddr_l);
-        log_debug("guy getcache skb port %d %d\n", skb_tup_ptr->sport, skb_tup_ptr->dport);
-        log_debug("guy getcache skb pid %d %lu\n", skb_tup_ptr->pid, skb_tup_ptr->netns);
-        log_debug("guy getcache skb metadata %d\n", skb_tup_ptr->metadata);
 
         conn_tuple_t inverse_skb_conn_tup = {0};
         invert_conn_tuple(skb_tup_ptr, &inverse_skb_conn_tup);
@@ -116,16 +107,10 @@ static __always_inline protocol_t get_cached_protocol_or_default(conn_tuple_t *t
         inverse_skb_conn_tup.netns = tup->netns;
         inverse_skb_conn_tup.metadata = tup->metadata;
 
-        log_debug("guy getcache inverse skb addr %llu %llu\n", inverse_skb_conn_tup.saddr_l, inverse_skb_conn_tup.daddr_l);
-        log_debug("guy getcache inverse skb port %d %d\n", inverse_skb_conn_tup.sport, inverse_skb_conn_tup.dport);
-        log_debug("guy getcache inverse skb pid %d %lu\n", inverse_skb_conn_tup.pid, inverse_skb_conn_tup.netns);
-        log_debug("guy getcache inverse skb metadata %d\n", inverse_skb_conn_tup.metadata);
         cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &inverse_skb_conn_tup);
         if (cached_protocol_ptr == NULL) {
             return PROTOCOL_UNKNOWN;
         }
-    } else {
-        log_debug("guy cached %d\n", *cached_protocol_ptr);
     }
     return *cached_protocol_ptr;
 }

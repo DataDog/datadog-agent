@@ -134,11 +134,9 @@ int kretprobe__tcp_recvmsg(struct pt_regs *ctx) {
         return 0;
     }
 
-//    log_debug("guy tcp_recvmsg: %d %p", recv, msghdr);
-//
-//    void *buffer_ptr = get_msghdr_buffer_ptr(msghdr);
+    void *buffer_ptr = get_msghdr_buffer_ptr(args->msghdr);
 
-    return handle_tcp_recv(pid_tgid, skp, NULL, recv);
+    return handle_tcp_recv(pid_tgid, skp, buffer_ptr, recv);
 }
 
 SEC("kprobe/tcp_close")
