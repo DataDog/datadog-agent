@@ -63,7 +63,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigLoadSysProbe(true)).LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigLoadSysProbe(true), core.WithLogForOneShot("CORE", "off", true))),
 				core.Bundle,
 			)
 		},
@@ -87,7 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(componentStatusCmd,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithLogForOneShot("CORE", "off", true))),
 				core.Bundle,
 			)
 		},
