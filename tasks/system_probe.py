@@ -975,6 +975,13 @@ def setup_runtime_clang(ctx):
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
+def verify_system_clang_version(ctx):
+    clang_res = ctx.run("clang --version", warn=True)
+    clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
+    if clang_version_str != CLANG_VERSION:
+        raise UnexpectedExit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
+
+
 def build_object_files(
     ctx,
     windows=is_windows,
@@ -987,6 +994,7 @@ def build_object_files(
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
     if not windows:
+        verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
         print("checking for clang executable...")
