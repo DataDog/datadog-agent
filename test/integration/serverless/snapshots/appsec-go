@@ -23,6 +23,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-1",
               "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
@@ -81,7 +82,7 @@
               "functionname": "integration-tests-extension-XXXXXX-trace-go",
               "http.method": "GET",
               "http.status_code": "200",
-              "http.url": "",
+              "http.url": "https://www.datadoghq.com",
               "memorysize": "1024",
               "region": "eu-west-1",
               "runtime": "provided.al2",
@@ -172,6 +173,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "-1",
               "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
@@ -230,7 +232,7 @@
               "functionname": "integration-tests-extension-XXXXXX-trace-go",
               "http.method": "GET",
               "http.status_code": "200",
-              "http.url": "",
+              "http.url": "https://www.datadoghq.com",
               "memorysize": "1024",
               "region": "eu-west-1",
               "runtime": "provided.al2",
