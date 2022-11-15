@@ -722,6 +722,7 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
     security_agent_policies_version = _get_release_version_from_release_json(
         release_json, new_version.major, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
     )
+    print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
         release_json, new_version.major, is_first_rc=(new_version.rc == 1)
