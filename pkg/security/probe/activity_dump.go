@@ -344,11 +344,6 @@ func (ad *ActivityDump) commMatches(comm string) bool {
 	return ad.DumpMetadata.Comm == comm
 }
 
-// nameMatches returns true if the ActivityDump name matches the provided name
-func (ad *ActivityDump) nameMatches(name string) bool {
-	return ad.DumpMetadata.Name == name
-}
-
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
 func (ad *ActivityDump) containerIDMatches(containerID string) bool {
 	return ad.DumpMetadata.ContainerID == containerID
