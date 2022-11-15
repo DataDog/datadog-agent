@@ -7,9 +7,6 @@ package debugging
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/kafka"
-	"github.com/DataDog/sketches-go/ddsketch"
-
-	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -99,21 +96,4 @@ func formatIP(low, high uint64) util.Address {
 	}
 
 	return util.V4Address(uint32(low))
-}
-
-func getDNS(dnsData map[util.Address][]dns.Hostname, addr util.Address) string {
-	if names := dnsData[addr]; len(names) > 0 {
-		return dns.ToString(names[0])
-	}
-
-	return ""
-}
-
-func getSketchQuantile(sketch *ddsketch.DDSketch, percentile float64) float64 {
-	if sketch == nil {
-		return 0.0
-	}
-
-	val, _ := sketch.GetValueAtQuantile(percentile)
-	return val
 }
