@@ -76,7 +76,6 @@ type Demultiplexer interface {
 	SetSender(sender Sender, id check.ID) error
 	DestroySender(id check.ID)
 	GetDefaultSender() (Sender, error)
-	ChangeAllSendersDefaultHostname(hostname string)
 	cleanSenders()
 }
 

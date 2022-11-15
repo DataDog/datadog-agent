@@ -311,7 +311,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, _, env = get_build_flags(
+    ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
 
@@ -339,11 +339,12 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
+        "gcflags": gcflags,
         "ldflags": ldflags,
         "build_flags": build_flags,
         "build_tags": build_tags,
@@ -583,10 +584,11 @@ def cws_go_generate(ctx):
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path):
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 

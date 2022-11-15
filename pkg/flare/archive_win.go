@@ -38,10 +38,7 @@ var (
 )
 
 const (
-	evtExportLogChannelPath         uint32 = 0x1
-	evtExportLogFilePath            uint32 = 0x2
-	evtExportLogTolerateQueryErrors uint32 = 0x1000
-	evtExportLogOverwrite           uint32 = 0x2000
+	evtExportLogChannelPath uint32 = 0x1
 )
 
 func zipCounterStrings(tempDir, hostname string) error {
@@ -82,10 +79,19 @@ func zipCounterStrings(tempDir, hostname string) error {
 	}
 	defer f.Close()
 	for i := 0; i < len(clist); i++ {
-		f.WriteString(clist[i])
-		f.WriteString("\r\n")
+		_, err = f.WriteString(clist[i])
+		if err != nil {
+			return err
+		}
+		_, err = f.WriteString("\r\n")
+		if err != nil {
+			return err
+		}
 	}
-	f.Sync()
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
 	return nil
 
 }
@@ -208,6 +214,8 @@ func exportWindowsEventLog(eventLogChannel, eventLogQuery, destFileName, tempDir
 	return err
 }
 
+type filePermsInfo struct{}
+
 func (p permissionsInfos) add(filePath string) {}
 func (p permissionsInfos) commit(tempDir, hostname string, mode os.FileMode) error {
 	return nil
@@ -251,9 +259,9 @@ func zipServiceStatus(tempDir, hostname string) error {
 		pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
 		fi, err := os.Stat(pathtodriver)
 		if err != nil {
-			fh.WriteString(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))
+			_, _ = fh.WriteString(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))
 		} else {
-			fh.WriteString(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))
+			_, _ = fh.WriteString(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))
 		}
 	} else {
 		return fmt.Errorf("Error getting path to datadog agent binaries %v", err)

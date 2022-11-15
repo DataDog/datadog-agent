@@ -137,7 +137,6 @@ func (c *PythonCheck) Cancel() {
 	if err := getRtLoaderError(); err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
 	}
-	aggregator.DestroySender(c.id)
 }
 
 // String representation (for debug and logging)

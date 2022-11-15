@@ -20,12 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-func makeContainer(id string) *model.Container {
-	return &model.Container{
-		Id: id,
-	}
-}
-
 //nolint:deadcode,unused
 func procsToHash(procs []*procutil.Process) (procsByPid map[int32]*procutil.Process) {
 	procsByPid = make(map[int32]*procutil.Process)

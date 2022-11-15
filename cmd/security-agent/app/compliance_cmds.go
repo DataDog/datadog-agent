@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
@@ -19,7 +20,7 @@ func ComplianceCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	}
 
 	complianceCmd.AddCommand(complianceEventCommand(globalParams))
-	complianceCmd.AddCommand(CheckCommands(globalParams)...)
+	complianceCmd.AddCommand(check.SecAgentCommands(globalParams)...)
 
 	return []*cobra.Command{complianceCmd}
 }

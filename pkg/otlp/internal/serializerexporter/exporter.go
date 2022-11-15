@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -22,11 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-var _ config.Exporter = (*exporterConfig)(nil)
+var _ component.ExporterConfig = (*exporterConfig)(nil)
 
-func newDefaultConfig() config.Exporter {
+func newDefaultConfig() component.ExporterConfig {
 	return &exporterConfig{
-		ExporterSettings: config.NewExporterSettings(config.NewComponentID(TypeStr)),
+		ExporterSettings: config.NewExporterSettings(component.NewID(TypeStr)),
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
@@ -90,6 +91,7 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 
 	options := []translator.Option{
 		translator.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
+		translator.WithPreviewHostnameFromAttributes(),
 		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}

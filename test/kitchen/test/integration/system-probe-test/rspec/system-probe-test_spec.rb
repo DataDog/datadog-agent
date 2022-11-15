@@ -1,26 +1,27 @@
 require 'fileutils'
 require 'kernel_out_spec_helper'
 require 'open3'
+require 'csv'
+require 'rexml/document'
 
 GOLANG_TEST_FAILURE = /FAIL:/
 
-def check_output(output, wait_thr)
-  test_failures = []
+runtime_compiled_tests = Array.[](
+  "pkg/network/tracer",
+  "pkg/network/protocols/http",
+)
 
-  output.each_line do |line|
-    puts KernelOut.format(line.strip)
-    test_failures << KernelOut.format(line.strip) if line =~ GOLANG_TEST_FAILURE
-  end
-
-  if test_failures.empty? && !wait_thr.value.success?
-    test_failures << KernelOut.format("Test command exited with status (#{wait_thr.value.exitstatus}) but no failures were captured.")
-  end
-
-  test_failures
-end
+co_re_tests = Array.[](
+  "pkg/collector/corechecks/ebpf/probe"
+)
 
 print KernelOut.format(`cat /etc/os-release`)
 print KernelOut.format(`uname -a`)
+
+arch = `uname -m`.strip
+release = `uname -r`.strip
+osr = Hash[*CSV.read("/etc/os-release", col_sep: "=").flatten(1)]
+platform = "#{osr["ID"]}-#{osr["VERSION_ID"]}"
 
 ##
 ## The main chef recipe (test\kitchen\site-cookbooks\dd-system-probe-check\recipes\default.rb)
@@ -31,28 +32,88 @@ print KernelOut.format(`uname -a`)
 Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/*.o').each do |f|
   FileUtils.chmod 0644, f, :verbose => true
 end
+Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f|
+  FileUtils.chmod 0644, f, :verbose => true
+end
 
-Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
-  pkg = f.delete_prefix('/tmp/system-probe-tests').delete_suffix('/testsuite')
-  describe "prebuilt system-probe tests for #{pkg}" do
-    it 'successfully runs' do
+shared_examples "passes" do |bundle, env, filter|
+  after :context do
+    print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
+  end
+
+  Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
+    pkg = f.delete_prefix('/tmp/system-probe-tests/').delete_suffix('/testsuite')
+    next unless filter.nil? or filter.include? pkg
+
+    base_env = {
+      "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build",
+      "GOVERSION"=>"unknown"
+    }
+    junitfile = pkg.gsub("/","-") + ".xml"
+
+    it "#{pkg} tests" do |ex|
       Dir.chdir(File.dirname(f)) do
-        Open3.popen2e({"DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr)
-          expect(test_failures).to be_empty, test_failures.join("\n")
+        xmlpath = "/tmp/junit/#{bundle}/#{junitfile}"
+        cmd = ["sudo", "-E",
+          "/go/bin/gotestsum",
+          "--format", "dots",
+          "--junitfile", xmlpath,
+          "--jsonfile", "/tmp/pkgjson/#{bundle}/#{pkg.gsub("/","-")}.json",
+          "--raw-command", "--",
+          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1"
+        ]
+
+        final_env = base_env.merge(env)
+        Open3.popen2e(final_env, *cmd) do |_, output, wait_thr|
+          output.each_line do |line|
+            puts KernelOut.format(line.strip)
+          end
+        end
+
+        xmldoc = REXML::Document.new(File.read(xmlpath))
+        REXML::XPath.each(xmldoc, "//testsuites/testsuite/properties") do |props|
+          props.add_element("property", { "name" => "dd_tags[test.bundle]", "value" => bundle })
+          props.add_element("property", { "name" => "dd_tags[os.platform]", "value" => platform })
+          props.add_element("property", { "name" => "dd_tags[os.architecture]", "value" => arch })
+          props.add_element("property", { "name" => "dd_tags[os.version]", "value" => release })
+        end
+        File.open(xmlpath, "w") do |f|
+          xmldoc.write(:output => f, :indent => 4)
         end
       end
     end
   end
+end
 
-  describe "runtime compiled system-probe tests for #{pkg}" do
-    it 'successfully runs' do
-      Dir.chdir(File.dirname(f)) do
-        Open3.popen2e({"DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build"}, "sudo", "-E", f, "-test.v", "-test.count=1") do |_, output, wait_thr|
-          test_failures = check_output(output, wait_thr)
-          expect(test_failures).to be_empty, test_failures.join("\n")
-        end
-      end
-    end
+describe "system-probe" do
+  after :all do
+    print KernelOut.format(`tar -C /tmp/junit -czf /tmp/junit.tar.gz .`)
+    print KernelOut.format(`tar -C /tmp/testjson -czf /tmp/testjson.tar.gz .`)
+  end
+
+  context "prebuilt" do
+    env = {
+      "DD_ENABLE_RUNTIME_COMPILER"=>"false",
+      "DD_ENABLE_CO_RE"=>"false"
+    }
+    include_examples "passes", "prebuilt", env
+  end
+
+  context "runtime compiled" do
+    env = {
+      "DD_ENABLE_RUNTIME_COMPILER"=>"true",
+      "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false",
+      "DD_ENABLE_CO_RE"=>"false"
+    }
+    include_examples "passes", "runtime", env, runtime_compiled_tests
+  end
+
+  context "CO-RE" do
+    env = {
+      "DD_ENABLE_CO_RE"=>"true",
+      "DD_ENABLE_RUNTIME_COMPILER"=>"false",
+      "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
+    }
+    include_examples "passes", "co-re", env, co_re_tests
   end
 end

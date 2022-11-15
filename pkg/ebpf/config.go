@@ -33,6 +33,12 @@ type Config struct {
 	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
 	EnableTracepoints bool
 
+	// EnableCORE enables the use of CO-RE to load eBPF programs
+	EnableCORE bool
+
+	// BTFPath is the path to BTF data for the current kernel
+	BTFPath string
+
 	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
 	EnableRuntimeCompiler bool
 
@@ -60,6 +66,9 @@ type Config struct {
 	// AllowPrecompiledFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrecompiledFallback bool
 
+	// AllowRuntimeCompiledFallback indicates whether we are allowed to fallback to runtime compilation if CO-RE fails.
+	AllowRuntimeCompiledFallback bool
+
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
 }
@@ -80,15 +89,20 @@ func NewConfig() *Config {
 		EnableTracepoints:        cfg.GetBool(key(spNS, "enable_tracepoints")),
 		ProcRoot:                 util.GetProcRoot(),
 
-		EnableRuntimeCompiler:            cfg.GetBool(key(spNS, "enable_runtime_compiler")),
-		RuntimeCompilerOutputDir:         cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
-		EnableKernelHeaderDownload:       cfg.GetBool(key(spNS, "enable_kernel_header_download")),
-		KernelHeadersDirs:                cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:         cfg.GetString(key(spNS, "kernel_header_download_dir")),
-		AptConfigDir:                     cfg.GetString(key(spNS, "apt_config_dir")),
-		YumReposDir:                      cfg.GetString(key(spNS, "yum_repos_dir")),
-		ZypperReposDir:                   cfg.GetString(key(spNS, "zypper_repos_dir")),
-		AllowPrecompiledFallback:         cfg.GetBool(key(spNS, "allow_precompiled_fallback")),
+		EnableCORE: cfg.GetBool(key(spNS, "enable_co_re")),
+		BTFPath:    cfg.GetString(key(spNS, "btf_path")),
+
+		EnableRuntimeCompiler:        cfg.GetBool(key(spNS, "enable_runtime_compiler")),
+		RuntimeCompilerOutputDir:     cfg.GetString(key(spNS, "runtime_compiler_output_dir")),
+		EnableKernelHeaderDownload:   cfg.GetBool(key(spNS, "enable_kernel_header_download")),
+		KernelHeadersDirs:            cfg.GetStringSlice(key(spNS, "kernel_header_dirs")),
+		KernelHeadersDownloadDir:     cfg.GetString(key(spNS, "kernel_header_download_dir")),
+		AptConfigDir:                 cfg.GetString(key(spNS, "apt_config_dir")),
+		YumReposDir:                  cfg.GetString(key(spNS, "yum_repos_dir")),
+		ZypperReposDir:               cfg.GetString(key(spNS, "zypper_repos_dir")),
+		AllowPrecompiledFallback:     cfg.GetBool(key(spNS, "allow_precompiled_fallback")),
+		AllowRuntimeCompiledFallback: cfg.GetBool(key(spNS, "allow_runtime_compiled_fallback")),
+
 		AttachKprobesWithKprobeEventsABI: cfg.GetBool(key(spNS, "attach_kprobes_with_kprobe_events_abi")),
 	}
 }

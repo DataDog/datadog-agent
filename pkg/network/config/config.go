@@ -193,6 +193,10 @@ type Config struct {
 
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
+
+	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
+	// classifying the L7 protocols being used.
+	ProtocolClassificationEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -236,6 +240,8 @@ func New() *Config {
 		MaxDNSStats:         cfg.GetInt(join(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
+
+		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),

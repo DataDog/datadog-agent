@@ -80,7 +80,6 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("User-Agent", "test_user_agent")
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("Content-Type", "text/json")
-		req.Header.Set("Unexpected-Header", "To-Be-Discarded")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
@@ -97,8 +96,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "trace-agent testVersion", proxyreq.Header.Get("Via"))
 		assert.Equal(t, "test_user_agent", proxyreq.Header.Get("User-Agent"))
 		assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
-		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
 		assert.NotContains(t, proxyreq.Header, "X-Datadog-Container-Tags")
+		assert.NotContains(t, proxyreq.Header, headerContainerID)
 		assert.Equal(t, "", logs)
 
 		// check metrics
@@ -328,7 +327,6 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("X-Datadog-NeedsAppKey", "true")
-		req.Header.Set(headerContainerID, "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		resp.Body.Close()
@@ -348,7 +346,6 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("X-Datadog-NeedsAppKey", "true")
-		req.Header.Set(headerContainerID, "myid")
 		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
 
 		resp.Body.Close()
@@ -365,6 +362,32 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, float64(1), stats.CountCalls[2].Value)
 		assert.Equal(t, float64(1), stats.CountCalls[2].Rate)
 		assert.ElementsMatch(t, expectedTags, stats.CountCalls[2].Tags)
+	})
+
+	t.Run("headerfilter", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("Content-Type", "text/json")
+		req.Header.Set("Unexpected-Header", "To-Be-Discarded")
+		req.Header.Set("DD-CI-PROVIDER-NAME", "Allowed-Header")
+		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Equal(t, "", proxyreq.Header.Get("User-Agent")) // User Agent is always set, even if empty
+		assert.Equal(t, "text/json", proxyreq.Header.Get("Content-Type"))
+		assert.Equal(t, "Allowed-Header", proxyreq.Header.Get("DD-CI-PROVIDER-NAME"))
+		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
+		assert.NotContains(t, proxyreq.Header, "X-Datadog-EVP-Subdomain")
+		assert.Equal(t, "", logs)
 	})
 }
 

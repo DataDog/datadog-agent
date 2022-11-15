@@ -95,6 +95,15 @@ type KSMConfig struct {
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
+	// LabelsMapperByResourceKind can be used to translate kube-state-metrics labels to other tags, depending on the resource kind.
+	// Example: Adding kube_pod_namespace tag instead of namespace for pods and kube_deployment_namespace for deployments.
+	// labels_mapper:
+	//   pod:
+	//     namespace: kube_pod_namespace
+	//   deployment:
+	//     namespace: kube_deployment_namespace
+	labelsMapperByResourceKind map[string]map[string]string
+
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// Example:
 	// tags:
@@ -196,6 +205,8 @@ func (k *KSMCheck) Configure(config, initConfig integration.Data, source string)
 
 	labelJoins := defaultLabelJoins()
 	k.mergeLabelJoins(labelJoins)
+
+	k.instance.labelsMapperByResourceKind = defaultLabelsMapperByResourceKind()
 
 	k.processLabelsAsTags()
 
@@ -455,7 +466,6 @@ func (k *KSMCheck) Run() error {
 func (k *KSMCheck) Cancel() {
 	log.Infof("Shutting down informers used by the check '%s'", k.ID())
 	k.cancel()
-	k.CommonCancel()
 }
 
 // processMetrics attaches tags and forwards metrics to the aggregator
@@ -471,7 +481,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				// So, let’s continue the processing.
 			}
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
-				lMapperOverride := labelsMapperOverride(metricFamily.Name)
+				lMapperOverride := k.labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tags, now)
@@ -479,7 +489,7 @@ func (k *KSMCheck) processMetrics(sender aggregator.Sender, metrics map[string][
 				continue
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
-				lMapperOverride := labelsMapperOverride(metricFamily.Name)
+				lMapperOverride := k.labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
 					hostname, tags := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
 					sender.Gauge(ksmMetricPrefix+ddname, m.Val, hostname, tags)
@@ -631,8 +641,12 @@ func (k *KSMCheck) processLabelsAsTags() {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
 			label = "label_" + labelRegexp.ReplaceAllString(label, "_")
-			if _, ok := k.instance.LabelsMapper[label]; !ok {
-				k.instance.LabelsMapper[label] = tag
+			if _, ok := k.instance.labelsMapperByResourceKind[resourceKind]; !ok {
+				k.instance.labelsMapperByResourceKind[resourceKind] = map[string]string{
+					label: tag,
+				}
+			} else {
+				k.instance.labelsMapperByResourceKind[resourceKind][label] = tag
 			}
 			labels = append(labels, label)
 		}
@@ -859,19 +873,15 @@ func ownerTags(kind, name string) []string {
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
-func labelsMapperOverride(metricName string) map[string]string {
-	if strings.HasPrefix(metricName, "kube_pod") {
-		return map[string]string{"phase": "pod_phase"}
+func (k *KSMCheck) labelsMapperOverride(metricName string) map[string]string {
+	// KSM metrics are named, `kube_<RESOURCE_KIND>_<METRIC_NAME>` like for ex.:
+	// kube_pod_info, kube_pod_status_ready, or kube_pod_container_resource_requests_memory_bytes
+	// Splitting by underscores and getting the second token returns the resource kind.
+	tok := strings.SplitN(metricName, "_", 3)
+	if len(tok) < 2 {
+		return nil
 	}
+	resourceKind := tok[1]
 
-	if strings.HasPrefix(metricName, "kube_ingress") {
-		return map[string]string{
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		}
-	}
-
-	return nil
+	return k.instance.labelsMapperByResourceKind[resourceKind]
 }

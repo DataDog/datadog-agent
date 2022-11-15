@@ -15,15 +15,11 @@ import (
 
 // For testing
 var (
-	pfnMakeCounterSetInstances          = makeCounterSetIndexes
 	pfnPdhOpenQuery                     = PdhOpenQuery
-	pfnPdhAddCounter                    = PdhAddCounter
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
 	pfnPdhCollectQueryData              = PdhCollectQueryData
-	pfnPdhEnumObjectItems               = pdhEnumObjectItems
-	pfnPdhRemoveCounter                 = PdhRemoveCounter
-	pfnPdhLookupPerfNameByIndex         = pdhLookupPerfNameByIndex
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
+	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
 	pfnPdhCloseQuery                    = PdhCloseQuery
 	pfnPdhMakeCounterPath               = pdhMakeCounterPath
 )
@@ -37,6 +33,7 @@ type CounterInstanceVerify func(string) bool
 type PdhCounterSet struct {
 	className string
 	query     PDH_HQUERY
+	counter   PDH_HCOUNTER
 
 	counterName string
 }
@@ -44,326 +41,133 @@ type PdhCounterSet struct {
 // PdhSingleInstanceCounterSet is a specialization for single instance counters
 type PdhSingleInstanceCounterSet struct {
 	PdhCounterSet
-	singleCounter PDH_HCOUNTER
 }
 
 // PdhMultiInstanceCounterSet is a specialization for a multiple instance counter
 type PdhMultiInstanceCounterSet struct {
 	PdhCounterSet
-	requestedCounterName string
-	requestedInstances   map[string]bool
-	countermap           map[string]PDH_HCOUNTER // map instance name to counter handle
-	verifyfn             CounterInstanceVerify
+	verifyfn CounterInstanceVerify
 }
 
 // Initialize initializes a counter set object
-func (p *PdhCounterSet) Initialize(className string) error {
+func (p *PdhCounterSet) Initialize(className string, counterName string) error {
 
 	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+	_, _ = tryRefreshPdhObjectCache()
 
-	// the counter index list may be > 1, but for class name, only take the first
-	// one.  If not present at all, try the english counter name
-	ndxlist, err := getCounterIndexList(className)
-	if err != nil {
-		return err
-	}
-	if ndxlist == nil || len(ndxlist) == 0 {
-		log.Warnf("Didn't find counter index for class %s, attempting english counter", className)
-		p.className = className
-	} else {
-		if len(ndxlist) > 1 {
-			log.Warnf("Class %s had multiple (%d) indices, using first", className, len(ndxlist))
-		}
-		ndx := ndxlist[0]
-		p.className, err = pfnPdhLookupPerfNameByIndex(ndx)
-		if err != nil {
-			return fmt.Errorf("Class name not found: %s", className)
-		}
-		log.Debugf("Found class name for %s %s", className, p.className)
-	}
+	p.className = className
+	p.counterName = counterName
 
-	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
-	if ERROR_SUCCESS != winerror {
-		err = fmt.Errorf("Failed to open PDH query handle %d", winerror)
+	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+	if ERROR_SUCCESS != pdherror {
+		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
 		return err
 	}
 	return nil
 }
 
-// GetUnlocalizedCounter wraps the PdhAddEnglishCounter call that takes unlocalized counter names (as opposed to the other functions which use PdhAddCounter)
-func GetUnlocalizedCounter(className, counterName, instance string) (PdhSingleInstanceCounterSet, error) {
-	// TODO (WA-52): Restructure GetUnlocalizedCounter / GetSingleInstanceCounter / GetMultiInstanceCounter
-	//               to make code more clear and deduplicate here and Initialize()
-
-	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+// GetEnglishCounterInstance returns a specific instance of the given counter
+// the className and counterName must be in English.
+// See PdhAddEnglishCounter docs for details
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcountera
+func GetEnglishCounterInstance(className string, counterName string, instance string) (*PdhSingleInstanceCounterSet, error) {
 
 	var p PdhSingleInstanceCounterSet
-	winerror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
-	if ERROR_SUCCESS != winerror {
-		return p, fmt.Errorf("Failed to open PDH query handle %d", winerror)
+	if err := p.Initialize(className, counterName); err != nil {
+		return nil, err
 	}
+
 	path, err := pfnPdhMakeCounterPath("", className, instance, counterName)
 	if err != nil {
-		return p, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
+		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
 	}
-	winerror = pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.singleCounter)
-	if ERROR_SUCCESS != winerror {
-		return p, fmt.Errorf("Failed to add english counter %d", winerror)
+	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
 	}
-	winerror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != winerror {
-		return p, fmt.Errorf("Failed to collect query data %d", winerror)
+	pdherror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
 	}
-	return p, nil
+	return &p, nil
 }
 
-// GetSingleInstanceCounter returns a single instance counter object for the given counter class
-// TODO: Replace usages of this with GetUnlocalizedCounter using an empty string as instance
-func GetSingleInstanceCounter(className, counterName string) (*PdhSingleInstanceCounterSet, error) {
-	var p PdhSingleInstanceCounterSet
-	if err := p.Initialize(className); err != nil {
-		return nil, err
-	}
-	// check to make sure this is really a single instance counter
-	allcounters, instances, err := pfnPdhEnumObjectItems(p.className)
-	if err != nil {
-		return nil, err
-	}
-	if len(instances) > 0 {
-		return nil, fmt.Errorf("Requested counter is not single-instance: %s", p.className)
-	}
-	path, err := p.MakeCounterPath("", counterName, "", allcounters)
-	if err != nil {
-		log.Warnf("Failed to make counter path %v", err)
-		return nil, err
-	}
-	winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &p.singleCounter)
-	if ERROR_SUCCESS != winerror {
-		return nil, fmt.Errorf("Failed to add single counter %d", winerror)
-	}
-
-	// do the initial collect now
-	pfnPdhCollectQueryData(p.query)
-	return &p, nil
+// GetEnglishSingleInstanceCounter returns a single instance counter object for the given counter class
+// the className and counterName must be in English.
+// See PdhAddEnglishCounter docs for details
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcountera
+func GetEnglishSingleInstanceCounter(className string, counterName string) (*PdhSingleInstanceCounterSet, error) {
+	return GetEnglishCounterInstance(className, counterName, "")
 }
 
 // GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
-// TODO: Replace usages of this with a function similar to GetUnlocalizedCounter for multi-instance counters, that uses PdhAddEnglishCounter
-func GetMultiInstanceCounter(className, counterName string, requestedInstances *[]string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
+func GetEnglishMultiInstanceCounter(className string, counterName string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
 	var p PdhMultiInstanceCounterSet
-	if err := p.Initialize(className); err != nil {
+	if err := p.Initialize(className, counterName); err != nil {
 		return nil, err
 	}
-	p.countermap = make(map[string]PDH_HCOUNTER)
+
 	p.verifyfn = verifyfn
-	p.requestedCounterName = counterName
 
-	// check to make sure this is really a multi instance counter
-	_, instances, err := pfnPdhEnumObjectItems(p.className)
+	// Use the * wildcard to collect all instances
+	path, err := pfnPdhMakeCounterPath("", className, "*", counterName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
 	}
-	if len(instances) <= 0 {
-		return nil, fmt.Errorf("Requested counter is a single-instance: %s", p.className)
+	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
 	}
-	// save the requested instances
-	if requestedInstances != nil && len(*requestedInstances) > 0 {
-		p.requestedInstances = make(map[string]bool)
-		for _, inst := range *requestedInstances {
-			p.requestedInstances[inst] = true
-		}
+	pdherror = pfnPdhCollectQueryData(p.query)
+	if ERROR_SUCCESS != pdherror {
+		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
 	}
-	if err := p.MakeInstanceList(); err != nil {
-		return nil, err
-	}
-	return &p, nil
 
+	return &p, nil
 }
 
-// MakeInstanceList walks the list of available instances, and adds new
-// instances that have appeared since the last check run
-func (p *PdhMultiInstanceCounterSet) MakeInstanceList() error {
-	allcounters, instances, err := pfnPdhEnumObjectItems(p.className)
+// GetAllValues returns the data associated with each instance in a query.
+// verifyfn is used to filter out instance names that are returned
+// instance:value pairs are not returned for items whose CStatus contains an error
+func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, err error) {
+	// update data
+	pfnPdhCollectQueryData(p.query)
+	// fetch data
+	items, err := pfnPdhGetFormattedCounterArray(p.counter, PDH_FMT_DOUBLE)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var instToMake []string
-	for _, actualInstance := range instances {
-		// if we have a list of requested instances, walk it, and make sure
-		// they're here.  If not, add them to the list of instances to make
-		if p.requestedInstances != nil {
-			// if it's not in the requestedInstances, don't bother
-			if !p.requestedInstances[actualInstance] {
-				continue
-			}
-			// ok.  it was requested.  If it's not in our map
-			// of counters, we have to add it
-			if p.countermap[actualInstance] == PDH_HCOUNTER(0) {
-				log.Debugf("Adding requested instance %s", actualInstance)
-				instToMake = append(instToMake, actualInstance)
-			}
-		} else {
-			// wanted all the instances.  Make sure all of the instances
-			// are present
-			if p.countermap[actualInstance] == PDH_HCOUNTER(0) {
-				instToMake = append(instToMake, actualInstance)
-			}
-		}
-	}
-	added := false
-	for _, inst := range instToMake {
+	values = make(map[string]float64)
+	for _, item := range items {
 		if p.verifyfn != nil {
-			if p.verifyfn(inst) == false {
+			if p.verifyfn(item.instance) == false {
 				// not interested, moving on
 				continue
 			}
 		}
-		path, err := p.MakeCounterPath("", p.requestedCounterName, inst, allcounters)
-		if err != nil {
-			log.Debugf("Failed to make counter path %s %s", p.counterName, inst)
+		if item.value.CStatus != PDH_CSTATUS_VALID_DATA &&
+			item.value.CStatus != PDH_CSTATUS_NEW_DATA {
+			// Does not necessarily indicate the problem, e.g. the process may have
+			// exited by the time the formatting of its counter values happened
+			log.Debugf("Counter value not valid for %s[%s]: %#x", p.counterName, item.instance, item.value.CStatus)
 			continue
 		}
-		var hc PDH_HCOUNTER
-		winerror := pfnPdhAddCounter(p.query, path, uintptr(0), &hc)
-		if ERROR_SUCCESS != winerror {
-			log.Debugf("Failed to add counter path %s", path)
-			continue
-		}
-		log.Debugf("Adding missing counter instance %s", inst)
-		p.countermap[inst] = hc
-		added = true
+		values[item.instance] = item.value.Double
 	}
-	if added {
-		// do the initial collect now
-		pfnPdhCollectQueryData(p.query)
-	}
-	return nil
-}
-
-//RemoveInvalidInstance removes an instance from the counter that is no longer valid
-func (p *PdhMultiInstanceCounterSet) RemoveInvalidInstance(badInstance string) {
-	hc := p.countermap[badInstance]
-	if hc != PDH_HCOUNTER(0) {
-		log.Debugf("Removing non-existent counter instance %s", badInstance)
-		pfnPdhRemoveCounter(hc)
-		delete(p.countermap, badInstance)
-	} else {
-		log.Debugf("Instance handle not found")
-	}
-}
-
-// MakeCounterPath creates a counter path from the counter instance and
-// counter name.  Tries all available translated counter indexes from
-// the english name
-func (p *PdhCounterSet) MakeCounterPath(machine, counterName, instanceName string, counters []string) (string, error) {
-	/*
-	   When handling non english versions, the counters don't work quite as documented.
-	   This is because strings like "Bytes Sent/sec" might appear multiple times in the
-	   english master, and might not have mappings for each index.
-
-	   Search each index, and make sure the requested counter name actually appears in
-	   the list of available counters; that's the counter we'll use.
-
-	   For more information, see README.md.
-	*/
-	idxList, err := getCounterIndexList(counterName)
-	if err != nil {
-		return "", err
-	}
-	for _, ndx := range idxList {
-		counter, e := pfnPdhLookupPerfNameByIndex(ndx)
-		if e != nil {
-			log.Debugf("Counter index %d not found, skipping", ndx)
-			continue
-		}
-		// see if the counter we got back is in the list of counters
-		if !stringInSlice(counter, counters) {
-			log.Debugf("counter %s not in counter list", counter)
-			continue
-		}
-		// check to see if we can create the counter
-		path, err := pfnPdhMakeCounterPath(machine, p.className, instanceName, counter)
-		if err == nil {
-			log.Debugf("Successfully created counter path %s", path)
-			p.counterName = counter
-			return path, nil
-		}
-		// else
-		log.Debugf("Unable to create path with %s, trying again", counter)
-	}
-	// if we get here, was never able to find a counter path or create a valid
-	// path.  Return failure.
-	log.Warnf("Unable to create counter path for %s %s", counterName, instanceName)
-	return "", fmt.Errorf("Unable to create counter path %s %s", counterName, instanceName)
-}
-
-// GetAllValues returns the data associated with each instance in a query.
-func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, err error) {
-	values = make(map[string]float64)
-	err = nil
-	var removeList []string
-	pfnPdhCollectQueryData(p.query)
-	for inst, hcounter := range p.countermap {
-		var retval float64
-		retval, err = pfnPdhGetFormattedCounterValueFloat(hcounter)
-		if err != nil {
-			switch err.(type) {
-			case *ErrPdhInvalidInstance:
-				removeList = append(removeList, inst)
-				log.Debugf("Got invalid instance for %s %s", p.requestedCounterName, inst)
-				err = nil
-				continue
-			default:
-				log.Debugf("Other Error getting all values %s %s %v", p.requestedCounterName, inst, err)
-				return
-			}
-		}
-		values[inst] = retval
-	}
-	for _, inst := range removeList {
-		p.RemoveInvalidInstance(inst)
-	}
-	// check for newly found instances
-	p.MakeInstanceList()
-	return
+	return values, nil
 }
 
 // GetValue returns the data associated with a single-value counter
 func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
-	if p.singleCounter == PDH_HCOUNTER(0) {
+	if p.counter == PDH_HCOUNTER(0) {
 		return 0, fmt.Errorf("Not a single-value counter")
 	}
 	pfnPdhCollectQueryData(p.query)
-	return pfnPdhGetFormattedCounterValueFloat(p.singleCounter)
+	return pfnPdhGetFormattedCounterValueFloat(p.counter)
 
 }
 
 // Close closes the query handle, freeing the underlying windows resources.
 func (p *PdhCounterSet) Close() {
-	PdhCloseQuery(p.query)
-}
-
-func getCounterIndexList(cname string) ([]int, error) {
-	if counterToIndex == nil || len(counterToIndex) == 0 {
-		if err := pfnMakeCounterSetInstances(); err != nil {
-			return []int{}, err
-		}
-	}
-
-	ndxlist, found := counterToIndex[cname]
-	if !found {
-		return []int{}, nil
-	}
-	return ndxlist, nil
-}
-
-func stringInSlice(a string, list []string) bool {
-	for _, b := range list {
-		if b == a {
-			return true
-		}
-	}
-	return false
+	pfnPdhCloseQuery(p.query)
 }

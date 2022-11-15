@@ -39,6 +39,7 @@ def get_failed_jobs(project_name, pipeline_id):
             "id": jobs[-1]["id"],
             "stage": jobs[-1]["stage"],
             "status": jobs[-1]["status"],
+            "tag_list": jobs[-1]["tag_list"],
             "allow_failure": jobs[-1]["allow_failure"],
             "url": jobs[-1]["web_url"],
             "retry_summary": [job["status"] for job in jobs],
@@ -55,30 +56,32 @@ def get_failed_jobs(project_name, pipeline_id):
 
 infra_failure_logs = [
     # Gitlab errors while pulling image on legacy runners
-    (re.compile(r'no basic auth credentials \(.*\)'), FailedJobReason.MAIN_RUNNER),
-    (re.compile(r'net/http: TLS handshake timeout \(.*\)'), FailedJobReason.MAIN_RUNNER),
-    (
-        re.compile(r'Failed to pull image with policy "always": error pulling image configuration'),
-        FailedJobReason.MAIN_RUNNER,
-    ),
+    (re.compile(r'no basic auth credentials \(.*\)'), FailedJobReason.RUNNER),
+    (re.compile(r'net/http: TLS handshake timeout \(.*\)'), FailedJobReason.RUNNER),
     # docker / docker-arm runner init failures
-    (re.compile(r'Docker runner job start script failed'), FailedJobReason.DOCKER_RUNNER),
+    (re.compile(r'Docker runner job start script failed'), FailedJobReason.RUNNER),
     (
         re.compile(
             r'A disposable runner accepted this job, while it shouldn\'t have\. Runners are meant to run just one job and be terminated\.'
         ),
-        FailedJobReason.DOCKER_RUNNER,
+        FailedJobReason.RUNNER,
     ),
     (
         re.compile(r'WARNING: Failed to pull image with policy "always":.*:.*\(.*\)'),
-        FailedJobReason.DOCKER_RUNNER,
+        FailedJobReason.RUNNER,
     ),
     # k8s Gitlab runner init failures
     (
         re.compile(
             r'Job failed \(system failure\): prepare environment: waiting for pod running: timed out waiting for pod to start'
         ),
-        FailedJobReason.K8S_RUNNER,
+        FailedJobReason.RUNNER,
+    ),
+    (
+        re.compile(
+            r'Job failed \(system failure\): prepare environment: setting up build pod: Internal error occurred: failed calling webhook'
+        ),
+        FailedJobReason.RUNNER,
     ),
     # kitchen tests Azure VM allocation failures
     (
@@ -86,6 +89,16 @@ infra_failure_logs = [
             r'Allocation failed\. We do not have sufficient capacity for the requested VM size in this region\.'
         ),
         FailedJobReason.KITCHEN_AZURE,
+    ),
+    # Gitlab 5xx errors
+    (
+        re.compile(r'fatal: unable to access \'.*\': The requested URL returned error: 5..'),
+        FailedJobReason.GITLAB,
+    ),
+    # kitchen tests general infrastructure issues
+    (
+        re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
+        FailedJobReason.KITCHEN,
     ),
 ]
 

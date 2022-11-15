@@ -114,6 +114,11 @@ instances:
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
 
+    ## @param collect_topology - boolean - optional - default: false
+    ## Enabled collection of topology data.
+    #
+    collect_topology: "%%extra_collect_topology%%"
+
     ## @param namespace - string - optional - default: default
     ## Namespace can be used to disambiguate devices with same IPs.
     ## Changing namespace will cause devices being recreated in NDM app.

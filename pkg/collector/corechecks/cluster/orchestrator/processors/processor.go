@@ -10,7 +10,6 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -27,12 +26,13 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // ProcessorContext holds resource processing attributes
 type ProcessorContext struct {
-	APIClient  *apiserver.APIClient
-	Cfg        *config.OrchestratorConfig
-	ClusterID  string
-	HostName   string
-	MsgGroupID int32
-	NodeType   orchestrator.NodeType
+	APIClient          *apiserver.APIClient
+	Cfg                *config.OrchestratorConfig
+	ClusterID          string
+	HostName           string
+	MsgGroupID         int32
+	NodeType           orchestrator.NodeType
+	ApiGroupVersionTag string
 }
 
 // Handlers is the interface that is to be implemented for every resource type

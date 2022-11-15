@@ -177,7 +177,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	// prepare the embedded aggregator
 	// --
 
-	agg := InitAggregatorWithFlushInterval(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------

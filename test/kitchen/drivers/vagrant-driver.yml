@@ -4,7 +4,11 @@ driver:
   provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
 
 provisioner:
-  name: chef_zero
+  name: chef_solo
+  product_name: chef
+  install_strategy: always
+  # Use the same product_version as the CI kitchen test in Azure.
+  product_version: 14.12.9
   # the following settings make it possible to do a reboot during setup
   # (necessary for FIPS tests which reboot to enable FIPS mode)
   max_retries: 3
@@ -25,6 +29,11 @@ platforms:
       customize:
         disk_bus: sata
       <% end %>
+# uncomment below to locally inspect junit tarballs used for CI visibility
+#    verifier:
+#      downloads:
+#        "/tmp/junit.tar.gz": kitchen-junit-<%= platform[0] %>.tar.gz
+#        "/tmp/testjson.tar.gz": testjson/<%= platform[0] %>/testjson.tar.gz
 <%
     end
 %>

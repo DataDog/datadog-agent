@@ -40,7 +40,7 @@ def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test
     for target in targets:
         print(f"running golangci on {target}")
         ctx.run(
-            f"golangci-lint run --timeout 15m0s --build-tags '{' '.join(tags)}' {target}/...",
+            f'golangci-lint run --timeout 15m0s --build-tags "{" ".join(tags)}" {target}/...',
             env=env,
         )
 
@@ -263,3 +263,19 @@ def tidy_all(ctx):
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
             ctx.run("go mod tidy -compat=1.17")
+
+
+@task
+def check_go_version(ctx):
+    go_version_output = ctx.run('go version')
+    # result is like "go version go1.18.7 linux/amd64"
+    running_go_version = go_version_output.stdout.split(' ')[2]
+
+    with open(".go-version") as f:
+        dot_go_version = f.read()
+        dot_go_version = dot_go_version.strip()
+        if not dot_go_version.startswith("go"):
+            dot_go_version = f"go{dot_go_version}"
+
+    if dot_go_version != running_go_version:
+        raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
