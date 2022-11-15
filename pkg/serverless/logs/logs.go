@@ -44,18 +44,27 @@ type LambdaLogsCollector struct {
 
 // platformObjectRecord contains additional information found in Platform log messages
 type platformObjectRecord struct {
-	requestID     string           // uuid; present in LogTypePlatform{Start,End,Report}
-	startLogItem  startLogItem     // present in LogTypePlatformStart only
-	reportLogItem reportLogMetrics // present in LogTypePlatformReport only
+	requestID       string           // uuid; present in LogTypePlatform{Start,End,Report}
+	startLogItem    startLogItem     // present in LogTypePlatformStart only
+	runtimeDoneItem runtimeDoneItem  // present in LogTypePlatformRuntimeDone only
+	reportLogItem   reportLogMetrics // present in LogTypePlatformReport only
 }
 
 // reportLogMetrics contains metrics found in a LogTypePlatformReport log
 type reportLogMetrics struct {
-	durationMs       float64
-	billedDurationMs int
-	memorySizeMB     int
-	maxMemoryUsedMB  int
-	initDurationMs   float64
+	durationMs            float64
+	billedDurationMs      int
+	memorySizeMB          int
+	maxMemoryUsedMB       int
+	initDurationMs        float64
+	initDurationTelemetry float64
+}
+
+// runtimeDoneItem contains metrics found in a LogTypePlatformRuntimeDone log
+type runtimeDoneItem struct {
+	responseLatency  float64
+	responseDuration float64
+	producedBytes    float64
 }
 
 type startLogItem struct {
@@ -74,14 +83,14 @@ const (
 
 	// logTypePlatformStart is used for the log message about the platform starting
 	logTypePlatformStart = "platform.start"
-	// logTypePlatformEnd is used for the log message about the platform shutting down
-	logTypePlatformEnd = "platform.end"
 	// logTypePlatformReport is used for the log messages containing a report of the last invocation.
 	logTypePlatformReport = "platform.report"
 	// logTypePlatformLogsDropped is used when AWS has dropped logs because we were unable to consume them fast enough.
 	logTypePlatformLogsDropped = "platform.logsDropped"
 	// logTypePlatformRuntimeDone is received when the runtime (customer's code) has returned (success or error)
 	logTypePlatformRuntimeDone = "platform.runtimeDone"
+	// logTypePlatformInitReport is received when init finishes
+	logTypePlatformInitReport = "platform.initReport"
 )
 
 // logMessage is a log message sent by the AWS API.
@@ -117,7 +126,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 			l.time = time
 		}
 	}
-
 	// the rest
 
 	switch typ {
@@ -130,7 +138,7 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 	case logTypeFunction, logTypeExtension:
 		l.logType = typ
 		l.stringRecord = j["record"].(string)
-	case logTypePlatformStart, logTypePlatformEnd, logTypePlatformReport, logTypePlatformRuntimeDone:
+	case logTypePlatformStart, logTypePlatformReport, logTypePlatformRuntimeDone, logTypePlatformInitReport:
 		l.logType = typ
 		if objectRecord, ok := j["record"].(map[string]interface{}); ok {
 			// all of these have the requestId
@@ -146,10 +154,6 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				l.stringRecord = fmt.Sprintf("START RequestId: %s Version: %s",
 					l.objectRecord.requestID,
 					l.objectRecord.startLogItem.version,
-				)
-			case logTypePlatformEnd:
-				l.stringRecord = fmt.Sprintf("END RequestId: %s",
-					l.objectRecord.requestID,
 				)
 			case logTypePlatformReport:
 				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
@@ -172,6 +176,47 @@ func (l *logMessage) UnmarshalJSON(data []byte) error {
 				} else {
 					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
 				}
+			case logTypePlatformRuntimeDone:
+				l.stringRecord = fmt.Sprintf("END RequestId: %s", l.objectRecord.requestID)
+				if spans, ok := objectRecord["spans"].([]interface{}); ok {
+					for _, span := range spans {
+						spanMap, ok := span.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						durationMs, ok := spanMap["durationMs"].(float64)
+						if !ok {
+							continue
+						}
+						if v, ok := spanMap["name"].(string); ok {
+							switch v {
+							case "responseLatency":
+								l.objectRecord.runtimeDoneItem.responseLatency = durationMs
+							case "responseDuration":
+								l.objectRecord.runtimeDoneItem.responseDuration = durationMs
+							}
+						}
+					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the spans object")
+				}
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["producedBytes"].(float64); ok {
+						l.objectRecord.runtimeDoneItem.producedBytes = v
+					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+				}
+				log.Debugf("Runtime done metrics: %+v\n", l.objectRecord.runtimeDoneItem)
+			case logTypePlatformInitReport:
+				if metrics, ok := objectRecord["metrics"].(map[string]interface{}); ok {
+					if v, ok := metrics["durationMs"].(float64); ok {
+						l.objectRecord.reportLogItem.initDurationTelemetry = v
+					}
+				} else {
+					log.Error("LogMessage.UnmarshalJSON: can't read the metrics object")
+				}
+				log.Debugf("InitReport done metrics: %+v\n", l.objectRecord.reportLogItem)
 			}
 		} else {
 			log.Error("LogMessage.UnmarshalJSON: can't read the record object")
@@ -189,6 +234,9 @@ func shouldProcessLog(ecs *executioncontext.State, message *logMessage) bool {
 	// If the global request ID or ARN variable isn't set at this point, do not process further
 	if len(ecs.ARN) == 0 || len(ecs.LastRequestID) == 0 {
 		return false
+	}
+	if message.logType == logTypePlatformInitReport {
+		return true
 	}
 	// Making sure that empty logs are not uselessly sent
 	if len(message.stringRecord) == 0 && len(message.objectRecord.requestID) == 0 {
@@ -292,6 +340,9 @@ func processMessage(
 	if !shouldProcessLog(&ecs, message) {
 		return
 	}
+	if message.logType == logTypePlatformInitReport {
+		ec.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
+	}
 
 	if message.logType == logTypePlatformStart {
 		lastLogRequestID := message.objectRecord.requestID
@@ -322,7 +373,16 @@ func processMessage(
 			message.stringRecord = createStringRecordForReportLog(message, ecs)
 		}
 		if message.logType == logTypePlatformRuntimeDone {
-			serverlessMetrics.GenerateRuntimeDurationMetric(ecs.StartTime, message.time, tags, demux)
+			args := serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLogArgs{
+				Start:            ecs.StartTime,
+				End:              message.time,
+				ResponseLatency:  message.objectRecord.runtimeDoneItem.responseLatency,
+				ResponseDuration: message.objectRecord.runtimeDoneItem.responseDuration,
+				ProducedBytes:    message.objectRecord.runtimeDoneItem.producedBytes,
+				Tags:             tags,
+				Demux:            demux,
+			}
+			serverlessMetrics.GenerateEnhancedMetricsFromRuntimeDoneLog(args)
 			ec.UpdateFromRuntimeDoneLog(message.time)
 			ecs = ec.GetCurrentState()
 		}

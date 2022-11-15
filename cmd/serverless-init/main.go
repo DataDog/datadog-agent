@@ -50,7 +50,7 @@ func main() {
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]string) {
-	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+	traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, nil)
 	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(tags))
 	for range time.Tick(3 * time.Second) {
 		traceAgent.Flush()
