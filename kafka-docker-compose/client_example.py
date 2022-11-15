@@ -37,9 +37,9 @@ class Consumer(threading.Thread):
         self.stop_event.set()
 
     def run(self):
-        consumer = KafkaConsumer(bootstrap_servers='localhost:9092',
-                                 auto_offset_reset='earliest',
-                                 consumer_timeout_ms=1000)
+        consumer = KafkaConsumer(
+            bootstrap_servers='localhost:9092', auto_offset_reset='earliest', consumer_timeout_ms=1000
+        )
         consumer.subscribe(['my-topic'])
 
         while not self.stop_event.is_set():
@@ -56,17 +56,12 @@ def main():
     try:
         admin = KafkaAdminClient(bootstrap_servers='localhost:9092')
 
-        topic = NewTopic(name='my-topic',
-                         num_partitions=1,
-                         replication_factor=1)
+        topic = NewTopic(name='my-topic', num_partitions=1, replication_factor=1)
         admin.create_topics([topic])
     except Exception:
         pass
 
-    tasks = [
-        Producer(),
-        Consumer()
-    ]
+    tasks = [Producer(), Consumer()]
 
     # Start threads of a publisher/producer and a subscriber/consumer to 'my-topic' Kafka topic
     for t in tasks:

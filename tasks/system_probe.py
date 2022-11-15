@@ -298,7 +298,7 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/kafka/kafka_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/kafka/kafka-types.h",
-            ]
+            ],
         }
         nw.rule(
             name="godefs",
