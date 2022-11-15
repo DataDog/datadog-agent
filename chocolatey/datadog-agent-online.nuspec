@@ -4,13 +4,12 @@
     <id>datadog-agent</id>
     <version>$package_version$</version>
     <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/main/chocolatey</packageSourceUrl>
-    <owners>package@datadoghq.com</owners>
     <title>Datadog Agent</title>
     <authors>Datadog</authors>
     <projectUrl>https://github.com/DataDog/datadog-agent</projectUrl>
     <iconUrl>https://datadog-prod.imgix.net/img/dd_logo_70x75.png</iconUrl>
     <copyright>$copyright$</copyright>
-    <licenseUrl>https://raw.githubusercontent.com/DataDog/datadog-agent/main/LICENSE</licenseUrl>
+    <license type="expression">Apache-2.0</license>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <docsUrl>https://docs.datadoghq.com</docsUrl>
     <tags>datadog agent monitoring admin</tags>
