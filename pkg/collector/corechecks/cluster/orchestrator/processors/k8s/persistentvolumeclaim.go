@@ -46,7 +46,7 @@ func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx *processors.Process
 		GroupId:                ctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		PersistentVolumeClaims: models,
-		Tags:                   ctx.Cfg.ExtraTags,
+		Tags:                   append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

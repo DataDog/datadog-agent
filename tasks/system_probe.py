@@ -12,7 +12,7 @@ from pathlib import Path
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .libs.ninja_syntax import NinjaWriter
@@ -47,7 +47,8 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "12.0.1"
+CLANG_VERSION_RUNTIME = "12.0.1"
+CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -663,13 +664,13 @@ def kitchen_genconfig(
     elif arch == "arm64":
         arch = "arm64"
     else:
-        raise UnexpectedExit("unsupported arch specified")
+        raise Exit("unsupported arch specified")
 
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
     if not image_size:
-        raise UnexpectedExit("Image size must be specified")
+        raise Exit("Image size must be specified")
 
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
@@ -963,23 +964,30 @@ def setup_runtime_clang(ctx):
     if arch == "x64":
         arch = "amd64"
 
-    if clang_version_str != CLANG_VERSION:
+    if clang_version_str != CLANG_VERSION_RUNTIME:
         # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-    if llc_version_str != CLANG_VERSION:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    if llc_version_str != CLANG_VERSION_RUNTIME:
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
 
 def verify_system_clang_version(ctx):
     clang_res = ctx.run("clang --version", warn=True)
-    clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
-    if clang_version_str != CLANG_VERSION:
-        raise UnexpectedExit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
+    clang_version_str = ""
+    if clang_res.ok:
+        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
+        version_index = clang_version_parts.index("version")
+        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
+
+    if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
+        raise Exit(
+            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
+        )
 
 
 def build_object_files(

@@ -28,6 +28,9 @@ const (
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
 
+// allowedHeaders contains the headers that the proxy will forward. All others will be cleared.
+var allowedHeaders = [...]string{"Content-Type", "User-Agent", "DD-CI-PROVIDER-NAME"}
+
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	apiKey := conf.EVPProxy.APIKey
@@ -116,8 +119,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
 	containerID := req.Header.Get(headerContainerID)
-	contentType := req.Header.Get("Content-Type")
-	userAgent := req.Header.Get("User-Agent")
 	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
@@ -139,19 +140,28 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
 	}
 
-	// We don't want to forward arbitrary headers, clear them
+	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
+	inputHeaders := req.Header
 	req.Header = http.Header{}
 
 	// Set standard headers
+	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default
 	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
+
+	// Copy allowed headers from the input request
+	for _, header := range allowedHeaders {
+		val := inputHeaders.Get(header)
+		if val != "" {
+			req.Header.Set(header, val)
+		}
 	}
-	req.Header.Set("User-Agent", userAgent) // Set even if an empty string so Go doesn't set its default
 
 	// Set Datadog headers, except API key which is set per-endpoint
-	if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
-		req.Header.Set("X-Datadog-Container-Tags", ctags)
+	if containerID != "" {
+		req.Header.Set(headerContainerID, containerID)
+		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
+			req.Header.Set("X-Datadog-Container-Tags", ctags)
+		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
