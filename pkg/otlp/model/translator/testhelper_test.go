@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -146,4 +147,25 @@ func (t *testConsumer) ConsumeSketch(
 			Counts:    n,
 		},
 	)
+}
+
+func TestTestDimensions(t *testing.T) {
+	testType := reflect.TypeOf(TestDimensions{})
+	var testFields []string
+	for i := 0; i < testType.NumField(); i++ {
+		testFields = append(testFields,
+			strings.ToLower(testType.Field(i).Name),
+		)
+	}
+
+	trueType := reflect.TypeOf(Dimensions{})
+	var trueFields []string
+	for i := 0; i < trueType.NumField(); i++ {
+		trueFields = append(trueFields,
+			strings.ToLower(trueType.Field(i).Name),
+		)
+	}
+
+	assert.ElementsMatch(t, testFields, trueFields,
+		"The fields on TestDimensions and Dimensions do not match")
 }
