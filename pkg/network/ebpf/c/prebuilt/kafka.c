@@ -4,7 +4,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
-#include "tags-types.h"
+#include "protocols/tags-types.h"
 #include "sock.h"
 #include "port_range.h"
 #include "kafka/kafka-maps.h"

@@ -74,7 +74,7 @@ func TestSanity(t *testing.T) {
 	err = r.SetOffset(0)
 	require.NoError(t, err)
 
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	for {
@@ -87,11 +87,13 @@ func TestSanity(t *testing.T) {
 	require.NoError(t, r.Close())
 
 	kafkaStats := monitor.GetKafkaStats()
-	// We expect 2 occurrences as we are working with a docker for now
-	require.Equal(t, 2, len(kafkaStats))
-	for _, value := range kafkaStats {
+	// We expect 2 occurrences for each connection as we are working with a docker for now
+	require.Equal(t, 4, len(kafkaStats))
+	for _, kafkaStat := range kafkaStats {
+		// When the ctxTimeout is configured with 10 seconds, we get 2 fetches from this client
+		kafkaStatIsOK := kafkaStat.Data[ProduceAPIKey].Count == 1 || kafkaStat.Data[FetchAPIKey].Count == 2
 		// TODO: need to add the kafka_seen_before so we won't get too much requests
-		require.Equal(t, 1, value.Data[0].Count)
+		require.True(t, kafkaStatIsOK)
 	}
 }
 
