@@ -979,8 +979,9 @@ def verify_system_clang_version(ctx):
     clang_res = ctx.run("clang --version", warn=True)
     clang_version_str = ""
     if clang_res.ok:
-        clang_version_str = clang_res.stdout.splitlines()[0].split(" ")[-1].strip()
-        clang_version_str = clang_version_str.split("-")[0]
+        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
+        version_index = clang_version_parts.index("version")
+        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
 
     if clang_version_str != CLANG_VERSION:
         raise Exit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
