@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -580,6 +581,10 @@ var _ SketchConsumer = (*mockFullConsumer)(nil)
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []sketch
+}
+
+func (c *mockFullConsumer) ConsumeAPMStats(_ pb.StatsPayload) {
+	// TODO(gbbr)
 }
 
 func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
