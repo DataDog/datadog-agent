@@ -18,14 +18,14 @@ import (
 	"time"
 )
 
-const (
-	kb = 1024
-	mb = 1024 * kb
-)
+//const (
+//	kb = 1024
+//	mb = 1024 * kb
+//)
 
-var (
-	emptyBody = []byte(nil)
-)
+//var (
+//	emptyBody = []byte(nil)
+//)
 
 //func skipTestIfKernelNotSupported(t *testing.T) {
 //	currKernelVersion, err := kernel.HostVersion()

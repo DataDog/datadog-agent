@@ -32,8 +32,6 @@ const (
 	kafkaBatchEvents                = "kafka_batch_events"
 	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 
-	kafkaKernelToUserModeMapName = "c"
-
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain kafka traffic
 	kafkaSocketFilterStub = "socket/kafka_filter_entry"
@@ -44,7 +42,7 @@ const (
 	// kretprobe-probed functions handled simultaneously.  This value should be
 	// enough for typical workloads (e.g. some amount of processes blocked on
 	// the accept syscall).
-	maxActive = 128
+	//maxActive = 128
 
 	// size of the channel containing completed kafka_notification_objects
 	batchNotificationsChanSize = 100
