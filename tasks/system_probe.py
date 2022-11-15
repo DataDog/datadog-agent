@@ -295,7 +295,7 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/protocols/http-types.h",
             ],
-            "pkg/network/kafka/kafka_types.go": [
+            "pkg/network/protocols/kafka/kafka_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/kafka/kafka-types.h",
             ],
