@@ -1803,8 +1803,11 @@ func buildGoTLSClientBin(t *testing.T) string {
 
 	clientBinPath := fmt.Sprintf("%s/gotls_client", clientBuildDir)
 
-	clientBuildCmd := fmt.Sprintf("go build -o %s %s", clientBinPath, clientSrcDir)
-	_, err = testutil.RunCommand(clientBuildCmd)
+	clientBuildCmd := fmt.Sprintf("go build -buildvcs=false -o %s %s", clientBinPath, clientSrcDir)
+	args := strings.Split(clientBuildCmd, " ")
+	c := exec.Command(args[0], args[1:]...)
+	c.Dir = cur
+	_, err := c.CombinedOutput()
 	require.NoError(t, err, "could not build client test binary: %s", err)
 
 	return clientBinPath
