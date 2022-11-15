@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"testing"
 
@@ -53,7 +52,7 @@ func setupSecretScript() error {
 func TestAgentConfigYamlEnc(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
@@ -68,7 +67,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
@@ -83,7 +82,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them

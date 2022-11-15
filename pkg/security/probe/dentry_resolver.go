@@ -456,7 +456,7 @@ func computeFilenameFromParts(parts []string) string {
 func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var cacheKey PathKey
 	var cacheEntry *PathEntry
-	var err, resolutionErr error
+	var resolutionErr error
 	var name string
 	var path PathLeaf
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
@@ -476,9 +476,9 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
-		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+		if err := dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filenameParts = nil
-			err = errDentryPathKeyNotFound
+			resolutionErr = errDentryPathKeyNotFound
 			break
 		}
 		depth++
@@ -520,17 +520,12 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	filename := computeFilenameFromParts(filenameParts)
 
-	// resolution errors are more important than regular map lookup errors
-	if resolutionErr != nil {
-		err = resolutionErr
-	}
-
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.PathResolutionTag,
 	}
 
-	if err == nil {
+	if resolutionErr == nil {
 		dr.cacheEntries(keys, entries)
 
 		if depth > 0 {
@@ -545,7 +540,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		dr.missCounters[entry].Inc()
 	}
 
-	return filename, err
+	return filename, resolutionErr
 }
 
 func (dr *DentryResolver) preventSegmentMajorPageFault() {

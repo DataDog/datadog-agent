@@ -84,7 +84,7 @@
 //
 //
 //	2. HTTP Req/Resp (the same ActivityID)
-//	   a. HTTPRequestTraceTaskRecvReq        1     [Correlated to Conncetion by builtin ActivityID<->ReleatedActivityID]
+//	   a. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       8     [statusCode, verb, headerLen, cachePolicy]
@@ -92,7 +92,7 @@
 //
 //		  or
 //
-//	   b. HTTPRequestTraceTaskRecvReq        1     [Correlated to Conncetion by builtin ActivityID<->ReleatedActivityID]
+//	   b. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy = 0]
@@ -100,7 +100,7 @@
 //
 //		  or
 //
-//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Conncetion by builtin ActivityID<->ReleatedActivityID]
+//	   c. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //	      HTTPRequestTraceTaskDeliver        3     [siteId, reqQueueName, url]
 //		  HTTPRequestTraceTaskFastResp       4     [statusCode, verb, headerLen, cachePolicy=1]
@@ -109,7 +109,7 @@
 //
 //		  or
 //
-//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Conncetion by builtin ActivityID<->ReleatedActivityID]
+//	   d. HTTPRequestTraceTaskRecvReq        1     [Correlated to Connection by builtin ActivityID<->ReleatedActivityID]
 //	      HTTPRequestTraceTaskParse          2     [verb, url]
 //		  HTTPRequestTraceTaskSrvdFrmCache  16     [site, bytesSent]
 //
@@ -758,7 +758,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *C.DD_ETW_EVENT_INFO) {
 	if urlOffset > len(userData) {
 		parsingErrorCount++
 
-		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find begining of Url\n\n",
+		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find beginning of Url\n\n",
 			formatGuid(eventInfo.event.activityId), formatGuid(httpConnLink.connActivityId))
 
 		// If problem stop tracking this
@@ -1086,7 +1086,7 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *C.DD_ETW_EVENT_INFO) {
 	if !captureHTTPS {
 
 		if HttpServiceLogVerbosity != HttpServiceLogVeryVerbose {
-			// Drop it immedeatly ...
+			// Drop it immediately ...
 			delete(connOpened, eventInfo.event.activityId)
 		} else {
 			// ... unless  if we want to track to the very end
@@ -1124,19 +1124,19 @@ func etwHttpServiceSummary() {
 	lastSummaryTime = time.Now()
 	summaryCount++
 
-	log.Infof("=====================\n")
-	log.Infof("  SUMMARY #%v\n", summaryCount)
-	log.Infof("=====================\n")
-	log.Infof("  Pid:                      %v\n", os.Getpid())
-	log.Infof("  Conn map:                 %v\n", len(connOpened))
-	log.Infof("  Req/Resp map:             %v\n", len(http2openConn))
-	log.Infof("  Cache map:                %v\n", len(httpCache))
-	log.Infof("  All Events(not handled):  %v(%v)\n", formatUInt(eventCount), formatUInt(notHandledEventsCount))
-	log.Infof("  Requests(cached):         %v(%v)\n", formatUInt(completedRequestCount), formatUInt(servedFromCache))
-	log.Infof("  Missed Conn:              %v\n", formatUInt(missedConnectionCount))
-	log.Infof("  Parsing Error:            %v\n", formatUInt(parsingErrorCount))
-	log.Infof("  ETW Bytes Total(Payload): %v(%v)\n", bytesFormat(transferedETWBytesTotal), bytesFormat(transferedETWBytesPayload))
-	log.Infof("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
+	log.Debugf("=====================\n")
+	log.Debugf("  SUMMARY #%v\n", summaryCount)
+	log.Debugf("=====================\n")
+	log.Debugf("  Pid:                      %v\n", os.Getpid())
+	log.Debugf("  Conn map:                 %v\n", len(connOpened))
+	log.Debugf("  Req/Resp map:             %v\n", len(http2openConn))
+	log.Debugf("  Cache map:                %v\n", len(httpCache))
+	log.Debugf("  All Events(not handled):  %v(%v)\n", formatUInt(eventCount), formatUInt(notHandledEventsCount))
+	log.Debugf("  Requests(cached):         %v(%v)\n", formatUInt(completedRequestCount), formatUInt(servedFromCache))
+	log.Debugf("  Missed Conn:              %v\n", formatUInt(missedConnectionCount))
+	log.Debugf("  Parsing Error:            %v\n", formatUInt(parsingErrorCount))
+	log.Debugf("  ETW Bytes Total(Payload): %v(%v)\n", bytesFormat(transferedETWBytesTotal), bytesFormat(transferedETWBytesPayload))
+	log.Debugf("  Dropped Tx (Limit):       %v(%v)\n", completedHttpTxDropped, completedHttpTxMaxCount)
 
 	/*
 		* dbtodo
@@ -1159,7 +1159,7 @@ func etwHttpServiceSummary() {
 
 func etwHttpServiceCallback(eventInfo *C.DD_ETW_EVENT_INFO) {
 
-	// Total number of bytes transfered to kernel from HTTP.sys driver. 0x68 is ETW header size
+	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.event.userDataLength) + 0x68)
 	transferedETWBytesPayload += uint64(eventInfo.event.userDataLength)
 

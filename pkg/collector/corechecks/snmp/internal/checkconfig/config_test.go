@@ -959,6 +959,7 @@ func Test_snmpConfig_refreshWithProfile(t *testing.T) {
 		IPAddress:             "1.2.3.4",
 		Profiles:              mockProfiles,
 		CollectDeviceMetadata: true,
+		CollectTopology:       false,
 	}
 	err = c.RefreshWithProfile("profile1")
 	assert.NoError(t, err)
@@ -1063,6 +1064,64 @@ collect_device_metadata: true
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 	assert.Equal(t, false, config.CollectDeviceMetadata)
+}
+
+func Test_buildConfig_collectTopology(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_topology: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_topology: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.CollectTopology)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+collect_topology: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+collect_topology: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.CollectTopology)
 }
 
 func Test_buildConfig_namespace(t *testing.T) {
@@ -1585,6 +1644,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		ExtraTags:             []string{"ExtraTags:tag"},
 		InstanceTags:          []string{"InstanceTags:tag"},
 		CollectDeviceMetadata: true,
+		CollectTopology:       true,
 		UseDeviceIDAsHostname: true,
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
@@ -1623,6 +1683,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assertNotSameButEqualElements(t, config.ExtraTags, configCopy.ExtraTags)
 	assertNotSameButEqualElements(t, config.InstanceTags, configCopy.InstanceTags)
 	assert.Equal(t, config.CollectDeviceMetadata, configCopy.CollectDeviceMetadata)
+	assert.Equal(t, config.CollectTopology, configCopy.CollectTopology)
 	assert.Equal(t, config.UseDeviceIDAsHostname, configCopy.UseDeviceIDAsHostname)
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)

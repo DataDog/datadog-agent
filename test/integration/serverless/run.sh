@@ -36,7 +36,7 @@ set -e
 
 script_utc_start_time=$(date -u +"%Y%m%dT%H%M%S")
 
-if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+if [ -z "$AWS_SECRET_ACCESS_KEY" || -z "$AWS_PROFILE" ]; then
     echo "No AWS credentials were found in the environment."
     echo "Note that only Datadog employees can run these integration tests."
     echo "Exiting without running tests..."

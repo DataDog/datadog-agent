@@ -32,7 +32,7 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestCheckRights(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
+	_, err := ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
 
 	// default options
@@ -42,7 +42,7 @@ func TestCheckRights(t *testing.T) {
 	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
 
 	// missing current user
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 
@@ -52,7 +52,6 @@ func TestCheckRights(t *testing.T) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
-	err = checkRights(tmpfile.Name(), allowGroupExec)
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem

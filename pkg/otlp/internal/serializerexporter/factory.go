@@ -10,7 +10,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -37,7 +36,7 @@ func NewFactory(s serializer.MetricSerializer) component.ExporterFactory {
 	)
 }
 
-func (f *factory) createMetricExporter(ctx context.Context, params component.ExporterCreateSettings, c config.Exporter) (component.MetricsExporter, error) {
+func (f *factory) createMetricExporter(ctx context.Context, params component.ExporterCreateSettings, c component.ExporterConfig) (component.MetricsExporter, error) {
 	cfg := c.(*exporterConfig)
 
 	exp, err := newExporter(params.Logger, f.s, cfg)

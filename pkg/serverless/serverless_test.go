@@ -7,6 +7,7 @@ package serverless
 
 import (
 	"fmt"
+	"os"
 	"runtime/debug"
 	"sort"
 	"testing"
@@ -17,6 +18,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
+
+func TestMain(m *testing.M) {
+	origShutdownDelay := daemon.ShutdownDelay
+	daemon.ShutdownDelay = 0
+	defer func() { daemon.ShutdownDelay = origShutdownDelay }()
+	os.Exit(m.Run())
+}
 
 func TestHandleInvocationShouldSetExtraTags(t *testing.T) {
 	d := daemon.StartDaemon("http://localhost:8124")
@@ -68,6 +76,7 @@ func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 			assert.Fail(t, "Expected no panic, instead got ", r)
 		}
 	}()
+
 	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
 		fmt.Printf("Running this test the %d time\n", i)
 		d := daemon.StartDaemon("http://localhost:8124")

@@ -108,6 +108,7 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 				ProcRoot: "/proc",
 			},
 			ConntrackRateLimit:           500,
+			ConntrackRateLimitInterval:   time.Second,
 			EnableRootNetNs:              true,
 			EnableConntrackAllNamespaces: false,
 		})
@@ -151,7 +152,7 @@ func skipUnless(t *testing.T, requiredArg string) {
 
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
+			"skipped %s. you can enable it by using running tests with `-args %s`",
 			t.Name(),
 			requiredArg,
 		),

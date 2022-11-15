@@ -3,7 +3,7 @@
 
 #include <linux/types.h>
 
-#include "protocol-classification-defs.h"
+#include "protocols/protocol-classification-defs.h"
 
 #define bool _Bool
 #define true 1
@@ -30,6 +30,14 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
+    // "cookie" that uniquely identifies
+    // a conn_stas_ts_t. This is used
+    // in user space to distinguish between
+    // stats for two or more connections that
+    // may share the same conn_tuple_t (this can
+    // happen when we're aggregating connections).
+    // This is not the same as a TCP cookie or
+    // the cookie in struct sock in the kernel
     __u32 cookie;
     __u64 sent_packets;
     __u64 recv_packets;
@@ -131,6 +139,7 @@ typedef struct {
     __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
+    __u64 udp_dropped_conns;
 } telemetry_t;
 
 typedef struct {
