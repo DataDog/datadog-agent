@@ -241,6 +241,9 @@ def json_info(command)
     info_output = File.read(tmpfile.path)
 
     JSON.parse(info_output)
+  rescue Exception => e
+    puts $!
+    return {}
   ensure
     tmpfile.close
     tmpfile.unlink
