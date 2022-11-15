@@ -74,7 +74,7 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
-		return
+		return nil
 	}
 	defer ctx.Close()
 	timeout := a.cfg.wafTimeout
