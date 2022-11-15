@@ -160,19 +160,16 @@ static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_
     log_debug("kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->tcp_seq, skb_info->tcp_seq);
     kafka_transaction->tcp_seq = skb_info->tcp_seq;
 }
-//
-//
-//static __always_inline http_transaction_t *http_fetch_state(http_transaction_t *http, http_packet_t packet_type) {
+
+static __always_inline kafka_transaction_t *kafka_fetch_state(kafka_transaction_t *kafka_transaction) {
 //    if (packet_type == HTTP_PACKET_UNKNOWN) {
 //        return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 //    }
-//
-//    // We detected either a request or a response
-//    // In this case we initialize (or fetch) state associated to this tuple
-//    bpf_map_update_with_telemetry(http_in_flight, &http->tup, http, BPF_NOEXIST);
-//    return bpf_map_lookup_elem(&http_in_flight, &http->tup);
-//}
-//
+
+    bpf_map_update_with_telemetry(kafka_in_flight, &kafka_transaction->tup, kafka_transaction, BPF_NOEXIST);
+    return bpf_map_lookup_elem(&kafka_in_flight, &kafka_transaction->tup);
+}
+
 //static __always_inline bool http_should_flush_previous_state(http_transaction_t *http, http_packet_t packet_type) {
 //    return (packet_type == HTTP_REQUEST && http->request_started) ||
 //        (packet_type == HTTP_RESPONSE && http->response_status_code);
@@ -194,11 +191,8 @@ static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_
 //            // FIN flag seen in the same direction will trigger the flushing event.
 //            http->owned_by_src_port == pre_norm_src_port);
 //}
-//
+
 static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info, __u64 tags) {
-    //log_debug("in kafka_process");
-//    char *buffer = (char *)kafka_stack->request_frag[ment;
-////    log_debug("Buffer: %s", buffer);
 //    // TODO: read 4 bytes as size
 //    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
 
@@ -207,9 +201,9 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
 //    }
 
     // Temporary hack for debugging
-    if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
-        return 0;
-    }
+//    if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
+//        return 0;
+//    }
 
 //    kafka_update_seen_before(kafka_transaction, skb_info);
 
@@ -281,6 +275,15 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
     }
 
+    // Check that we didn't see this tcp segment before so we won't process
+    // the same traffic twice
+    log_debug("Current tcp sequence: %lu", skb_info->tcp_seq);
+    __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &kafka->tup);
+    if (last_tcp_seq != NULL && *last_tcp_seq == skb_info->tcp_seq) {
+        log_debug("Already seen this tcp sequence: %lu", *last_tcp_seq);
+        return false;
+    }
+    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &kafka->tup, &skb_info->tcp_seq, BPF_ANY);
     return true;
 }
 
