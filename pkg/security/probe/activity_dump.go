@@ -162,7 +162,6 @@ func NewEmptyActivityDump() *ActivityDump {
 }
 
 // WithDumpOption can be used to configure an ActivityDump
-//msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump

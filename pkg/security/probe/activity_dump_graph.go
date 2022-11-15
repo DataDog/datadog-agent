@@ -297,7 +297,6 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 }
 
 // GraphID represents an ID used in a graph, combination of NodeIDs
-//msgp:ignore GraphID
 type GraphID struct {
 	raw string
 }
@@ -333,7 +332,6 @@ func (id GraphID) String() string {
 }
 
 // NodeID represents the ID of a Node
-//msgp:ignore NodeID
 type NodeID struct {
 	inner uint64
 }

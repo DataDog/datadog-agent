@@ -139,7 +139,6 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 }*/
 
 // ArgsEnvs raw value for args and envs
-//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -147,7 +146,6 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
-//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte

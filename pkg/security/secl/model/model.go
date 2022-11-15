@@ -24,7 +24,6 @@ import (
 )
 
 // Model describes the data model for the runtime security agent events
-//msgp:ignore Model
 type Model struct{}
 
 // NewEvent returns a new Event
@@ -117,7 +116,6 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 }
 
 // ChmodEvent represents a chmod event
-//msgp:ignore ChmodEvent
 type ChmodEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
@@ -125,7 +123,6 @@ type ChmodEvent struct {
 }
 
 // ChownEvent represents a chown event
-//msgp:ignore ChownEvent
 type ChownEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
@@ -136,14 +133,12 @@ type ChownEvent struct {
 }
 
 // ContainerContext holds the container context of an event
-//msgp:ignore ContainerContext
 type ContainerContext struct {
 	ID   string   `field:"id,handler:ResolveContainerID"`                              // ID of the container
 	Tags []string `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // Tags of the container
 }
 
 // Event represents an event sent from the kernel
-//msgp:ignore Event
 // genaccessors
 type Event struct {
 	ID                   string    `field:"-" json:"-"`
@@ -271,7 +266,6 @@ func (e *Event) GetPointer() unsafe.Pointer {
 }
 
 // SetuidEvent represents a setuid event
-//msgp:ignore SetuidEvent
 type SetuidEvent struct {
 	UID    uint32 `field:"uid"`                                // New UID of the process
 	User   string `field:"user,handler:ResolveSetuidUser"`     // New user of the process
@@ -282,7 +276,6 @@ type SetuidEvent struct {
 }
 
 // SetgidEvent represents a setgid event
-//msgp:ignore SetgidEvent
 type SetgidEvent struct {
 	GID     uint32 `field:"gid"`                                  // New GID of the process
 	Group   string `field:"group,handler:ResolveSetgidGroup"`     // New group of the process
@@ -293,7 +286,6 @@ type SetgidEvent struct {
 }
 
 // CapsetEvent represents a capset event
-//msgp:ignore CapsetEvent
 type CapsetEvent struct {
 	CapEffective uint64 `field:"cap_effective" constants:"Kernel Capability constants"` // Effective capability set of the process
 	CapPermitted uint64 `field:"cap_permitted" constants:"Kernel Capability constants"` // Permitted capability set of the process
@@ -402,13 +394,11 @@ type SpanContext struct {
 }
 
 // ExecEvent represents a exec event
-//msgp:ignore ExecEvent
 type ExecEvent struct {
 	*Process
 }
 
 // ExitEvent represents a process exit event
-//msgp:ignore ExitEvent
 type ExitEvent struct {
 	*Process
 	Cause uint32 `field:"cause"` // Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
@@ -485,20 +475,17 @@ func (e *FileEvent) GetPathResolutionError() string {
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event
-//msgp:ignore InvalidateDentryEvent
 type InvalidateDentryEvent struct {
 	Inode   uint64
 	MountID uint32
 }
 
 // MountReleasedEvent defines a mount released event
-//msgp:ignore MountReleasedEvent
 type MountReleasedEvent struct {
 	MountID uint32
 }
 
 // LinkEvent represents a link event
-//msgp:ignore LinkEvent
 type LinkEvent struct {
 	SyscallEvent
 	Source FileEvent `field:"file"`
@@ -506,7 +493,6 @@ type LinkEvent struct {
 }
 
 // MkdirEvent represents a mkdir event
-//msgp:ignore MkdirEvent
 type MkdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
@@ -514,13 +500,11 @@ type MkdirEvent struct {
 }
 
 // ArgsEnvsEvent defines a args/envs event
-//msgp:ignore ArgsEnvsEvent
 type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
 // MountEvent represents a mount event
-//msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
 	MountID       uint32
@@ -548,7 +532,6 @@ func (m *MountEvent) IsOverlayFS() bool {
 }
 
 // OpenEvent represents an open event
-//msgp:ignore OpenEvent
 type OpenEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
@@ -557,7 +540,6 @@ type OpenEvent struct {
 }
 
 // SELinuxEventKind represents the event kind for SELinux events
-//msgp:ignore SELinuxEventKind
 type SELinuxEventKind uint32
 
 const (
@@ -570,7 +552,6 @@ const (
 )
 
 // SELinuxEvent represents a selinux event
-//msgp:ignore SELinuxEvent
 type SELinuxEvent struct {
 	File            FileEvent        `field:"-" json:"-"`
 	EventKind       SELinuxEventKind `field:"-" json:"-"`
@@ -630,7 +611,6 @@ func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEnt
 }
 
 // ProcessAncestorsIterator defines an iterator of ancestors
-//msgp:ignore ProcessAncestorsIterator
 type ProcessAncestorsIterator struct {
 	prev *ProcessCacheEntry
 }
@@ -671,7 +651,6 @@ type PIDContext struct {
 }
 
 // RenameEvent represents a rename event
-//msgp:ignore RenameEvent
 type RenameEvent struct {
 	SyscallEvent
 	Old FileEvent `field:"file"`
@@ -679,14 +658,12 @@ type RenameEvent struct {
 }
 
 // RmdirEvent represents a rmdir event
-//msgp:ignore RmdirEvent
 type RmdirEvent struct {
 	SyscallEvent
 	File FileEvent `field:"file"`
 }
 
 // SetXAttrEvent represents an extended attributes event
-//msgp:ignore SetXAttrEvent
 type SetXAttrEvent struct {
 	SyscallEvent
 	File      FileEvent `field:"file"`
@@ -702,7 +679,6 @@ type SyscallEvent struct {
 }
 
 // UnlinkEvent represents an unlink event
-//msgp:ignore UnlinkEvent
 type UnlinkEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
@@ -710,14 +686,12 @@ type UnlinkEvent struct {
 }
 
 // UmountEvent represents an umount event
-//msgp:ignore UmountEvent
 type UmountEvent struct {
 	SyscallEvent
 	MountID uint32
 }
 
 // UtimesEvent represents a utime event
-//msgp:ignore UtimesEvent
 type UtimesEvent struct {
 	SyscallEvent
 	File  FileEvent `field:"file"`
@@ -726,7 +700,6 @@ type UtimesEvent struct {
 }
 
 // BPFEvent represents a BPF event
-//msgp:ignore BPFEvent
 type BPFEvent struct {
 	SyscallEvent
 
@@ -736,7 +709,6 @@ type BPFEvent struct {
 }
 
 // BPFMap represents a BPF map
-//msgp:ignore BPFMap
 type BPFMap struct {
 	ID   uint32 `field:"-" json:"-"`                     // ID of the eBPF map
 	Type uint32 `field:"type" constants:"BPF map types"` // Type of the eBPF map
@@ -744,7 +716,6 @@ type BPFMap struct {
 }
 
 // BPFProgram represents a BPF program
-//msgp:ignore BPFProgram
 type BPFProgram struct {
 	ID         uint32   `field:"-" json:"-"`                                                      // ID of the eBPF program
 	Type       uint32   `field:"type" constants:"BPF program types"`                              // Type of the eBPF program
@@ -755,7 +726,6 @@ type BPFProgram struct {
 }
 
 // PTraceEvent represents a ptrace event
-//msgp:ignore PTraceEvent
 type PTraceEvent struct {
 	SyscallEvent
 
@@ -766,7 +736,6 @@ type PTraceEvent struct {
 }
 
 // MMapEvent represents a mmap event
-//msgp:ignore MMapEvent
 type MMapEvent struct {
 	SyscallEvent
 
@@ -779,7 +748,6 @@ type MMapEvent struct {
 }
 
 // MProtectEvent represents a mprotect event
-//msgp:ignore MProtectEvent
 type MProtectEvent struct {
 	SyscallEvent
 
@@ -790,7 +758,6 @@ type MProtectEvent struct {
 }
 
 // LoadModuleEvent represents a load_module event
-//msgp:ignore LoadModuleEvent
 type LoadModuleEvent struct {
 	SyscallEvent
 
@@ -800,7 +767,6 @@ type LoadModuleEvent struct {
 }
 
 // UnloadModuleEvent represents an unload_module event
-//msgp:ignore UnloadModuleEvent
 type UnloadModuleEvent struct {
 	SyscallEvent
 
@@ -808,7 +774,6 @@ type UnloadModuleEvent struct {
 }
 
 // SignalEvent represents a signal event
-//msgp:ignore SignalEvent
 type SignalEvent struct {
 	SyscallEvent
 
@@ -818,7 +783,6 @@ type SignalEvent struct {
 }
 
 // SpliceEvent represents a splice event
-//msgp:ignore SpliceEvent
 type SpliceEvent struct {
 	SyscallEvent
 
@@ -828,7 +792,6 @@ type SpliceEvent struct {
 }
 
 // CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
-//msgp:ignore CgroupTracingEvent
 type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
@@ -836,7 +799,6 @@ type CgroupTracingEvent struct {
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump
-//msgp:ignore ActivityDumpLoadConfig
 type ActivityDumpLoadConfig struct {
 	TracedEventTypes     []EventType
 	Timeout              time.Duration
@@ -854,7 +816,6 @@ func (adlc *ActivityDumpLoadConfig) SetTimeout(duration time.Duration) {
 }
 
 // NetworkDeviceContext represents the network device context of a network event
-//msgp:ignore NetworkDeviceContext
 type NetworkDeviceContext struct {
 	NetNS   uint32 `field:"-" json:"-"`
 	IfIndex uint32 `field:"ifindex"`                                   // interface ifindex
@@ -862,14 +823,12 @@ type NetworkDeviceContext struct {
 }
 
 // IPPortContext is used to hold an IP and Port
-//msgp:ignore IPPortContext
 type IPPortContext struct {
 	IPNet net.IPNet `field:"ip"`   // IP address
 	Port  uint16    `field:"port"` // Port number
 }
 
 // NetworkContext represents the network context of the event
-//msgp:ignore NetworkContext
 type NetworkContext struct {
 	Device NetworkDeviceContext `field:"device"` // network device on which the network packet was captured
 
@@ -891,7 +850,6 @@ type DNSEvent struct {
 }
 
 // BindEvent represents a bind event
-//msgp:ignore BindEvent
 type BindEvent struct {
 	SyscallEvent
 
@@ -900,7 +858,6 @@ type BindEvent struct {
 }
 
 // NetDevice represents a network device
-//msgp:ignore NetDevice
 type NetDevice struct {
 	Name        string
 	NetNS       uint32
@@ -915,7 +872,6 @@ func (d NetDevice) GetKey() string {
 }
 
 // NetDeviceEvent represents a network device event
-//msgp:ignore NetDeviceEvent
 type NetDeviceEvent struct {
 	SyscallEvent
 
@@ -923,7 +879,6 @@ type NetDeviceEvent struct {
 }
 
 // VethPairEvent represents a veth pair event
-//msgp:ignore VethPairEvent
 type VethPairEvent struct {
 	SyscallEvent
 
@@ -932,7 +887,6 @@ type VethPairEvent struct {
 }
 
 // SyscallsEvent represents a syscalls event
-//msgp:ignore SyscallsEvent
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
 }
