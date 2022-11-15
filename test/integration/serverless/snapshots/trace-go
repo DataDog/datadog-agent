@@ -24,7 +24,6 @@
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-1",
-              "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
               "aws_account": "601427279990",
@@ -73,7 +72,6 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
               "aws_account": "601427279990",
@@ -115,7 +113,6 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
               "aws_account": "601427279990",
@@ -176,7 +173,6 @@
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-1",
-              "_dd.p.upstream_services": "YXdzLmxhbWJkYQ|1|1|1.0000",
               "account_id": "601427279990",
               "architecture": "XXX",
               "aws_account": "601427279990",
