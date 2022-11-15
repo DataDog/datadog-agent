@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [netflow] Add expose collection metrics (from goflow) as datadog metrics
+    [netflow] Add exposed collection metrics (from goflow) as Datadog metrics
