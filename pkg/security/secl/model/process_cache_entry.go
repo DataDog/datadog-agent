@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -tests=false
-
 package model
 
 import (
@@ -257,10 +255,10 @@ func stringArraysEqual(a, b []string) bool {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed bool
 }
@@ -298,10 +296,10 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed       bool
 	filteredEnvs []string
