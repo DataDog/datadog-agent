@@ -48,7 +48,7 @@ func (t *MetricDataType) UnmarshalText(text []byte) error {
 	return fmt.Errorf("invalid metric data type %q", text)
 }
 
-// MarshalText marshals a type into its lowercase type name.
+// MarshalText implements encoding.TextMarshaler.
 func (t MetricDataType) MarshalText() ([]byte, error) {
 	switch t {
 	case Gauge:
