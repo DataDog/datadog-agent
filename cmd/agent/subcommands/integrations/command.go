@@ -499,7 +499,7 @@ func install(config config.Component, cliParams *cliParams) error {
 }
 
 func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
-	pyPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
+	pyPath, err := getCommandPython("3", cliParams.useSysPython)
 	if err != nil {
 		return "", err
 	}
