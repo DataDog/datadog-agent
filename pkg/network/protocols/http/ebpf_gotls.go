@@ -341,6 +341,7 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 	}
 
 	p.lock.Lock()
+	defer p.lock.Unlock()
 	if err = p.addInspectionResultToMap(inspectionResult, ino); err != nil {
 		return nil, err
 	}
@@ -350,7 +351,6 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 		p.removeInspectionResultFromMap(ino)
 		return nil, fmt.Errorf("error while attaching hooks: %w", err)
 	}
-	p.lock.Unlock()
 
 	elapsed := time.Since(start)
 
