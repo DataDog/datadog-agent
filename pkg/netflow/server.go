@@ -50,9 +50,14 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 	go flowAgg.Start()
 
 	if mainConfig.PrometheusListenerEnabled {
-		serverMux := http.NewServeMux()
-		serverMux.Handle("/metrics", promhttp.Handler())
-		go http.ListenAndServe(mainConfig.PrometheusListenerAddress, serverMux)
+		go func() {
+			serverMux := http.NewServeMux()
+			serverMux.Handle("/metrics", promhttp.Handler())
+			err := http.ListenAndServe(mainConfig.PrometheusListenerAddress, serverMux)
+			if err != nil {
+				log.Errorf("error starting prometheus server `%s`", mainConfig.PrometheusListenerAddress)
+			}
+		}()
 	}
 
 	log.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
