@@ -112,6 +112,9 @@ type hookedBinary struct {
 	probeIDs []manager.ProbeIdentificationPair
 	// Set containing the PIDs of running processes spawned from this binary
 	runningProcesses runningProcessesSet
+
+	// Modification time of the hooked binary, at the time of hooking
+	mTime syscall.Timespec
 }
 
 type GoTLSProgram struct {
@@ -286,7 +289,13 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 			log.Debugf("could not hook new binary: %s", err)
 			return
 		}
+		hookedBin.mTime = stat.Mtim
 		p.setHookedBinary(stat.Ino, hookedBin)
+	}
+
+	if stat.Mtim != hookedBin.mTime {
+		log.Warnf("binary %q has been modified since it has been hooked, skipping process registration.", binPath)
+		return
 	}
 
 	p.lock.Lock()
@@ -357,7 +366,10 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 	p.binAnalysisMetric.Set(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%d) in %s", binPath, ino, elapsed)
 
-	return &hookedBinary{probeIDs, make(runningProcessesSet)}, nil
+	return &hookedBinary{
+		probeIDs:         probeIDs,
+		runningProcesses: make(runningProcessesSet),
+	}, nil
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
