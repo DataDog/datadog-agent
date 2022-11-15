@@ -371,7 +371,7 @@ func (dr *DentryResolver) ResolveNameFromMap(mountID uint32, inode uint64, pathI
 }
 
 // GetName resolves a couple of mountID/inode to a path
-func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
+func (dr *DentryResolver) ResolveName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.ResolveNameFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		name, err = dr.ResolveNameFromERPC(mountID, inode, pathID)

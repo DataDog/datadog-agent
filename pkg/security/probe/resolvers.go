@@ -85,7 +85,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 // resolveBasename resolves the inode to a filename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
-	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
 // resolveFileFieldsPath resolves the inode to a full path

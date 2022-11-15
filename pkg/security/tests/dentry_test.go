@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,20 +39,29 @@ func validateResolution(test *testModule, event *sprobe.Event, testFile string, 
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, basename, path.Base(res))
 
+	kv, err := kernel.NewKernelVersion()
+	assert.Nil(test.t, err)
+
 	// Parent
 	expectedInode := getInode(test.t, path.Dir(testFile))
 
 	// the previous path resolution should habe filled the cache
-	_, inode, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.MountID, event.Open.File.Inode)
+	_, cacheInode, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.MountID, event.Open.File.Inode)
 	assert.Nil(test.t, err)
-	assert.Equal(test.t, expectedInode, inode)
+	assert.NotZero(test.t, cacheInode)
 
-	_, inode, err = parentFnc(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
+	// on kernel < 5.0 the cache is populated with internal inode of overlayfs. The stat syscall returns the proper inode, that is why the inodes don't match.
+	if event.Open.File.Filesystem != model.OverlayFS || kv.Code > kernel.Kernel5_0 {
+		assert.Equal(test.t, expectedInode, cacheInode)
+	}
+
+	_, inode, err := parentFnc(event.Open.File.MountID, event.Open.File.Inode, event.Open.File.PathID)
 	assert.Nil(test.t, err)
-	assert.Equal(test.t, expectedInode, inode)
+	assert.NotZero(test.t, inode)
+	assert.Equal(test.t, cacheInode, inode)
 
 	// Basename
-	// the previous path resolution should habe filled the cache
+	// the previous path resolution should have filled the cache
 	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.MountID, event.Open.File.Inode)
 	assert.Nil(test.t, err)
 	assert.Equal(test.t, expectedName, basename)
@@ -82,13 +92,12 @@ func TestDentryResolutionERPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
 
 	dir := path.Dir(testFile)
 	if err := os.MkdirAll(dir, 0777); err != nil {
 		t.Fatalf("failed to create directory: %s", err)
 	}
-	defer os.Remove(dir)
+	defer os.RemoveAll(dir)
 
 	test.WaitSignal(t, func() error {
 		_, err = os.Create(testFile)
