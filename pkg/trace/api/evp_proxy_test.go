@@ -15,14 +15,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
-
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -62,9 +61,8 @@ func TestEVPProxyForwarder(t *testing.T) {
 	randBodyBuf := make([]byte, 1024)
 	rand.Read(randBodyBuf)
 
-	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	stats := &teststatsd.Client{}
+	defer testutil.WithStatsClient(stats)()
 
 	t.Run("ok", func(t *testing.T) {
 		stats.Reset()
