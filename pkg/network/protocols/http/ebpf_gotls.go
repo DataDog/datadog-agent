@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -126,6 +127,8 @@ type GoTLSProgram struct {
 		errors chan error
 	}
 
+	lock sync.RWMutex
+
 	// eBPF map holding the result of binary analysis, indexed by binaries'
 	// inodes.
 	offsetsDataMap *ebpf.Map
@@ -137,6 +140,8 @@ type GoTLSProgram struct {
 	// associated with running processes.
 	pidToIno map[pid]inodeNumber
 
+	// binAnalysisMetric handles telemetry on the time spent doing binary
+	// analysis
 	binAnalysisMetric *errtelemetry.Metric
 }
 
@@ -212,9 +217,9 @@ func (p *GoTLSProgram) Start() {
 
 				switch ev := event.Msg.(type) {
 				case *netlink.ExecProcEvent:
-					p.handleProcessStart(ev.ProcessPid)
+					go p.handleProcessStart(ev.ProcessPid)
 				case *netlink.ExitProcEvent:
-					p.handleProcessStop(ev.ProcessPid)
+					go p.handleProcessStop(ev.ProcessPid)
 
 					// No default case; the watcher has a
 					// lot of event types, some of which
@@ -248,6 +253,14 @@ func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentif
 	return
 }
 
+func (p *GoTLSProgram) Stop() {
+	if p == nil {
+		return
+	}
+
+	close(p.procMonitor.done)
+}
+
 func supportedArch(arch string) bool {
 	return arch == string(bininspect.GoArchX86_64)
 }
@@ -266,21 +279,26 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		return
 	}
 
-	hookedBin, present := p.hookedBinaries[stat.Ino]
-	if !present {
+	hookedBin := p.getHookedBinary(stat.Ino)
+	if hookedBin == nil {
 		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
 		if err != nil {
 			log.Debugf("could not hook new binary: %s", err)
 			return
 		}
-		p.hookedBinaries[stat.Ino] = hookedBin
+		p.setHookedBinary(stat.Ino, hookedBin)
 	}
 
+	p.lock.Lock()
+	defer p.lock.Unlock()
 	hookedBin.runningProcesses[pid] = struct{}{}
 	p.pidToIno[pid] = stat.Ino
 }
 
 func (p *GoTLSProgram) handleProcessStop(pid pid) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
 	ino, ok := p.pidToIno[pid]
 	if !ok {
 		return
@@ -322,6 +340,7 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 		return nil, err
 	}
 
+	p.lock.Lock()
 	if err = p.addInspectionResultToMap(inspectionResult, ino); err != nil {
 		return nil, err
 	}
@@ -331,6 +350,8 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 		p.removeInspectionResultFromMap(ino)
 		return nil, fmt.Errorf("error while attaching hooks: %w", err)
 	}
+	p.lock.Unlock()
+
 	elapsed := time.Since(start)
 
 	p.binAnalysisMetric.Set(elapsed.Milliseconds())
@@ -419,6 +440,15 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 	return
 }
+func (p *GoTLSProgram) unhookBinary(ino inodeNumber) {
+	bin := p.hookedBinaries[ino]
+
+	p.detachHooks(bin.probeIDs)
+	p.removeInspectionResultFromMap(ino)
+
+	log.Debugf("detached hooks on ino %d", ino)
+	delete(p.hookedBinaries, ino)
+}
 
 func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 	for _, probeID := range probeIDs {
@@ -429,12 +459,23 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 	}
 }
 
-func (p *GoTLSProgram) Stop() {
-	if p == nil {
-		return
+func (p *GoTLSProgram) getHookedBinary(ino inodeNumber) *hookedBinary {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+
+	bin, present := p.hookedBinaries[ino]
+	if !present {
+		return nil
 	}
 
-	close(p.procMonitor.done)
+	return bin
+}
+
+func (p *GoTLSProgram) setHookedBinary(ino inodeNumber, bin *hookedBinary) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	p.hookedBinaries[ino] = bin
 }
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
@@ -442,14 +483,4 @@ func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
 		EBPFSection:  i.ebpfSection,
 		EBPFFuncName: i.ebpfFunctionName,
 	}
-}
-
-func (p *GoTLSProgram) unhookBinary(ino inodeNumber) {
-	bin := p.hookedBinaries[ino]
-
-	p.detachHooks(bin.probeIDs)
-	p.removeInspectionResultFromMap(ino)
-
-	log.Debugf("detached hooks on ino %d", ino)
-	delete(p.hookedBinaries, ino)
 }
