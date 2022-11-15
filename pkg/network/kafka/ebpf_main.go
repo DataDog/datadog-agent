@@ -26,10 +26,11 @@ import (
 )
 
 const (
-	kafkaInFlightMap   = "kafka_in_flight"
-	kafkaBatchesMap    = "kafka_batches"
-	kafkaBatchStateMap = "kafka_batch_state"
-	kafkaBatchEvents   = "kafka_batch_events"
+	kafkaInFlightMap                = "kafka_in_flight"
+	kafkaBatchesMap                 = "kafka_batches"
+	kafkaBatchStateMap              = "kafka_batch_state"
+	kafkaBatchEvents                = "kafka_batch_events"
+	kafkaLastTCPSeqPerConnectionMap = "kafka_last_tcp_seq_per_connection"
 
 	kafkaKernelToUserModeMapName = "c"
 
@@ -96,6 +97,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: kafkaInFlightMap},
+			{Name: kafkaLastTCPSeqPerConnectionMap},
 			{Name: kafkaBatchesMap},
 			{Name: kafkaBatchStateMap},
 			//	{Name: sslSockByCtxMap},
@@ -193,6 +195,11 @@ func (e *ebpfProgram) Init() error {
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
 			},
+			kafkaLastTCPSeqPerConnectionMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
 			kafkaBatchesMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(len(onlineCPUs) * KAFKABatchPages),
@@ -280,16 +287,16 @@ func (e *ebpfProgram) Close() error {
 }
 
 //func (e *ebpfProgram) setupMapCleaner() {
-//	httpMap, _, _ := e.GetMap(httpInFlightMap)
-//	httpMapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(ebpfHttpTx))
+//	kafkaMap, _, _ := e.GetMap(kafkaInFlightMap)
+//	kafkaMapCleaner, err := ddebpf.NewMapCleaner(kafkaMap, new(netebpf.ConnTuple), new(ebpfKafkaTx))
 //	if err != nil {
 //		log.Errorf("error creating map cleaner: %s", err)
 //		return
 //	}
 //
 //	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-//	httpMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-//		httpTxn, ok := val.(*ebpfHttpTx)
+//	kafkaMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
+//		httpTxn, ok := val.(*ebpfKafkaTx)
 //		if !ok {
 //			return false
 //		}
@@ -302,7 +309,7 @@ func (e *ebpfProgram) Close() error {
 //		return started > 0 && (now-started) > ttl
 //	})
 //
-//	e.mapCleaner = httpMapCleaner
+//	e.mapCleaner = kafkaMapCleaner
 //}
 
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {

@@ -64,7 +64,6 @@ func TestSanity(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, conn.Close())
 
-	// make a new reader that consumes from topic-A, partition 0, at offset 42
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:   []string{"127.0.0.1:9092"},
 		Topic:     "my-topic",
@@ -72,9 +71,10 @@ func TestSanity(t *testing.T) {
 		MinBytes:  10e3, // 10KB
 		MaxBytes:  10e6, // 10MB
 	})
-	r.SetOffset(0)
+	err = r.SetOffset(0)
+	require.NoError(t, err)
 
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*20)
 	defer cancel()
 
 	for {
@@ -84,11 +84,9 @@ func TestSanity(t *testing.T) {
 		}
 		fmt.Printf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
 	}
-
 	require.NoError(t, r.Close())
 
 	kafkaStats := monitor.GetKafkaStats()
-
 	// We expect 2 occurrences as we are working with a docker for now
 	require.Equal(t, 2, len(kafkaStats))
 	for _, value := range kafkaStats {
