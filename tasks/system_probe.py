@@ -985,7 +985,9 @@ def verify_system_clang_version(ctx):
         clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
 
     if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
-        raise Exit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}.")
+        raise Exit(
+            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
+        )
 
 
 def build_object_files(
