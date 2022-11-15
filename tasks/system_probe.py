@@ -47,7 +47,8 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "12.0.1"
+CLANG_VERSION_RUNTIME = "12.0.1"
+CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -963,14 +964,14 @@ def setup_runtime_clang(ctx):
     if arch == "x64":
         arch = "amd64"
 
-    if clang_version_str != CLANG_VERSION:
+    if clang_version_str != CLANG_VERSION_RUNTIME:
         # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-    if llc_version_str != CLANG_VERSION:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    if llc_version_str != CLANG_VERSION_RUNTIME:
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
 
@@ -983,8 +984,10 @@ def verify_system_clang_version(ctx):
         version_index = clang_version_parts.index("version")
         clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
 
-    if clang_version_str != CLANG_VERSION:
-        raise Exit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
+    if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
+        raise Exit(
+            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
+        )
 
 
 def build_object_files(
