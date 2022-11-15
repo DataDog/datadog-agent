@@ -6,7 +6,6 @@
 package encoding
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
