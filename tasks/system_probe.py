@@ -12,7 +12,7 @@ from pathlib import Path
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .libs.ninja_syntax import NinjaWriter
@@ -663,13 +663,13 @@ def kitchen_genconfig(
     elif arch == "arm64":
         arch = "arm64"
     else:
-        raise UnexpectedExit("unsupported arch specified")
+        raise Exit("unsupported arch specified")
 
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
     if not image_size:
-        raise UnexpectedExit("Image size must be specified")
+        raise Exit("Image size must be specified")
 
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
@@ -977,9 +977,14 @@ def setup_runtime_clang(ctx):
 
 def verify_system_clang_version(ctx):
     clang_res = ctx.run("clang --version", warn=True)
-    clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
+    clang_version_str = ""
+    if clang_res.ok:
+        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
+        version_index = clang_version_parts.index("version")
+        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
+
     if clang_version_str != CLANG_VERSION:
-        raise UnexpectedExit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
+        raise Exit(f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION}.")
 
 
 def build_object_files(
