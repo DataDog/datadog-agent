@@ -10,9 +10,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/theupdateframework/go-tuf/data"
-
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
+	"github.com/theupdateframework/go-tuf/data"
 )
 
 /*
@@ -247,9 +246,15 @@ type ASMDataRulesData struct {
 
 // ASMDataRuleData is an entry in the rules data list held by an ASMData configuration
 type ASMDataRuleData struct {
-	ID   string        `json:"id"`
-	Type string        `json:"type"`
-	Data []interface{} `json:"data"`
+	ID   string                 `json:"id"`
+	Type string                 `json:"type"`
+	Data []ASMDataRuleDataEntry `json:"data"`
+}
+
+// ASMDataRuleDataEntry represents a data entry in a rule data file
+type ASMDataRuleDataEntry struct {
+	Expiration int    `json:"expiration,omitempty"`
+	Value      string `json:"value"`
 }
 
 func parseConfigASMData(data []byte, metadata Metadata) (ASMDataConfig, error) {
