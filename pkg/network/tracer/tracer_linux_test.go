@@ -1807,7 +1807,7 @@ func buildGoTLSClientBin(t *testing.T) string {
 	args := strings.Split(clientBuildCmd, " ")
 	c := exec.Command(args[0], args[1:]...)
 	c.Dir = cur
-	_, err := c.CombinedOutput()
+	_, err = c.CombinedOutput()
 	require.NoError(t, err, "could not build client test binary: %s", err)
 
 	return clientBinPath
