@@ -41,8 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type connTag = uint64
-
 var (
 	clientMessageSize = 2 << 8
 	serverMessageSize = 2 << 14

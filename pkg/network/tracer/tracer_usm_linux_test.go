@@ -38,6 +38,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type connTag = uint64
+
 const (
 	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
 	tagOpenSSL connTag = 2 // netebpf.OpenSSL
