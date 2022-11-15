@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
 )
 
 // TestMetrics is the struct used for serializing Datadog metrics for generating testdata.
@@ -53,25 +54,33 @@ type TestTimeSeries struct {
 	Value     float64
 }
 
+// TestingT is an interface that defines a testing.T like object.
+type TestingT interface {
+	require.TestingT
+
+	// Logf formats its arguments according to the format, analogous to Printf.
+	Logf(format string, args ...any)
+}
+
 // AssertTranslatorMap asserts that some OTLP data is mapped into some other Datadog data by a given translator.
 // OTLP data and Datadog data are stored in separate files passed as arguments.
 // The Datadog data base filename must start with the OTLP data base filename possibly followed by the translator options.
 //
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
-func AssertTranslatorMap(t *testing.T, translator *Translator, otlpfilename string, datadogfilename string) {
+func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string, datadogfilename string) bool {
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {
 		t.Errorf("%q and %q do not follow prefix convention", otlpfilename, datadogfilename)
-		return
+		return false
 	}
 
 	// Unmarshal OTLP data.
 	otlpbytes, err := os.ReadFile(otlpfilename)
 	require.NoError(t, err, "failed to read OTLP file %q", otlpfilename)
 
-	unmarshaler := &pmetric.JSONUnmarshaler{}
+	var unmarshaler pmetric.JSONUnmarshaler
 	otlpdata, err := unmarshaler.UnmarshalMetrics(otlpbytes)
 	require.NoError(t, err, "failed to unmarshal OTLP data from file %q", otlpfilename)
 
@@ -84,8 +93,8 @@ func AssertTranslatorMap(t *testing.T, translator *Translator, otlpfilename stri
 	require.NoError(t, err, "failed to unmarshal Datadog data from file %q", datadogfilename)
 
 	// Map metrics using translator.
-	consumer := &testConsumer{}
-	err = translator.MapMetrics(context.Background(), otlpdata, consumer)
+	var consumer testConsumer
+	err = translator.MapMetrics(context.Background(), otlpdata, &consumer)
 	require.NoError(t, err)
 
 	if !assert.Equal(t, expecteddata, consumer.testMetrics) {
@@ -96,7 +105,10 @@ func AssertTranslatorMap(t *testing.T, translator *Translator, otlpfilename stri
 
 		err = os.WriteFile(actualfile, b, 0660)
 		require.NoError(t, err)
+		return false
 	}
+
+	return true
 }
 
 var _ Consumer = (*testConsumer)(nil)
@@ -149,6 +161,7 @@ func (t *testConsumer) ConsumeSketch(
 	)
 }
 
+// TestTestDimensions tests that TestDimensions fields match those of Dimensions.
 func TestTestDimensions(t *testing.T) {
 	testType := reflect.TypeOf(TestDimensions{})
 	var testFields []string
@@ -168,4 +181,41 @@ func TestTestDimensions(t *testing.T) {
 
 	assert.ElementsMatch(t, testFields, trueFields,
 		"The fields on TestDimensions and Dimensions do not match")
+}
+
+var _ TestingT = (*testingTMock)(nil)
+
+// testingTMock mocks a testing object for all your meta-testing needs.
+type testingTMock struct{ t *testing.T }
+
+// Errorf implements the TestingT interface.
+func (m *testingTMock) Errorf(format string, args ...interface{}) {
+	m.t.Logf("Would have failed with: "+format, args...)
+}
+
+// FailNow implements the TestingT interface.
+func (m *testingTMock) FailNow() {
+	m.t.FailNow()
+}
+
+// Logf implements the TestingT interface.
+func (m *testingTMock) Logf(format string, args ...interface{}) {
+	m.t.Logf("Would have logged: "+format, args...)
+}
+
+// TestAssertTranslatorMapFailure tests that AssertTranslatorMap fails correctly when inputs and outputs mismatch.
+func TestAssertTranslatorMapFailure(t *testing.T) {
+	otlpfile := "testdata/otlpdata/histogram/simple-delta.json"
+	// Compare OTLP file with incorrect output
+	ddogfile := "testdata/datadogdata/histogram/simple-delta_nobuckets-cs.json"
+
+	translator, err := New(zap.NewNop(), WithHistogramMode(HistogramModeDistributions))
+	require.NoError(t, err)
+	mockTesting := &testingTMock{t}
+	assert.False(t, AssertTranslatorMap(mockTesting, translator, otlpfile, ddogfile), "AssertTranslatorMap should have failed but did not")
+	actualFile := ddogfile + ".actual"
+	if assert.FileExists(t, actualFile, "AssertTranslatorMap did not create .actual file") {
+		assert.True(t, AssertTranslatorMap(mockTesting, translator, otlpfile, actualFile), "AssertTranslatorMap should have passed with .actual output")
+		require.NoError(t, os.Remove(actualFile))
+	}
 }

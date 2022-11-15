@@ -20,7 +20,7 @@ func TestDeltaHistogramOptions(t *testing.T) {
 		options  []Option
 	}{
 		{
-			name:     "simple histogram distributions",
+			name:     "distributions",
 			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
 			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-nocs.json",
 			options: []Option{
@@ -28,7 +28,7 @@ func TestDeltaHistogramOptions(t *testing.T) {
 			},
 		},
 		{
-			name:     "simple histogram distributions, with count sum metrics",
+			name:     "distributions-count-sum",
 			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
 			ddogfile: "testdata/datadogdata/histogram/simple-delta_dist-cs.json",
 			options: []Option{
@@ -37,7 +37,7 @@ func TestDeltaHistogramOptions(t *testing.T) {
 			},
 		},
 		{
-			name:     "simple histogram buckets as counts, no count sum metrics",
+			name:     "buckets",
 			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
 			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-nocs.json",
 			options: []Option{
@@ -45,7 +45,7 @@ func TestDeltaHistogramOptions(t *testing.T) {
 			},
 		},
 		{
-			name:     "simple histogram buckets as counts, with count sum metrics",
+			name:     "buckets-count-sum",
 			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
 			ddogfile: "testdata/datadogdata/histogram/simple-delta_counters-cs.json",
 			options: []Option{
@@ -54,7 +54,7 @@ func TestDeltaHistogramOptions(t *testing.T) {
 			},
 		},
 		{
-			name:     "simple histogram no buckets count sum metrics",
+			name:     "count-sum",
 			otlpfile: "testdata/otlpdata/histogram/simple-delta.json",
 			ddogfile: "testdata/datadogdata/histogram/simple-delta_nobuckets-cs.json",
 			options: []Option{
