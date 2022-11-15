@@ -24,7 +24,7 @@ if [ -n "$DD_UPGRADE" ]; then
 fi
 
 # Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
+if [ "$(echo "$UID")" == "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
@@ -253,7 +253,7 @@ fi`
 # If this is a systemwide install done over SSH or a similar method, the real_user is now root
 # which will eventually make the installation fail in the postinstall script. In this case, we
 # set real_user to the target user of the systemwide installation.
-if [ "$systemdaemon_install" = true ] && [ "$real_user" = root ]; then
+if [ "$systemdaemon_install" == true ] && [ "$real_user" == root ]; then
     real_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
     # The install will copy plist file to real_user home dir => we add `-H`
     # as a sudo argument to properly get its home for access to the plist file.
@@ -384,7 +384,7 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     fi
     printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
     # systemwide installation is stopped at this point and will be started later on
-    if [ "$systemdaemon_install" != true ]; then
+    if [ "$systemdaemon_install" == true ]; then
       $cmd_launchctl stop $service_name
 
       # Wait for the agent to fully stop
@@ -407,7 +407,7 @@ else
 fi
 
 # Starting the app
-if [ "$systemdaemon_install" = false ]; then
+if [ "$systemdaemon_install" == false ]; then
     $cmd_real_user open -a 'Datadog Agent.app'
 else
     printf "\033[34m\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n\033[0m"
@@ -442,7 +442,7 @@ or by opening the webui using the \"datadog-agent launch-gui\" command.
 
 \033[0m"
 
-if [ "$systemdaemon_install" = false ]; then
+if [ "$systemdaemon_install" == false ]; then
     printf "\033[32m
 If you ever want to stop the Agent, please use the Datadog Agent App or
 the launchctl command. It will start automatically at login.
