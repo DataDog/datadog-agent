@@ -29,27 +29,7 @@ func TestASMData(t *testing.T) {
 			raw:  []byte(`{"rules_data":[]}`),
 		},
 		{
-			name: "single-entry-float",
-			cfg: ASMDataConfig{
-				Config: ASMDataRulesData{
-					RulesData: []ASMDataRuleData{
-						{
-							ID:   "1",
-							Type: "test1",
-							Data: []ASMDataRuleDataEntry{
-								{
-									Value:      float64(1),
-									Expiration: 1234,
-								},
-							},
-						},
-					},
-				},
-			},
-			raw: []byte(`{"rules_data":[{"id":"1","type":"test1","data":[{"expiration":1234,"value":1}]}]}`),
-		},
-		{
-			name: "single-entry-string",
+			name: "single-entry",
 			cfg: ASMDataConfig{
 				Config: ASMDataRulesData{
 					RulesData: []ASMDataRuleData{
@@ -69,7 +49,7 @@ func TestASMData(t *testing.T) {
 			raw: []byte(`{"rules_data":[{"id":"1","type":"test1","data":[{"expiration":1234,"value":"1"}]}]}`),
 		},
 		{
-			name: "multiple-entries-float",
+			name: "multiple-entries",
 			cfg: ASMDataConfig{
 				Config: ASMDataRulesData{
 					RulesData: []ASMDataRuleData{
@@ -83,7 +63,7 @@ func TestASMData(t *testing.T) {
 							Type: "test1",
 							Data: []ASMDataRuleDataEntry{
 								{
-									Value:      float64(1),
+									Value:      "127.0.0.1",
 									Expiration: 1234,
 								},
 							},
@@ -93,15 +73,15 @@ func TestASMData(t *testing.T) {
 							Type: "test2",
 							Data: []ASMDataRuleDataEntry{
 								{
-									Value:      float64(1),
+									Value:      "value1",
 									Expiration: 1234,
 								},
 								{
-									Value:      float64(2),
+									Value:      "value2",
 									Expiration: 1234,
 								},
 								{
-									Value:      float64(3),
+									Value:      "value3",
 									Expiration: 1234,
 								},
 							},
@@ -109,50 +89,7 @@ func TestASMData(t *testing.T) {
 					},
 				},
 			},
-			raw: []byte(`{"rules_data":[{"id":"empty","type":"","data":[]},{"id":"1","type":"test1","data":[{"expiration":1234,"value":1}]},{"id":"2","type":"test2","data":[{"expiration":1234,"value":1},{"expiration":1234,"value":2},{"expiration":1234,"value":3}]}]}`),
-		},
-		{
-			name: "multiple-entries-string",
-			cfg: ASMDataConfig{
-				Config: ASMDataRulesData{
-					RulesData: []ASMDataRuleData{
-						{
-							ID:   "empty",
-							Type: "",
-							Data: []ASMDataRuleDataEntry{},
-						},
-						{
-							ID:   "1",
-							Type: "test1",
-							Data: []ASMDataRuleDataEntry{
-								{
-									Value:      "1",
-									Expiration: 1234,
-								},
-							},
-						},
-						{
-							ID:   "2",
-							Type: "test2",
-							Data: []ASMDataRuleDataEntry{
-								{
-									Value:      "1",
-									Expiration: 1234,
-								},
-								{
-									Value:      "2",
-									Expiration: 1234,
-								},
-								{
-									Value:      "3",
-									Expiration: 1234,
-								},
-							},
-						},
-					},
-				},
-			},
-			raw: []byte(`{"rules_data":[{"id":"empty","type":"","data":[]},{"id":"1","type":"test1","data":[{"expiration":1234,"value":"1"}]},{"id":"2","type":"test2","data":[{"expiration":1234,"value":"1"},{"expiration":1234,"value":"2"},{"expiration":1234,"value":"3"}]}]}`),
+			raw: []byte(`{"rules_data":[{"id":"empty","type":"","data":[]},{"id":"1","type":"test1","data":[{"expiration":1234,"value":"127.0.0.1"}]},{"id":"2","type":"test2","data":[{"expiration":1234,"value":"value1"},{"expiration":1234,"value":"value2"},{"expiration":1234,"value":"value3"}]}]}`),
 		},
 	} {
 		t.Run("marshall-"+tc.name, func(t *testing.T) {

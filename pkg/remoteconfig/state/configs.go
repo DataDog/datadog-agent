@@ -253,8 +253,8 @@ type ASMDataRuleData struct {
 
 // ASMDataRuleDataEntry represents a data entry in a rule data file
 type ASMDataRuleDataEntry struct {
-	Expiration int         `json:"expiration,omitempty"`
-	Value      interface{} `json:"value"`
+	Expiration int    `json:"expiration,omitempty"`
+	Value      string `json:"value"`
 }
 
 func parseConfigASMData(data []byte, metadata Metadata) (ASMDataConfig, error) {
