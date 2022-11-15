@@ -38,6 +38,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+)
+
+var (
+	staticTags = map[connTag]string{
+		tagGnuTLS:  "tls.library:gnutls",
+		tagOpenSSL: "tls.library:openssl",
+	}
+)
+
 func httpSupported(t *testing.T) bool {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)

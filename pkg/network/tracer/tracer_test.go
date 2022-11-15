@@ -43,18 +43,6 @@ import (
 
 type connTag = uint64
 
-const (
-	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
-	tagOpenSSL connTag = 2 // netebpf.OpenSSL
-)
-
-var (
-	staticTags = map[connTag]string{
-		tagGnuTLS:  "tls.library:gnutls",
-		tagOpenSSL: "tls.library:openssl",
-	}
-)
-
 var (
 	clientMessageSize = 2 << 8
 	serverMessageSize = 2 << 14
