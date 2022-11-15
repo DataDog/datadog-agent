@@ -265,12 +265,12 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	return semver.NewVersion(versionString)
 }
 
-func getCommandPython(cliParams *cliParams) (string, error) {
-	if cliParams.useSysPython {
+func getCommandPython(pythonMajorVersion string, useSysPython bool) (string, error) {
+	if useSysPython {
 		return pythonBin, nil
 	}
 
-	pyPath := filepath.Join(rootDir, getRelPyPath(cliParams))
+	pyPath := filepath.Join(rootDir, getRelPyPath(pythonMajorVersion))
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -307,7 +307,7 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer) error {
-	pythonPath, err := getCommandPython(cliParams)
+	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 	if err != nil {
 		return err
 	}
@@ -499,7 +499,7 @@ func install(config config.Component, cliParams *cliParams) error {
 }
 
 func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
-	pyPath, err := getCommandPython(cliParams)
+	pyPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 	if err != nil {
 		return "", err
 	}
@@ -713,7 +713,7 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 
 // Return the version of an installed integration and whether or not it was found
 func installedVersion(cliParams *cliParams, integration string) (*semver.Version, bool, error) {
-	pythonPath, err := getCommandPython(cliParams)
+	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 	if err != nil {
 		return nil, false, err
 	}
