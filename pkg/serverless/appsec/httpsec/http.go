@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -127,6 +128,7 @@ func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 
 	if events := p.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, respHeaders)
+		invocCtx.SetSamplingPriority(sampler.PriorityUserKeep)
 	}
 }
 

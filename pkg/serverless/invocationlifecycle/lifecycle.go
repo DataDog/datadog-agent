@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -68,6 +69,11 @@ func (r *RequestHandler) SetMetricsTag(tag string, value float64) {
 // github.com/aws/aws-lambda-go/events
 func (r *RequestHandler) Event() interface{} {
 	return r.event
+}
+
+// SetSamplingPriority sets the trace priority
+func (r *RequestHandler) SetSamplingPriority(priority sampler.SamplingPriority) {
+	r.executionInfo.SamplingPriority = priority
 }
 
 // OnInvokeStart is the hook triggered when an invocation has started
