@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add an ``annotations_as_tags`` parameter to the kubernetes_state_core check that allows to attach kubernetes annotations as datadog tags in a similar way than ``labels_as_tags``
+    Add an ``annotations_as_tags`` parameter to the kubernetes_state_core check to allow attaching Kubernetes annotations as Datadog tags in a similar way that the ``labels_as_tags`` parameter does.
