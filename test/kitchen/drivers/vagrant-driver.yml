@@ -2,17 +2,11 @@
 driver:
   name: vagrant
   provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
-  <% if ENV['KITCHEN_VAGRANT_PROVIDER'] == "hyperv" %>
-  customize:
-    enable_virtualization_extensions: true
-    memory: 1024
-  network:
-  - ["public_network", bridge: "Default Switch", use_dhcp_assigned_default_route: true]
-  <% else %>
-    <% if ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'] %>
+
+  <% if ENV['KITCHEN_VAGRANT_PROVIDER'] != "hyperv" && ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'] %>
+  # Hyper-V doesn't support synced folders
   synced_folders:
   - ["<%= ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'].tr('\\', '/') %>", "/datadog-agent"]
-    <% end %>
   <% end %>
 
 provisioner:
