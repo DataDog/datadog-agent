@@ -727,20 +727,3 @@ func (ccc *CCCache) readData() {
 		close(ccc.updatedOnce)
 	}
 }
-
-// reset method is only used for testing
-func (ccc *CCCache) reset() {
-	ccc.Lock()
-	defer ccc.Unlock()
-	ccc.activeResources = make(map[string]chan interface{})
-	ccc.segmentBySpaceGUID = make(map[string]*cfclient.IsolationSegment)
-	ccc.segmentByOrgGUID = make(map[string]*cfclient.IsolationSegment)
-	ccc.sidecarsByAppGUID = make(map[string][]*CFSidecar)
-	ccc.appsByGUID = make(map[string]*cfclient.V3App)
-	ccc.spacesByGUID = make(map[string]*cfclient.V3Space)
-	ccc.orgsByGUID = make(map[string]*cfclient.V3Organization)
-	ccc.orgQuotasByGUID = make(map[string]*CFOrgQuota)
-	ccc.processesByAppGUID = make(map[string][]*cfclient.Process)
-	ccc.cfApplicationsByGUID = make(map[string]*CFApplication)
-	ccc.lastUpdated = time.Time{}
-}

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -235,6 +235,8 @@ func TestSerialization(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
@@ -481,6 +483,8 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{

@@ -587,13 +587,13 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	fileAPM := newAPMSamplingFile()
 
 	path, hashes, data := addCWSDDFile("test", 1, file, ta.targets)
-	pathAPM, hashesAPM, dataAPM := addAPMSamplingFile("testAPM", 3, fileAPM, ta.targets)
+	pathAPM, hashesAPM := addAPMSamplingFile("testAPM", 3, fileAPM, ta.targets)
 	b := signTargets(ta.key, ta.targets)
 
 	update := Update{
 		TUFRoots:      make([][]byte, 0),
 		TUFTargets:    b,
-		TargetFiles:   map[string][]byte{path: data, pathAPM: dataAPM},
+		TargetFiles:   map[string][]byte{path: data, pathAPM: fileAPM},
 		ClientConfigs: []string{path, pathAPM},
 	}
 	r := ta.repository
@@ -622,7 +622,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, "testAPM", storedFileAPM.Metadata.ID)
 	assertHashesEqual(t, hashesAPM, storedFileAPM.Metadata.Hashes)
 	assert.Equal(t, ProductAPMSampling, storedFileAPM.Metadata.Product)
-	assert.EqualValues(t, len(dataAPM), storedFileAPM.Metadata.RawLength)
+	assert.EqualValues(t, len(fileAPM), storedFileAPM.Metadata.RawLength)
 
 	// Do the same for the unverified repository, it should be functionally identical
 	r = ta.unverifiedRepository
@@ -651,7 +651,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Equal(t, "testAPM", storedFileAPM.Metadata.ID)
 	assertHashesEqual(t, hashesAPM, storedFileAPM.Metadata.Hashes)
 	assert.Equal(t, ProductAPMSampling, storedFileAPM.Metadata.Product)
-	assert.EqualValues(t, len(dataAPM), storedFileAPM.Metadata.RawLength)
+	assert.EqualValues(t, len(fileAPM), storedFileAPM.Metadata.RawLength)
 
 	// Check the config state and the cached files of both repositories //
 
@@ -672,7 +672,7 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	}
 	expectedCachedFileAPMSampling := CachedFile{
 		Path:   pathAPM,
-		Length: uint64(len(dataAPM)),
+		Length: uint64(len(fileAPM)),
 		Hashes: convertGoTufHashes(hashesAPM),
 	}
 

@@ -168,6 +168,6 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		}
 	}
 
-	cs.Monotonic.Put(0, m)
+	cs.Monotonic.Put(uint32(flow.FlowHandle), m)
 
 }

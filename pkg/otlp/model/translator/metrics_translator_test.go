@@ -534,164 +534,6 @@ func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dim
 	)
 }
 
-func TestMapDeltaHistogramMetrics(t *testing.T) {
-	ts := pcommon.NewTimestampFromTime(time.Now())
-	slice := pmetric.NewHistogramDataPointSlice()
-	point := slice.AppendEmpty()
-	point.SetCount(20)
-	point.SetSum(math.Pi)
-	point.BucketCounts().FromRaw([]uint64{2, 18})
-	point.ExplicitBounds().FromRaw([]float64{0})
-	point.SetTimestamp(ts)
-
-	dims := newDims("doubleHist.test")
-	dimsTags := dims.AddTags("attribute_tag:attribute_value")
-	counts := []metric{
-		newCount(dims.WithSuffix("count"), uint64(ts), 20),
-		newCount(dims.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	countsAttributeTags := []metric{
-		newCount(dimsTags.WithSuffix("count"), uint64(ts), 20),
-		newCount(dimsTags.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	bucketsCounts := []metric{
-		newCount(dimsWithBucket(dims, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dims, "0", "inf"), uint64(ts), 18),
-	}
-
-	bucketsCountsAttributeTags := []metric{
-		newCount(dimsWithBucket(dimsTags, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dimsTags, "0", "inf"), uint64(ts), 18),
-	}
-
-	sketches := []sketch{
-		newSketch(dims, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: int64(point.Count()),
-		}),
-	}
-
-	sketchesAttributeTags := []sketch{
-		newSketch(dimsTags, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: 20,
-		}),
-	}
-
-	ctx := context.Background()
-	delta := true
-
-	tests := []struct {
-		name             string
-		histogramMode    HistogramMode
-		sendCountSum     bool
-		tags             []string
-		expectedMetrics  []metric
-		expectedSketches []sketch
-	}{
-		{
-			name:             "No buckets: send count & sum metrics, no attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			expectedMetrics:  counts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "No buckets: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  bucketsCounts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  bucketsCountsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  append(counts, bucketsCounts...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  append(countsAttributeTags, bucketsCountsAttributeTags...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketchesAttributeTags,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  counts,
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: sketchesAttributeTags,
-		},
-	}
-
-	for _, testInstance := range tests {
-		t.Run(testInstance.name, func(t *testing.T) {
-			tr := newTranslator(t, zap.NewNop())
-			tr.cfg.HistMode = testInstance.histogramMode
-			tr.cfg.SendCountSum = testInstance.sendCountSum
-			consumer := &mockFullConsumer{}
-			dims := &Dimensions{name: "doubleHist.test", tags: testInstance.tags}
-			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
-			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
-			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-		})
-	}
-}
-
 func TestMapCumulativeHistogramMetrics(t *testing.T) {
 	slice := pmetric.NewHistogramDataPointSlice()
 	point := slice.AppendEmpty()
@@ -1663,8 +1505,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: math.Pi / float64(30),
 					Cnt: 30,
@@ -1681,8 +1523,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1702,8 +1544,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1720,8 +1562,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1738,8 +1580,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1759,8 +1601,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1776,8 +1618,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			withCountSum:                         false,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1797,8 +1639,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1818,8 +1660,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1908,6 +1750,8 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetCount(30)
 	expDeltaHist.SetZeroCount(10)
 	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.SetMin(-100_000)
+	expDeltaHist.SetMax(100_000)
 	expDeltaHist.Negative().SetOffset(2)
 
 	expDeltaHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})

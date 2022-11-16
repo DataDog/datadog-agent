@@ -80,7 +80,7 @@ func (iiscfg *DynamicIISConfig) Start() error {
 			select {
 			case event := <-iiscfg.watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					iiscfg.readXmlConfig()
+					_ = iiscfg.readXmlConfig()
 				}
 			case err = <-iiscfg.watcher.Errors:
 				return

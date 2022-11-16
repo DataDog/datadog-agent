@@ -76,13 +76,7 @@ func (c *NamespaceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -86,12 +86,10 @@ func TestInvocationInterval(t *testing.T) {
 	}
 
 	for i := 0; i < 19; i++ {
-		time.Sleep(100 * time.Millisecond)
 		d.lastInvocations = append(d.lastInvocations, time.Now())
 		assert.Equal(time.Duration(0), d.InvocationInterval(), "we should not compute any interval just yet since we don't have enough data")
 	}
-	time.Sleep(100 * time.Millisecond)
-	d.lastInvocations = append(d.lastInvocations, time.Now())
+	d.lastInvocations = append(d.lastInvocations, time.Now().Add(13*time.Second))
 
 	assert.NotEqual(time.Duration(0), d.InvocationInterval(), "we should compute some interval now")
 

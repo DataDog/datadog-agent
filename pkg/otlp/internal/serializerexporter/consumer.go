@@ -61,7 +61,7 @@ func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *transl
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
-		Interval: 1,
+		Interval: 0, // OTLP metrics do not have an interval.
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
 			Sketch: qsketch,
@@ -87,7 +87,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 			Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
-			Interval: 1,
+			Interval: 0, // OTLP metrics do not have an interval.
 		},
 	)
 }

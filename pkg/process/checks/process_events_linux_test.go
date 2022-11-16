@@ -24,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
-	secmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 type eventTestData struct {
-	rawEvent     *model.ProcessMonitoringEvent
+	rawEvent     *model.ProcessEvent
 	payloadEvent *payload.ProcessEvent
 }
 
@@ -36,38 +35,24 @@ func mockedData(t *testing.T) []*eventTestData {
 	t.Helper()
 	return []*eventTestData{
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exec",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exec"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:10Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 42,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/curl",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
-							ExitTime: time.Time{},
-						},
-					},
+				Pid:            42,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/curl",
+				Cmdline: []string{
+					"curl",
+					"localhost:6062/debug/vars",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
+				ExitTime: time.Time{},
 			},
 			payloadEvent: &payload.ProcessEvent{
 				Type:           payload.ProcEventType_exec,
@@ -93,38 +78,24 @@ func mockedData(t *testing.T) []*eventTestData {
 			},
 		},
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exit",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exit"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:20Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 42,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/curl",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
-							ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
-						},
-					},
+				Pid:            42,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/curl",
+				Cmdline: []string{
+					"curl",
+					"localhost:6062/debug/vars",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
+				ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
 				ExitCode: 0,
 			},
 			payloadEvent: &payload.ProcessEvent{
@@ -152,38 +123,24 @@ func mockedData(t *testing.T) []*eventTestData {
 			},
 		},
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exec",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exec"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 1010,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/ls",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"ls",
-									"invalid-path",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
-							ExitTime: time.Time{},
-						},
-					},
+				Pid:            1010,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/ls",
+				Cmdline: []string{
+					"ls",
+					"invalid-path",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
+				ExitTime: time.Time{},
 			},
 			payloadEvent: &payload.ProcessEvent{
 				Type:           payload.ProcEventType_exec,
@@ -209,38 +166,24 @@ func mockedData(t *testing.T) []*eventTestData {
 			},
 		},
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exit",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exit"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 1010,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/ls",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"ls",
-									"invalid-path",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
-							ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:13Z"),
-						},
-					},
+				Pid:            1010,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/ls",
+				Cmdline: []string{
+					"ls",
+					"invalid-path",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
+				ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:13Z"),
 				ExitCode: 2,
 			},
 			payloadEvent: &payload.ProcessEvent{

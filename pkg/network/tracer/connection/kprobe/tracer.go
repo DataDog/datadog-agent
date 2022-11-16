@@ -456,6 +456,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"missed_udp_close":    int64(telemetry.Missed_udp_close),
 		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
 		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
+		"udp_dropped_conns":   int64(telemetry.Udp_dropped_conns),
 	}
 
 	for k, v := range t.telemetry.get() {

@@ -40,7 +40,8 @@ def split_junitxml(xml_path, codeowners, output_dir):
     tree = ET.parse(xml_path)
     output_xmls = {}
 
-    flavor = tree.find("flavor").text
+    flem = tree.find("flavor")
+    flavor = flem.text if flem else AgentFlavor.base.name
 
     for suite in tree.iter("testsuite"):
         path = suite.attrib["name"].replace(REPO_NAME_PREFIX, "", 1)
@@ -107,14 +108,16 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         with tarfile.open(junit_tgz) as tgz:
             tgz.extractall(path=unpack_dir)
         # read additional tags
-        with open(os.path.join(unpack_dir, TAGS_FILE_NAME)) as tf:
-            tags = tf.read().split()
+        tagsfile = os.path.join(unpack_dir, TAGS_FILE_NAME)
+        if os.path.exists(tagsfile):
+            with open(tagsfile) as tf:
+                tags = tf.read().split()
         # read job url (see comment in produce_junit_tar)
         with open(os.path.join(unpack_dir, JOB_URL_FILE_NAME)) as jf:
             job_url = jf.read()
 
         # for each unpacked xml file, split it and submit all parts
-        for xmlfile in glob.glob(f"{unpack_dir}/*.xml"):
+        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml"):
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
                 upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)

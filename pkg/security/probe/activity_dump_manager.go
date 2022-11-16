@@ -387,9 +387,14 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 	adm.Lock()
 	defer adm.Unlock()
 
+	if params.GetName() == "" && params.GetContainerID() == "" && params.GetComm() == "" {
+		errMsg := fmt.Errorf("you must specify one selector between name, containerID and comm")
+		return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
+	}
+
 	toDelete := -1
 	for i, d := range adm.activeDumps {
-		if d.commMatches(params.GetComm()) {
+		if d.nameMatches(params.GetName()) || d.containerIDMatches(params.GetContainerID()) || d.commMatches(params.GetComm()) {
 			d.Finalize(true)
 			seclog.Infof("tracing stopped for [%s]", d.GetSelectorStr())
 			toDelete = i
@@ -405,7 +410,14 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 		adm.activeDumps = append(adm.activeDumps[:toDelete], adm.activeDumps[toDelete+1:]...)
 		return &api.ActivityDumpStopMessage{}, nil
 	}
-	errMsg := fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
+	var errMsg error
+	if params.GetName() != "" {
+		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following name: %s", params.GetName())
+	} else if params.GetContainerID() != "" {
+		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following containerID: %s", params.GetContainerID())
+	} else /* if params.GetComm() != "" */ {
+		errMsg = fmt.Errorf("the activity dump manager does not contain any ActivityDump with the following comm: %s", params.GetComm())
+	}
 	return &api.ActivityDumpStopMessage{Error: errMsg.Error()}, errMsg
 }
 
@@ -414,6 +426,11 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
+		return
+	}
+
+	// reject event with abnormal path
+	if event.GetPathResolutionError() != nil {
 		return
 	}
 

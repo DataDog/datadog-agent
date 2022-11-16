@@ -468,7 +468,6 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 func getPIDs() ([]int32, error) {
 	var read uint32
 	var psSize uint32 = 1024
-	const dwordSize uint32 = 4
 
 	for {
 		buf := make([]uint32, psSize)
