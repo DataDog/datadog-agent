@@ -2,6 +2,18 @@
 driver:
   name: vagrant
   provider: <%= ENV['KITCHEN_VAGRANT_PROVIDER'] %>
+  <% if ENV['KITCHEN_VAGRANT_PROVIDER'] == "hyperv" %>
+  customize:
+    enable_virtualization_extensions: true
+    memory: 1024
+  network:
+  - ["public_network", bridge: "Default Switch", use_dhcp_assigned_default_route: true]
+  <% else %>
+    <% if ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'] %>
+  synced_folders:
+  - ["<%= ENV['KITCHEN_VAGRANT_SYNCED_FOLDER'].tr('\\', '/') %>", "/datadog-agent"]
+    <% end %>
+  <% end %>
 
 provisioner:
   name: chef_solo
@@ -25,6 +37,11 @@ platforms:
   - name: <%= platform[0] %>
     driver:
       box: <%= platform[1] %>
+      # Always use linked_clone when possible, it's so much faster
+      linked_clone: true
+      <% if ENV['KITCHEN_VAGRANT_PROVIDER'] == "virtualbox" %>
+      gui: true
+      <% end %>
       <% if platform[1].include?('opensuse') %>
       customize:
         disk_bus: sata
