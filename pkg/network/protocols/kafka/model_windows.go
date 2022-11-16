@@ -8,5 +8,9 @@
 
 package kafka
 
+import (
+	"errors"
+)
+
 // errLostBatch isn't a valid error in windows
 var errLostBatch = errors.New("invalid error")
