@@ -128,7 +128,7 @@ func TestGroupCheck(t *testing.T) {
 			regoRule := resource_test.NewTestRule(test.resource, "group", test.module)
 
 			dockerCheck := rego.NewCheck(regoRule)
-			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 			assert.NoError(err)
 
 			reports := dockerCheck.Check(env)

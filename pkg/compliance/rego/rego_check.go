@@ -52,7 +52,6 @@ type regoInput struct {
 type regoCheck struct {
 	evalLock sync.Mutex
 
-	metrics           metrics.Metrics
 	ruleID            string
 	ruleScope         compliance.RuleScope
 	inputs            []regoInput
@@ -61,16 +60,15 @@ type regoCheck struct {
 }
 
 // NewCheck returns a new rego based check
-func NewCheck(rule *compliance.RegoRule, m metrics.Metrics) *regoCheck {
+func NewCheck(rule *compliance.RegoRule) *regoCheck {
 	inputs := make([]regoInput, len(rule.Inputs))
 	for i, input := range rule.Inputs {
 		inputs[i] = regoInput{RegoInput: input}
 	}
 
 	return &regoCheck{
-		ruleID:  rule.ID,
-		inputs:  inputs,
-		metrics: m,
+		ruleID: rule.ID,
+		inputs: inputs,
 	}
 }
 
@@ -196,7 +194,7 @@ func computeRuleTransform(rule *compliance.RegoRule, res compliance.RegoInput, m
 	return append(options, ruleModules...), query, nil
 }
 
-func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (rego.PreparedEvalQuery, error) {
+func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (rego.PreparedEvalQuery, []func(*rego.Rego), error) {
 	log.Debugf("rego query: %v", query)
 	moduleArgs = append(moduleArgs, rego.Query(query))
 
@@ -212,12 +210,14 @@ func (r *regoCheck) prepareQuery(moduleArgs []func(*rego.Rego), query string) (r
 	ctx, cancel := context.WithTimeout(context.Background(), regoParseTimeout)
 	defer cancel()
 
-	return rego.New(
+	preparedEvalQuery, err := rego.New(
 		moduleArgs...,
 	).PrepareForEval(ctx)
+
+	return preparedEvalQuery, moduleArgs, err
 }
 
-func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta) error {
+func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.RuleScope, meta *compliance.SuiteMeta, metrics metrics.Metrics) error {
 	moduleArgs := make([]func(*rego.Rego), 0, 2+len(regoBuiltins))
 
 	// rego modules and query
@@ -226,14 +226,13 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 		return err
 	}
 
-	moduleArgs = append(moduleArgs,
-		rego.EnablePrintStatements(true),
-		rego.PrintHook(&regoPrintHook{}),
-		rego.Metrics(r.metrics))
+	if metrics != nil {
+		moduleArgs = append(moduleArgs, rego.Metrics(metrics))
+	}
 
 	moduleArgs = append(moduleArgs, ruleModules...)
 
-	preparedEvalQuery, err := r.prepareQuery(moduleArgs, query)
+	preparedEvalQuery, moduleArgs, err := r.prepareQuery(moduleArgs, query)
 	if err != nil {
 		return err
 	}
@@ -256,7 +255,7 @@ func (r *regoCheck) CompileRule(rule *compliance.RegoRule, ruleScope compliance.
 		}
 		moduleArgs = append(moduleArgs, ruleModules...)
 
-		preparedTransformQuery, err := r.prepareQuery(moduleArgs, query)
+		preparedTransformQuery, _, err := r.prepareQuery(moduleArgs, query)
 		if err != nil {
 			return err
 		}
@@ -548,7 +547,7 @@ func (r *regoCheck) Check(env env.Env) []*compliance.Report {
 
 	args := make([]func(*rego.Rego), len(r.regoModuleArgs), len(r.regoModuleArgs)+2)
 	copy(args, r.regoModuleArgs)
-	args = append(args, rego.Input(input), rego.Metrics(r.metrics))
+	args = append(args, rego.Input(input))
 
 	regoMod := rego.New(args...)
 	results, err := regoMod.Eval(ctx)

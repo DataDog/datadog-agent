@@ -111,7 +111,7 @@ func (f *commandFixture) run(t *testing.T) {
 	regoRule := resource_test.NewTestRule(f.resource, "command", f.module)
 
 	commandCheck := rego.NewCheck(regoRule)
-	err := commandCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := commandCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := commandCheck.Check(env)

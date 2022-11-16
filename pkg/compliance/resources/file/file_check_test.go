@@ -342,10 +342,7 @@ func TestFileCheck(t *testing.T) {
 				Transform: `h.file_process_flag("--config-file")`,
 			},
 			processes: processutils.Processes{
-				42: {
-					Name:    "dockerd",
-					Cmdline: []string{"dockerd", "--config-file=/etc/docker/daemon.json"},
-				},
+				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}),
 			},
 			module: fmt.Sprintf(objectModule, `file.content["experimental"] == false`),
 			setup: func(t *testing.T, env *mocks.Env, file *compliance.File) {
@@ -430,10 +427,7 @@ func TestFileCheck(t *testing.T) {
 			},
 			expectError: errors.New(`failed to resolve path`),
 			processes: processutils.Processes{
-				42: {
-					Name:    "dockerd",
-					Cmdline: []string{"dockerd", "--config-file=/etc/docker/daemon.json"},
-				},
+				42: processutils.NewCheckedFakeProcess(42, "dockerd", []string{"dockerd", "--config-file=/etc/docker/daemon.json"}),
 			},
 		},
 		{
@@ -548,9 +542,6 @@ func TestFileCheck(t *testing.T) {
 			if len(test.processes) > 0 {
 				previousFetcher := processutils.Fetcher
 				processutils.Fetcher = func() (processutils.Processes, error) {
-					for pid, p := range test.processes {
-						p.Pid = pid
-					}
 					return test.processes, nil
 				}
 				defer func() {
@@ -567,7 +558,7 @@ func TestFileCheck(t *testing.T) {
 			regoRule.Inputs[1].Constants.Values["resource_type"] = "docker_daemon"
 			regoRule.Inputs = append(test.additionalResources, regoRule.Inputs...)
 			fileCheck := rego.NewCheck(regoRule)
-			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+			err := fileCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 			assert.NoError(err)
 
 			reports := fileCheck.Check(env)

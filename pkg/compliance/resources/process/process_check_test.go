@@ -18,7 +18,6 @@ import (
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
-	"github.com/open-policy-agent/opa/metrics"
 	assert "github.com/stretchr/testify/require"
 )
 
@@ -97,9 +96,8 @@ func (f *processFixture) run(t *testing.T) {
 
 	regoRule := resource_test.NewTestRule(f.resource, "group", f.module)
 
-	var m metrics.Metrics
-	processCheck := rego.NewCheck(regoRule, m)
-	err := processCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	processCheck := rego.NewCheck(regoRule)
+	err := processCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := processCheck.Check(env)

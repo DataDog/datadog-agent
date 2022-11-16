@@ -212,7 +212,7 @@ findings[f] {
 `,
 			}
 			auditCheck := rego.NewCheck(regoRule)
-			err := auditCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+			err := auditCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 			assert.NoError(err)
 
 			result := auditCheck.Check(env)

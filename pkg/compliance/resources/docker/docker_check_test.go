@@ -121,7 +121,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_image", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -198,7 +198,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_network", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -352,7 +352,7 @@ findings[f] {
 			regoRule := dockerTestRule(resource, "docker_container", module)
 
 			dockerCheck := rego.NewCheck(regoRule)
-			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+			err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 			assert.NoError(err)
 
 			reports := dockerCheck.Check(env)
@@ -431,7 +431,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_daemon", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)
@@ -494,7 +494,7 @@ findings[f] {
 	regoRule := dockerTestRule(resource, "docker_daemon", module)
 
 	dockerCheck := rego.NewCheck(regoRule)
-	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := dockerCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := dockerCheck.Check(env)

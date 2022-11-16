@@ -166,7 +166,7 @@ func (f *kubeApiserverFixture) run(t *testing.T) {
 	regoRule := resource_test.NewTestRule(f.resource, "kuberapiserver", f.module)
 
 	kubeCheck := rego.NewCheck(regoRule)
-	err := kubeCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{})
+	err := kubeCheck.CompileRule(regoRule, "", &compliance.SuiteMeta{}, nil)
 	assert.NoError(err)
 
 	reports := kubeCheck.Check(env)

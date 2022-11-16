@@ -591,9 +591,9 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		m = newRegoMetrics(m, b.statsdClient)
 	}
 
-	regoCheck := rego.NewCheck(rule, m)
+	regoCheck := rego.NewCheck(rule)
 
-	if err := regoCheck.CompileRule(rule, ruleScope, meta); err != nil {
+	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
 		return nil, err
 	}
 

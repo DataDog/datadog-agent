@@ -48,7 +48,7 @@ func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: inputs,
 	}
 
-	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.CompileRule(rule, "", &compliance.SuiteMeta{}, nil); err != nil {
 		return nil, err
 	}
 
