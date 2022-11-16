@@ -365,6 +365,12 @@ api_key:
 #
 # collect_ec2_tags: false
 
+## @param exclude_ec2_tags - list of strings - optional - default: []
+## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
+## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true.
+#
+# exclude_ec2_tags: []
+
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
 ## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
