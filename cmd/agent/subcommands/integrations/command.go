@@ -499,6 +499,7 @@ func install(config config.Component, cliParams *cliParams) error {
 }
 
 func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
+	// We use python 3 to invoke the downloader regardless of config
 	pyPath, err := getCommandPython("3", cliParams.useSysPython)
 	if err != nil {
 		return "", err
