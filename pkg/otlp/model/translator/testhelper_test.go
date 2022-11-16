@@ -180,7 +180,7 @@ func TestTestDimensions(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, testFields, trueFields,
-		"The fields on TestDimensions and Dimensions do not match")
+		"The fields on TestDimensions and Dimensions are out of sync. Ensure that they have the exact same fields.")
 }
 
 var _ TestingT = (*testingTMock)(nil)
