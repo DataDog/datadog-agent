@@ -24,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-var (
-	FilelessExecutionFilenamePrefix = "memfd:"
-)
-
 // Model describes the data model for the runtime security agent events
 //msgp:ignore Model
 type Model struct{}
@@ -335,8 +331,7 @@ func (p *Process) GetPathResolutionError() string {
 
 // HasInterpreter returns whether the process uses an interpreter
 func (p *Process) HasInterpreter() bool {
-	// there can be an error case in which inode != 0 && mount_id == 0 && !fileless (if path resolution fails), but this boolean drops that case
-	return p.LinuxBinprm.FileEvent.Inode != 0 || p.LinuxBinprm.FileEvent.isFilelessExecution()
+	return p.LinuxBinprm.FileEvent.Inode != 0
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
@@ -488,16 +483,6 @@ func (e *FileEvent) GetPathResolutionError() string {
 		return e.PathResolutionError.Error()
 	}
 	return ""
-}
-
-// isFilelessExecution returns whether an event was executed in memory without a binary being present on disk
-func (e *FileEvent) isFilelessExecution() bool {
-	// this check originally included `&& e.MountID == 0`, but we found that many kernels <= 5.0 were reporting `e.MountID == 4`, with everything else being correct.
-	// ongoing investigation into where the 4 comes from.
-	if strings.HasPrefix(e.BasenameStr, FilelessExecutionFilenamePrefix) && e.PathnameStr == "" {
-		return true
-	}
-	return false
 }
 
 // InvalidateDentryEvent defines a invalidate dentry event

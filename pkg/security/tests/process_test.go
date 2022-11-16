@@ -2040,7 +2040,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			name: "fileless",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless",
-				Expression: `exec.file.name == "memfd:" && exec.file.path == "" && process.ancestors.file.name == "syscall_tester"`,
+				Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == "" && process.ancestors.file.name == "syscall_tester"`, filelessExecutionPrefix),
 			},
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
@@ -2048,7 +2048,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
 			},
 		},
-		{
+		/*{
 			name: "fileless with script name",
 			rule: &rules.RuleDefinition{
 				ID:         "test_fileless_with_interpreter",
@@ -2069,7 +2069,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
 			},
-		},
+		},*/
 	}
 
 	var ruleList []*rules.RuleDefinition
@@ -2093,7 +2093,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			testModule.WaitSignal(t, func() error {
 				if strings.Contains(test.name, "non-fileless") {
 					fileMode := 0o477
-					testFile, _, err := testModule.CreateWithOptions(model.FilelessExecutionFilenamePrefix, 98, 99, fileMode)
+					testFile, _, err := testModule.CreateWithOptions("memfd:test", 98, 99, fileMode)
 					if err != nil {
 						return err
 					}

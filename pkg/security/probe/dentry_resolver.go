@@ -442,19 +442,13 @@ func computeFilenameFromParts(parts []string) string {
 		builder.Grow(len(part) + 1)
 	}
 
-	// If the last part of the filename has the fileless prefix, then we decide it's in memory and do not prefix a /
-	if len(parts) == 1 && strings.HasPrefix(parts[0], model.FilelessExecutionFilenamePrefix) {
-		builder.WriteString(parts[0])
-	} else {
-		// reverse iteration
-		for i := 0; i < len(parts); i++ {
-			j := len(parts) - 1 - i
+	// reverse iteration
+	for i := 0; i < len(parts); i++ {
+		j := len(parts) - 1 - i
 
-			builder.WriteRune('/')
-			builder.WriteString(parts[j])
-		}
+		builder.WriteRune('/')
+		builder.WriteString(parts[j])
 	}
-
 	return builder.String()
 }
 
