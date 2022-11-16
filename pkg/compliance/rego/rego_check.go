@@ -408,17 +408,6 @@ func extractTagName(input *compliance.RegoInput) string {
 	return tagName
 }
 
-func (r *regoCheck) appendInstance(input map[string][]interface{}, key string, instance eval.Instance) {
-	vars, exists := input[key]
-	if !exists {
-		vars = []interface{}{}
-	}
-
-	if instance != nil {
-		input[key] = append(vars, instance.RegoInput())
-	}
-}
-
 func buildMappedInputs(inputs []regoInput) map[string]compliance.RegoInput {
 	res := make(map[string]compliance.RegoInput)
 	for _, input := range inputs {
