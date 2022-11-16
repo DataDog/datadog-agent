@@ -98,10 +98,6 @@ func (s *noopSender) GetSenderStats() (metricStats check.SenderStats) {
 	panic("implement me ")
 }
 
-func (s *noopSender) cyclemetricStats() {
-	panic("implement me ")
-}
-
 func (s *noopSender) SendRawMetricSample(sample *metrics.MetricSample) {
 	panic("implement me ")
 }
