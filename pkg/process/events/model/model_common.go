@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:generate go run github.com/tinylib/msgp -tests=false
+
 package model
 
 import (
@@ -49,21 +51,21 @@ func NewEventType(eventType string) EventType {
 
 // ProcessEvent is a common interface for collected process events shared across multiple event listener implementations
 type ProcessEvent struct {
-	EventType      EventType `json:"event_type"`
-	CollectionTime time.Time `json:"collection_time"`
-	Pid            uint32    `json:"pid"`
-	ContainerID    string    `json:"container_id"`
-	Ppid           uint32    `json:"ppid"`
-	UID            uint32    `json:"uid"`
-	GID            uint32    `json:"gid"`
-	Username       string    `json:"username"`
-	Group          string    `json:"group"`
-	Exe            string    `json:"exe"`
-	Cmdline        []string  `json:"cmdline"`
-	ForkTime       time.Time `json:"fork_time,omitempty"`
-	ExecTime       time.Time `json:"exec_time,omitempty"`
-	ExitTime       time.Time `json:"exit_time,omitempty"`
-	ExitCode       uint32    `json:"exit_code,omitempty"`
+	EventType      EventType `json:"event_type" msg:"event_type"`
+	CollectionTime time.Time `json:"collection_time" msg:"collection_time"`
+	Pid            uint32    `json:"pid" msg:"pid"`
+	ContainerID    string    `json:"container_id" msg:"container_id"`
+	Ppid           uint32    `json:"ppid" msg:"ppid"`
+	UID            uint32    `json:"uid" msg:"uid"`
+	GID            uint32    `json:"gid" msg:"gid"`
+	Username       string    `json:"username" msg:"username"`
+	Group          string    `json:"group" msg:"group"`
+	Exe            string    `json:"exe" msg:"exe"`
+	Cmdline        []string  `json:"cmdline" msg:"cmdline"`
+	ForkTime       time.Time `json:"fork_time,omitempty" msg:"fork_time,omitempty"`
+	ExecTime       time.Time `json:"exec_time,omitempty" msg:"exec_time,omitempty"`
+	ExitTime       time.Time `json:"exit_time,omitempty" msg:"exit_time,omitempty"`
+	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty"`
 }
 
 // NewMockedForkEvent creates a mocked Fork event for tests

@@ -162,7 +162,6 @@ func NewEmptyActivityDump() *ActivityDump {
 }
 
 // WithDumpOption can be used to configure an ActivityDump
-//msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
@@ -342,6 +341,11 @@ func (ad *ActivityDump) updateTracedPid(pid uint32) {
 // commMatches returns true if the ActivityDump comm matches the provided comm
 func (ad *ActivityDump) commMatches(comm string) bool {
 	return ad.DumpMetadata.Comm == comm
+}
+
+// nameMatches returns true if the ActivityDump name matches the provided name
+func (ad *ActivityDump) nameMatches(name string) bool {
+	return ad.DumpMetadata.Name == name
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID

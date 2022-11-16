@@ -733,8 +733,10 @@ variables:
 
 .on_system_probe_changes_or_manual:
   - changes:
+      - pkg/collector/corechecks/ebpf/**/*
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - pkg/util/kernel/**/*
       - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*

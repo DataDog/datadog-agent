@@ -168,14 +168,6 @@ func stopService() error {
 	return controlService(svc.Stop, svc.Stopped)
 }
 
-func restartService() error {
-	var err error
-	if err = stopService(); err == nil {
-		err = startService()
-	}
-	return err
-}
-
 func controlService(c svc.Cmd, to svc.State) error {
 	m, err := mgr.Connect()
 	if err != nil {
@@ -204,4 +196,3 @@ func controlService(c svc.Cmd, to svc.State) error {
 	}
 	return nil
 }
-

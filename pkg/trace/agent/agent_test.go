@@ -1644,10 +1644,10 @@ func TestSampleWithPriorityNone(t *testing.T) {
 //     sampler still runs. The resulting trace chunk, if any, contains only
 //     the spans that were tagged for span sampling, and the sampling priority
 //     of the resulting chunk overall is PriorityUserKeep.
-//  2a. Same as (2), except that only the local root span specifically is tagged
-//       for span sampling. Verify that only the local root span is kept.
-//  2b. Same as (2), except that only a non-local-root span specifically is
-//      tagged for span sampling. Verify that only one span is kept.
+//     2a. Same as (2), except that only the local root span specifically is tagged
+//     for span sampling. Verify that only the local root span is kept.
+//     2b. Same as (2), except that only a non-local-root span specifically is
+//     tagged for span sampling. Verify that only one span is kept.
 //  3. When the chunk is dropped due to an agent-provided sample rate, i.e. with
 //     PriorityAutoDrop priority. In this case, other samplers will run. Only if the
 //     resulting decision is to drop the chunk, expect that the span sampler
@@ -1928,4 +1928,19 @@ func TestSpanSampling(t *testing.T) {
 			tc.checks(t, tc.payload, chunks)
 		})
 	}
+}
+
+func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.InAzureAppServices = true
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+
+	span := &pb.Span{}
+
+	agnt.setRootSpanTags(span)
+
+	assert.Contains(t, span.Meta, "aas.site.kind")
 }

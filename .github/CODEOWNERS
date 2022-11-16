@@ -282,11 +282,12 @@
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
-/pkg/network/protocols/http/driver_*.go   @DataDog/windows-kernel-integrations
-/pkg/network/protocols/http/*_windows*.go @DataDog/windows-kernel-integrations
-/pkg/network/tracer/*classification*.go @DataDog/universal-service-monitoring
-/pkg/network/tracer/*_windows*.go       @DataDog/windows-kernel-integrations
-/pkg/network/tracer/cmd/gotls_client    @DataDog/universal-service-monitoring
+/pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
+/pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
+/pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks
 /pkg/ebpf/bytecode/runtime/http.go      @DataDog/universal-service-monitoring
