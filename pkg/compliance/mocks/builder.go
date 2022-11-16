@@ -56,13 +56,13 @@ func (_m *Builder) GetCheckStatus() compliance.CheckStatusList {
 	return r0
 }
 
-type mockConstructorTestingTNewBuilder interface {
+type NewBuilderT interface {
 	mock.TestingT
 	Cleanup(func())
 }
 
 // NewBuilder creates a new instance of Builder. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
-func NewBuilder(t mockConstructorTestingTNewBuilder) *Builder {
+func NewBuilder(t NewBuilderT) *Builder {
 	mock := &Builder{}
 	mock.Mock.Test(t)
 
