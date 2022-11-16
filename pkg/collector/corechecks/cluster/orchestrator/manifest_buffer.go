@@ -9,6 +9,7 @@
 package orchestrator
 
 import (
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
@@ -42,6 +43,7 @@ type ManifestBuffer struct {
 	ManifestChan      chan interface{}
 	bufferedManifests []interface{}
 	stopCh            chan struct{}
+	wg                sync.WaitGroup
 }
 
 // NewManifestBuffer returns a new ManifestBuffer
@@ -68,7 +70,6 @@ func NewManifestBuffer(chk *OrchestratorCheck) *ManifestBuffer {
 // flushManifest flushes manifests by chunking them first then sending them to the sender
 func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 	manifests := cb.bufferedManifests
-	cb.bufferedManifests = cb.bufferedManifests[:0]
 	ctx := &processors.ProcessorContext{
 		ClusterID:  cb.Cfg.ClusterID,
 		MsgGroupID: cb.Cfg.MsgGroupRef.Inc(),
@@ -80,7 +81,7 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 	}
 	manifestMessages := processors.ChunkManifest(ctx, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
-
+	cb.bufferedManifests = cb.bufferedManifests[:0]
 }
 
 // appendManifest appends manifest into the buffer
@@ -97,7 +98,10 @@ func (cb *ManifestBuffer) appendManifest(m interface{}, sender aggregator.Sender
 // It flushes manifests every defaultFlushManifestTime
 func (cb *ManifestBuffer) Start(sender aggregator.Sender) {
 	ticker := time.NewTicker(cb.Cfg.ManifestBufferFlushInterval)
+	cb.wg.Add(1)
+
 	go func() {
+		defer cb.wg.Done()
 	loop:
 		for {
 			select {
@@ -120,6 +124,7 @@ func (cb *ManifestBuffer) Start(sender aggregator.Sender) {
 // Stop is to kill the thread collecting manifest
 func (cb *ManifestBuffer) Stop() {
 	cb.stopCh <- struct{}{}
+	cb.wg.Wait()
 }
 
 // BufferManifestProcessResult is to add process result to the buffer
