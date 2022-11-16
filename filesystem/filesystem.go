@@ -79,7 +79,7 @@ func parseDfOutput(out string) ([]interface{}, error) {
 
 	// now parse the remaining lines using those offsets
 	for _, line := range lines[1:] {
-		if len(line) == 0 {
+		if len(line) == 0 || len(line) < mountedOnOffset {
 			continue
 		}
 		info := map[string]string{}
