@@ -342,7 +342,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		case nil:
 			switch inputType {
 			case "array":
-				addArrayInput(tagName, nil)
+				if err := addArrayInput(tagName, nil); err != nil {
+					return nil, err
+				}
 			case "object":
 				// objectsPerTags[tagName] = &struct{}{}
 				addObjectInput(tagName, &struct{}{})
@@ -352,7 +354,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		case resources.ResolvedInstance:
 			switch inputType {
 			case "array":
-				addArrayInput(tagName, res.RegoInput())
+				if err := addArrayInput(tagName, res.RegoInput()); err != nil {
+					return nil, err
+				}
 			case "object":
 				// objectsPerTags[tagName] = res.RegoInput()
 				addObjectInput(tagName, res.RegoInput())
@@ -378,7 +382,9 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 				}
 
 				if inputType == "array" {
-					addArrayInput(tagName, instance.RegoInput())
+					if err := addArrayInput(tagName, instance.RegoInput()); err != nil {
+						return nil, err
+					}
 				}
 			}
 
