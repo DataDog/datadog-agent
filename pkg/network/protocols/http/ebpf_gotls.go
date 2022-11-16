@@ -155,10 +155,17 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	if !c.EnableHTTPSMonitoring {
 		return nil
 	}
+
 	if !supportedArch(runtime.GOARCH) {
 		log.Errorf("System arch %q is not supported for goTLS", runtime.GOARCH)
 		return nil
 	}
+
+	if !c.EnableRuntimeCompiler {
+		log.Errorf("goTLS support requires runtime-compilation to be enabled")
+		return nil
+	}
+
 	p := &GoTLSProgram{
 		procRoot:       c.ProcRoot,
 		hookedBinaries: make(hookedBinariesMap),
