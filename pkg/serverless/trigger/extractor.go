@@ -100,6 +100,9 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -115,6 +118,9 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -128,6 +134,9 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
 		}
 	}
 	return httpTags
@@ -145,6 +154,9 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
 		}
 	}
 	return httpTags

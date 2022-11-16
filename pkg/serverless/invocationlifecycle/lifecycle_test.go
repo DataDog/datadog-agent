@@ -328,6 +328,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 		"http.method":                       "POST",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
+		"http.useragent":                    "Custom User Agent String",
 		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
 }
@@ -371,6 +372,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		"http.method":                       "POST",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
+		"http.useragent":                    "Custom User Agent String",
 		"http.status_code":                  "500",
 		"function_trigger.event_source":     "api-gateway",
 		"request_id":                        "test-request-id",
@@ -414,6 +416,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 		"http.method":                       "GET",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
 		"http.url_details.path":             "/dev/http/get",
+		"http.useragent":                    "curl/7.64.1",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "200",
 		"function_trigger.event_source":     "api-gateway",
@@ -461,6 +464,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		"http.url_details.path":             "/dev/http/get",
 		"request_id":                        "test-request-id",
 		"http.status_code":                  "500",
+		"http.useragent":                    "curl/7.64.1",
 		"function_trigger.event_source":     "api-gateway",
 	}, testProcessor.GetTags())
 
