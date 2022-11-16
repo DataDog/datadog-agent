@@ -10,19 +10,21 @@ package kafka
 
 import (
 	"fmt"
-	manager "github.com/DataDog/ebpf-manager"
+	"math"
+	"os"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
-	"math"
-	"os"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
@@ -284,43 +286,16 @@ func (e *ebpfProgram) Close() error {
 	return err
 }
 
-//func (e *ebpfProgram) setupMapCleaner() {
-//	kafkaMap, _, _ := e.GetMap(kafkaInFlightMap)
-//	kafkaMapCleaner, err := ddebpf.NewMapCleaner(kafkaMap, new(netebpf.ConnTuple), new(ebpfKafkaTx))
-//	if err != nil {
-//		log.Errorf("error creating map cleaner: %s", err)
-//		return
-//	}
-//
-//	ttl := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-//	kafkaMapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-//		httpTxn, ok := val.(*ebpfKafkaTx)
-//		if !ok {
-//			return false
-//		}
-//
-//		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
-//			return (now - updated) > ttl
-//		}
-//
-//		started := int64(httpTxn.RequestStarted())
-//		return started > 0 && (now-started) > ttl
-//	})
-//
-//	e.mapCleaner = kafkaMapCleaner
-//}
-
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {
-	// TODO: Add runtime compilation support
-	//if c.EnableRuntimeCompiler {
-	//	bc, err = getRuntimeCompiledHTTP(c)
-	//	if err != nil {
-	//		if !c.AllowPrecompiledFallback {
-	//			return nil, fmt.Errorf("error compiling network http tracer: %w", err)
-	//		}
-	//		log.Warnf("error compiling network http tracer, falling back to pre-compiled: %s", err)
-	//	}
-	//}
+	if c.EnableRuntimeCompiler {
+		bc, err = getRuntimeCompiledKafka(c)
+		if err != nil {
+			if !c.AllowPrecompiledFallback {
+				return nil, fmt.Errorf("error compiling network kafka tracer: %w", err)
+			}
+			log.Warnf("error compiling network kafka tracer, falling back to pre-compiled: %s", err)
+		}
+	}
 
 	if bc == nil {
 		bc, err = netebpf.ReadKafkaModule(c.BPFDir, c.BPFDebug)

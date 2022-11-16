@@ -243,6 +243,7 @@ def ninja_runtime_compilation_files(nw):
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
         "pkg/network/protocols/http/compile.go": "http",
+        "pkg/network/protocols/kafka/compile.go": "kafka",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/security/ebpf/compile.go": "runtime-security",
