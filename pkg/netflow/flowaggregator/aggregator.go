@@ -146,8 +146,8 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
-	// Increase `flushedFlowCount` at the end to be sure that the metrics are submitted before.
-	// Tests wait for `flushedFlowCount` to be increased before asserting the metrics.
+	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
+	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
 	agg.flushedFlowCount.Add(uint64(flushCount))
 
 	return len(flowsToFlush)
