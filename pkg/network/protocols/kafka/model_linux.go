@@ -163,25 +163,25 @@ func (batch *kafkaBatch) Transactions() []ebpfKafkaTx {
 	return batch.Txs[:]
 }
 
-// below is copied from pkg/trace/stats/statsraw.go
-// 10 bits precision (any value will be +/- 1/1024)
-const roundMask uint64 = 1 << 10
-
-// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
-func nsTimestampToFloat(ns uint64) float64 {
-	var shift uint
-	for ns > roundMask {
-		ns = ns >> 1
-		shift++
-	}
-	return float64(ns << shift)
-}
-
-func requestFragment(fragment []byte) [KAFKABufferSize]byte {
-	if len(fragment) >= KAFKABufferSize {
-		return *(*[KAFKABufferSize]byte)(fragment)
-	}
-	var b [KAFKABufferSize]byte
-	copy(b[:], fragment)
-	return b
-}
+//// below is copied from pkg/trace/stats/statsraw.go
+//// 10 bits precision (any value will be +/- 1/1024)
+//const roundMask uint64 = 1 << 10
+//
+//// nsTimestampToFloat converts a nanosec timestamp into a float nanosecond timestamp truncated to a fixed precision
+//func nsTimestampToFloat(ns uint64) float64 {
+//	var shift uint
+//	for ns > roundMask {
+//		ns = ns >> 1
+//		shift++
+//	}
+//	return float64(ns << shift)
+//}
+//
+//func requestFragment(fragment []byte) [KAFKABufferSize]byte {
+//	if len(fragment) >= KAFKABufferSize {
+//		return *(*[KAFKABufferSize]byte)(fragment)
+//	}
+//	var b [KAFKABufferSize]byte
+//	copy(b[:], fragment)
+//	return b
+//}

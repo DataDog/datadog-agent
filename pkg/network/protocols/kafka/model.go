@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
+//go:build linux_bpf
+// +build linux_bpf
 
 package kafka
 
@@ -15,8 +15,6 @@ const (
 
 type kafkaTX interface {
 	ReqFragment() []byte
-	//StatusClass() int
-	//RequestLatency() float64
 	isIPV4() bool
 	SrcIPLow() uint64
 	SrcIPHigh() uint64
@@ -26,17 +24,4 @@ type kafkaTX interface {
 	DstPort() uint16
 	TopicName() string
 	APIKey() uint16
-	//Method() Method
-	//StatusCode() uint16
-	//SetStatusCode(uint16)
-	//StaticTags() uint64
-	//DynamicTags() []string
-	//String() string
-	//Incomplete() bool
-	//Path(buffer []byte) ([]byte, bool)
-	//ResponseLastSeen() uint64
-	//SetResponseLastSeen(ls uint64)
-	//RequestStarted() uint64
-	//SetRequestMethod(uint32)
-	//RequestMethod() uint32
 }
