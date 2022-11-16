@@ -9,6 +9,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteConfig { get; }
 
+        public ManagedAction ReadRegistryProperties { get; }
+
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
@@ -23,11 +25,22 @@ namespace WixSetup.Datadog
                     new Id("ReadConfigCustomAction"),
                     ConfigCustomActions.ReadConfig,
                     Return.ignore,
-                    When.Before,
-                    Step.InstallInitialize,
-                    Condition.NOT_BeingRemoved
+                    When.After,
+                    Step.AppSearch,
+                    Condition.NOT_BeingRemoved,
+                    Sequence.InstallUISequence
                 )
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
+
+            ReadRegistryProperties = new CustomAction<UserCustomActions>(
+                    new Id("ReadRegistryProperties"),
+                    UserCustomActions.ReadRegistryProperties,
+                    Return.ignore,
+                    When.After,
+                    Step.AppSearch,
+                    Condition.NOT_BeingRemoved,
+                    Sequence.InstallUISequence
+                );
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                     new Id("WriteConfigCustomAction"),
@@ -75,7 +88,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.Before,
                     Step.InstallInitialize,
-                    Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                    Condition.NOT_BeingRemoved
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true);

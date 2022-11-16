@@ -52,7 +52,7 @@ namespace WixSetup.Datadog
             var project = new Project("Datadog Agent",
                 new User(new Id("ddagentuser"),
                 // CreateUser fails with ERROR_BAD_USERNAME if this value is a fully qualified user name
-                "[DDAGENTUSER_NAME]")
+                "[DDAGENTUSER_USERNAME]")
                 {
                     Domain = "[DDAGENTUSER_DOMAIN]",
                     Password = "[DDAGENTUSER_PASSWORD]",
@@ -63,6 +63,7 @@ namespace WixSetup.Datadog
                 },
                 _agentCustomActions.ReadConfig,
                 _agentCustomActions.WriteConfig,
+                _agentCustomActions.ReadRegistryProperties,
                 _agentCustomActions.ProcessDdAgentUserCredentials,
                 _agentCustomActions.DecompressPythonDistributions,
                 _agentCustomActions.ConfigureUser,
@@ -70,29 +71,43 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                //new Property("DDAGENTUSER_NAME", "ddagentuser"),
+                new RegValueProperty("DDAGENTUSER_DOMAIN",
+                        RegistryHive.LocalMachine,
+                        @"Software\Datadog\Datadog Agent",
+                        "installedDomain"
+                )
+                {
+                    Win64 = true
+                },
+                new RegValueProperty("DDAGENTUSER_USERNAME",
+                        RegistryHive.LocalMachine,
+                        @"Software\Datadog\Datadog Agent",
+                        "installedUser"
+                )
+                {
+                    Win64 = true
+                },
                 new Property("DDAGENTUSER_PASSWORD")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                new Property("PROJECTLOCATION",
-                    new RegistrySearch(
-                        RegistryHive.LocalMachine,
-                        "SOFTWARE\\Datadog\\Datadog Agent",
-                        "InstallPath", RegistrySearchType.raw)
+                new RegValueProperty("PROJECTLOCATION",
+                    RegistryHive.LocalMachine,
+                    "SOFTWARE\\Datadog\\Datadog Agent",
+                    "InstallPath"
                 )
                 {
-                    AttributesDefinition = "Secure=yes"
+                    AttributesDefinition = "Secure=yes",
+                    Win64 = true
                 },
-                new Property("APPLICATIONDATADIRECTORY",
-                    new RegistrySearch(
-                        RegistryHive.LocalMachine,
-                        "SOFTWARE\\Datadog\\Datadog Agent",
-                        "ConfigRoot",
-                        RegistrySearchType.raw)
+                new RegValueProperty("APPLICATIONDATADIRECTORY",
+                    RegistryHive.LocalMachine,
+                    "SOFTWARE\\Datadog\\Datadog Agent",
+                    "ConfigRoot"
                 )
                 {
-                    AttributesDefinition = "Secure=yes"
+                    AttributesDefinition = "Secure=yes",
+                    Win64 = true
                 },
                 new CloseApplication(new Id("CloseTrayApp"),
                     Path.GetFileName(_agentBinaries.Tray),
@@ -105,8 +120,10 @@ namespace WixSetup.Datadog
                 new RegKey(
                     _agentFeatures.MainApplication,
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
-                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } }
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
+                    new RegValue("installedDomain", "[DDAGENTUSER_DOMAIN]") { Win64 = true },
+                    new RegValue("installedUser", "[DDAGENTUSER_USERNAME]") { Win64 = true }
                 )
                 {
                     Win64 = true
