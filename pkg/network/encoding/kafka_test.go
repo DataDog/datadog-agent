@@ -117,16 +117,6 @@ func TestKafkaIDCollisionRegression(t *testing.T) {
 		},
 	}
 
-	kafkaStats := kafka.RequestStats{
-		Data: [2]*kafka.RequestStat{
-			{
-				Count: 9,
-			},
-			{
-				Count: 2,
-			},
-		},
-	}
 	kafkaKey := kafka.NewKey(
 		util.AddressFromString("1.1.1.1"),
 		util.AddressFromString("2.2.2.2"),
@@ -140,7 +130,16 @@ func TestKafkaIDCollisionRegression(t *testing.T) {
 			Conns: connections,
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: &kafkaStats,
+			kafkaKey: {
+				Data: [2]*kafka.RequestStat{
+					{
+						Count: 9,
+					},
+					{
+						Count: 2,
+					},
+				},
+			},
 		},
 	}
 
@@ -181,17 +180,6 @@ func TestKafkaLocalhostScenario(t *testing.T) {
 		},
 	}
 
-	kafkaStats := kafka.RequestStats{
-		Data: [2]*kafka.RequestStat{
-			{
-				Count: 9,
-			},
-			{
-				Count: 2,
-			},
-		},
-	}
-
 	kafkaKey := kafka.NewKey(
 		util.AddressFromString("127.0.0.1"),
 		util.AddressFromString("127.0.0.1"),
@@ -205,7 +193,16 @@ func TestKafkaLocalhostScenario(t *testing.T) {
 			Conns: connections,
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
-			kafkaKey: &kafkaStats,
+			kafkaKey: {
+				Data: [2]*kafka.RequestStat{
+					{
+						Count: 9,
+					},
+					{
+						Count: 2,
+					},
+				},
+			},
 		},
 	}
 

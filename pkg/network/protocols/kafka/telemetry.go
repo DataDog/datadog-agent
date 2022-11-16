@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
-// +build linux_bpf
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
 package kafka
 
@@ -40,13 +40,8 @@ func newTelemetry() (*telemetry, error) {
 	)
 
 	t := &telemetry{
-		metricGroup: metricGroup,
-		then:        atomic.NewInt64(time.Now().Unix()),
-		//hits1XX:      metricGroup.NewMetric("hits1xx"),
-		//hits2XX:      metricGroup.NewMetric("hits2xx"),
-		//hits3XX:      metricGroup.NewMetric("hits3xx"),
-		//hits4XX:      metricGroup.NewMetric("hits4xx"),
-		//hits5XX:      metricGroup.NewMetric("hits5xx"),
+		metricGroup:  metricGroup,
+		then:         atomic.NewInt64(time.Now().Unix()),
 		topics:       map[string][2]*libtelemetry.Metric{},
 		aggregations: metricGroup.NewMetric("aggregations"),
 
