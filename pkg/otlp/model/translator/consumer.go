@@ -40,12 +40,12 @@ func (t *MetricDataType) UnmarshalText(text []byte) error {
 	switch string(text) {
 	case "gauge":
 		*t = Gauge
-		return nil
 	case "count":
 		*t = Count
-		return nil
+	default:
+		return fmt.Errorf("invalid metric data type %q", text)
 	}
-	return fmt.Errorf("invalid metric data type %q", text)
+	return nil
 }
 
 // MarshalText implements encoding.TextMarshaler.
