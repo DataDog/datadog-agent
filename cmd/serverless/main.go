@@ -253,7 +253,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	}()
 
 	// start appsec
-	var httpsecSubProcessor *httpsec.InvocationSubProcessor
+	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
 	go func() {
 		defer wg.Done()
 		appsec, err := appsec.New()
