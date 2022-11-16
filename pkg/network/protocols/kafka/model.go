@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
+//go:build linux_bpf
+// +build linux_bpf
 
 package kafka
 
