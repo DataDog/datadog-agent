@@ -135,7 +135,6 @@ func (agg *FlowAggregator) flush() int {
 		agg.sendFlows(flowsToFlush)
 	}
 
-	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
@@ -144,6 +143,10 @@ func (agg *FlowAggregator) flush() int {
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
+
+	// Increase `flushedFlowCount` at the end to be sure that the metrics are submitted before.
+	// Tests wait for `flushedFlowCount` to be increased before asserting the metrics.
+	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
 
 	return len(flowsToFlush)
 }
