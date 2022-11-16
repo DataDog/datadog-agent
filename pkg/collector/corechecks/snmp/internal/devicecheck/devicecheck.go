@@ -8,11 +8,11 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
-	"go.uber.org/atomic"
 	"strings"
 	"time"
 
 	"github.com/cihub/seelog"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
