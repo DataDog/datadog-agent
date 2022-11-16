@@ -298,9 +298,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		}
 		hookedBin.mTime = stat.Mtim
 		p.setHookedBinary(stat.Ino, hookedBin)
-	}
-
-	if stat.Mtim != hookedBin.mTime {
+	} else if stat.Mtim != hookedBin.mTime {
 		log.Warnf("binary %q has been modified since it has been hooked, skipping process registration.", binPath)
 		return
 	}
@@ -482,12 +480,7 @@ func (p *GoTLSProgram) getHookedBinary(ino inodeNumber) *hookedBinary {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
-	bin, present := p.hookedBinaries[ino]
-	if !present {
-		return nil
-	}
-
-	return bin
+	return p.hookedBinaries[ino]
 }
 
 func (p *GoTLSProgram) setHookedBinary(ino inodeNumber, bin *hookedBinary) {
