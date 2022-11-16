@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -677,81 +676,6 @@ func exampleSummaryDataPointSlice(ts pcommon.Timestamp, sum float64, count uint6
 	qMax.SetValue(600)
 	point.SetTimestamp(ts)
 	return slice
-}
-
-func TestMapSummaryMetrics(t *testing.T) {
-	ts := pcommon.NewTimestampFromTime(time.Now())
-	slice := exampleSummaryDataPointSlice(ts, 10_001, 101)
-
-	newTranslator := func(tags []string, quantiles bool) *Translator {
-		c := newTestCache()
-		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		options := []Option{WithFallbackSourceProvider(testProvider(fallbackHostname))}
-		if quantiles {
-			options = append(options, WithQuantiles())
-		}
-		tr, err := New(zap.NewNop(), options...)
-		require.NoError(t, err)
-		tr.prevPts = c
-		return tr
-	}
-
-	dims := newDims("summary.example")
-	noQuantiles := []metric{
-		newCount(dims.WithSuffix("count"), uint64(ts), 100),
-		newCount(dims.WithSuffix("sum"), uint64(ts), 10_000),
-	}
-	qBaseDims := dims.WithSuffix("quantile")
-	quantiles := []metric{
-		newGauge(qBaseDims.AddTags("quantile:0"), uint64(ts), 0),
-		newGauge(qBaseDims.AddTags("quantile:0.5"), uint64(ts), 100),
-		newGauge(qBaseDims.AddTags("quantile:0.999"), uint64(ts), 500),
-		newGauge(qBaseDims.AddTags("quantile:1.0"), uint64(ts), 600),
-	}
-	ctx := context.Background()
-	tr := newTranslator([]string{}, false)
-	consumer := &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dims, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		noQuantiles,
-	)
-	tr = newTranslator([]string{}, true)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dims, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		append(noQuantiles, quantiles...),
-	)
-
-	dimsTags := dims.AddTags("attribute_tag:attribute_value")
-	noQuantilesAttr := []metric{
-		newCount(dimsTags.WithSuffix("count"), uint64(ts), 100),
-		newCount(dimsTags.WithSuffix("sum"), uint64(ts), 10_000),
-	}
-
-	qBaseDimsTags := dimsTags.WithSuffix("quantile")
-	quantilesAttr := []metric{
-		newGauge(qBaseDimsTags.AddTags("quantile:0"), uint64(ts), 0),
-		newGauge(qBaseDimsTags.AddTags("quantile:0.5"), uint64(ts), 100),
-		newGauge(qBaseDimsTags.AddTags("quantile:0.999"), uint64(ts), 500),
-		newGauge(qBaseDimsTags.AddTags("quantile:1.0"), uint64(ts), 600),
-	}
-	tr = newTranslator([]string{"attribute_tag:attribute_value"}, false)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dimsTags, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		noQuantilesAttr,
-	)
-	tr = newTranslator([]string{"attribute_tag:attribute_value"}, true)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dimsTags, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		append(noQuantilesAttr, quantilesAttr...),
-	)
 }
 
 const (
