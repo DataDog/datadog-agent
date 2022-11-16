@@ -21,7 +21,407 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 )
 
-func TestAggregator(t *testing.T) {
+func TestAggregator1(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator2(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator3(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator4(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator5(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator6(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator7(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator8(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator9(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator10(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator11(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator12(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator13(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator14(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator15(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator16(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator17(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator18(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator19(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator20(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator21(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator22(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator23(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator24(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator25(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator26(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator27(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator28(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator29(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator30(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator31(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator32(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator33(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator34(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator35(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator36(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator37(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator38(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator39(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator40(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator41(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator42(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator43(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator44(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator45(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator46(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator47(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator48(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator49(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator50(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator51(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator52(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator53(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator54(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator55(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator56(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator57(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator58(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator59(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator60(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator61(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator62(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator63(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator64(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator65(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator66(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator67(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator68(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator69(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator70(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator71(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator72(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator73(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator74(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator75(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator76(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator77(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator78(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator79(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator80(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator81(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator82(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator83(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator84(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator85(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator86(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator87(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator88(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator89(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator90(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator91(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator92(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator93(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator94(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator95(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator96(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator97(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator98(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator99(t *testing.T) {
+	runTest(t)
+}
+
+func TestAggregator100(t *testing.T) {
+	runTest(t)
+}
+
+func runTest(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 
 	sender := mocksender.NewMockSender("")
