@@ -92,7 +92,6 @@ func TestRegoCheck(t *testing.T) {
 						},
 					},
 					TagName: "processes",
-					Type:    "array",
 				},
 			},
 			module: `

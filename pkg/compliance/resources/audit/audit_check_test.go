@@ -162,7 +162,6 @@ func TestAuditCheck(t *testing.T) {
 				Inputs: []compliance.RegoInput{
 					test.resource,
 					{
-						Type: "object",
 						ResourceCommon: compliance.ResourceCommon{
 							Constants: &compliance.ConstantsResource{
 								Values: map[string]interface{}{

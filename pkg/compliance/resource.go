@@ -58,10 +58,10 @@ type RegoInput struct {
 }
 
 // ValidateInputType returns the validated input type or an error
-func (i *RegoInput) ValidateInputType() (string, error) {
-	switch i.Type {
+func (i *RegoInput) ValidateInputType(t string) (string, error) {
+	switch t {
 	case "object", "array":
-		return i.Type, nil
+		return t, nil
 	case "":
 		return "array", nil
 	default:

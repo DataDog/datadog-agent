@@ -295,7 +295,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 	}
 
 	for _, regoInput := range r.inputs {
-		resolve, _, err := resourceKindToResolverAndFields(env, regoInput.Kind())
+		resolver, _, err := resourceKindToResolverAndFields(env, regoInput.Kind())
 		if err != nil {
 			return nil, err
 		}
@@ -321,7 +321,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 			}
 		}
 
-		resolved, err := resolve(ctx, env, r.ruleID, regoInput.ResourceCommon, true)
+		resolved, err := resolver(ctx, env, r.ruleID, regoInput.ResourceCommon, true)
 		if err != nil {
 			log.Warnf("failed to resolve input: %v", err)
 			continue
@@ -329,7 +329,15 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 
 		tagName := extractTagName(&regoInput.RegoInput)
 
-		inputType, err := regoInput.ValidateInputType()
+		var inputType string
+		if resolved != nil {
+			inputType = resolved.InputType()
+		}
+		if regoInput.Type != "" {
+			inputType = regoInput.Type
+		}
+
+		inputType, err = regoInput.ValidateInputType(inputType)
 		if err != nil {
 			return nil, err
 		}

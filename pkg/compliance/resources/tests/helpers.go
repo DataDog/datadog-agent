@@ -20,7 +20,6 @@ func NewTestRule(resource compliance.RegoInput, kind, module string) *compliance
 		Inputs: []compliance.RegoInput{
 			resource,
 			{
-				Type: "object",
 				ResourceCommon: compliance.ResourceCommon{
 					Constants: &compliance.ConstantsResource{
 						Values: map[string]interface{}{

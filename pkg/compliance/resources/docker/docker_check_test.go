@@ -48,7 +48,6 @@ func dockerTestRule(resource compliance.RegoInput, kind, module string) *complia
 		Inputs: []compliance.RegoInput{
 			resource,
 			{
-				Type: "object",
 				ResourceCommon: compliance.ResourceCommon{
 					Constants: &compliance.ConstantsResource{
 						Values: map[string]interface{}{
@@ -449,7 +448,6 @@ func TestDockerVersionCheck(t *testing.T) {
 			},
 		},
 		TagName: "version",
-		Type:    "object",
 	}
 
 	client := &mocks.DockerClient{}

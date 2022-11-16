@@ -14,7 +14,9 @@ import (
 )
 
 // Resolved maps an evaluation instance and a resource
-type Resolved interface{}
+type Resolved interface {
+	InputType() string
+}
 
 // ResolvedInstance maps an evaluation instance and a resource
 type ResolvedInstance interface {
@@ -37,6 +39,10 @@ func (ri *resolvedInstance) Type() string {
 	return ri.kind
 }
 
+func (ri *resolvedInstance) InputType() string {
+	return "object"
+}
+
 // NewResolvedInstance returns a new resolved instance
 func NewResolvedInstance(instance eval.Instance, resourceID, resourceType string) *resolvedInstance {
 	return &resolvedInstance{
@@ -48,6 +54,11 @@ func NewResolvedInstance(instance eval.Instance, resourceID, resourceType string
 
 type resolvedIterator struct {
 	eval.Iterator
+}
+
+// InputType implements the Resolved interface
+func (rr *resolvedIterator) InputType() string {
+	return "array"
 }
 
 // NewResolvedIterator returns an iterator of resolved instances
