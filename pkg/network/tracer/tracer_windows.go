@@ -47,10 +47,6 @@ type Tracer struct {
 
 	timerInterval int
 
-	// ticker for the polling interval for writing
-	inTicker            *time.Ticker
-	stopInTickerRoutine chan bool
-
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
 	destExcludes   []*network.ConnectionFilter
@@ -103,8 +99,8 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
-	if t.httpMonitor != nil {
-		t.httpMonitor.Stop()
+	if t.httpMonitor != nil { //nolint
+		_ = t.httpMonitor.Stop()
 	}
 	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
@@ -133,7 +129,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.StoreClosedConnections(closedConnStats)
 
 	var delta network.Delta
-	if t.httpMonitor != nil {
+	if t.httpMonitor != nil { //nolint
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
 	} else {
 		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)

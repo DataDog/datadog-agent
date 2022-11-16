@@ -80,7 +80,7 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
-	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
+	err := subscribeTelemetry("myId", ts.URL, registerLogsTimeout, payload)
 	assert.Nil(t, err)
 }
 
@@ -94,7 +94,7 @@ func TestSubscribeLogsTimeout(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
+	err := subscribeTelemetry("myId", ts.URL, registerLogsTimeout, payload)
 	assert.NotNil(t, err)
 }
 
@@ -107,13 +107,13 @@ func TestSubscribeLogsInvalidHttpCode(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	err := subscribeLogs("myId", ts.URL, registerLogsTimeout, payload)
+	err := subscribeTelemetry("myId", ts.URL, registerLogsTimeout, payload)
 	assert.NotNil(t, err)
 }
 
 func TestSubscribeLogsInvalidUrl(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
-	err := subscribeLogs("myId", ":invalid:", registerLogsTimeout, payload)
+	err := subscribeTelemetry("myId", ":invalid:", registerLogsTimeout, payload)
 	assert.NotNil(t, err)
 }
 
@@ -125,7 +125,7 @@ func (p *ImpossibleToMarshall) MarshalJSON() ([]byte, error) {
 
 func TestSubscribeLogsInvalidPayloadObject(t *testing.T) {
 	payload := &ImpossibleToMarshall{}
-	err := subscribeLogs("myId", ":invalid:", registerLogsTimeout, payload)
+	err := subscribeTelemetry("myId", ":invalid:", registerLogsTimeout, payload)
 	assert.NotNil(t, err)
 }
 
@@ -152,13 +152,24 @@ func TestBuildCallbackURI(t *testing.T) {
 	assert.Equal(t, "http://sandbox:1234/myPath", buildCallbackURI(1234, "/myPath"))
 }
 
-func TestEnableLogsCollection(t *testing.T) {
+func TestEnableTelemetryCollection(t *testing.T) {
 	//fake the register route
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
 
-	err := EnableLogsCollection("myId", ts.URL, registerLogsTimeout, "platform function", 1234, "/route", 10, 100, 1000)
+	err := EnableTelemetryCollection(
+		EnableTelemetryCollectionArgs{
+			ID:                  "myId",
+			RegistrationURL:     ts.URL,
+			RegistrationTimeout: registerLogsTimeout,
+			LogsType:            "platform function",
+			Port:                1234,
+			CollectionRoute:     "/route",
+			Timeout:             10,
+			MaxBytes:            100,
+			MaxItems:            1000,
+		})
 	assert.Nil(t, err)
 }

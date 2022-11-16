@@ -182,14 +182,6 @@ func (tc *TransactionRetryQueue) ExtractTransactions() ([]transaction.Transactio
 	return transactions, nil
 }
 
-// GetCurrentMemSizeInBytes gets the current memory usage in bytes
-func (tc *TransactionRetryQueue) getCurrentMemSizeInBytes() int {
-	tc.mutex.RLock()
-	defer tc.mutex.RUnlock()
-
-	return tc.currentMemSizeInBytes
-}
-
 // GetTransactionCount gets the number of transactions in the container
 func (tc *TransactionRetryQueue) GetTransactionCount() int {
 	tc.mutex.RLock()

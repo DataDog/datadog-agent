@@ -24,10 +24,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const (
-	httpReadBufferCount = 100
-)
-
 type FullHttpTransaction struct {
 	Txn             driver.HttpTransactionType
 	RequestFragment []byte
@@ -84,7 +80,7 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	}
 	log.Infof("Enabled http in driver")
 
-	u16eventname, err := windows.UTF16PtrFromString("Global\\DDNPMHttpTxnReadyEvent")
+	u16eventname, _ := windows.UTF16PtrFromString("Global\\DDNPMHttpTxnReadyEvent")
 	di.driverEventHandle, err = windows.CreateEvent(nil, 1, 0, u16eventname)
 	if err != nil {
 		if err != windows.ERROR_ALREADY_EXISTS || di.driverEventHandle == windows.Handle(0) {
@@ -123,7 +119,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 		defer di.eventLoopWG.Done()
 
 		for {
-			windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
+			_, _ = windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
 			if di.closed {
 				break
 			}

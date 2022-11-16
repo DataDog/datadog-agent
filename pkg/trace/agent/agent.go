@@ -205,6 +205,14 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 		rate := ratelimiter.RealRate()
 		sampler.SetPreSampleRate(root, rate)
 	}
+
+	// TODO: add azure specific tags here (at least for now, so chill out and
+	// just do it) "it doesn't have to be pretty it just has to work"
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
+	}
 }
 
 // Process is the default work unit that receives a trace, transforms it and

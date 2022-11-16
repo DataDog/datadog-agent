@@ -105,3 +105,14 @@ type CollectorRunResult struct {
 	ResourcesListed    int
 	ResourcesProcessed int
 }
+
+func NewProcessorContext(rcfg *CollectorRunConfig, metadata *CollectorMetadata) *processors.ProcessorContext {
+	return &processors.ProcessorContext{
+		APIClient:          rcfg.APIClient,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", metadata.Version),
+		Cfg:                rcfg.Config,
+		ClusterID:          rcfg.ClusterID,
+		MsgGroupID:         rcfg.MsgGroupRef.Inc(),
+		NodeType:           metadata.NodeType,
+	}
+}
