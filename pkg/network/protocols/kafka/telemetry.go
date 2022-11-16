@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build (windows && npm) || linux_bpf
-// +build windows,npm linux_bpf
+//go:build linux_bpf
+// +build linux_bpf
 
 package kafka
 
@@ -21,7 +21,6 @@ type telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 	then        *atomic.Int64
 
-	//hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Metric
 	// Topic name -> Array[produce_count][fetch_count]
 	topics map[string][2]*libtelemetry.Metric
 
@@ -41,13 +40,8 @@ func newTelemetry() (*telemetry, error) {
 	)
 
 	t := &telemetry{
-		metricGroup: metricGroup,
-		then:        atomic.NewInt64(time.Now().Unix()),
-		//hits1XX:      metricGroup.NewMetric("hits1xx"),
-		//hits2XX:      metricGroup.NewMetric("hits2xx"),
-		//hits3XX:      metricGroup.NewMetric("hits3xx"),
-		//hits4XX:      metricGroup.NewMetric("hits4xx"),
-		//hits5XX:      metricGroup.NewMetric("hits5xx"),
+		metricGroup:  metricGroup,
+		then:         atomic.NewInt64(time.Now().Unix()),
 		topics:       map[string][2]*libtelemetry.Metric{},
 		aggregations: metricGroup.NewMetric("aggregations"),
 
@@ -64,18 +58,6 @@ func newTelemetry() (*telemetry, error) {
 
 func (t *telemetry) aggregate(transactions []kafkaTX, err error) {
 	for _, transaction := range transactions {
-		//switch tx.StatusClass() {
-		//case 100:
-		//	t.hits1XX.Add(1)
-		//case 200:
-		//	t.hits2XX.Add(1)
-		//case 300:
-		//	t.hits3XX.Add(1)
-		//case 400:
-		//	t.hits4XX.Add(1)
-		//case 500:
-		//	t.hits5XX.Add(1)
-		//}
 		_ = transaction
 		topicName := transaction.TopicName()
 		if _, ok := t.topics[topicName]; !ok {

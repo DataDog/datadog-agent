@@ -27,8 +27,8 @@ import (
 // * requestsStats which are the kafka data stats
 // * telemetry which are telemetry stats
 type MonitorStats struct {
-	requestStats map[Key]*RequestStats
-	telemetry    telemetry
+	//requestStats map[Key]*RequestStats
+	//telemetry    telemetry
 }
 
 // Monitor is responsible for:

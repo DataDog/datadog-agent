@@ -8,7 +8,6 @@ package network
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
