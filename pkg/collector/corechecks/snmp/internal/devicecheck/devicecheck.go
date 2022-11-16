@@ -8,6 +8,7 @@ package devicecheck
 import (
 	"errors"
 	"fmt"
+	"go.uber.org/atomic"
 	"strings"
 	"time"
 
@@ -38,10 +39,11 @@ const (
 
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config           *checkconfig.CheckConfig
-	sender           *report.MetricSender
-	session          session.Session
-	savedDynamicTags []string
+	config            *checkconfig.CheckConfig
+	sender            *report.MetricSender
+	session           session.Session
+	sessionCloseError *atomic.Uint64
+	savedDynamicTags  []string
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -54,8 +56,9 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	return &DeviceCheck{
-		config:  newConfig,
-		session: sess,
+		config:            newConfig,
+		session:           sess,
+		sessionCloseError: atomic.NewUint64(0),
 	}, nil
 }
 
@@ -154,7 +157,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	defer func() {
 		err := d.session.Close()
 		if err != nil {
-			log.Warnf("failed to close session: %v", err)
+			d.sessionCloseError.Inc()
+			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseError, err)
 		}
 	}()
 
