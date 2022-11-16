@@ -413,7 +413,7 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
-	SetAgentMetadata(AgentNetworksGoTLSEnabled, config.Datadog.GetBool("network_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentNetworksGoTLSEnabled, config.Datadog.GetBool("system_probe_config.enable_go_tls_support"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
