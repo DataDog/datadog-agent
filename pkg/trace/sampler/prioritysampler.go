@@ -68,9 +68,6 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	if s.remoteRates != nil {
-		s.remoteRates.Start()
-	}
 	go func() {
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
@@ -83,6 +80,14 @@ func (s *PrioritySampler) Start() {
 			}
 		}
 	}()
+}
+
+func (s *PrioritySampler) UpdateRemoteRates(updates []RemoteRateUpdate) {
+	s.remoteRates.onUpdate(updates)
+}
+
+func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
+	s.localRates.updateTargetTPS(targetTPS)
 }
 
 // report sampler stats
@@ -100,9 +105,6 @@ func (s *PrioritySampler) updateRates() {
 
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	if s.remoteRates != nil {
-		s.remoteRates.Stop()
-	}
 	close(s.exit)
 }
 
