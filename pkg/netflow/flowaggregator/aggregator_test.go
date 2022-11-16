@@ -196,6 +196,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
@@ -294,7 +295,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 6, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 6, "", nil)
 	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 10, "", nil)
