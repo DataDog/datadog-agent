@@ -71,43 +71,17 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                new RegValueProperty("DDAGENTUSER_DOMAIN",
-                        RegistryHive.LocalMachine,
-                        @"Software\Datadog\Datadog Agent",
-                        "installedDomain"
-                )
-                {
-                    Win64 = true
-                },
-                new RegValueProperty("DDAGENTUSER_USERNAME",
-                        RegistryHive.LocalMachine,
-                        @"Software\Datadog\Datadog Agent",
-                        "installedUser"
-                )
-                {
-                    Win64 = true
-                },
                 new Property("DDAGENTUSER_PASSWORD")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                new RegValueProperty("PROJECTLOCATION",
-                    RegistryHive.LocalMachine,
-                    "SOFTWARE\\Datadog\\Datadog Agent",
-                    "InstallPath"
-                )
+                new Property("PROJECTLOCATION")
                 {
                     AttributesDefinition = "Secure=yes",
-                    Win64 = true
                 },
-                new RegValueProperty("APPLICATIONDATADIRECTORY",
-                    RegistryHive.LocalMachine,
-                    "SOFTWARE\\Datadog\\Datadog Agent",
-                    "ConfigRoot"
-                )
+                new Property("APPLICATIONDATADIRECTORY")
                 {
                     AttributesDefinition = "Secure=yes",
-                    Win64 = true
                 },
                 new CloseApplication(new Id("CloseTrayApp"),
                     Path.GetFileName(_agentBinaries.Tray),

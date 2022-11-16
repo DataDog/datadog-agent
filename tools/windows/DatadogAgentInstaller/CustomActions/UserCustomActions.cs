@@ -47,51 +47,84 @@ namespace Datadog.CustomActions
             return Environment.MachineName;
         }
 
-        private static string GetProvidedUserName(ISession session)
-        {
-            // The user account can be provided to the installer by
-            // * The registry
-            // * The command line
-            // * The agent user dialog
-            // The user account domain and name are stored separetely in the registry
-            // but are passed together on the command line and the agent user dialog.
-            // This function will combine the registry properties if they exist.
-            // Preference is gives creds provided on the command line and the agent user dialog.
-
-            var ddAgentUserName = "";
-
-            // These properties are set by the RegistrySearch/AppSearch action
-            if (!string.IsNullOrEmpty(session["DDAGENTUSER_DOMAIN"]) && !string.IsNullOrEmpty(session["DDAGENTUSER_USERNAME"]))
-            {
-              // Creds loaded from registry
-              ddAgentUserName = $"{session["DDAGENTUSER_DOMAIN"]}\\{session["DDAGENTUSER_USERNAME"]}";
-              session.Log($"Found creds in registry {ddAgentUserName}");
-            }
-
-            if (!string.IsNullOrEmpty(session["DDAGENTUSER_NAME"]))
-            {
-                // Creds passed on command line, takes precedence over registry
-                // User did not pass a value, use default account name
-                ddAgentUserName = session["DDAGENTUSER_NAME"];
-                // May not be an accurate statement if this method is called more than once,
-                // as ReadRegistryProperties sets this property.
-                session.Log($"User provided creds {ddAgentUserName}");
-            }
-
-            return ddAgentUserName;
-        }
-
         private static ActionResult ReadRegistryProperties(ISession session)
         {
-            // This CA runs in the InstallUISequence to ensure the agent user dialog
-            // correctly displays the creds provided by the preferred source.
+            // This CA runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
+            // For UI installs it ensures that the agent user dialog is pre-populated with registry
+            // creds if applicable.
             try
             {
-                session["DDAGENTUSER_NAME"] = GetProvidedUserName(session);
+                // DDAGENTUSER_NAME
+                //
+                // The user account can be provided to the installer by
+                // * The registry
+                // * The command line
+                // * The agent user dialog
+                // The user account domain and name are stored separetely in the registry
+                // but are passed together on the command line and the agent user dialog.
+                // This function will combine the registry properties if they exist.
+                // Preference is given to creds provided on the command line and the agent user dialog.
+                if (string.IsNullOrEmpty(session["DDAGENTUSER_NAME"]))
+                {
+                    try
+                    {
+                        var domain = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
+                            .GetValue("installedDomain")
+                            .ToString();
+                        var user = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
+                            .GetValue("installedUser")
+                            .ToString();
+                        if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user)) {
+                            session["DDAGENTUSER_NAME"] = $"{domain}\\{user}";
+                            session.Log($"Found creds in registry {session["DDAGENTUSER_NAME"]}");
+                        }
+                    }
+                    catch { }
+                }
+                else
+                {
+                    session.Log($"User provided DDAGENTUSER_NAME {session["DDAGENTUSER_NAME"]}");
+                }
+
+                // PROJECTLOCATION
+                //
+                if (string.IsNullOrEmpty(session["PROJECTLOCATION"]))
+                {
+                    try
+                    {
+                        session["PROJECTLOCATION"] = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
+                            .GetValue("InstallPath")
+                            .ToString();
+                        session.Log($"Found PROJECTLOCATION in registry {session["PROJECTLOCATION"]}");
+                    }
+                    catch {  }
+                }
+                else
+                {
+                    session.Log($"User provided PROJECTLOCATION {session["PROJECTLOCATION"]}");
+                }
+
+                // APPLICATIONDATADIRECTORY
+                //
+                if (string.IsNullOrEmpty(session["APPLICATIONDATADIRECTORY"]))
+                {
+                    try
+                    {
+                        session["APPLICATIONDATADIRECTORY"] = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
+                            .GetValue("ConfigRoot")
+                            .ToString();
+                        session.Log($"Found APPLICATIONDATADIRECTORY in registry {session["APPLICATIONDATADIRECTORY"]}");
+                    }
+                    catch {  }
+                }
+                else
+                {
+                    session.Log($"User provided APPLICATIONDATADIRECTORY {session["APPLICATIONDATADIRECTORY"]}");
+                }
             }
             catch (Exception e)
             {
-                session.Log($"Error processing ddAgentUser credentials: {e}");
+                session.Log($"Error processing registry properties: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
@@ -113,11 +146,10 @@ namespace Datadog.CustomActions
                   return ActionResult.Success;
                 }
 
-                var ddAgentUserName = GetProvidedUserName(session);
+                var ddAgentUserName = session["DDAGENTUSER_NAME"];
 
-                // TODO: Could move this into GetProvidedUserName to populate the agent user dialog
-                //       with it rather than have it be blank.
-                if (string.IsNullOrEmpty(ddAgentUserName)) {
+                if (string.IsNullOrEmpty(ddAgentUserName))
+                {
                     // Creds are not in registry and user did not pass a value, use default account name
                     ddAgentUserName = $"{GetDefaultDomainPart()}\\ddagentuser";
                     session.Log($"No creds provided, using default {ddAgentUserName}");

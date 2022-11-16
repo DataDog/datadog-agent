@@ -28,8 +28,11 @@ namespace WixSetup.Datadog
                     When.After,
                     Step.AppSearch,
                     Condition.NOT_BeingRemoved,
-                    Sequence.InstallUISequence
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
                 )
+                {
+                    Execute = Execute.firstSequence
+                }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -39,8 +42,11 @@ namespace WixSetup.Datadog
                     When.After,
                     Step.AppSearch,
                     Condition.NOT_BeingRemoved,
-                    Sequence.InstallUISequence
-                );
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
+                )
+                {
+                    Execute = Execute.firstSequence
+                };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                     new Id("WriteConfigCustomAction"),
