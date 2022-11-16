@@ -13,7 +13,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"golang.org/x/sys/unix"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -22,15 +21,20 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -602,7 +606,7 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	}
 
 	// Setup
-	closeServer := httptest.HTTPServer(t, ServerAddr, httptest.Options{
+	closeServer := testutil.HTTPServer(t, ServerAddr, testutil.Options{
 		EnableTLS: true,
 	})
 	defer closeServer()
@@ -629,7 +633,7 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 
 	// Test
 	clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
-	_, err = testutil.RunCommand(clientCmd)
+	_, err = nettestutil.RunCommand(clientCmd)
 	require.NoError(t, err)
 
 	occurrences := PrintableInt(0)
@@ -647,7 +651,7 @@ func buildGoTLSClientBin(t *testing.T) string {
 
 	t.Helper()
 
-	cur, err := httptest.CurDir()
+	cur, err := testutil.CurDir()
 	require.NoError(t, err)
 
 	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
@@ -684,7 +688,7 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 				continue
 			}
 
-			expectedStatus := httptest.StatusFromPath(req.URL.Path)
+			expectedStatus := testutil.StatusFromPath(req.URL.Path)
 			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
 				occurrences++
 				reqs[req] = true
@@ -719,3 +723,4 @@ func (m requestsMap) String() string {
 	}
 
 	return result.String()
+}
