@@ -158,7 +158,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		err := d.session.Close()
 		if err != nil {
 			d.sessionCloseError.Inc()
-			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseError, err)
+			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseError.Load(), err)
 		}
 	}()
 
