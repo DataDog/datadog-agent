@@ -101,6 +101,22 @@ func TestDfWithVolumeSpaces(t *testing.T) {
 	}), out)
 }
 
+func TestDfWithErrors(t *testing.T) {
+	withDfCommand(t, "sh", "-c", `
+		echo 'Filesystem     1K-blocks      Used Available Use% Mounted on';
+		echo '/dev/disk4s3      367616    360928      6688  99% /Volumes/Firefox';
+		echo 'Some error from df';
+		echo '/dev/disk5        307200    283136     24064  93% /Volumes/MySQL Workbench community-8.0.30';
+	`)
+
+	out, err := getFileSystemInfo()
+	require.NoError(t, err)
+	require.Equal(t, []interface{}([]interface{}{
+		map[string]string{"kb_size": "367616", "mounted_on": "/Volumes/Firefox", "name": "/dev/disk4s3"},
+		map[string]string{"kb_size": "307200", "mounted_on": "/Volumes/MySQL Workbench community-8.0.30", "name": "/dev/disk5"},
+	}), out)
+}
+
 func TestFaileDfWithData(t *testing.T) {
 	// (note that this sample output is valid on both linux and darwin)
 	withDfCommand(t, "sh", "-c", `echo "Filesystem     1K-blocks      Used Available Use% Mounted on"; echo "/dev/disk1s1s1 488245288 138504332 349740956  29% /"; exit 1`)
