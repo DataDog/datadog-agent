@@ -429,6 +429,11 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 		return
 	}
 
+	// reject event with abnormal path
+	if event.GetPathResolutionError() != nil {
+		return
+	}
+
 	adm.Lock()
 	defer adm.Unlock()
 
