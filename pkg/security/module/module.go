@@ -393,7 +393,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessCacheEntry)
+					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessContext)
 				}
 				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
 			},

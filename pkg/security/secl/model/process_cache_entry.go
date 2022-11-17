@@ -18,28 +18,23 @@ const (
 )
 
 // SetSpan sets the span
-func (pc *ProcessCacheEntry) SetSpan(spanID uint64, traceID uint64) {
+func (pc *ProcessContext) SetSpan(spanID uint64, traceID uint64) {
 	pc.SpanID = spanID
 	pc.TraceID = traceID
 }
 
 // SetAncestor sets the ancestor
-func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
+func (pc *ProcessContext) SetAncestor(parent *ProcessContext) {
 	if pc.Ancestor == parent {
 		return
 	}
 
-	if pc.Ancestor != nil {
-		pc.Ancestor.Release()
-	}
-
 	pc.Ancestor = parent
 	pc.IsThread = false
-	parent.Retain()
 }
 
 // GetNextAncestorNoFork returns the first ancestor that is not a fork entry
-func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
+func (pc *ProcessContext) GetNextAncestorNoFork() *ProcessContext {
 	if pc.Ancestor == nil {
 		return nil
 	}
@@ -58,11 +53,11 @@ func (pc *ProcessCacheEntry) GetNextAncestorNoFork() *ProcessCacheEntry {
 }
 
 // Exit a process
-func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
+func (pc *ProcessContext) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime
 }
 
-func copyProcessContext(parent, child *ProcessCacheEntry) {
+func copyProcessContext(parent, child *ProcessContext) {
 	// inherit the container ID from the parent if necessary. If a container is already running when system-probe
 	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
 	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
@@ -75,7 +70,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 }
 
 // Exec replace a process
-func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
+func (pc *ProcessContext) Exec(entry *ProcessContext) {
 	entry.SetAncestor(pc)
 
 	// use exec time a exit time
@@ -86,13 +81,13 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 }
 
 // SetParent set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+func (pc *ProcessContext) SetParent(parent *ProcessContext) {
 	pc.SetAncestor(parent)
 	pc.IsThread = true
 }
 
-// Fork returns a copy of the current ProcessCacheEntry
-func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
+// Fork returns a copy of the current ProcessContext
+func (pc *ProcessContext) Fork(childEntry *ProcessContext) {
 	childEntry.PPid = pc.Pid
 	childEntry.TTYName = pc.TTYName
 	childEntry.Comm = pc.Comm
@@ -107,11 +102,11 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 }
 
 // Equals returns whether process cache entries share the same values for comm and args/envs
-func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
+func (pc *ProcessContext) Equals(entry *ProcessContext) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
-/*func (pc *ProcessCacheEntry) String() string {
+/*func (pc *ProcessContext) String() string {
 	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
 	ancestor := pc.Ancestor
 	for i := 0; ancestor != nil; i++ {

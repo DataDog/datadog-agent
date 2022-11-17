@@ -155,12 +155,11 @@ type Event struct {
 	Timestamp            time.Time `field:"-"` // Timestamp of the event
 
 	// context shared with all events
-	ProcessCacheEntry *ProcessCacheEntry `field:"-" json:"-"`
-	PIDContext        PIDContext         `field:"-" json:"-"`
-	SpanContext       SpanContext        `field:"-" json:"-"`
-	ProcessContext    *ProcessContext    `field:"process" event:"*"`
-	ContainerContext  ContainerContext   `field:"container"`
-	NetworkContext    NetworkContext     `field:"network"`
+	PIDContext       PIDContext       `field:"-" json:"-"`
+	SpanContext      SpanContext      `field:"-" json:"-"`
+	ProcessContext   *ProcessContext  `field:"process" event:"*"`
+	ContainerContext ContainerContext `field:"container"`
+	NetworkContext   NetworkContext   `field:"network"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -566,58 +565,9 @@ type SELinuxEvent struct {
 	EnforceStatus   string           `field:"enforce.status"`                           // SELinux enforcement status (one of "enforcing", "permissive", "disabled"")
 }
 
-var zeroProcessContext ProcessContext
-
-// ProcessCacheEntry this struct holds process context kept in the process tree
-type ProcessCacheEntry struct {
-	ProcessContext
-
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
-}
-
-// Reset the entry
-func (pc *ProcessCacheEntry) Reset() {
-	pc.ProcessContext = zeroProcessContext
-	pc.refCount = 0
-	pc.releaseCb = nil
-}
-
-// Retain increment ref counter
-func (pc *ProcessCacheEntry) Retain() {
-	pc.refCount++
-}
-
-// SetReleaseCallback set the callback called when the entry is released
-func (pc *ProcessCacheEntry) SetReleaseCallback(callback func()) {
-	pc.releaseCb = callback
-}
-
-// Release decrement and eventually release the entry
-func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
-		return
-	}
-
-	if pc.onRelease != nil {
-		pc.onRelease(pc)
-	}
-
-	if pc.releaseCb != nil {
-		pc.releaseCb()
-	}
-}
-
-// NewProcessCacheEntry returns a new process cache entry
-func NewProcessCacheEntry(onRelease func(_ *ProcessCacheEntry)) *ProcessCacheEntry {
-	return &ProcessCacheEntry{onRelease: onRelease}
-}
-
 // ProcessAncestorsIterator defines an iterator of ancestors
 type ProcessAncestorsIterator struct {
-	prev *ProcessCacheEntry
+	prev *ProcessContext
 }
 
 // Front returns the first element
@@ -644,7 +594,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
-	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
+	Ancestor *ProcessContext `field:"ancestors,iterator:ProcessAncestorsIterator"`
 }
 
 // PIDContext holds the process context of an kernel event

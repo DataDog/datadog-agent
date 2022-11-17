@@ -652,7 +652,7 @@ func newDDContextSerializer(e *Event) *DDContextSerializer {
 	ptr := it.Front(ctx)
 
 	for ptr != nil {
-		pce := (*model.ProcessCacheEntry)(ptr)
+		pce := (*model.ProcessContext)(ptr)
 
 		if pce.SpanID != 0 || pce.TraceID != 0 {
 			s.SpanID = pce.SpanID
@@ -695,13 +695,13 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
-	var ancestor *model.ProcessCacheEntry
+	var ancestor *model.ProcessContext
 	var prev *ProcessSerializer
 
 	first := true
 
 	for ptr != nil {
-		pce := (*model.ProcessCacheEntry)(ptr)
+		pce := (*model.ProcessContext)(ptr)
 
 		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
@@ -921,8 +921,8 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	var pc model.ProcessContext
-	if entry := event.ResolveProcessCacheEntry(); entry != nil {
-		pc = entry.ProcessContext
+	if entry := event.ResolveProcessContext(); entry != nil {
+		pc = *entry
 	}
 
 	s := &EventSerializer{

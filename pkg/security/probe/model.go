@@ -82,21 +82,6 @@ type Event struct {
 	probe               *Probe
 }
 
-// Retain the event
-func (ev *Event) Retain() Event {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Retain()
-	}
-	return *ev
-}
-
-// Release the event
-func (ev *Event) Release() {
-	if ev.ProcessCacheEntry != nil {
-		ev.ProcessCacheEntry.Release()
-	}
-}
-
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (ev *Event) GetPathResolutionError() error {
 	return ev.pathResolutionError
@@ -205,7 +190,7 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+		if entry := ev.ResolveProcessContext(); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -220,10 +205,10 @@ func (ev *Event) ResolveContainerTags(e *model.ContainerContext) []string {
 	return e.Tags
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (ev *Event) UnmarshalProcessCacheEntry(data []byte) (int, error) {
-	entry := ev.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
-	ev.ProcessCacheEntry = entry
+// UnmarshalProcessContext unmarshal a Process
+func (ev *Event) UnmarshalProcessContext(data []byte) (int, error) {
+	entry := ev.resolvers.ProcessResolver.NewProcessContext(ev.PIDContext)
+	ev.ProcessContext = entry
 
 	n, err := entry.Process.UnmarshalBinary(data)
 	if err != nil {
@@ -480,31 +465,31 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
+// ResolveProcessContext queries the ProcessResolver to retrieve the ProcessContext of the event
+func (ev *Event) ResolveProcessContext() *model.ProcessContext {
+	if ev.ProcessContext == nil {
+		ev.ProcessContext = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
-	if ev.ProcessCacheEntry == nil {
+	if ev.ProcessContext == nil {
 		// keep the original PIDContext
-		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
-		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
+		ev.ProcessContext = &model.ProcessContext{}
+		ev.ProcessContext.PIDContext = ev.PIDContext
 
-		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+		ev.ProcessContext.FileEvent.SetPathnameStr("")
+		ev.ProcessContext.FileEvent.SetBasenameStr("")
 
 		// mark interpreter as resolved too
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
-		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+		ev.ProcessContext.LinuxBinprm.FileEvent.SetPathnameStr("")
+		ev.ProcessContext.LinuxBinprm.FileEvent.SetBasenameStr("")
 	}
 
-	return ev.ProcessCacheEntry
+	return ev.ProcessContext
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
 func (ev *Event) GetProcessServiceTag() string {
-	entry := ev.ResolveProcessCacheEntry()
+	entry := ev.ResolveProcessContext()
 	if entry == nil {
 		return ""
 	}

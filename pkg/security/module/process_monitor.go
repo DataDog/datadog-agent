@@ -26,7 +26,7 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 	event.ResolveFields(false)
 	event.ResolveEventTimestamp()
 
-	entry := event.ResolveProcessCacheEntry()
+	entry := event.ResolveProcessContext()
 	if entry == nil {
 		return
 	}

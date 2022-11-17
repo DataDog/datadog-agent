@@ -354,7 +354,7 @@ func (ad *ActivityDump) containerIDMatches(containerID string) bool {
 }
 
 // Matches returns true if the provided list of tags and / or the provided comm match the current ActivityDump
-func (ad *ActivityDump) Matches(entry *model.ProcessCacheEntry) bool {
+func (ad *ActivityDump) Matches(entry *model.ProcessContext) bool {
 	if entry == nil {
 		return false
 	}
@@ -540,7 +540,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}()
 
 	// find the node where the event should be inserted
-	node := ad.findOrCreateProcessActivityNode(event.ResolveProcessCacheEntry(), Runtime)
+	node := ad.findOrCreateProcessActivityNode(event.ResolveProcessContext(), Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
 		return false
@@ -569,7 +569,7 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 
 // findOrCreateProcessActivityNode finds or a create a new process activity node in the activity dump if the entry
 // matches the activity dump selector.
-func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType) (node *ProcessActivityNode) {
+func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessContext, generationType NodeGenerationType) (node *ProcessActivityNode) {
 	if entry == nil {
 		return node
 	}
@@ -590,7 +590,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		}
 	}()
 
-	// find or create a ProcessActivityNode for the parent of the input ProcessCacheEntry. If the parent is a fork entry,
+	// find or create a ProcessActivityNode for the parent of the input ProcessContext. If the parent is a fork entry,
 	// jump immediately to the next ancestor.
 	parentNode := ad.findOrCreateProcessActivityNode(entry.GetNextAncestorNoFork(), Snapshot)
 
@@ -603,13 +603,13 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 			return node
 		}
 
-		// go through the root nodes and check if one of them matches the input ProcessCacheEntry:
+		// go through the root nodes and check if one of them matches the input ProcessContext:
 		for _, root := range ad.ProcessActivityTree {
 			if root.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return root
 			}
 		}
-		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
+		// if it doesn't, create a new ProcessActivityNode for the input ProcessContext
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
 		ad.ProcessActivityTree = append(ad.ProcessActivityTree, node)
@@ -618,14 +618,14 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// if parentNode wasn't nil, then (at least) the parent is part of the activity dump. This means that we need
 		// to add the current entry no matter if it matches the selector or not. Go through the root children of the
-		// parent node and check if one of them matches the input ProcessCacheEntry.
+		// parent node and check if one of them matches the input ProcessContext.
 		for _, child := range parentNode.Children {
 			if child.Matches(entry, ad.DumpMetadata.DifferentiateArgs, ad.adm.probe.resolvers) {
 				return child
 			}
 		}
 
-		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
+		// if none of them matched, create a new ProcessActivityNode for the input ProcessContext
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
 		parentNode.Children = append(parentNode.Children, node)
@@ -639,7 +639,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		ad.addedSnapshotCount[model.ExecEventType].Inc()
 	}
 
-	// set the pid of the input ProcessCacheEntry as traced
+	// set the pid of the input ProcessContext as traced
 	ad.updateTracedPid(entry.Pid)
 
 	// check dump size
@@ -970,7 +970,7 @@ type ProcessActivityNode struct {
 }
 
 // NewProcessActivityNode returns a new ProcessActivityNode instance
-func NewProcessActivityNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
+func NewProcessActivityNode(entry *model.ProcessContext, generationType NodeGenerationType, nodeStats *ActivityDumpNodeStats) *ProcessActivityNode {
 	nodeStats.processNodes++
 	pan := ProcessActivityNode{
 		Process:        entry.Process,
@@ -1018,8 +1018,8 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolve
 	pan.Process.EnvsEntry = nil
 }
 
-// Matches return true if the process fields used to generate the dump are identical with the provided ProcessCacheEntry
-func (pan *ProcessActivityNode) Matches(entry *model.ProcessCacheEntry, matchArgs bool, resolvers *Resolvers) bool {
+// Matches return true if the process fields used to generate the dump are identical with the provided ProcessContext
+func (pan *ProcessActivityNode) Matches(entry *model.ProcessContext, matchArgs bool, resolvers *Resolvers) bool {
 
 	if pan.Process.Comm == entry.Comm && pan.Process.FileEvent.PathnameStr == entry.FileEvent.PathnameStr &&
 		pan.Process.Credentials == entry.Credentials {

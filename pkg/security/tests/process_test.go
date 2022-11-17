@@ -230,7 +230,7 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
+			assert.Equal(t, getInode(t, executable), event.ResolveProcessContext().FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -685,8 +685,8 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
+			if inode := getInode(t, executable); inode != event.ResolveProcessContext().FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessContext().FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -871,8 +871,8 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Ancestor.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
 			}
 		}))
 	})
@@ -1261,7 +1261,7 @@ func TestProcessExecExit(t *testing.T) {
 
 		case model.ExitEventType:
 			// assert that exit time >= exec time
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 			if execPid != 0 && event.ProcessContext.Pid == execPid {
 				return true
 			}
@@ -1498,7 +1498,7 @@ func TestProcessIsThread(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_process_fork_is_thread")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
-			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
 		})
 	})
@@ -1513,7 +1513,7 @@ func TestProcessIsThread(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_process_exec_is_not_thread")
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
-			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
 		})
 	})
@@ -1575,7 +1575,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1596,7 +1596,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(1), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1617,7 +1617,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGQUIT), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1638,7 +1638,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1658,7 +1658,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 
@@ -1678,7 +1678,7 @@ func TestProcessExit(t *testing.T) {
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
 			assert.Equal(t, uint32(0), event.Exit.Code, "wrong exit code")
-			assert.False(t, event.ProcessCacheEntry.ExitTime.Before(event.ProcessCacheEntry.ExecTime), "exit time < exec time")
+			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		})
 	})
 }
@@ -1992,7 +1992,7 @@ func TestProcessResolution(t *testing.T) {
 		resolvers := test.probe.GetResolvers()
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
-		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
+		equals := func(t *testing.T, entry1, entry2 *model.ProcessContext) {
 			t.Helper()
 
 			assert.NotNil(t, entry1)

@@ -2672,8 +2672,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2694,8 +2694,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -2716,8 +2716,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -2738,8 +2738,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2760,8 +2760,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -2782,8 +2782,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2804,8 +2804,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapEffective)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapEffective)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2826,8 +2826,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapPermitted)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2848,8 +2848,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Comm
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Comm
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2870,8 +2870,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					element := (*model.ProcessContext)(value)
+					result := element.Process.ContainerID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2892,8 +2892,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Cookie)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2914,8 +2914,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2936,8 +2936,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2958,8 +2958,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2980,8 +2980,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -3002,8 +3002,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -3024,8 +3024,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3046,8 +3046,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3068,8 +3068,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3090,8 +3090,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3112,8 +3112,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3134,8 +3134,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3156,8 +3156,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3178,8 +3178,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3200,8 +3200,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3222,8 +3222,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3244,8 +3244,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3266,8 +3266,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3289,8 +3289,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3312,8 +3312,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3335,8 +3335,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3358,8 +3358,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3380,8 +3380,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3402,8 +3402,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3424,8 +3424,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3446,8 +3446,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3468,8 +3468,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3490,8 +3490,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3512,8 +3512,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3534,8 +3534,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3556,8 +3556,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.Group
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.Group
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3578,8 +3578,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3600,8 +3600,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3622,8 +3622,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3644,8 +3644,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3666,8 +3666,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3688,8 +3688,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3710,8 +3710,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3732,8 +3732,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3754,8 +3754,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3777,8 +3777,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3800,8 +3800,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3823,8 +3823,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3846,8 +3846,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3868,8 +3868,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3890,8 +3890,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3912,8 +3912,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3934,8 +3934,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.PIDContext.IsKworker
+					element := (*model.ProcessContext)(value)
+					result := element.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3956,8 +3956,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.IsThread
+					element := (*model.ProcessContext)(value)
+					result := element.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3978,8 +3978,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Pid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4000,8 +4000,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PPid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PPid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4022,8 +4022,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Tid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4044,8 +4044,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.TTYName
+					element := (*model.ProcessContext)(value)
+					result := element.Process.TTYName
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4066,8 +4066,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4088,8 +4088,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.User
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.User
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4654,8 +4654,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4676,8 +4676,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -4698,8 +4698,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -4720,8 +4720,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4742,8 +4742,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -4764,8 +4764,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4786,8 +4786,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapEffective)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapEffective)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4808,8 +4808,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapPermitted)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4830,8 +4830,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Comm
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Comm
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4852,8 +4852,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					element := (*model.ProcessContext)(value)
+					result := element.Process.ContainerID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4874,8 +4874,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Cookie)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4896,8 +4896,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4918,8 +4918,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4940,8 +4940,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4962,8 +4962,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -4984,8 +4984,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -5006,8 +5006,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5028,8 +5028,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5050,8 +5050,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5072,8 +5072,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5094,8 +5094,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5116,8 +5116,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5138,8 +5138,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5160,8 +5160,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5182,8 +5182,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5204,8 +5204,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5226,8 +5226,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5248,8 +5248,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5271,8 +5271,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5294,8 +5294,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5317,8 +5317,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5340,8 +5340,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5362,8 +5362,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5384,8 +5384,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5406,8 +5406,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5428,8 +5428,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5450,8 +5450,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5472,8 +5472,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5494,8 +5494,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5516,8 +5516,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5538,8 +5538,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.Group
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.Group
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5560,8 +5560,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5582,8 +5582,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5604,8 +5604,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5626,8 +5626,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5648,8 +5648,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5670,8 +5670,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5692,8 +5692,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5714,8 +5714,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5736,8 +5736,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5759,8 +5759,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5782,8 +5782,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5805,8 +5805,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5828,8 +5828,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5850,8 +5850,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5872,8 +5872,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5894,8 +5894,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5916,8 +5916,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.PIDContext.IsKworker
+					element := (*model.ProcessContext)(value)
+					result := element.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5938,8 +5938,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.IsThread
+					element := (*model.ProcessContext)(value)
+					result := element.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5960,8 +5960,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Pid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5982,8 +5982,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PPid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PPid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6004,8 +6004,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Tid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6026,8 +6026,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.TTYName
+					element := (*model.ProcessContext)(value)
+					result := element.Process.TTYName
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6048,8 +6048,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6070,8 +6070,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.User
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.User
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7488,8 +7488,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7510,8 +7510,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -7532,8 +7532,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -7554,8 +7554,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7576,8 +7576,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -7598,8 +7598,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7620,8 +7620,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapEffective)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapEffective)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7642,8 +7642,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.CapPermitted)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7664,8 +7664,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Comm
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Comm
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7686,8 +7686,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.ContainerID
+					element := (*model.ProcessContext)(value)
+					result := element.Process.ContainerID
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7708,8 +7708,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Cookie)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Cookie)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7730,8 +7730,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7752,8 +7752,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7774,8 +7774,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7796,8 +7796,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -7818,8 +7818,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 					results = append(results, result...)
 					value = iterator.Next()
 				}
@@ -7840,8 +7840,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7862,8 +7862,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.EUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.EUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7884,8 +7884,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.EUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.EUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7906,8 +7906,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7928,8 +7928,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7950,8 +7950,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7972,8 +7972,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -7994,8 +7994,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8016,8 +8016,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8038,8 +8038,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8060,8 +8060,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8082,8 +8082,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8105,8 +8105,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8128,8 +8128,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8151,8 +8151,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8174,8 +8174,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8196,8 +8196,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8218,8 +8218,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8240,8 +8240,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8262,8 +8262,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSGID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSGID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8284,8 +8284,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSGroup
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSGroup
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8306,8 +8306,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.FSUID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.FSUID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8328,8 +8328,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.FSUser
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.FSUser
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8350,8 +8350,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8372,8 +8372,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.Group
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.Group
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8394,8 +8394,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8416,8 +8416,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8438,8 +8438,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8460,8 +8460,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8482,8 +8482,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8504,8 +8504,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8526,8 +8526,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8548,8 +8548,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8570,8 +8570,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8593,8 +8593,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8616,8 +8616,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8639,8 +8639,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8662,8 +8662,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					element := (*model.ProcessContext)(value)
+					result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8684,8 +8684,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+					element := (*model.ProcessContext)(value)
+					result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8706,8 +8706,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8728,8 +8728,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					element := (*model.ProcessContext)(value)
+					result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8750,8 +8750,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.PIDContext.IsKworker
+					element := (*model.ProcessContext)(value)
+					result := element.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8772,8 +8772,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.IsThread
+					element := (*model.ProcessContext)(value)
+					result := element.Process.IsThread
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8794,8 +8794,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Pid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Pid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8816,8 +8816,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PPid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PPid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8838,8 +8838,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.PIDContext.Tid)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.PIDContext.Tid)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8860,8 +8860,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.TTYName
+					element := (*model.ProcessContext)(value)
+					result := element.Process.TTYName
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8882,8 +8882,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := int(element.ProcessContext.Process.Credentials.UID)
+					element := (*model.ProcessContext)(value)
+					result := int(element.Process.Credentials.UID)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -8904,8 +8904,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				iterator := &model.ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
 				for value != nil {
-					element := (*model.ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.Credentials.User
+					element := (*model.ProcessContext)(value)
+					result := element.Process.Credentials.User
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -11438,8 +11438,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11450,8 +11450,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -11462,8 +11462,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -11474,8 +11474,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11486,8 +11486,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -11498,8 +11498,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11510,8 +11510,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapEffective)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapEffective)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11522,8 +11522,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapPermitted)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11534,8 +11534,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Comm
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Comm
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11546,8 +11546,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.ContainerID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11558,8 +11558,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11570,8 +11570,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11582,8 +11582,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11594,8 +11594,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11606,8 +11606,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -11618,8 +11618,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -11630,8 +11630,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11642,8 +11642,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11654,8 +11654,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11666,8 +11666,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11678,8 +11678,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11690,8 +11690,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11702,8 +11702,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11714,8 +11714,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11726,8 +11726,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11738,8 +11738,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11750,8 +11750,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11762,8 +11762,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11774,8 +11774,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11786,8 +11786,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11798,8 +11798,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11810,8 +11810,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11822,8 +11822,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11834,8 +11834,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11846,8 +11846,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11858,8 +11858,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11870,8 +11870,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11882,8 +11882,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11894,8 +11894,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11906,8 +11906,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11918,8 +11918,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.Group
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.Group
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11930,8 +11930,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11942,8 +11942,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11954,8 +11954,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11966,8 +11966,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11978,8 +11978,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -11990,8 +11990,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12002,8 +12002,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12014,8 +12014,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12026,8 +12026,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12038,8 +12038,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12050,8 +12050,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12062,8 +12062,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12074,8 +12074,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12086,8 +12086,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12098,8 +12098,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12110,8 +12110,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12122,8 +12122,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.PIDContext.IsKworker
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12134,8 +12134,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.IsThread
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12146,8 +12146,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Pid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12158,8 +12158,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PPid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PPid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12170,8 +12170,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Tid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12182,8 +12182,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.TTYName
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.TTYName
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12194,8 +12194,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12206,8 +12206,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.User
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.User
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12352,8 +12352,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12364,8 +12364,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -12376,8 +12376,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -12388,8 +12388,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12400,8 +12400,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -12412,8 +12412,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12424,8 +12424,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapEffective)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapEffective)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12436,8 +12436,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapPermitted)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12448,8 +12448,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Comm
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Comm
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12460,8 +12460,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.ContainerID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12472,8 +12472,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12484,8 +12484,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12496,8 +12496,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12508,8 +12508,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12520,8 +12520,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -12532,8 +12532,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -12544,8 +12544,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12556,8 +12556,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12568,8 +12568,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12580,8 +12580,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12592,8 +12592,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12604,8 +12604,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12616,8 +12616,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12628,8 +12628,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12640,8 +12640,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12652,8 +12652,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12664,8 +12664,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12676,8 +12676,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12688,8 +12688,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12700,8 +12700,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12712,8 +12712,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12724,8 +12724,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12736,8 +12736,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12748,8 +12748,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12760,8 +12760,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12772,8 +12772,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12784,8 +12784,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12796,8 +12796,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12808,8 +12808,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12820,8 +12820,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12832,8 +12832,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.Group
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.Group
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12844,8 +12844,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12856,8 +12856,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12868,8 +12868,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12880,8 +12880,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12892,8 +12892,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12904,8 +12904,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12916,8 +12916,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12928,8 +12928,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12940,8 +12940,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12952,8 +12952,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12964,8 +12964,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12976,8 +12976,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -12988,8 +12988,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13000,8 +13000,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13012,8 +13012,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13024,8 +13024,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13036,8 +13036,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.PIDContext.IsKworker
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13048,8 +13048,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.IsThread
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13060,8 +13060,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Pid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13072,8 +13072,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PPid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PPid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13084,8 +13084,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Tid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13096,8 +13096,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.TTYName
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.TTYName
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13108,8 +13108,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13120,8 +13120,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.User
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.User
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13474,8 +13474,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgs(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13486,8 +13486,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsFlags(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -13498,8 +13498,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsOptions(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -13510,8 +13510,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13522,8 +13522,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -13534,8 +13534,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessArgv0(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13546,8 +13546,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapEffective)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapEffective)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13558,8 +13558,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.CapPermitted)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13570,8 +13570,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Comm
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Comm
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13582,8 +13582,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.ContainerID
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.ContainerID
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13594,8 +13594,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Cookie)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Cookie)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13606,8 +13606,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.ProcessContext.Process))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveProcessCreatedAt(&element.Process))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13618,8 +13618,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13630,8 +13630,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13642,8 +13642,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvp(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -13654,8 +13654,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvs(&element.Process)
 			values = append(values, result...)
 			ptr = iterator.Next()
 		}
@@ -13666,8 +13666,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.ProcessContext.Process)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveProcessEnvsTruncated(&element.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13678,8 +13678,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.EUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.EUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13690,8 +13690,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.EUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.EUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13702,8 +13702,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13714,8 +13714,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13726,8 +13726,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13738,8 +13738,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13750,8 +13750,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13762,8 +13762,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13774,8 +13774,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13786,8 +13786,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13798,8 +13798,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13810,8 +13810,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13822,8 +13822,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13834,8 +13834,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13846,8 +13846,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13858,8 +13858,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13870,8 +13870,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13882,8 +13882,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13894,8 +13894,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSGID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSGID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13906,8 +13906,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSGroup
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSGroup
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13918,8 +13918,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.FSUID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.FSUID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13930,8 +13930,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.FSUser
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.FSUser
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13942,8 +13942,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13954,8 +13954,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.Group
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.Group
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13966,8 +13966,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13978,8 +13978,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFilesystem(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -13990,8 +13990,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14002,8 +14002,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsGroup(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14014,8 +14014,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsInUpperLayer(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14026,8 +14026,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14038,8 +14038,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14050,8 +14050,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14062,8 +14062,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14074,8 +14074,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14086,8 +14086,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFileBasename(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14098,8 +14098,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14110,8 +14110,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := len((*Event)(ctx.Object).ResolveFilePath(&element.ProcessContext.Process.LinuxBinprm.FileEvent))
+			element := (*model.ProcessContext)(ptr)
+			result := len((*Event)(ctx.Object).ResolveFilePath(&element.Process.LinuxBinprm.FileEvent))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14122,8 +14122,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int((*Event)(ctx.Object).ResolveRights(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+			element := (*model.ProcessContext)(ptr)
+			result := int((*Event)(ctx.Object).ResolveRights(&element.Process.LinuxBinprm.FileEvent.FileFields))
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14134,8 +14134,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14146,8 +14146,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+			element := (*model.ProcessContext)(ptr)
+			result := (*Event)(ctx.Object).ResolveFileFieldsUser(&element.Process.LinuxBinprm.FileEvent.FileFields)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14158,8 +14158,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.PIDContext.IsKworker
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14170,8 +14170,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.IsThread
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.IsThread
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14182,8 +14182,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Pid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Pid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14194,8 +14194,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PPid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PPid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14206,8 +14206,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.PIDContext.Tid)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.PIDContext.Tid)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14218,8 +14218,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.TTYName
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.TTYName
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14230,8 +14230,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := int(element.ProcessContext.Process.Credentials.UID)
+			element := (*model.ProcessContext)(ptr)
+			result := int(element.Process.Credentials.UID)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -14242,8 +14242,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		iterator := &model.ProcessAncestorsIterator{}
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
-			element := (*model.ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.Credentials.User
+			element := (*model.ProcessContext)(ptr)
+			result := element.Process.Credentials.User
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -20473,50 +20473,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Args"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Args = str
+		e.ProcessContext.Ancestor.Process.Args = str
 		return nil
 	case "process.ancestors.args_flags":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Argv"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
+		e.ProcessContext.Ancestor.Process.Argv = append(e.ProcessContext.Ancestor.Process.Argv, str)
 		return nil
 	case "process.ancestors.args_options":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Argv"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
+		e.ProcessContext.Ancestor.Process.Argv = append(e.ProcessContext.Ancestor.Process.Argv, str)
 		return nil
 	case "process.ancestors.args_truncated":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
+		if e.ProcessContext.Ancestor.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.ArgsTruncated"}
 		}
 		return nil
 	case "process.ancestors.argv":
@@ -20524,167 +20524,167 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Argv"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Argv = append(e.ProcessContext.Ancestor.ProcessContext.Process.Argv, str)
+		e.ProcessContext.Ancestor.Process.Argv = append(e.ProcessContext.Ancestor.Process.Argv, str)
 		return nil
 	case "process.ancestors.argv0":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Argv0"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Argv0 = str
+		e.ProcessContext.Ancestor.Process.Argv0 = str
 		return nil
 	case "process.ancestors.cap_effective":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.CapEffective"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
+		e.ProcessContext.Ancestor.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "process.ancestors.cap_permitted":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.CapPermitted"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
+		e.ProcessContext.Ancestor.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "process.ancestors.comm":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Comm"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Comm = str
+		e.ProcessContext.Ancestor.Process.Comm = str
 		return nil
 	case "process.ancestors.container.id":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.ContainerID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = str
+		e.ProcessContext.Ancestor.Process.ContainerID = str
 		return nil
 	case "process.ancestors.cookie":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Cookie"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Cookie"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Cookie = uint32(v)
+		e.ProcessContext.Ancestor.Process.Cookie = uint32(v)
 		return nil
 	case "process.ancestors.created_at":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.CreatedAt"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
+		e.ProcessContext.Ancestor.Process.CreatedAt = uint64(v)
 		return nil
 	case "process.ancestors.egid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.EGID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "process.ancestors.egroup":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.EGroup"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+		e.ProcessContext.Ancestor.Process.Credentials.EGroup = str
 		return nil
 	case "process.ancestors.envp":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Envp"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Envp = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envp, str)
+		e.ProcessContext.Ancestor.Process.Envp = append(e.ProcessContext.Ancestor.Process.Envp, str)
 		return nil
 	case "process.ancestors.envs":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Envs"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Envs = append(e.ProcessContext.Ancestor.ProcessContext.Process.Envs, str)
+		e.ProcessContext.Ancestor.Process.Envs = append(e.ProcessContext.Ancestor.Process.Envs, str)
 		return nil
 	case "process.ancestors.envs_truncated":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
+		if e.ProcessContext.Ancestor.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.EnvsTruncated"}
 		}
 		return nil
 	case "process.ancestors.euid":
@@ -20692,89 +20692,89 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.EUID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "process.ancestors.euser":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.EUser"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser = str
+		e.ProcessContext.Ancestor.Process.Credentials.EUser = str
 		return nil
 	case "process.ancestors.file.change_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.CTime"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "process.ancestors.file.filesystem":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.Filesystem"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
+		e.ProcessContext.Ancestor.Process.FileEvent.Filesystem = str
 		return nil
 	case "process.ancestors.file.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.GID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "process.ancestors.file.group":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.Group"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "process.ancestors.file.in_upper_layer":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
+		if e.ProcessContext.Ancestor.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "process.ancestors.file.inode":
@@ -20782,72 +20782,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.Inode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "process.ancestors.file.mode":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.file.modification_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.MTime"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "process.ancestors.file.mount_id":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.MountID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "process.ancestors.file.name":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.BasenameStr"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
+		e.ProcessContext.Ancestor.Process.FileEvent.BasenameStr = str
 		return nil
 	case "process.ancestors.file.name.length":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
 	case "process.ancestors.file.path":
@@ -20855,20 +20855,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.PathnameStr"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
+		e.ProcessContext.Ancestor.Process.FileEvent.PathnameStr = str
 		return nil
 	case "process.ancestors.file.path.length":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
 	case "process.ancestors.file.rights":
@@ -20876,180 +20876,180 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.file.uid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.UID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "process.ancestors.file.user":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.FileEvent.FileFields.User"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
+		e.ProcessContext.Ancestor.Process.FileEvent.FileFields.User = str
 		return nil
 	case "process.ancestors.fsgid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.FSGID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "process.ancestors.fsgroup":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.FSGroup"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
+		e.ProcessContext.Ancestor.Process.Credentials.FSGroup = str
 		return nil
 	case "process.ancestors.fsuid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.FSUID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "process.ancestors.fsuser":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.FSUser"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.FSUser = str
+		e.ProcessContext.Ancestor.Process.Credentials.FSUser = str
 		return nil
 	case "process.ancestors.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.GID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.GID = uint32(v)
 		return nil
 	case "process.ancestors.group":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.Group"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = str
+		e.ProcessContext.Ancestor.Process.Credentials.Group = str
 		return nil
 	case "process.ancestors.interpreter.file.change_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "process.ancestors.interpreter.file.filesystem":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem = str
 		return nil
 	case "process.ancestors.interpreter.file.gid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "process.ancestors.interpreter.file.group":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group = str
 		return nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		if e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "process.ancestors.interpreter.file.inode":
@@ -21057,72 +21057,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "process.ancestors.interpreter.file.mode":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.interpreter.file.modification_time":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "process.ancestors.interpreter.file.mount_id":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "process.ancestors.interpreter.file.name":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr = str
 		return nil
 	case "process.ancestors.interpreter.file.name.length":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.name.length"}
 	case "process.ancestors.interpreter.file.path":
@@ -21130,20 +21130,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr = str
 		return nil
 	case "process.ancestors.interpreter.file.path.length":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.path.length"}
 	case "process.ancestors.interpreter.file.rights":
@@ -21151,50 +21151,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "process.ancestors.interpreter.file.uid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "process.ancestors.interpreter.file.user":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		e.ProcessContext.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User = str
 		return nil
 	case "process.ancestors.is_kworker":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		if e.ProcessContext.Ancestor.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.PIDContext.IsKworker"}
 		}
 		return nil
 	case "process.ancestors.is_thread":
@@ -21202,11 +21202,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.ProcessContext.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.IsThread"}
+		if e.ProcessContext.Ancestor.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.IsThread"}
 		}
 		return nil
 	case "process.ancestors.pid":
@@ -21214,78 +21214,78 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.PIDContext.Pid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
+		e.ProcessContext.Ancestor.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "process.ancestors.ppid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.PPid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.PPid = uint32(v)
+		e.ProcessContext.Ancestor.Process.PPid = uint32(v)
 		return nil
 	case "process.ancestors.tid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.PIDContext.Tid"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
+		e.ProcessContext.Ancestor.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "process.ancestors.tty_name":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.TTYName"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.TTYName = str
+		e.ProcessContext.Ancestor.Process.TTYName = str
 		return nil
 	case "process.ancestors.uid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.UID"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
+		e.ProcessContext.Ancestor.Process.Credentials.UID = uint32(v)
 		return nil
 	case "process.ancestors.user":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &model.ProcessContext{}
 		}
 		if e.ProcessContext.Ancestor == nil {
-			e.ProcessContext.Ancestor = &model.ProcessCacheEntry{}
+			e.ProcessContext.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.Process.Credentials.User"}
 		}
-		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = str
+		e.ProcessContext.Ancestor.Process.Credentials.User = str
 		return nil
 	case "process.args":
 		if e.ProcessContext == nil {
@@ -21930,50 +21930,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Args"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Args = str
+		e.PTrace.Tracee.Ancestor.Process.Args = str
 		return nil
 	case "ptrace.tracee.ancestors.args_flags":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Argv"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
+		e.PTrace.Tracee.Ancestor.Process.Argv = append(e.PTrace.Tracee.Ancestor.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.args_options":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Argv"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
+		e.PTrace.Tracee.Ancestor.Process.Argv = append(e.PTrace.Tracee.Ancestor.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.args_truncated":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ArgsTruncated"}
+		if e.PTrace.Tracee.Ancestor.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.ArgsTruncated"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.argv":
@@ -21981,167 +21981,167 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Argv"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv, str)
+		e.PTrace.Tracee.Ancestor.Process.Argv = append(e.PTrace.Tracee.Ancestor.Process.Argv, str)
 		return nil
 	case "ptrace.tracee.ancestors.argv0":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Argv0"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Argv0 = str
+		e.PTrace.Tracee.Ancestor.Process.Argv0 = str
 		return nil
 	case "ptrace.tracee.ancestors.cap_effective":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.CapEffective"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.cap_permitted":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.CapPermitted"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.comm":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Comm"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm = str
+		e.PTrace.Tracee.Ancestor.Process.Comm = str
 		return nil
 	case "ptrace.tracee.ancestors.container.id":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.ContainerID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = str
+		e.PTrace.Tracee.Ancestor.Process.ContainerID = str
 		return nil
 	case "ptrace.tracee.ancestors.cookie":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Cookie"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Cookie = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Cookie = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.created_at":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.CreatedAt"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.CreatedAt = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.egid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.EGID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.egroup":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.EGroup"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.EGroup = str
 		return nil
 	case "ptrace.tracee.ancestors.envp":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Envp"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envp, str)
+		e.PTrace.Tracee.Ancestor.Process.Envp = append(e.PTrace.Tracee.Ancestor.Process.Envp, str)
 		return nil
 	case "ptrace.tracee.ancestors.envs":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Envs"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs = append(e.PTrace.Tracee.Ancestor.ProcessContext.Process.Envs, str)
+		e.PTrace.Tracee.Ancestor.Process.Envs = append(e.PTrace.Tracee.Ancestor.Process.Envs, str)
 		return nil
 	case "ptrace.tracee.ancestors.envs_truncated":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.EnvsTruncated"}
+		if e.PTrace.Tracee.Ancestor.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.EnvsTruncated"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.euid":
@@ -22149,89 +22149,89 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.EUID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.euser":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.EUser"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.EUser = str
 		return nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.CTime"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.filesystem":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.Filesystem"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.Filesystem = str
 		return nil
 	case "ptrace.tracee.ancestors.file.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.GID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.group":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Group"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
+		if e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.file.inode":
@@ -22239,72 +22239,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Inode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.mode":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.modification_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.MTime"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.mount_id":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.MountID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.name":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.BasenameStr"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.BasenameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.file.name.length":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.name.length"}
 	case "ptrace.tracee.ancestors.file.path":
@@ -22312,20 +22312,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.PathnameStr"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.PathnameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.file.path.length":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.path.length"}
 	case "ptrace.tracee.ancestors.file.rights":
@@ -22333,180 +22333,180 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.uid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.UID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.file.user":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.User"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
+		e.PTrace.Tracee.Ancestor.Process.FileEvent.FileFields.User = str
 		return nil
 	case "ptrace.tracee.ancestors.fsgid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.FSGID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.fsgroup":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.FSGroup"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.FSGroup = str
 		return nil
 	case "ptrace.tracee.ancestors.fsuid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.FSUID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.fsuser":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.FSUser"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.FSUser = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.FSUser = str
 		return nil
 	case "ptrace.tracee.ancestors.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.GID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.group":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.Group"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.Group = str
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem = str
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group = str
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		if e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
@@ -22514,72 +22514,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.name.length"}
 	case "ptrace.tracee.ancestors.interpreter.file.path":
@@ -22587,20 +22587,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr = str
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.path.length"}
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
@@ -22608,50 +22608,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		e.PTrace.Tracee.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User = str
 		return nil
 	case "ptrace.tracee.ancestors.is_kworker":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		if e.PTrace.Tracee.Ancestor.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.PIDContext.IsKworker"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.is_thread":
@@ -22659,11 +22659,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.IsThread"}
+		if e.PTrace.Tracee.Ancestor.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.IsThread"}
 		}
 		return nil
 	case "ptrace.tracee.ancestors.pid":
@@ -22671,78 +22671,78 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.PIDContext.Pid"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.ppid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.PPid"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PPid = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.PPid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.tid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.PIDContext.Tid"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.tty_name":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.TTYName"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.TTYName = str
+		e.PTrace.Tracee.Ancestor.Process.TTYName = str
 		return nil
 	case "ptrace.tracee.ancestors.uid":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.UID"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
+		e.PTrace.Tracee.Ancestor.Process.Credentials.UID = uint32(v)
 		return nil
 	case "ptrace.tracee.ancestors.user":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &model.ProcessContext{}
 		}
 		if e.PTrace.Tracee.Ancestor == nil {
-			e.PTrace.Tracee.Ancestor = &model.ProcessCacheEntry{}
+			e.PTrace.Tracee.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.Process.Credentials.User"}
 		}
-		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = str
+		e.PTrace.Tracee.Ancestor.Process.Credentials.User = str
 		return nil
 	case "ptrace.tracee.args":
 		if e.PTrace.Tracee == nil {
@@ -24059,50 +24059,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Args"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Args"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Args = str
+		e.Signal.Target.Ancestor.Process.Args = str
 		return nil
 	case "signal.target.ancestors.args_flags":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Argv"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+		e.Signal.Target.Ancestor.Process.Argv = append(e.Signal.Target.Ancestor.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.args_options":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Argv"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+		e.Signal.Target.Ancestor.Process.Argv = append(e.Signal.Target.Ancestor.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.args_truncated":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ArgsTruncated"}
+		if e.Signal.Target.Ancestor.Process.ArgsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.ArgsTruncated"}
 		}
 		return nil
 	case "signal.target.ancestors.argv":
@@ -24110,167 +24110,167 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Argv"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Argv = append(e.Signal.Target.Ancestor.ProcessContext.Process.Argv, str)
+		e.Signal.Target.Ancestor.Process.Argv = append(e.Signal.Target.Ancestor.Process.Argv, str)
 		return nil
 	case "signal.target.ancestors.argv0":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Argv0"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Argv0"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Argv0 = str
+		e.Signal.Target.Ancestor.Process.Argv0 = str
 		return nil
 	case "signal.target.ancestors.cap_effective":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.CapEffective"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(v)
+		e.Signal.Target.Ancestor.Process.Credentials.CapEffective = uint64(v)
 		return nil
 	case "signal.target.ancestors.cap_permitted":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.CapPermitted"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(v)
+		e.Signal.Target.Ancestor.Process.Credentials.CapPermitted = uint64(v)
 		return nil
 	case "signal.target.ancestors.comm":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Comm"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Comm"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Comm = str
+		e.Signal.Target.Ancestor.Process.Comm = str
 		return nil
 	case "signal.target.ancestors.container.id":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.ContainerID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.ContainerID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = str
+		e.Signal.Target.Ancestor.Process.ContainerID = str
 		return nil
 	case "signal.target.ancestors.cookie":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Cookie"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Cookie"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Cookie = uint32(v)
+		e.Signal.Target.Ancestor.Process.Cookie = uint32(v)
 		return nil
 	case "signal.target.ancestors.created_at":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.CreatedAt"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.CreatedAt"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.CreatedAt = uint64(v)
+		e.Signal.Target.Ancestor.Process.CreatedAt = uint64(v)
 		return nil
 	case "signal.target.ancestors.egid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.EGID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.EGID = uint32(v)
 		return nil
 	case "signal.target.ancestors.egroup":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.EGroup"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = str
+		e.Signal.Target.Ancestor.Process.Credentials.EGroup = str
 		return nil
 	case "signal.target.ancestors.envp":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envp"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Envp"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Envp = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envp, str)
+		e.Signal.Target.Ancestor.Process.Envp = append(e.Signal.Target.Ancestor.Process.Envp, str)
 		return nil
 	case "signal.target.ancestors.envs":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Envs"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Envs"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Envs = append(e.Signal.Target.Ancestor.ProcessContext.Process.Envs, str)
+		e.Signal.Target.Ancestor.Process.Envs = append(e.Signal.Target.Ancestor.Process.Envs, str)
 		return nil
 	case "signal.target.ancestors.envs_truncated":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.EnvsTruncated"}
+		if e.Signal.Target.Ancestor.Process.EnvsTruncated, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.EnvsTruncated"}
 		}
 		return nil
 	case "signal.target.ancestors.euid":
@@ -24278,89 +24278,89 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.EUID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.EUID = uint32(v)
 		return nil
 	case "signal.target.ancestors.euser":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.EUser"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser = str
+		e.Signal.Target.Ancestor.Process.Credentials.EUser = str
 		return nil
 	case "signal.target.ancestors.file.change_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.CTime"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.filesystem":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.Filesystem"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = str
+		e.Signal.Target.Ancestor.Process.FileEvent.Filesystem = str
 		return nil
 	case "signal.target.ancestors.file.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.GID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.group":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.Group"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = str
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.Group = str
 		return nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer"}
+		if e.Signal.Target.Ancestor.Process.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "signal.target.ancestors.file.inode":
@@ -24368,72 +24368,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.Inode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Inode = uint64(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.mode":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.file.modification_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.MTime"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.file.mount_id":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.MountID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MountID = uint32(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.name":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.BasenameStr"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
+		e.Signal.Target.Ancestor.Process.FileEvent.BasenameStr = str
 		return nil
 	case "signal.target.ancestors.file.name.length":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.name.length"}
 	case "signal.target.ancestors.file.path":
@@ -24441,20 +24441,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.PathnameStr"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
+		e.Signal.Target.Ancestor.Process.FileEvent.PathnameStr = str
 		return nil
 	case "signal.target.ancestors.file.path.length":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.path.length"}
 	case "signal.target.ancestors.file.rights":
@@ -24462,180 +24462,180 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.Mode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.file.uid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.UID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(v)
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "signal.target.ancestors.file.user":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.FileEvent.FileFields.User"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = str
+		e.Signal.Target.Ancestor.Process.FileEvent.FileFields.User = str
 		return nil
 	case "signal.target.ancestors.fsgid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.FSGID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.FSGID = uint32(v)
 		return nil
 	case "signal.target.ancestors.fsgroup":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.FSGroup"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = str
+		e.Signal.Target.Ancestor.Process.Credentials.FSGroup = str
 		return nil
 	case "signal.target.ancestors.fsuid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.FSUID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.FSUID = uint32(v)
 		return nil
 	case "signal.target.ancestors.fsuser":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.FSUser"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = str
+		e.Signal.Target.Ancestor.Process.Credentials.FSUser = str
 		return nil
 	case "signal.target.ancestors.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.GID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.GID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.GID = uint32(v)
 		return nil
 	case "signal.target.ancestors.group":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.Group"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = str
+		e.Signal.Target.Ancestor.Process.Credentials.Group = str
 		return nil
 	case "signal.target.ancestors.interpreter.file.change_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.Filesystem = str
 		return nil
 	case "signal.target.ancestors.interpreter.file.gid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.group":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Group = str
 		return nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		if e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
 		}
 		return nil
 	case "signal.target.ancestors.interpreter.file.inode":
@@ -24643,72 +24643,72 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.mode":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.name":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.BasenameStr = str
 		return nil
 	case "signal.target.ancestors.interpreter.file.name.length":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.name.length"}
 	case "signal.target.ancestors.interpreter.file.path":
@@ -24716,20 +24716,20 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.PathnameStr = str
 		return nil
 	case "signal.target.ancestors.interpreter.file.path.length":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.path.length"}
 	case "signal.target.ancestors.interpreter.file.rights":
@@ -24737,50 +24737,50 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.uid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
 		return nil
 	case "signal.target.ancestors.interpreter.file.user":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		e.Signal.Target.Ancestor.Process.LinuxBinprm.FileEvent.FileFields.User = str
 		return nil
 	case "signal.target.ancestors.is_kworker":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		if e.Signal.Target.Ancestor.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.PIDContext.IsKworker"}
 		}
 		return nil
 	case "signal.target.ancestors.is_thread":
@@ -24788,11 +24788,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		var ok bool
-		if e.Signal.Target.Ancestor.ProcessContext.Process.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.IsThread"}
+		if e.Signal.Target.Ancestor.Process.IsThread, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.IsThread"}
 		}
 		return nil
 	case "signal.target.ancestors.pid":
@@ -24800,78 +24800,78 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Pid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.PIDContext.Pid"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(v)
+		e.Signal.Target.Ancestor.Process.PIDContext.Pid = uint32(v)
 		return nil
 	case "signal.target.ancestors.ppid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PPid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.PPid"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.PPid = uint32(v)
+		e.Signal.Target.Ancestor.Process.PPid = uint32(v)
 		return nil
 	case "signal.target.ancestors.tid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Tid"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.PIDContext.Tid"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(v)
+		e.Signal.Target.Ancestor.Process.PIDContext.Tid = uint32(v)
 		return nil
 	case "signal.target.ancestors.tty_name":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.TTYName"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.TTYName"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.TTYName = str
+		e.Signal.Target.Ancestor.Process.TTYName = str
 		return nil
 	case "signal.target.ancestors.uid":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		v, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.UID"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.UID = uint32(v)
+		e.Signal.Target.Ancestor.Process.Credentials.UID = uint32(v)
 		return nil
 	case "signal.target.ancestors.user":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &model.ProcessContext{}
 		}
 		if e.Signal.Target.Ancestor == nil {
-			e.Signal.Target.Ancestor = &model.ProcessCacheEntry{}
+			e.Signal.Target.Ancestor = &model.ProcessContext{}
 		}
 		str, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.User"}
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.Process.Credentials.User"}
 		}
-		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = str
+		e.Signal.Target.Ancestor.Process.Credentials.User = str
 		return nil
 	case "signal.target.args":
 		if e.Signal.Target == nil {

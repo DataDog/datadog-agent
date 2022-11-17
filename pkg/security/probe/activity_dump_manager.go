@@ -279,7 +279,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
+	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessContextCallback(newDump))
 
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
@@ -442,17 +442,17 @@ func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
 	}
 }
 
-// SearchTracedProcessCacheEntryCallback inserts traced pids if necessary
-func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *ActivityDump) func(entry *model.ProcessCacheEntry) {
-	return func(entry *model.ProcessCacheEntry) {
+// SearchTracedProcessContextCallback inserts traced pids if necessary
+func (adm *ActivityDumpManager) SearchTracedProcessContextCallback(ad *ActivityDump) func(entry *model.ProcessContext) {
+	return func(entry *model.ProcessContext) {
 		ad.Lock()
 		defer ad.Unlock()
 
 		// compute the list of ancestors, we need to start inserting them from the root
-		ancestors := []*model.ProcessCacheEntry{entry}
+		ancestors := []*model.ProcessContext{entry}
 		parent := entry.GetNextAncestorNoFork()
 		for parent != nil {
-			ancestors = append([]*model.ProcessCacheEntry{parent}, ancestors...)
+			ancestors = append([]*model.ProcessContext{parent}, ancestors...)
 			parent = parent.GetNextAncestorNoFork()
 		}
 

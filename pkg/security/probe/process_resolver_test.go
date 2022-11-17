@@ -9,28 +9,13 @@
 package probe
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
-
-func testCacheSize(t *testing.T, resolver *ProcessResolver) {
-	err := retry.Do(
-		func() error {
-			if resolver.cacheSize.Load() == 0 {
-				return nil
-			}
-
-			return fmt.Errorf("cache size error: %d", resolver.cacheSize.Load())
-		},
-	)
-	assert.Nil(t, err)
-}
 
 func TestFork1st(t *testing.T) {
 	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
@@ -38,10 +23,10 @@ func TestFork1st(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
@@ -49,7 +34,6 @@ func TestFork1st(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -57,7 +41,6 @@ func TestFork1st(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	resolver.DeleteEntry(child.Pid, time.Now())
@@ -67,8 +50,6 @@ func TestFork1st(t *testing.T) {
 	// nothing
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestFork2nd(t *testing.T) {
@@ -77,10 +58,10 @@ func TestFork2nd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
@@ -88,7 +69,6 @@ func TestFork2nd(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -96,7 +76,6 @@ func TestFork2nd(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -108,8 +87,6 @@ func TestFork2nd(t *testing.T) {
 	// nothing
 	resolver.DeleteEntry(child.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestForkExec(t *testing.T) {
@@ -118,14 +95,14 @@ func TestForkExec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
-	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec := resolver.NewProcessContext(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec.PPid = child.PPid
 	exec.ExecTime = time.Now()
 
@@ -133,7 +110,6 @@ func TestForkExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -141,7 +117,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	//     \ [child] -> exec
@@ -150,7 +125,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> exec
@@ -163,8 +137,6 @@ func TestForkExec(t *testing.T) {
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestOrphanExec(t *testing.T) {
@@ -173,14 +145,14 @@ func TestOrphanExec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
-	exec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec := resolver.NewProcessContext(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec.Pid = child.Pid
 	exec.PPid = child.PPid
 	exec.ExecTime = time.Now()
@@ -189,7 +161,6 @@ func TestOrphanExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -197,7 +168,6 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -213,13 +183,10 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestForkExecExec(t *testing.T) {
@@ -228,18 +195,18 @@ func TestForkExecExec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
-	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec1 := resolver.NewProcessContext(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec1.PPid = child.PPid
 	exec1.ExecTime = time.Now()
 
-	exec2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	exec2 := resolver.NewProcessContext(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	exec2.Pid = child.Pid
 	exec2.PPid = child.PPid
 	exec2.ExecTime = time.Now()
@@ -248,7 +215,6 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -256,7 +222,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -272,7 +237,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec1.Ancestor)
 	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> [exec1] -> exec2
@@ -282,13 +246,10 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, exec1, exec2.Ancestor)
 	assert.Equal(t, child, exec2.Ancestor.Ancestor)
 	assert.Equal(t, parent, exec2.Ancestor.Ancestor.Ancestor)
-	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec2.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestForkReuse(t *testing.T) {
@@ -297,21 +258,21 @@ func TestForkReuse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent1 := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent1.ForkTime = time.Now()
 
-	child1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child1 := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child1.PPid = parent1.Pid
 	child1.ForkTime = time.Now()
 
-	exec1 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child1.Pid, Tid: child1.Pid})
+	exec1 := resolver.NewProcessContext(model.PIDContext{Pid: child1.Pid, Tid: child1.Pid})
 	exec1.PPid = child1.PPid
 	exec1.ExecTime = time.Now()
 
-	parent2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent2 := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent2.ForkTime = time.Now()
 
-	child2 := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 3, Tid: 3})
+	child2 := resolver.NewProcessContext(model.PIDContext{Pid: 3, Tid: 3})
 	child2.PPid = parent2.Pid
 	child2.ForkTime = time.Now()
 
@@ -319,7 +280,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent1)
 	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent1
 	//     \ child1
@@ -327,7 +287,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent1, child1.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent1]
 	//     \ child1
@@ -343,7 +302,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child1, exec1.Ancestor)
 	assert.Equal(t, parent1, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -352,7 +310,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent2)
 	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -363,7 +320,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, parent2, child2.Ancestor)
-	assert.EqualValues(t, 5, resolver.cacheSize.Load())
 
 	// parent2:pid1
 	//     \ child2
@@ -381,8 +337,6 @@ func TestForkReuse(t *testing.T) {
 	// nothing
 	resolver.DeleteEntry(child2.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
 
 func TestForkForkExec(t *testing.T) {
@@ -391,18 +345,18 @@ func TestForkForkExec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	parent := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 1, Tid: 1})
+	parent := resolver.NewProcessContext(model.PIDContext{Pid: 1, Tid: 1})
 	parent.ForkTime = time.Now()
 
-	child := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 2, Tid: 2})
+	child := resolver.NewProcessContext(model.PIDContext{Pid: 2, Tid: 2})
 	child.PPid = parent.Pid
 	child.ForkTime = time.Now()
 
-	grandChild := resolver.NewProcessCacheEntry(model.PIDContext{Pid: 3, Tid: 3})
+	grandChild := resolver.NewProcessContext(model.PIDContext{Pid: 3, Tid: 3})
 	grandChild.PPid = child.Pid
 	grandChild.ForkTime = time.Now()
 
-	childExec := resolver.NewProcessCacheEntry(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
+	childExec := resolver.NewProcessContext(model.PIDContext{Pid: child.Pid, Tid: child.Pid})
 	childExec.Pid = child.Pid
 	childExec.PPid = child.PPid
 	childExec.ExecTime = time.Now()
@@ -456,6 +410,4 @@ func TestForkForkExec(t *testing.T) {
 	// nothing
 	resolver.DeleteEntry(grandChild.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
-
-	testCacheSize(t, resolver)
 }
