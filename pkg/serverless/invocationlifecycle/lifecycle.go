@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -236,7 +235,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString string, startTime t
 	lp.requestHandler.inferredSpans[0] = &inferredspan.InferredSpan{
 		CurrentInvocationStartTime: startTime,
 		Span: &pb.Span{
-			SpanID: random.Random.Uint64(),
+			SpanID: inferredspan.GenerateSpanId(),
 		},
 	}
 	lp.requestHandler.triggerTags = make(map[string]string)
