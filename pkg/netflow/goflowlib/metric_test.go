@@ -384,7 +384,7 @@ func TestConvertMetric(t *testing.T) {
 				Label: []*promClient.LabelPair{
 					{Name: proto.String("remote_ip"), Value: proto.String("1.2.3.4")},
 					{Name: proto.String("local_port"), Value: proto.String("2000")},
-					{Name: proto.String("name"), Value: proto.String("NetFlowV5")},
+					{Name: proto.String("type"), Value: proto.String("NetFlowV5")},
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,
@@ -404,7 +404,7 @@ func TestConvertMetric(t *testing.T) {
 				Label: []*promClient.LabelPair{
 					{Name: proto.String("remote_ip"), Value: proto.String("1.2.3.4")},
 					{Name: proto.String("local_port"), Value: proto.String("2000")},
-					{Name: proto.String("name"), Value: proto.String("NetFlowV5")},
+					{Name: proto.String("type"), Value: proto.String("NetFlowV5")},
 				},
 			},
 			expectedMetricType: metrics.MonotonicCountType,

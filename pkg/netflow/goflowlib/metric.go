@@ -86,26 +86,26 @@ var metricNameMapping = map[string]mappedMetric{
 	},
 	"flow_traffic_bytes": {
 		name:           "traffic.bytes",
-		allowedTagKeys: []string{"local_port", "remote_ip", "name"},
+		allowedTagKeys: []string{"local_port", "remote_ip", "type"},
 		keyRemapper: map[string]string{
 			"local_port": "listener_port",
 			"remote_ip":  "device_ip",
-			"name":       "collector_type",
+			"type":       "collector_type",
 		},
 		valueRemapper: map[string]remapperType{
-			"name": remapCollectorType,
+			"type": remapCollectorType,
 		},
 	},
 	"flow_traffic_packets": {
 		name:           "traffic.packets",
-		allowedTagKeys: []string{"local_port", "remote_ip", "name"},
+		allowedTagKeys: []string{"local_port", "remote_ip", "type"},
 		keyRemapper: map[string]string{
 			"local_port": "listener_port",
 			"remote_ip":  "device_ip",
-			"name":       "collector_type",
+			"type":       "collector_type",
 		},
 		valueRemapper: map[string]remapperType{
-			"name": remapCollectorType,
+			"type": remapCollectorType,
 		},
 	},
 	"flow_process_sf_count": {
