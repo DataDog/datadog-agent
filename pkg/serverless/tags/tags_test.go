@@ -271,6 +271,31 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	})
 }
 
+func TestAddSnapStartTagWithoutSnapStart(t *testing.T) {
+	generatedTags := AddSnapStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"snap_start:false",
+	})
+}
+
+func TestAddSnapStartTagWithSnapStart(t *testing.T) {
+	t.Setenv(InitType, SnapStartValue)
+	generatedTags := AddSnapStartTag([]string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+	})
+	assert.Equal(t, generatedTags, []string{
+		"myTagName0:myTagValue0",
+		"myTagName1:myTagValue1",
+		"snap_start:true",
+	})
+}
+
 func TestBuildTagMapWithRuntimeAndMemoryTag(t *testing.T) {
 	t.Setenv("AWS_LAMBDA_FUNCTION_VERSION", "888")
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_Lambda_java")

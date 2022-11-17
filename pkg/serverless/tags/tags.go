@@ -26,6 +26,7 @@ const (
 	qualifierEnvVar = "AWS_LAMBDA_FUNCTION_VERSION"
 	runtimeVar      = "AWS_EXECUTION_ENV"
 	memorySizeVar   = "AWS_LAMBDA_FUNCTION_MEMORY_SIZE"
+	InitType        = "AWS_LAMBDA_INITIALIZATION_TYPE"
 
 	// FunctionARNKey is the tag key for a function's arn
 	FunctionARNKey = "function_arn"
@@ -46,6 +47,9 @@ const (
 	VersionKey = "version"
 	// ServiceKey is the tag key for a function's service environment variable
 	ServiceKey = "service"
+
+	// SnapStartValue is the Lambda init type env var value indicating SnapStart initialized the function
+	SnapStartValue = "snap-start"
 
 	traceOriginMetadataKey   = "_dd.origin"
 	traceOriginMetadataValue = "lambda"
@@ -155,6 +159,12 @@ func BuildTracerTags(tags map[string]string) map[string]string {
 // AddColdStartTag appends the cold_start tag to existing tags
 func AddColdStartTag(tags []string, coldStart bool) []string {
 	tags = append(tags, fmt.Sprintf("cold_start:%v", coldStart))
+	return tags
+}
+
+// AddSnapStartTag appends the snap_start tag to existing tags
+func AddSnapStartTag(tags []string) []string {
+	tags = append(tags, fmt.Sprintf("snap_start:%v", fmt.Sprint(os.Getenv(InitType) == SnapStartValue)))
 	return tags
 }
 
