@@ -76,15 +76,15 @@ func (m *Module) Register(_ *module.Router) error {
 // Init initializes the module
 func (m *Module) Init() error {
 	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.config.SocketPath)
+	//os.Remove(m.config.SocketPath)
 
-	ln, err := net.Listen("unix", m.config.SocketPath)
+	ln, err := net.Listen("tcp", ":9000")
 	if err != nil {
 		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
-	if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
-		return fmt.Errorf("unable to register security runtime module: %w", err)
-	}
+	// if err := os.Chmod(m.config.SocketPath, 0700); err != nil {
+	// 	return fmt.Errorf("unable to register security runtime module: %w", err)
+	// }
 
 	m.listener = ln
 
