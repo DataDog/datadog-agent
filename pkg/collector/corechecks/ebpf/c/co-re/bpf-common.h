@@ -14,7 +14,8 @@ static __always_inline int get_cgroup_name(char *buf, size_t sz) {
 
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
 
-    if (BPF_CORE_READ_STR_INTO(buf, cur_tsk, cgroups, subsys[0], cgroup, kn, name)) {
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[0], cgroup, kn, name);
+    if (bpf_probe_read_kernel_str(buf, sz, name) < 0) {
         return -1;
     }
 
