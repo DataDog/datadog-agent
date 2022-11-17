@@ -110,6 +110,11 @@ system-probe-msg.h
 *.ninja
 *.d
 
+# Security agent artifacts
+cmd/security-agent/windows_resources/security-agent-msg.rc
+cmd/security-agent/windows_resources/*.bin
+security-agent-msg.h
+
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
 cmd/dogstatsd/windows_resources/*.bin
