@@ -150,7 +150,6 @@ trace_functions=(
     "trace-proxy"
 )
 appsec_functions=(
-    "appsec-go"
     "appsec-java"
     "appsec-csharp"
 )

@@ -402,20 +402,6 @@ functions:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
-  appsec-go:
-    runtime: provided.al2
-    package:
-      individually: true
-      patterns:
-        - src/bin/trace
-    handler: src/bin/trace
-    layers:
-      - { Ref: RecorderExtensionLambdaLayer }
-      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
-    environment:
-      DD_SERVERLESS_APPSEC_ENABLED: true
-      DD_UNIVERSAL_INSTRUMENTATION: true
-
   appsec-csharp:
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
