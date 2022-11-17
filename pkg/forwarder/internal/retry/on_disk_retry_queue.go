@@ -237,6 +237,7 @@ func (s *onDiskRetryQueue) getExistingRetryFiles() ([]os.FileInfo, int64, error)
 	for _, entry := range entries {
 		info, err := entry.Info()
 		if err != nil {
+			log.Warn("Can't get file info", err)
 			continue
 		}
 
