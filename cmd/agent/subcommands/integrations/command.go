@@ -281,29 +281,31 @@ func getCommandPython(cliParams *cliParams) (string, error) {
 	return pyPath, nil
 }
 
-func validateArgs(args []string, local bool) error {
+// Ensures a single argument is given and that it's valid as a package in the given context
+func validateArgs(args []string, local bool) (string, error) {
 	if len(args) > 1 {
-		return fmt.Errorf("Too many arguments")
+		return "", fmt.Errorf("Too many arguments")
 	} else if len(args) == 0 {
-		return fmt.Errorf("Missing package argument")
+		return "", fmt.Errorf("Missing package argument")
 	}
+
+	packageName := args[0]
 
 	if !local {
-		if !datadogPkgNameRe.MatchString(args[0]) {
-			return fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", args[0])
+		if !datadogPkgNameRe.MatchString(packageName) {
+			return "", fmt.Errorf("invalid package name - this manager only handles datadog packages. Did you mean `datadog-%s`?", packageName)
 		}
-	} else {
-		// Validate the wheel we try to install exists
-		if _, err := os.Stat(args[0]); err == nil {
-			return nil
-		} else if os.IsNotExist(err) {
-			return fmt.Errorf("local wheel %s does not exist", args[0])
+	} else
+	// Validate the wheel we try to install exists
+	if _, err := os.Stat(packageName); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("local wheel %s does not exist", packageName)
 		} else {
-			return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
+			return "", fmt.Errorf("cannot read local wheel %s: %v", packageName, err)
 		}
 	}
 
-	return nil
+	return packageName, nil
 }
 
 func pip(pythonPath string, verbose int, cmd string, args []string, stdout io.Writer, stderr io.Writer, newCommand commandConstructor) error {
@@ -375,8 +377,8 @@ func install(config config.Component, cliParams *cliParams) error {
 	if err != nil {
 		return err
 	}
-
-	if err := validateArgs(cliParams.args, cliParams.localWheel); err != nil {
+	pkgName, err := validateArgs(cliParams.args, cliParams.localWheel)
+	if err != nil {
 		return err
 	}
 
@@ -395,7 +397,7 @@ func install(config config.Component, cliParams *cliParams) error {
 		// Specific case when installing from locally available wheel
 		// No compatibility verifications are performed, just install the wheel (with --no-deps still)
 		// Verify that the wheel depends on `datadog-checks-base` to decide if it's an agent check or not
-		wheelPath := cliParams.args[0]
+		wheelPath := pkgName
 
 		fmt.Println(disclaimer)
 		if ok, err := validateBaseDependency(wheelPath, nil); err != nil {
@@ -434,11 +436,11 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Additional verification for installation
-	if len(strings.Split(cliParams.args[0], "==")) != 2 {
+	if len(strings.Split(pkgName, "==")) != 2 {
 		return fmt.Errorf("you must specify a version to install with <package>==<version>")
 	}
 
-	intVer := strings.Split(cliParams.args[0], "==")
+	intVer := strings.Split(pkgName, "==")
 	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
 		return fmt.Errorf("this command does not allow installing datadog-checks-base")
@@ -883,14 +885,15 @@ func remove(config config.Component, cliParams *cliParams) error {
 		return err
 	}
 
-	if err := validateArgs(cliParams.args, false); err != nil {
+	pkgName, err := validateArgs(cliParams.args, false)
+	if err != nil {
 		return err
 	}
 
 	pipArgs := []string{
 		"--no-cache-dir",
 	}
-	pipArgs = append(pipArgs, cliParams.args...)
+	pipArgs = append(pipArgs, pkgName)
 	pipArgs = append(pipArgs, "-y")
 
 	pythonPath, err := getCommandPython(cliParams)
@@ -935,10 +938,11 @@ func show(config config.Component, cliParams *cliParams) error {
 		return err
 	}
 
-	if err := validateArgs(cliParams.args, false); err != nil {
+	packageName, err := validateArgs(cliParams.args, false)
+	if err != nil {
 		return err
 	}
-	packageName := normalizePackageName(cliParams.args[0])
+	packageName = normalizePackageName(packageName)
 
 	version, found, err := installedVersion(cliParams, packageName)
 	if err != nil {
