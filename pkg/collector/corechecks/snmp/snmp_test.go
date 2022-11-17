@@ -1645,6 +1645,9 @@ metric_tags:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+
+	chk.Cancel()
+	assert.Nil(t, chk.discovery)
 }
 
 func TestDiscovery_CheckError(t *testing.T) {

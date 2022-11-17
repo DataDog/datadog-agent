@@ -156,6 +156,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 func (c *Check) Cancel() {
 	if c.discovery != nil {
 		c.discovery.Stop()
+		c.discovery = nil
 	}
 }
 
