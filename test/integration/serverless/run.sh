@@ -149,12 +149,8 @@ trace_functions=(
     "trace-csharp"
     "trace-proxy"
 )
-appsec_functions=(
-    "appsec-java"
-    "appsec-csharp"
-)
 
-all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
