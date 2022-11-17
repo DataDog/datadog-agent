@@ -194,8 +194,8 @@ type Cache struct {
 	// verb           string
 	// headerLength   uint32
 	// contentLength  uint32
-	expirationTime uint64
-	reqRespBound   bool
+	// expirationTime uint64
+	reqRespBound bool
 }
 
 type HttpCache struct {
@@ -358,6 +358,12 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 	completedRequestCount++
 
+	if !captureHTTP && !connOpen.ssl {
+		if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
+			log.Infof("Dropping HTTP connection")
+		}
+		return
+	}
 	if !captureHTTPS && connOpen.ssl {
 		if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 			log.Infof("Dropping HTTPS connection")
@@ -753,7 +759,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 	if urlOffset > len(userData) {
 		parsingErrorCount++
 
-		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find begining of Url\n\n",
+		log.Errorf("*** Error: ActivityId:%v. Connection ActivityId:%v. HTTPRequestTraceTaskDeliver could not find beginning of Url\n\n",
 			etw.FormatGuid(eventInfo.Event.ActivityId), etw.FormatGuid(httpConnLink.connActivityId))
 
 		// If problem stop tracking this
@@ -1287,7 +1293,6 @@ func SetMaxRequestBytes(maxRequestBytes uint64) {
 }
 
 func SetEnabledProtocols(http, https bool) {
-	captureHTTP = http
 	captureHTTPS = https
 }
 func (hei *httpEtwInterface) OnStart() {

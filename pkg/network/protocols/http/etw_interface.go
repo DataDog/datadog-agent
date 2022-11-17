@@ -30,6 +30,7 @@ func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
 		dataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableHTTPSMonitoring,
+		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
 
@@ -110,18 +111,6 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 			time.Sleep(3 * time.Second)
 		}
 	}()
-}
-
-func (hei *httpEtwInterface) getHttpFlows() []WinHttpTransaction {
-	hei.eventLoopWG.Add(1)
-	defer hei.eventLoopWG.Done()
-
-	httpTxs, _ := ReadHttpTx()
-	return httpTxs
-}
-
-func (hei *httpEtwInterface) getStats() (map[string]int64, error) {
-	return nil, nil
 }
 
 func (hei *httpEtwInterface) close() {
