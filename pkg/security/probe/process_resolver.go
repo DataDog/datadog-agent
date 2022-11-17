@@ -271,49 +271,34 @@ func (p *ProcessResolver) SendStats() error {
 }
 
 type argsEnvsCacheEntry struct {
-	values    []byte
+	values    []string
 	truncated bool
-	indices   []int
+}
+
+func parseStringArray(data []byte) ([]string, bool) {
+	truncated := false
+	values, err := model.UnmarshalStringArray(data)
+	if err != nil || len(data) == model.MaxArgEnvSize {
+		values[len(values)-1] += "..."
+		truncated = true
+	}
+	return values, truncated
 }
 
 func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) *argsEnvsCacheEntry {
-	values := make([]byte, event.Size)
-	copy(values, event.ValuesRaw[:event.Size])
-
+	values, truncated := parseStringArray(event.ValuesRaw[:event.Size])
 	return &argsEnvsCacheEntry{
 		values:    values,
-		truncated: event.Size == model.MaxArgEnvSize,
-		indices:   []int{0},
+		truncated: truncated,
 	}
 }
 
 func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
-	e.indices = append(e.indices, len(e.values))
-	e.values = append(e.values, event.ValuesRaw[:event.Size]...)
-	if event.Size == model.MaxArgEnvSize {
+	values, truncated := parseStringArray(event.ValuesRaw[:event.Size])
+	if truncated {
 		e.truncated = true
 	}
-}
-
-func (e *argsEnvsCacheEntry) toArray() ([]string, bool) {
-	truncated := e.truncated
-	var totalValues []string
-
-	for i, begin := range e.indices {
-		end := len(e.values)
-		if i+1 < len(e.indices) {
-			end = e.indices[i+1]
-		}
-
-		values, err := model.UnmarshalStringArray(e.values[begin:end])
-		if err != nil && len(values) != 0 {
-			values[len(values)-1] += "..."
-			truncated = true
-		}
-		totalValues = append(totalValues, values...)
-	}
-
-	return totalValues, truncated
+	e.values = append(e.values, values...)
 }
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
@@ -826,12 +811,11 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 			p.argsTruncated.Inc()
 		}
 
-		values, truncated := entry.toArray()
-		p.argsSize.Add(int64(len(values)))
+		p.argsSize.Add(int64(len(entry.values)))
 
 		pce.ArgsEntry = &model.ArgsEntry{
-			Values:    values,
-			Truncated: truncated,
+			Values:    entry.values,
+			Truncated: entry.truncated,
 		}
 
 		// no need to keep it in LRU now as attached to a process
@@ -893,12 +877,11 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 			p.envsTruncated.Inc()
 		}
 
-		values, truncated := entry.toArray()
-		p.envsSize.Add(int64(len(values)))
+		p.envsSize.Add(int64(len(entry.values)))
 
 		pce.EnvsEntry = &model.EnvsEntry{
-			Values:    values,
-			Truncated: truncated,
+			Values:    entry.values,
+			Truncated: entry.truncated,
 		}
 
 		// no need to keep it in LRU now as attached to a process
