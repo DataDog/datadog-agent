@@ -1370,8 +1370,9 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":            {},
-		"DD_DOTNET_TRACER_HOME": {},
+		"DD_SERVICE":                   {},
+		"DD_DOTNET_TRACER_HOME":        {},
+		"DD_SERVERLESS_APPSEC_ENABLED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}
