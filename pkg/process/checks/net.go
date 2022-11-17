@@ -50,9 +50,10 @@ type ConnectionsCheck struct {
 	notInitializedLogLimit *putil.LogLimit
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
-	lastConnsByPID *atomic.Value
-	probe          procutil.Probe
-	dockerFilter   *parser.DockerProxy
+	lastConnsByPID   *atomic.Value
+	probe            procutil.Probe
+	dockerFilter     *parser.DockerProxy
+	serviceExtractor *parser.ServiceExtractor
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -84,6 +85,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	}
 	c.networkID = networkID
 	c.dockerFilter = parser.NewDockerProxy()
+	c.serviceExtractor = parser.NewServiceExtractor()
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -119,6 +121,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	} else {
 		for _, p := range procs {
 			c.dockerFilter.Extract(p)
+			c.serviceExtractor.Extract(p)
 		}
 		c.dockerFilter.Filter(conns)
 	}
@@ -128,7 +131,8 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap,
+		conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -268,6 +272,7 @@ func batchConnections(
 	routes []*model.Route,
 	tags []string,
 	agentCfg *model.AgentConfiguration,
+	serviceExtractor *parser.ServiceExtractor,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -315,9 +320,12 @@ func batchConnections(
 
 			// tags remap
 			if len(c.Tags) > 0 {
-				var tagsStr []string
+				tagsStr := make([]string, 0, len(c.Tags)+1)
 				for _, t := range c.Tags {
 					tagsStr = append(tagsStr, tags[t])
+				}
+				if serviceTag := serviceExtractor.GetServiceTag(c.Pid); serviceTag != "" {
+					tagsStr = append(tagsStr, serviceTag)
 				}
 				c.Tags = nil
 				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
