@@ -160,9 +160,9 @@ func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
 func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {
-		fragments := strings.Split(ev.ResolveXAttrName(e), ".")
-		if len(fragments) > 0 {
-			e.Namespace = fragments[0]
+		ns, _, found := strings.Cut(ev.ResolveXAttrName(e), ".")
+		if found {
+			e.Namespace = ns
 		}
 	}
 	return e.Namespace
