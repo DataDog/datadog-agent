@@ -9,6 +9,8 @@ using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
 {
+    public delegate string RegistryPropertyHandler(ISession session);
+
     public class UserCustomActions
     {
         public static string GetRandomPassword(int length)
@@ -47,79 +49,72 @@ namespace Datadog.CustomActions
             return Environment.MachineName;
         }
 
+        private static void RegistryProperty(ISession session, string propertyName, RegistryPropertyHandler handler)
+        {
+            // If session[propertyName] has a value it is used
+            // else handler is invoked, and if a value is returned session[propertyName] is set to it
+            if (string.IsNullOrEmpty(session[propertyName]))
+            {
+                try
+                {
+                    var propertyVal = handler(session);
+                    if (!string.IsNullOrEmpty(propertyVal)) {
+                        session[propertyName] = propertyVal;
+                        session.Log($"Found {propertyName} in registry {session[propertyName]}");
+                    }
+                }
+                catch { }
+            }
+            else
+            {
+                session.Log($"User provided {propertyName} {session[propertyName]}");
+            }
+        }
+
+        private static void RegistryValueProperty(ISession session, string propertyName, Microsoft.Win32.RegistryKey registryKey, string registryValue)
+        {
+            // Convenience wrapper of RegistryProperty for properties that have an exact 1:1 mapping to a registry value
+            // and don't require additional processing.
+            RegistryProperty(session, propertyName,
+                RegistryPropertyHandler =>
+                {
+                    return registryKey.GetValue(registryValue).ToString();
+                });
+        }
+
         private static ActionResult ReadRegistryProperties(ISession session)
         {
             // This CA runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
-            // For UI installs it ensures that the agent user dialog is pre-populated with registry
-            // creds if applicable.
             try
             {
-                // DDAGENTUSER_NAME
-                //
-                // The user account can be provided to the installer by
-                // * The registry
-                // * The command line
-                // * The agent user dialog
-                // The user account domain and name are stored separetely in the registry
-                // but are passed together on the command line and the agent user dialog.
-                // This function will combine the registry properties if they exist.
-                // Preference is given to creds provided on the command line and the agent user dialog.
-                if (string.IsNullOrEmpty(session["DDAGENTUSER_NAME"]))
-                {
-                    try
-                    {
-                        var domain = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
-                            .GetValue("installedDomain")
-                            .ToString();
-                        var user = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
-                            .GetValue("installedUser")
-                            .ToString();
-                        if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user)) {
-                            session["DDAGENTUSER_NAME"] = $"{domain}\\{user}";
-                            session.Log($"Found creds in registry {session["DDAGENTUSER_NAME"]}");
-                        }
-                    }
-                    catch { }
-                }
-                else
-                {
-                    session.Log($"User provided DDAGENTUSER_NAME {session["DDAGENTUSER_NAME"]}");
-                }
+                using (var subkey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")) {
+                    // DDAGENTUSER_NAME
+                    //
+                    // The user account can be provided to the installer by
+                    // * The registry
+                    // * The command line
+                    // * The agent user dialog
+                    // The user account domain and name are stored separetely in the registry
+                    // but are passed together on the command line and the agent user dialog.
+                    // This function will combine the registry properties if they exist.
+                    // Preference is given to creds provided on the command line and the agent user dialog.
+                    // For UI installs it ensures that the agent user dialog is pre-populated.
+                    RegistryProperty(session, "DDAGENTUSER_NAME",
+                        RegistryPropertyHandler =>
+                        {
+                            var domain = subkey.GetValue("installedDomain").ToString();
+                            var user = subkey.GetValue("installedUser").ToString();
+                            if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user)) {
+                                return $"{domain}\\{user}";
+                            }
+                            return "";
+                        });
 
-                // PROJECTLOCATION
-                //
-                if (string.IsNullOrEmpty(session["PROJECTLOCATION"]))
-                {
-                    try
-                    {
-                        session["PROJECTLOCATION"] = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
-                            .GetValue("InstallPath")
-                            .ToString();
-                        session.Log($"Found PROJECTLOCATION in registry {session["PROJECTLOCATION"]}");
-                    }
-                    catch {  }
-                }
-                else
-                {
-                    session.Log($"User provided PROJECTLOCATION {session["PROJECTLOCATION"]}");
-                }
+                    // PROJECTLOCATION
+                    RegistryValueProperty(session, "PROJECTLOCATION", subkey, "InstallPath");
 
-                // APPLICATIONDATADIRECTORY
-                //
-                if (string.IsNullOrEmpty(session["APPLICATIONDATADIRECTORY"]))
-                {
-                    try
-                    {
-                        session["APPLICATIONDATADIRECTORY"] = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent")
-                            .GetValue("ConfigRoot")
-                            .ToString();
-                        session.Log($"Found APPLICATIONDATADIRECTORY in registry {session["APPLICATIONDATADIRECTORY"]}");
-                    }
-                    catch {  }
-                }
-                else
-                {
-                    session.Log($"User provided APPLICATIONDATADIRECTORY {session["APPLICATIONDATADIRECTORY"]}");
+                    // APPLICATIONDATADIRECTORY
+                    RegistryValueProperty(session, "APPLICATIONDATADIRECTORY", subkey, "ConfigRoot");
                 }
             }
             catch (Exception e)
