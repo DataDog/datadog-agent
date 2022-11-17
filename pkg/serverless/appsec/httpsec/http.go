@@ -110,7 +110,7 @@ func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 
 	default:
 		if event == nil {
-			log.Debugf("appsec: ignoring unsupported lamdba event", event)
+			log.Debug("appsec: ignoring unsupported lamdba event")
 		} else {
 			log.Debugf("appsec: ignoring unsupported lamdba event type %T", event)
 		}
