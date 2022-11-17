@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -116,84 +115,9 @@ type ProcessResolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU
 
-	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
 
 	exitedQueue []uint32
-}
-
-// ArgsEnvsPool defines a pool for args/envs allocations
-type ArgsEnvsPool struct {
-	lock sync.RWMutex
-	pool *sync.Pool
-
-	// entries that wont be release to the pool
-	maxResidents   int
-	totalResidents int
-	freeResidents  *list.List
-}
-
-// Get returns a cache entry
-func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-
-	// first try from resident pool
-	if el := a.freeResidents.Front(); el != nil {
-		entry := el.Value.(*model.ArgsEnvsCacheEntry)
-		a.freeResidents.Remove(el)
-		return entry
-	}
-
-	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
-}
-
-// GetFrom returns a new entry with value from the given entry
-func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-
-	entry := a.Get()
-
-	entry.Size = event.ArgsEnvs.Size
-	entry.ValuesRaw = make([]byte, entry.Size)
-	copy(entry.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
-
-	return entry
-}
-
-// Put returns a cache entry to the pool
-func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	if entry.Container != nil {
-		// from the residents list
-		a.freeResidents.MoveToBack(entry.Container)
-	} else if a.totalResidents < a.maxResidents {
-		// still some places so we can create a new node
-		entry.Container = &list.Element{Value: entry}
-		a.totalResidents++
-
-		a.freeResidents.MoveToBack(entry.Container)
-	} else {
-		a.pool.Put(entry)
-	}
-}
-
-// NewArgsEnvsPool returns a new ArgsEnvEntry pool
-func NewArgsEnvsPool(maxResident int) *ArgsEnvsPool {
-	ap := ArgsEnvsPool{
-		pool:          &sync.Pool{},
-		maxResidents:  maxResident,
-		freeResidents: list.New(),
-	}
-
-	ap.pool.New = func() interface{} {
-		return model.NewArgsEnvsCacheEntry(ap.Put)
-	}
-
-	return &ap
 }
 
 // ProcessCacheEntryPool defines a pool for process entry allocations
@@ -220,13 +144,6 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
 			if pce.Ancestor != nil {
 				pce.Ancestor.Release()
-			}
-
-			if pce.ArgsEntry != nil && pce.ArgsEntry.ArgsEnvsCacheEntry != nil {
-				pce.ArgsEntry.ArgsEnvsCacheEntry.Release()
-			}
-			if pce.EnvsEntry != nil && pce.EnvsEntry.ArgsEnvsCacheEntry != nil {
-				pce.EnvsEntry.ArgsEnvsCacheEntry.Release()
 			}
 
 			p.cacheSize.Dec()
@@ -1288,7 +1205,6 @@ func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolver
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
 		state:          atomic.NewInt64(snapshotting),
-		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),
 		missStats:      atomic.NewInt64(0),
