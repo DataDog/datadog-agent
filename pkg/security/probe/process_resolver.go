@@ -48,7 +48,6 @@ const (
 
 const (
 	procResolveMaxDepth = 16
-	maxArgsEnvResidents = 1024
 	maxParallelArgsEnvs = 512 // == number of parallel starting processes
 )
 
