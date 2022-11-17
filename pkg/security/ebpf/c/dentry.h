@@ -9,6 +9,7 @@
 #include "defs.h"
 #include "filters.h"
 
+#define TMPFS_MAGIC 0x01021994
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
@@ -62,6 +63,11 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
     return get_vfsmount_mount_id(mnt);
 }
 
+int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
+    struct vfsmount *mnt;
+    bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
+    return mnt->mnt_flags;
+}
 
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
     int mount_id;
@@ -187,6 +193,20 @@ void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void 
     bpf_probe_read_str(buffer, n, (void *)qstr.name);
 }
 
+int __attribute__((always_inline)) get_sizeof_inode() {
+    u64 sizeof_inode;
+    LOAD_CONSTANT("sizeof_inode", sizeof_inode);
+
+    return sizeof_inode;
+}
+
+int __attribute__((always_inline)) get_sb_magic_offset() {
+    u64 offset;
+    LOAD_CONSTANT("sb_magic_offset", offset);
+
+    return offset;
+}
+
 #define get_dentry_key_path(dentry, path) (struct path_key_t) { .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) }
 #define get_inode_key_path(inode, path) (struct path_key_t) { .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) }
 
@@ -202,6 +222,18 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     if (is_overlayfs(dentry)) {
         set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
     }
+}
+
+static __attribute__((always_inline)) int get_sb_magic(struct super_block *sb) {
+    u64 magic;
+    bpf_probe_read(&magic, sizeof(magic), (char *)sb + get_sb_magic_offset());
+
+    return magic;
+}
+
+static __attribute__((always_inline)) int is_tmpfs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == TMPFS_MAGIC;
 }
 
 #endif
