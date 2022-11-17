@@ -9,7 +9,10 @@ using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
 {
-    public delegate string RegistryPropertyHandler(ISession session);
+    /// <summary>
+    /// Fetch and process registry value(s) and return a string to be assigned to a WIX property.
+    /// </summary>
+    using GetRegistryPropertyHandler = Func<ISession, string>;
 
     public class UserCustomActions
     {
@@ -21,15 +24,21 @@ namespace Datadog.CustomActions
             return Convert.ToBase64String(rgb);
         }
 
+        /// <summary>
+        /// Determine the default 'domain' part of a user account name when one is not provided by the user.
+        /// </summary>
+        ///
+        /// <remarks>
+        /// We default to creating a local account if the domain
+        /// part is not specified in DDAGENTUSER_NAME.
+        /// However, domain controllers do not have local accounts, so we must
+        /// default to a domain account.
+        /// We still want to default to local accounts for domain clients
+        /// though, so it is not enough to check if the computer is domain joined,
+        /// we must specifically check if this computer is a domain controller.
+        /// </remarks>
         private static string GetDefaultDomainPart()
         {
-            // We default to creating a local account if the domain
-            // part is not specified in DDAGENTUSER_NAME.
-            // However, domain controllers do not have local accounts, so we must
-            // default to a domain account.
-            // We still want to default to local accounts for domain clients
-            // though, so we must also check if this computer is a domain controller
-            // for this domain.
             try
             {
                 var serverInfo = NetServerGetInfo<SERVER_INFO_101>();
@@ -49,10 +58,12 @@ namespace Datadog.CustomActions
             return Environment.MachineName;
         }
 
-        private static void RegistryProperty(ISession session, string propertyName, RegistryPropertyHandler handler)
+        /// <summary>
+        /// If the WIX property <c>propertyName</c> does not have a value, assign it the value returned by <c>handler</c>.
+        /// This gives precedence to properties provided on the command line over the registry values.
+        /// </summary>
+        private static void RegistryProperty(ISession session, string propertyName, GetRegistryPropertyHandler handler)
         {
-            // If session[propertyName] has a value it is used
-            // else handler is invoked, and if a value is returned session[propertyName] is set to it
             if (string.IsNullOrEmpty(session[propertyName]))
             {
                 try
@@ -71,20 +82,27 @@ namespace Datadog.CustomActions
             }
         }
 
+        /// <summary>
+        /// Convenience wrapper of <c>RegistryProperty</c> for properties that have an exact 1:1 mapping to a registry value
+        /// and don't require additional processing.
+        /// </summary>
         private static void RegistryValueProperty(ISession session, string propertyName, Microsoft.Win32.RegistryKey registryKey, string registryValue)
         {
-            // Convenience wrapper of RegistryProperty for properties that have an exact 1:1 mapping to a registry value
-            // and don't require additional processing.
             RegistryProperty(session, propertyName,
-                RegistryPropertyHandler =>
+                GetRegistryPropertyHandler =>
                 {
                     return registryKey.GetValue(registryValue).ToString();
                 });
         }
 
+        /// <summary>
+        /// Assigns WIX properties that were not provided by the user to their registry values.
+        /// </summary>
+        /// <remarks>
+        /// Custom Action that runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
+        /// </remarks>
         private static ActionResult ReadRegistryProperties(ISession session)
         {
-            // This CA runs (only once) in either the InstallUISequence or the InstallExecuteSequence.
             try
             {
                 using (var subkey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
@@ -103,7 +121,7 @@ namespace Datadog.CustomActions
                         // Preference is given to creds provided on the command line and the agent user dialog.
                         // For UI installs it ensures that the agent user dialog is pre-populated.
                         RegistryProperty(session, "DDAGENTUSER_NAME",
-                            RegistryPropertyHandler =>
+                            GetRegistryPropertyHandler =>
                             {
                                 var domain = subkey.GetValue("installedDomain").ToString();
                                 var user = subkey.GetValue("installedUser").ToString();
