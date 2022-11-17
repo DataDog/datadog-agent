@@ -690,5 +690,5 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
-	assert.Equal(t, uint64(1), deviceCk.sessionCloseError.Load())
+	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
 }
