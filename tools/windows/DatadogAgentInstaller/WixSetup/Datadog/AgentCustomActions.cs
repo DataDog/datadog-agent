@@ -19,34 +19,44 @@ namespace WixSetup.Datadog
 
         public AgentCustomActions()
         {
+            ReadRegistryProperties = new CustomAction<UserCustomActions>(
+                    new Id("ReadRegistryProperties"),
+                    UserCustomActions.ReadRegistryProperties,
+                    Return.ignore,
+                    // AppSearch is when RegistrySearch is run, so that will overwrite
+                    // any command line values.
+                    // Prefer using our CA over RegsitrySearch.
+                    // It is executed on the Welcome screen of the installer.
+                    When.After,
+                    Step.AppSearch,
+                    Condition.NOT_BeingRemoved,
+                    // Run in either sequence so our CA is also run in non-UI installs
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
+                )
+                {
+                    // Ensure we only run in one sequence
+                    Execute = Execute.firstSequence
+                };
+
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
                     new Id("ReadConfigCustomAction"),
                     ConfigCustomActions.ReadConfig,
                     Return.ignore,
+                    // Must execute after ReadRegistryProperties since we depend
+                    // on APPLICATIONDATADIRECTORY being set.
                     When.After,
-                    Step.AppSearch,
+                    new Step(ReadRegistryProperties.Name),
                     Condition.NOT_BeingRemoved,
+                    // Run in either sequence so our CA is also run in non-UI installs
                     Sequence.InstallExecuteSequence | Sequence.InstallUISequence
                 )
                 {
+                    // Ensure we only run in one sequence
                     Execute = Execute.firstSequence
                 }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
-
-            ReadRegistryProperties = new CustomAction<UserCustomActions>(
-                    new Id("ReadRegistryProperties"),
-                    UserCustomActions.ReadRegistryProperties,
-                    Return.ignore,
-                    When.After,
-                    Step.AppSearch,
-                    Condition.NOT_BeingRemoved,
-                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
-                )
-                {
-                    Execute = Execute.firstSequence
-                };
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
                     new Id("WriteConfigCustomAction"),
