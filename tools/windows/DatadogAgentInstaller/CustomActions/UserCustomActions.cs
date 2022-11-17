@@ -177,6 +177,8 @@ namespace Datadog.CustomActions
                     domain = GetDefaultDomainPart();
                 }
                 session.Log($"Installing with DDAGENTUSER_USERNAME={userName} and DDAGENTUSER_DOMAIN={domain}");
+                // Create new DDAGENTUSER_USERNAME property so we don't modify the property containing
+                // the user provided value DDAGENTUSER_NAME
                 session["DDAGENTUSER_USERNAME"] = userName;
                 session["DDAGENTUSER_DOMAIN"] = domain;
                 session["DDAGENTUSER_FQ_NAME"] = $"{domain}\\{userName}";
