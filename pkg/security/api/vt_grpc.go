@@ -17,6 +17,7 @@ package api
 import (
 	fmt "fmt"
 
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -61,4 +62,8 @@ func (MaybeVTCodec) Unmarshal(data []byte, v interface{}) error {
 // Name returns the name of the codec
 func (MaybeVTCodec) Name() string {
 	return codecName
+}
+
+func RegisterVTCodec() {
+	encoding.RegisterCodec(MaybeVTCodec{})
 }

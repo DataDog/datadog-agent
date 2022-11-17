@@ -106,6 +106,7 @@ func (m *Module) Init() error {
 	}()
 
 	// start api server
+	sapi.RegisterVTCodec()
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
