@@ -210,12 +210,12 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	metrics := definition.Metrics
 	metricTags := definition.MetricTags
 
-	c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags)
+	c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags, c.CollectTopology)
 	return nil
 }
 
-func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig) {
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(metadata)
+func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig, collectTopology bool) {
+	c.Metadata = updateMetadataDefinitionWithDefaults(metadata, collectTopology)
 	c.Metrics = append(c.Metrics, metrics...)
 	c.MetricTags = append(c.MetricTags, metricTags...)
 

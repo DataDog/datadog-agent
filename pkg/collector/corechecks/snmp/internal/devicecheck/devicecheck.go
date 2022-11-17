@@ -239,7 +239,7 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 			}
 			log.Warnf("available metrics: %v", metrics)
 			d.config.Metrics = []checkconfig.MetricsConfig{}
-			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil)
+			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil, d.config.CollectTopology)
 		}
 	}
 	return nil
