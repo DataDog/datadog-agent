@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"go.uber.org/fx"
 
@@ -305,32 +306,31 @@ func validateArgs(args []string, local bool) error {
 	return nil
 }
 
-func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer) error {
-	pythonPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return err
-	}
-
-	cmd := args[0]
-	implicitFlags := args[1:]
+func pip(pythonPath string, verbose int, cmd string, args []string, stdout io.Writer, stderr io.Writer, newCommand commandConstructor) error {
+	implicitFlags := args[0:]
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
 	args = append([]string{"-mpip"}, cmd)
 
-	if cliParams.verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
+	if verbose > 0 {
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 
 	// Append implicit flags to the *pip* command
 	args = append(args, implicitFlags...)
 
-	pipCmd := exec.Command(pythonPath, args...)
+	pipCmd := newCommand(pythonPath, args...)
+
+	// Create a waitgroup for waiting for piping goroutines
+	var wg sync.WaitGroup
 
 	// forward the standard output to stdout
 	pipStdout, err := pipCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		in := bufio.NewScanner(pipStdout)
 		for in.Scan() {
 			fmt.Fprintf(stdout, "%s\n", in.Text())
@@ -342,14 +342,23 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	if err != nil {
 		return err
 	}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		in := bufio.NewScanner(pipStderr)
 		for in.Scan() {
 			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
-	err = pipCmd.Run()
+	if err = pipCmd.Start(); err != nil {
+		return fmt.Errorf("error running command: %v", err)
+	}
+
+	// Wait for both piping goroutines to complete to ensure pipes are exhausted
+	wg.Wait()
+
+	err = pipCmd.Wait()
 	if err != nil {
 		return fmt.Errorf("error running command: %v", err)
 	}
@@ -372,7 +381,6 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	pipArgs := []string{
-		"install",
 		"--constraint", constraintsPath,
 		// We don't use pip to download wheels, so we don't need a cache
 		"--no-cache-dir",
@@ -404,7 +412,11 @@ func install(config config.Component, cliParams *cliParams) error {
 		integration = normalizePackageName(strings.TrimSpace(integration))
 
 		// Install the wheel
-		if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+		pythonPath, err := getCommandPython(cliParams)
+		if err != nil {
+			return err
+		}
+		if err := pip(pythonPath, cliParams.verbose, "install", append(pipArgs, wheelPath), os.Stdout, os.Stderr, execCommand); err != nil {
 			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 		}
 
@@ -481,7 +493,11 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Install the wheel
-	if err := pip(cliParams, append(pipArgs, wheelPath), os.Stdout, os.Stderr); err != nil {
+	pythonPath, err := getCommandPython(cliParams)
+	if err != nil {
+		return err
+	}
+	if err := pip(pythonPath, cliParams.verbose, "install", append(pipArgs, wheelPath), os.Stdout, os.Stderr, execCommand); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
@@ -859,13 +875,16 @@ func remove(config config.Component, cliParams *cliParams) error {
 	}
 
 	pipArgs := []string{
-		"uninstall",
 		"--no-cache-dir",
 	}
 	pipArgs = append(pipArgs, cliParams.args...)
 	pipArgs = append(pipArgs, "-y")
 
-	return pip(cliParams, pipArgs, os.Stdout, os.Stderr)
+	pythonPath, err := getCommandPython(cliParams)
+	if err != nil {
+		return err
+	}
+	return pip(pythonPath, cliParams.verbose, "uninstall", pipArgs, os.Stdout, os.Stderr, execCommand)
 }
 
 func list(config config.Component, cliParams *cliParams) error {
@@ -874,12 +893,15 @@ func list(config config.Component, cliParams *cliParams) error {
 	}
 
 	pipArgs := []string{
-		"list",
 		"--format=freeze",
 	}
 
 	pipStdo := bytes.NewBuffer(nil)
-	err := pip(cliParams, pipArgs, io.Writer(pipStdo), os.Stderr)
+	pythonPath, err := getCommandPython(cliParams)
+	if err != nil {
+		return err
+	}
+	err = pip(pythonPath, cliParams.verbose, "list", pipArgs, io.Writer(pipStdo), os.Stderr, execCommand)
 	if err != nil {
 		return err
 	}
