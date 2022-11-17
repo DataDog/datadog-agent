@@ -986,13 +986,6 @@ namespace: '%s'
 func TestCheck_Run_sessionCloseError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -1011,7 +1004,7 @@ metrics:
     name: myMetric
 `)
 
-	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1028,17 +1021,12 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	w.Flush()
-	logs := b.String()
-
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
-
-	assert.Equal(t, strings.Count(logs, "failed to close sess"), 1, logs)
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
