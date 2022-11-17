@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Improves performance of the Cluster Agent admission controller on large pods.
