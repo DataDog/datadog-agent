@@ -18,7 +18,7 @@ import (
 
 var errNotReady = errors.New("Startup in progress")
 
-// RejectOrForward performs some checks on incoming queries that should go to a leader:
+// RejectOrForwardLeaderQuery performs some checks on incoming queries that should go to a leader:
 // - Forward to leader if we are a follower
 // - Reject with "not ready" if leader election status is unknown
 func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.Request) bool {
@@ -98,6 +98,7 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 	return response, err
 }
 
+// RebalanceClusterChecks triggers an attempt to rebalance cluster checks
 func (h *Handler) RebalanceClusterChecks() ([]types.RebalanceResponse, error) {
 	if !h.dispatcher.advancedDispatching {
 		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")

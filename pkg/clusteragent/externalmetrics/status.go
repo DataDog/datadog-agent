@@ -14,6 +14,7 @@ import (
 
 var datadogClient autoscalers.DatadogClient
 
+// GetStatus returns the status of the autoscalers
 func GetStatus() map[string]interface{} {
 	return autoscalers.GetStatus(datadogClient)
 }

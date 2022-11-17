@@ -11,17 +11,19 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strings"
 	"time"
+	"unsafe"
 
-	"github.com/pkg/errors"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -29,289 +31,282 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
-var (
-	runtimeCmd = &cobra.Command{
+func RuntimeCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
 	}
 
-	checkPoliciesCmd = &cobra.Command{
-		Use:        "check-policies",
-		Short:      "check policies and return a report",
-		RunE:       checkPolicies,
+	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
+	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
+	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
+	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
+	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
+	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+
+	return []*cobra.Command{runtimeCmd}
+}
+
+type checkPoliciesCliParams struct {
+	*common.GlobalParams
+
+	dir string
+}
+
+func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := checkPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
+	checkPoliciesCmd := &cobra.Command{
+		Use:   "check-policies",
+		Short: "check policies and return a report",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkPolicies(&cliParams)
+		},
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
-	checkPoliciesArgs = struct {
-		dir string
-	}{}
+	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
-	networkNamespaceCmd = &cobra.Command{
-		Use:   "network-namespace",
-		Short: "network namespace command",
-	}
+	return []*cobra.Command{checkPoliciesCmd}
+}
 
-	dumpNetworkNamespaceCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "dumps the network namespaces held in cache",
-		RunE:  dumpNetworkNamespace,
-	}
-
-	dumpNetworkNamespaceArgs = struct {
-		snapshotInterfaces bool
-	}{}
-
-	processCacheCmd = &cobra.Command{
-		Use:   "process-cache",
-		Short: "process cache",
-	}
-
-	processCacheDumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "dump the process cache",
-		RunE:  dumpProcessCache,
-	}
-
-	processCacheDumpArgs = struct {
-		withArgs bool
-	}{}
-
-	activityDumpCmd = &cobra.Command{
-		Use:   "activity-dump",
-		Short: "activity dump command",
-	}
-
-	activityDumpArgs = struct {
-		comm              string
-		file              string
-		timeout           int
-		withGraph         bool
-		differentiateArgs bool
-		outputDirectory   string
-		outputFormat      string
-		remote            bool
-	}{}
-
-	activityDumpGenerateCmd = &cobra.Command{
-		Use:   "generate",
-		Short: "generate command for activity dumps",
-	}
-
-	activityDumpGenerateDumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "generate an activity dump",
-		RunE:  generateActivityDump,
-	}
-
-	activityDumpGenerateProfileCmd = &cobra.Command{
-		Use:   "profile",
-		Short: "generate a profile from an activity dump",
-		RunE:  generateProfileFromActivityDump,
-	}
-
-	activityDumpGenerateGraphCmd = &cobra.Command{
-		Use:   "graph",
-		Short: "generate a graph from an activity dump",
-		RunE:  generateGraphFromActivityDump,
-	}
-
-	activityDumpStopCmd = &cobra.Command{
-		Use:   "stop",
-		Short: "stops the first activity dump that matches the provided selector",
-		RunE:  stopActivityDump,
-	}
-
-	activityDumpListCmd = &cobra.Command{
-		Use:   "list",
-		Short: "get the list of running activity dumps",
-		RunE:  listActivityDumps,
-	}
-
-	selfTestCmd = &cobra.Command{
-		Use:   "self-test",
-		Short: "Run runtime self test",
-		RunE:  runRuntimeSelfTest,
-	}
-
-	reloadPoliciesCmd = &cobra.Command{
-		Use:        "reload",
-		Short:      "Reload policies",
-		RunE:       reloadRuntimePolicies,
-		Deprecated: "please use `security-agent runtime policy reload` instead",
-	}
-
-	commonReloadPoliciesCmd = &cobra.Command{
+func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
-		RunE:  reloadRuntimePolicies,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return reloadRuntimePolicies()
+		},
+		Deprecated: "please use `security-agent runtime policy reload` instead",
 	}
+	return []*cobra.Command{reloadPoliciesCmd}
+}
 
-	commonCheckPoliciesCmd = &cobra.Command{
-		Use:   "check",
-		Short: "Check policies and return a report",
-		RunE:  checkPolicies,
-	}
-
-	downloadPolicyCmd = &cobra.Command{
-		Use:   "download",
-		Short: "Download policies",
-		RunE:  downloadPolicy,
-	}
-
-	downloadPolicyArgs = struct {
-		check      bool
-		outputPath string
-	}{}
-
-	commonPolicyCmd = &cobra.Command{
+func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	commonPolicyCmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
 	}
-)
 
-func init() {
-	processCacheDumpCmd.Flags().BoolVar(&processCacheDumpArgs.withArgs, "with-args", false, "add process arguments to the dump")
+	commonPolicyCmd.AddCommand(evalCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(commonCheckPoliciesCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(commonReloadPoliciesCommands(globalParams)...)
+	commonPolicyCmd.AddCommand(downloadPolicyCommands(globalParams)...)
 
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
-	activityDumpGenerateDumpCmd.Flags().IntVar(
-		&activityDumpArgs.timeout,
-		"timeout",
-		60,
-		"timeout for the activity dump in minutes",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.withGraph,
-		"graph",
-		false,
-		"generate a graph from the generated dump",
-	)
-	activityDumpGenerateDumpCmd.Flags().BoolVar(
-		&activityDumpArgs.differentiateArgs,
-		"differentiate-args",
-		false,
-		"add the arguments in the process node merge algorithm",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.outputDirectory,
-		"output",
-		"/tmp/activity_dumps/",
-		"output directory",
-	)
-	activityDumpGenerateDumpCmd.Flags().StringVar(
-		&activityDumpArgs.outputFormat,
-		"format",
-		"msgp",
-		"output format. Available options are \"msgp\" and \"json\".",
-	)
+	return []*cobra.Command{commonPolicyCmd}
+}
 
-	activityDumpStopCmd.Flags().StringVar(
-		&activityDumpArgs.comm,
-		"comm",
-		"",
-		"a process command can be used to filter the activity dump from a specific process.",
-	)
+type evalCliParams struct {
+	*common.GlobalParams
 
-	activityDumpGenerateProfileCmd.Flags().StringVar(
-		&activityDumpArgs.file,
-		"input",
-		"",
-		"path to the activity dump file",
-	)
-	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
-	activityDumpGenerateProfileCmd.Flags().BoolVar(
-		&activityDumpArgs.remote,
-		"remote",
-		false,
-		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
-	)
+	dir       string
+	ruleID    string
+	eventFile string
+	debug     bool
+}
 
-	activityDumpGenerateGraphCmd.Flags().StringVar(
-		&activityDumpArgs.file,
-		"input",
-		"",
-		"path to the activity dump file",
-	)
-	_ = activityDumpGenerateProfileCmd.MarkFlagRequired("input")
-	activityDumpGenerateGraphCmd.Flags().BoolVar(
-		&activityDumpArgs.remote,
-		"remote",
-		false,
-		"when set, the profile generation will be done by system-probe, otherwise the current security-agent process will generate the profile",
-	)
+func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	evalArgs := evalCliParams{
+		GlobalParams: globalParams,
+	}
 
-	processCacheCmd.AddCommand(processCacheDumpCmd)
-	runtimeCmd.AddCommand(processCacheCmd)
+	evalCmd := &cobra.Command{
+		Use:   "eval",
+		Short: "Evaluate given event data against the give rule",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return evalRule(&evalArgs)
+		},
+	}
 
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateDumpCmd)
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateProfileCmd)
-	activityDumpGenerateCmd.AddCommand(activityDumpGenerateGraphCmd)
+	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired("rule-id")
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired("event-file")
+	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
 
-	activityDumpCmd.AddCommand(activityDumpGenerateCmd)
-	activityDumpCmd.AddCommand(activityDumpListCmd)
-	activityDumpCmd.AddCommand(activityDumpStopCmd)
-	runtimeCmd.AddCommand(activityDumpCmd)
+	return []*cobra.Command{evalCmd}
+}
 
-	runtimeCmd.AddCommand(checkPoliciesCmd)
-	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := checkPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
 
-	runtimeCmd.AddCommand(selfTestCmd)
-	runtimeCmd.AddCommand(reloadPoliciesCmd)
+	commonCheckPoliciesCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Check policies and return a report",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkPolicies(&cliParams)
+		},
+	}
+
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+
+	return []*cobra.Command{commonCheckPoliciesCmd}
+}
+
+func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	commonReloadPoliciesCmd := &cobra.Command{
+		Use:   "reload",
+		Short: "Reload policies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return reloadRuntimePolicies()
+		},
+	}
+	return []*cobra.Command{commonReloadPoliciesCmd}
+}
+
+func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	selfTestCmd := &cobra.Command{
+		Use:   "self-test",
+		Short: "Run runtime self test",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runRuntimeSelfTest()
+		},
+	}
+
+	return []*cobra.Command{selfTestCmd}
+}
+
+type downloadPolicyCliParams struct {
+	*common.GlobalParams
+
+	check      bool
+	outputPath string
+}
+
+func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	downloadPolicyArgs := downloadPolicyCliParams{
+		GlobalParams: globalParams,
+	}
+
+	downloadPolicyCmd := &cobra.Command{
+		Use:   "download",
+		Short: "Download policies",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return downloadPolicy(&downloadPolicyArgs)
+		},
+	}
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
-	commonPolicyCmd.AddCommand(downloadPolicyCmd)
 
-	commonCheckPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	commonPolicyCmd.AddCommand(commonCheckPoliciesCmd)
-
-	commonPolicyCmd.AddCommand(commonReloadPoliciesCmd)
-	runtimeCmd.AddCommand(commonPolicyCmd)
-
-	dumpNetworkNamespaceCmd.Flags().BoolVar(&dumpNetworkNamespaceArgs.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
-	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
-	runtimeCmd.AddCommand(networkNamespaceCmd)
+	return []*cobra.Command{downloadPolicyCmd}
 }
 
-func dumpProcessCache(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
+type processCacheDumpCliParams struct {
+	*common.GlobalParams
+
+	withArgs bool
+}
+
+func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := processCacheDumpCliParams{
+		GlobalParams: globalParams,
 	}
 
+	processCacheDumpCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "dump the process cache",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return dumpProcessCache(&cliParams)
+		},
+	}
+	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+
+	processCacheCmd := &cobra.Command{
+		Use:   "process-cache",
+		Short: "process cache",
+	}
+	processCacheCmd.AddCommand(processCacheDumpCmd)
+
+	return []*cobra.Command{processCacheCmd}
+}
+
+type dumpNetworkNamespaceCliParams struct {
+	*common.GlobalParams
+
+	snapshotInterfaces bool
+}
+
+func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := dumpNetworkNamespaceCliParams{
+		GlobalParams: globalParams,
+	}
+
+	dumpNetworkNamespaceCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "dumps the network namespaces held in cache",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return dumpNetworkNamespace(&cliParams)
+		},
+	}
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
+
+	networkNamespaceCmd := &cobra.Command{
+		Use:   "network-namespace",
+		Short: "network namespace command",
+	}
+	networkNamespaceCmd.AddCommand(dumpNetworkNamespaceCmd)
+
+	return []*cobra.Command{networkNamespaceCmd}
+}
+
+func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
+
+	dumpDiscardersCmd := &cobra.Command{
+		Use:   "dump",
+		Short: "dump discarders",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return dumpDiscarders()
+		},
+	}
+
+	discardersCmd := &cobra.Command{
+		Use:   "discarders",
+		Short: "discarders commands",
+	}
+	discardersCmd.AddCommand(dumpDiscardersCmd)
+
+	return []*cobra.Command{discardersCmd}
+}
+
+func dumpProcessCache(processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	filename, err := client.DumpProcessCache(processCacheDumpArgs.withArgs)
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process cache dump")
+		return fmt.Errorf("unable to get a process cache dump: %w", err)
 	}
 
 	fmt.Printf("Process dump file: %s\n", filename)
@@ -319,72 +314,16 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printSecurityActivityDumpMessage(prefix string, msg *api.SecurityActivityDumpMessage) {
-	fmt.Printf("%s- start: %s\n", prefix, msg.Start)
-	fmt.Printf("%s  timeout: %s\n", prefix, msg.Timeout)
-	fmt.Printf("%s  left: %s\n", prefix, msg.Left)
-	if len(msg.OutputFilename) > 0 {
-		fmt.Printf("%s  output filename: %s\n", prefix, msg.OutputFilename)
-	}
-	if len(msg.GraphFilename) > 0 {
-		fmt.Printf("%s  graph filename: %s\n", prefix, msg.GraphFilename)
-	}
-	if len(msg.Comm) > 0 {
-		fmt.Printf("%s  comm: %s\n", prefix, msg.Comm)
-	}
-	if len(msg.ContainerID) > 0 {
-		fmt.Printf("%s  container ID: %s\n", prefix, msg.ContainerID)
-	}
-	if len(msg.Tags) > 0 {
-		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.Tags, ", "))
-	}
-	fmt.Printf("%s  with graph: %v\n", prefix, msg.WithGraph)
-	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.DifferentiateArgs)
-}
-
-func generateActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
-	if len(activityDumpArgs.outputDirectory) == 0 && activityDumpArgs.withGraph {
-		return fmt.Errorf("the output directory cannot be empty if \"--graph\" is provided")
-	}
-
+func dumpNetworkNamespace(dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
-	}
-	defer client.Close()
-
-	output, err := client.GenerateActivityDump(activityDumpArgs.comm, int32(activityDumpArgs.timeout), activityDumpArgs.withGraph, activityDumpArgs.differentiateArgs, activityDumpArgs.outputDirectory, activityDumpArgs.outputFormat)
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump generation request failed: %s", output.Error)
-	}
-
-	printSecurityActivityDumpMessage("", output)
-	return nil
-}
-
-func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	resp, err := client.DumpNetworkNamespace(dumpNetworkNamespaceArgs.snapshotInterfaces)
 	if err != nil {
-		return errors.Wrap(err, "couldn't send network namespace cache dump request")
+		return fmt.Errorf("couldn't send network namespace cache dump request: %w", err)
 	}
 
 	if len(resp.GetError()) > 0 {
@@ -396,130 +335,42 @@ func dumpNetworkNamespace(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func listActivityDumps(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
-	}
-	defer client.Close()
-
-	output, err := client.ListActivityDumps()
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
-	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump list request failed: %s", output.Error)
-	}
-
-	if len(output.Dumps) > 0 {
-		fmt.Println("Active dumps:")
-		for _, d := range output.Dumps {
-			printSecurityActivityDumpMessage("\t", d)
-		}
-	} else {
-		fmt.Println("No active dumps found")
-	}
-
-	return nil
+func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
+	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
+	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())
+	fmt.Printf("%s  storage type: %s\n", prefix, storage.GetType())
+	fmt.Printf("%s  compression: %v\n", prefix, storage.GetCompression())
 }
 
-func stopActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
+func printSecurityActivityDumpMessage(prefix string, msg *api.ActivityDumpMessage) {
+	fmt.Printf("%s- name: %s\n", prefix, msg.GetMetadata().GetName())
+	fmt.Printf("%s  start: %s\n", prefix, msg.GetMetadata().GetStart())
+	fmt.Printf("%s  timeout: %s\n", prefix, msg.GetMetadata().GetTimeout())
+	if len(msg.GetMetadata().GetComm()) > 0 {
+		fmt.Printf("%s  comm: %s\n", prefix, msg.GetMetadata().GetComm())
 	}
-
-	client, err := secagent.NewRuntimeSecurityClient()
-	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+	if len(msg.GetMetadata().GetContainerID()) > 0 {
+		fmt.Printf("%s  container ID: %s\n", prefix, msg.GetMetadata().GetContainerID())
 	}
-	defer client.Close()
-
-	output, err := client.StopActivityDump(activityDumpArgs.comm)
-	if err != nil {
-		return fmt.Errorf("unable send request to system-probe: %w", err)
+	if len(msg.GetTags()) > 0 {
+		fmt.Printf("%s  tags: %s\n", prefix, strings.Join(msg.GetTags(), ", "))
 	}
-	if len(output.Error) > 0 {
-		return fmt.Errorf("activity dump stop request failed: %s", output.Error)
+	fmt.Printf("%s  differentiate args: %v\n", prefix, msg.GetMetadata().GetDifferentiateArgs())
+	if len(msg.GetStorage()) > 0 {
+		fmt.Printf("%s  storage:\n", prefix)
+		for _, storage := range msg.GetStorage() {
+			printStorageRequestMessage(prefix+"\t", storage)
+		}
 	}
-
-	fmt.Println("done!")
-	return nil
 }
 
-func generateProfileFromActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
+func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
+	agentVersion, err := utils.GetAgentSemverVersion()
+	if err != nil {
+		return nil, err
 	}
 
-	var profilePath string
-
-	if activityDumpArgs.remote {
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("profile generation failed: %w", err)
-		}
-		defer client.Close()
-
-		output, err := client.GenerateProfile(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-		if len(output.Error) > 0 {
-			return fmt.Errorf("profile generation failed: %s", output.Error)
-		}
-		profilePath = output.ProfilePath
-	} else {
-		output, err := sprobe.GenerateProfile(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("profile generation failed: %w", err)
-		}
-		profilePath = output
-	}
-
-	fmt.Printf("Generated profile: %s\n", profilePath)
-	return nil
-}
-
-func generateGraphFromActivityDump(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
-	var graphPath string
-
-	if activityDumpArgs.remote {
-		client, err := secagent.NewRuntimeSecurityClient()
-		if err != nil {
-			return fmt.Errorf("graph generation failed: %w", err)
-		}
-		defer client.Close()
-
-		output, err := client.GenerateGraph(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("couldn't send request to system-probe: %w", err)
-		}
-		if len(output.Error) > 0 {
-			return fmt.Errorf("graph generation failed: %s", output.Error)
-		}
-		graphPath = output.GraphPath
-	} else {
-		output, err := sprobe.GenerateGraph(activityDumpArgs.file)
-		if err != nil {
-			return fmt.Errorf("graph generation failed: %w", err)
-		}
-		graphPath = output
-	}
-
-	fmt.Printf("Generated graph: %s\n", graphPath)
-	return nil
+	return rules.NewAgentVersionFilter(agentVersion)
 }
 
 func checkPoliciesInner(dir string) error {
@@ -534,18 +385,42 @@ func checkPoliciesInner(dir string) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	var opts rules.Opts
-	opts.
+	var evalOpts eval.Opts
+	evalOpts.
 		WithConstants(model.SECLConstants).
 		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
 		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
-		WithLegacyFields(model.SECLLegacyFields).
-		WithLogger(&seclog.PatternLogger{})
+		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
+			"process": func() rules.VariableProvider {
+				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
+					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				}, nil)
+			},
+		}).
+		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts)
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			agentVersionFilter,
+		},
+	}
 
 	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
 	if err != nil {
@@ -554,7 +429,7 @@ func checkPoliciesInner(dir string) error {
 
 	loader := rules.NewPolicyLoader(provider)
 
-	if err := ruleSet.LoadPolicies(loader); err.ErrorOrNil() != nil {
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return err
 	}
 
@@ -576,20 +451,163 @@ func checkPoliciesInner(dir string) error {
 	return nil
 }
 
-func checkPolicies(cmd *cobra.Command, args []string) error {
-	return checkPoliciesInner(checkPoliciesArgs.dir)
+func checkPolicies(args *checkPoliciesCliParams) error {
+	return checkPoliciesInner(args.dir)
 }
 
-func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
+// EvalReport defines a report of an evaluation
+type EvalReport struct {
+	Succeeded bool
+	Approvers map[string]rules.Approvers
+	Event     eval.Event
+	Error     error `json:",omitempty"`
+}
+
+// EventData defines the structure used to represent an event
+type EventData struct {
+	Type   eval.EventType
+	Values map[string]interface{}
+}
+
+func eventDataFromJSON(file string) (eval.Event, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	var eventData EventData
+	if err := decoder.Decode(&eventData); err != nil {
+		return nil, err
+	}
+
+	kind := model.ParseEvalEventType(eventData.Type)
+	if kind == model.UnknownEventType {
+		return nil, errors.New("unknown event type")
+	}
+
+	m := &model.Model{}
+	event := m.NewEventWithType(kind)
+	event.Init()
+
+	for k, v := range eventData.Values {
+		switch v := v.(type) {
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, err
+			}
+			if err := event.SetFieldValue(k, int(value)); err != nil {
+				return nil, err
+			}
+		default:
+			if err := event.SetFieldValue(k, v); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return event, nil
+}
+
+func evalRule(evalArgs *evalCliParams) error {
+	cfg := &secconfig.Config{
+		PoliciesDir:         evalArgs.dir,
+		EnableKernelFilters: true,
+		EnableApprovers:     true,
+		EnableDiscarders:    true,
+		PIDCacheSize:        1,
+	}
+
+	// enabled all the rules
+	enabled := map[eval.EventType]bool{"*": true}
+
+	var evalOpts eval.Opts
+	evalOpts.
+		WithConstants(model.SECLConstants).
+		WithVariables(model.SECLVariables).
+		WithLegacyFields(model.SECLLegacyFields)
+
+	var opts rules.Opts
+	opts.
+		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithEventTypeEnabled(enabled).
+		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithLogger(seclog.DefaultLogger)
+
+	model := &model.Model{}
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+
+	agentVersionFilter, err := newAgentVersionFilter()
+	if err != nil {
+		return fmt.Errorf("failed to create agent version filter: %w", err)
+	}
+
+	loaderOpts := rules.PolicyLoaderOpts{
+		MacroFilters: []rules.MacroFilter{
+			agentVersionFilter,
+		},
+		RuleFilters: []rules.RuleFilter{
+			&rules.RuleIDFilter{
+				ID: evalArgs.ruleID,
+			},
+		},
+	}
+
+	provider, err := rules.NewPoliciesDirProvider(cfg.PoliciesDir, false)
+	if err != nil {
+		return err
+	}
+
+	loader := rules.NewPolicyLoader(provider)
+
+	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
+		return err
+	}
+
+	event, err := eventDataFromJSON(evalArgs.eventFile)
+	if err != nil {
+		return err
+	}
+
+	report := EvalReport{
+		Event: event,
+	}
+
+	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())
+	if err != nil {
+		report.Error = err
+	} else {
+		report.Approvers = approvers
+	}
+
+	report.Succeeded = ruleSet.Evaluate(event)
+	output, err := json.MarshalIndent(report, "", "    ")
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", string(output))
+
+	if !report.Succeeded {
+		os.Exit(-1)
+	}
+
+	return nil
+}
+
+func runRuntimeSelfTest() error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	selfTestResult, err := client.RunSelfTest()
 	if err != nil {
-		return errors.Wrap(err, "unable to get a process self test")
+		return fmt.Errorf("unable to get a process self test: %w", err)
 	}
 
 	if selfTestResult.Ok {
@@ -600,16 +618,16 @@ func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func reloadRuntimePolicies(cmd *cobra.Command, args []string) error {
+func reloadRuntimePolicies() error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
-		return errors.Wrap(err, "unable to create a runtime security client instance")
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
 	defer client.Close()
 
 	_, err = client.ReloadPolicies()
 	if err != nil {
-		return errors.Wrap(err, "unable to reload policies")
+		return fmt.Errorf("unable to reload policies: %w", err)
 	}
 
 	return nil
@@ -628,7 +646,7 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
-	logSource := config.NewLogSource(
+	logSource := sources.NewLogSource(
 		sourceName,
 		&config.LogsConfig{
 			Type:   sourceType,
@@ -641,7 +659,7 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
+	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
 }
 
 func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
@@ -655,7 +673,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	// components
 	agent, err := secagent.NewRuntimeSecurityAgent(hostname)
 	if err != nil {
-		return nil, errors.Wrap(err, "unable to create a runtime security agent instance")
+		return nil, fmt.Errorf("unable to create a runtime security agent instance: %w", err)
 	}
 	stopper.Add(agent)
 
@@ -677,7 +695,7 @@ func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	return agent, nil
 }
 
-func downloadPolicy(cmd *cobra.Command, args []string) error {
+func downloadPolicy(downloadPolicyArgs *downloadPolicyCliParams) error {
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
 
@@ -745,4 +763,22 @@ func downloadPolicy(cmd *cobra.Command, args []string) error {
 
 	_, err = outputWriter.Write(resBytes)
 	return err
+}
+
+func dumpDiscarders() error {
+	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
+	}
+	defer runtimeSecurityClient.Close()
+
+	dumpFilename, dumpErr := runtimeSecurityClient.DumpDiscarders()
+
+	if dumpErr != nil {
+		return fmt.Errorf("unable to dump discarders: %w", dumpErr)
+	}
+
+	fmt.Printf("Discarder dump file: %s\n", dumpFilename)
+
+	return nil
 }

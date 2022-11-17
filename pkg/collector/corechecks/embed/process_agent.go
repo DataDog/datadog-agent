@@ -35,25 +35,40 @@ type processAgentCheckConf struct {
 
 // ProcessAgentCheck keeps track of the running command
 type ProcessAgentCheck struct {
-	binPath     string
-	commandOpts []string
-	running     *atomic.Bool
-	stop        chan struct{}
-	stopDone    chan struct{}
-	source      string
-	telemetry   bool
+	binPath        string
+	commandOpts    []string
+	running        *atomic.Bool
+	stop           chan struct{}
+	stopDone       chan struct{}
+	source         string
+	telemetry      bool
+	initConfig     string
+	instanceConfig string
 }
 
+// String displays the Agent name
 func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
 }
 
+// Version displays the command's version
 func (c *ProcessAgentCheck) Version() string {
 	return ""
 }
 
+// ConfigSource displays the command's source
 func (c *ProcessAgentCheck) ConfigSource() string {
 	return c.source
+}
+
+// InitConfig returns the init configuration
+func (c *ProcessAgentCheck) InitConfig() string {
+	return c.initConfig
+}
+
+// InstanceConfig returns the instance configuration
+func (c *ProcessAgentCheck) InstanceConfig() string {
+	return c.instanceConfig
 }
 
 // Run executes the check with retries
@@ -167,6 +182,8 @@ func (c *ProcessAgentCheck) Configure(data integration.Data, initConfig integrat
 
 	c.source = source
 	c.telemetry = telemetry_utils.IsCheckEnabled("process_agent")
+	c.initConfig = string(initConfig)
+	c.instanceConfig = string(data)
 	return nil
 }
 
@@ -213,6 +230,7 @@ func init() {
 		return &ProcessAgentCheck{
 			stop:     make(chan struct{}),
 			stopDone: make(chan struct{}),
+			running:  atomic.NewBool(false),
 		}
 	}
 	core.RegisterCheck("process_agent", factory)

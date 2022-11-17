@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -115,6 +114,27 @@ func (o *factoryMock) resetCallChan() {
 	}
 }
 
+type MockScheduler struct {
+	scheduled map[string]integration.Config
+}
+
+// Schedule implements scheduler.Scheduler#Schedule.
+func (ms *MockScheduler) Schedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		ms.scheduled[cfg.Digest()] = cfg
+	}
+}
+
+// Unchedule implements scheduler.Scheduler#Unchedule.
+func (ms *MockScheduler) Unschedule(configs []integration.Config) {
+	for _, cfg := range configs {
+		delete(ms.scheduled, cfg.Digest())
+	}
+}
+
+// Stop implements scheduler.Scheduler#Stop.
+func (ms *MockScheduler) Stop() {}
+
 type AutoConfigTestSuite struct {
 	suite.Suite
 	originalListeners map[string]listeners.ServiceListenerFactory
@@ -146,16 +166,18 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	assert.Len(suite.T(), ac.providers, 0)
+	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
-	ac.AddConfigProvider(mp, false, 0) // this should be a noop
 	ac.AddConfigProvider(&MockProvider2{}, true, 1*time.Second)
-	ac.LoadAndRun()
-	require.Len(suite.T(), ac.providers, 2)
+
+	require.Len(suite.T(), ac.configPollers, 2)
+	assert.False(suite.T(), ac.configPollers[0].canPoll)
+	assert.True(suite.T(), ac.configPollers[1].canPoll)
+
+	ac.LoadAndRun(context.Background())
+
 	assert.Equal(suite.T(), 1, mp.collectCounter)
-	assert.False(suite.T(), ac.providers[0].canPoll)
-	assert.True(suite.T(), ac.providers[1].canPoll)
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
@@ -181,7 +203,11 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 	c3 := integration.Config{Name: "baz"}
 	pd := configPoller{}
 
-	pd.overwriteConfigs([]integration.Config{c1, c2})
+	pd.configs = map[uint64]integration.Config{
+		c1.FastDigest(): c1,
+		c2.FastDigest(): c2,
+	}
+
 	added, removed := pd.storeAndDiffConfigs([]integration.Config{c1, c3})
 	assert.ElementsMatch(suite.T(), added, []integration.Config{c3})
 	assert.ElementsMatch(suite.T(), removed, []integration.Config{c2})
@@ -311,7 +337,11 @@ func TestAutoConfigTestSuite(t *testing.T) {
 func TestResolveTemplate(t *testing.T) {
 	ctx := context.Background()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
+	msch := scheduler.NewMetaScheduler()
+	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
+	msch.Register("mock", sch, false)
+
+	ac := NewAutoConfig(msch)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -319,17 +349,18 @@ func TestResolveTemplate(t *testing.T) {
 
 	// no services
 	changes := ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 0)
+	ac.applyChanges(changes) // processNewConfigs does not apply changes
+
+	assert.Len(t, sch.scheduled, 0)
 
 	service := dummyService{
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(ctx, &service)
-
 	// there are no template vars but it's ok
-	changes = ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 1)
+	ac.processNewService(ctx, &service) // processNewService applies changes
+
+	assert.Len(t, sch.scheduled, 1)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
@@ -365,7 +396,7 @@ func TestRemoveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	changes := ac.processNewConfig(tpl)
-	assert.Len(t, changes.schedule, 1)
+	assert.Len(t, changes.Schedule, 1)
 	assert.Equal(t, countLoadedConfigs(ac), 2)
 
 	// Remove the template, config should be removed too
@@ -376,43 +407,6 @@ func TestRemoveTemplate(t *testing.T) {
 func TestGetLoadedConfigNotInitialized(t *testing.T) {
 	ac := AutoConfig{}
 	assert.Equal(t, countLoadedConfigs(&ac), 0)
-}
-
-func TestCheckOverride(t *testing.T) {
-	ctx := context.Background()
-
-	tpl := integration.Config{
-		Name:          "redis",
-		ADIdentifiers: []string{"redis"},
-		Provider:      names.File,
-	}
-
-	// check must be overridden (same check)
-	ac := NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"redis"},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
-
-	// check must be overridden (empty config)
-	ac = NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{""},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 0)
-
-	// check must be scheduled (different checks)
-	ac = NewAutoConfig(scheduler.NewMetaScheduler())
-	ac.processNewService(ctx, &dummyService{
-		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
-		ADIdentifiers: []string{"redis"},
-		CheckNames:    []string{"tcp_check"},
-	})
-	assert.Len(t, ac.processNewConfig(tpl).schedule, 1)
 }
 
 func TestDecryptConfig(t *testing.T) {
@@ -444,7 +438,7 @@ func TestDecryptConfig(t *testing.T) {
 	}
 	changes := ac.processNewConfig(tpl)
 
-	require.Len(t, changes.schedule, 1)
+	require.Len(t, changes.Schedule, 1)
 
 	resolved := integration.Config{
 		Name:          "cpu",
@@ -455,7 +449,7 @@ func TestDecryptConfig(t *testing.T) {
 		LogsConfig:    integration.Data{},
 		ServiceID:     "abcd",
 	}
-	assert.Equal(t, resolved, changes.schedule[0])
+	assert.Equal(t, resolved, changes.Schedule[0])
 
 	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }

@@ -68,9 +68,6 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	if s.remoteRates != nil {
-		s.remoteRates.Start()
-	}
 	go func() {
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
@@ -83,6 +80,14 @@ func (s *PrioritySampler) Start() {
 			}
 		}
 	}()
+}
+
+func (s *PrioritySampler) UpdateRemoteRates(updates []RemoteRateUpdate) {
+	s.remoteRates.onUpdate(updates)
+}
+
+func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
+	s.localRates.updateTargetTPS(targetTPS)
 }
 
 // report sampler stats
@@ -100,9 +105,6 @@ func (s *PrioritySampler) updateRates() {
 
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	if s.remoteRates != nil {
-		s.remoteRates.Stop()
-	}
 	close(s.exit)
 }
 
@@ -120,7 +122,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	sampled := samplingPriority > 0
 
 	// Short-circuit and return without counting the trace in the sampling rate logic
-	// if its value has not been set automaticallt by the client lib.
+	// if its value has not been set automatically by the client lib.
 	// The feedback loop should be scoped to the values it can act upon.
 	if samplingPriority < 0 {
 		return sampled

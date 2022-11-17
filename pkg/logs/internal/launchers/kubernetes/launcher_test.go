@@ -9,7 +9,6 @@
 package kubernetes
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -229,9 +228,7 @@ func TestGetPath(t *testing.T) {
 		},
 	}
 
-	basePath, err := ioutil.TempDir("", "")
-	defer os.RemoveAll(basePath)
-	assert.Nil(t, err)
+	basePath := t.TempDir()
 
 	// v1.14+ (default)
 	podDirectory := "buu_fuz_baz"
@@ -242,7 +239,7 @@ func TestGetPath(t *testing.T) {
 	podDirectory = "baz"
 	containerDirectory := "foo"
 
-	err = os.MkdirAll(filepath.Join(basePath, podDirectory, containerDirectory), 0777)
+	err := os.MkdirAll(filepath.Join(basePath, podDirectory, containerDirectory), 0777)
 	assert.Nil(t, err)
 
 	path = launcher.getPath(basePath, pod, container)
@@ -256,8 +253,11 @@ func TestGetPath(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(basePath, podDirectory), 0777)
 	assert.Nil(t, err)
 
-	_, err = os.Create(filepath.Join(basePath, podDirectory, logFile))
+	f, err := os.Create(filepath.Join(basePath, podDirectory, logFile))
 	assert.Nil(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, f.Close())
+	})
 
 	path = launcher.getPath(basePath, pod, container)
 	assert.Equal(t, filepath.Join(basePath, podDirectory, "foo_*.log"), path)

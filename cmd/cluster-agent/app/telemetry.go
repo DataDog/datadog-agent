@@ -11,8 +11,9 @@ package app
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/flare"
 )
 
 func init() {

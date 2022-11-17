@@ -10,70 +10,24 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	secagentcommon "github.com/DataDog/datadog-agent/cmd/security-agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
-var (
-	complianceCmd = &cobra.Command{
-		Use:   "compliance",
-		Short: "Compliance Agent utility commands",
-	}
-
-	eventCmd = &cobra.Command{
-		Use:    "event",
-		Short:  "Issue logs to test Security Agent compliance events",
-		RunE:   eventRun,
-		Hidden: true,
-	}
-
-	eventArgs = struct {
-		sourceName string
-		sourceType string
-		event      event.Event
-		data       []string
-	}{}
-)
-
-func init() {
-	complianceCmd.AddCommand(eventCmd)
-	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
-}
-
-func newLogContextCompliance() (*config.Endpoints, *client.DestinationsContext, error) {
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("compliance_config.endpoints.", coreconfig.Datadog)
-	return newLogContext(logsConfigComplianceKeys, "cspm-intake.", "compliance", config.DefaultIntakeOrigin, logs.AgentJSONIntakeProtocol)
-}
-
-func eventRun(cmd *cobra.Command, args []string) error {
-	// Read configuration files received from the command line arguments '-c'
-	if err := secagentcommon.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
-		return err
-	}
-
+func eventRun(eventArgs *eventCliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := newLogContextCompliance()
+	endpoints, dstContext, err := common.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}
@@ -105,7 +59,7 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		return nil, nil
 	}
 
-	endpoints, context, err := newLogContextCompliance()
+	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
@@ -134,6 +88,7 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
+		checks.WithStatsd(statsdClient),
 	}
 
 	if coreconfig.IsKubernetes() {

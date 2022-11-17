@@ -7,9 +7,11 @@ package diagnostic
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestEnableDisable(t *testing.T) {
@@ -217,7 +219,7 @@ func newMessage(name, typ, source, service string) message.Message {
 		Source:  source,
 		Service: service,
 	}
-	src := config.NewLogSource(name, cfg)
+	src := sources.NewLogSource(name, cfg)
 	origin := message.NewOrigin(src)
 	return *message.NewMessage([]byte("a"), origin, "", 0)
 }

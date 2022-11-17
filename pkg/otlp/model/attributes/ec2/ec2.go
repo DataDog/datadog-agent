@@ -48,14 +48,15 @@ func isDefaultHostname(hostname string) bool {
 
 // HostnameFromAttributes gets a valid hostname from labels
 // if available
-func HostnameFromAttributes(attrs pcommon.Map) (string, bool) {
+func HostnameFromAttributes(attrs pcommon.Map, usePreviewRules bool) (string, bool) {
 	hostName, ok := attrs.Get(conventions.AttributeHostName)
-	if ok && !isDefaultHostname(hostName.StringVal()) {
-		return hostName.StringVal(), true
+	// With hostname preview rules, return the EC2 instance id always.
+	if !usePreviewRules && ok && !isDefaultHostname(hostName.Str()) {
+		return hostName.Str(), true
 	}
 
 	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
-		return hostID.StringVal(), true
+		return hostID.Str(), true
 	}
 
 	return "", false
@@ -67,16 +68,16 @@ func HostInfoFromAttributes(attrs pcommon.Map) (hostInfo *HostInfo) {
 	hostInfo = &HostInfo{}
 
 	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
-		hostInfo.InstanceID = hostID.StringVal()
+		hostInfo.InstanceID = hostID.Str()
 	}
 
 	if hostName, ok := attrs.Get(conventions.AttributeHostName); ok {
-		hostInfo.EC2Hostname = hostName.StringVal()
+		hostInfo.EC2Hostname = hostName.Str()
 	}
 
 	attrs.Range(func(k string, v pcommon.Value) bool {
 		if strings.HasPrefix(k, ec2TagPrefix) {
-			tag := fmt.Sprintf("%s:%s", strings.TrimPrefix(k, ec2TagPrefix), v.StringVal())
+			tag := fmt.Sprintf("%s:%s", strings.TrimPrefix(k, ec2TagPrefix), v.Str())
 			hostInfo.EC2Tags = append(hostInfo.EC2Tags, tag)
 		}
 		return true

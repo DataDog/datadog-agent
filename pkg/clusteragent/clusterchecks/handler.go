@@ -75,7 +75,7 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 	}
 
 	if config.Datadog.GetBool("leader_election") {
-		h.leaderForwarder = api.NewLeaderForwarder(h.port, config.Datadog.GetInt("cluster_agent.max_leader_connections"), config.Datadog.GetInt("cluster_agent.max_leader_idle_connections"))
+		h.leaderForwarder = api.NewLeaderForwarder(h.port, config.Datadog.GetInt("cluster_agent.max_leader_connections"))
 		callback, err := getLeaderIPCallback()
 		if err != nil {
 			return nil, err

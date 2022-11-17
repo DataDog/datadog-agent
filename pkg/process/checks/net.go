@@ -12,6 +12,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -19,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
+	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -45,15 +47,17 @@ var (
 type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
-	notInitializedLogLimit *procutil.LogLimit
+	notInitializedLogLimit *putil.LogLimit
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID *atomic.Value
+	probe          procutil.Probe
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.notInitializedLogLimit = procutil.NewLogLimit(1, time.Minute*10)
+	c.probe = newProcessProbe()
+	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
 	c.tracerClientID = ProcessAgentClientID
@@ -86,9 +90,12 @@ func (c *ConnectionsCheck) Name() string { return config.ConnectionsCheckName }
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ConnectionsCheck) RealTime() bool { return false }
 
-// Run runs the ConnectionsCheck to collect the live TCP connections on the
-// system. Currently only linux systems are supported as eBPF is used to gather
-// this information. For each connection we'll return a `model.Connection`
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
+
+// Run runs the ConnectionsCheck to collect the active network connections
+// and any closed network connections since the last Run.
+// For each connection we'll return a `model.Connection`
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
 func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
@@ -104,7 +111,12 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	dockerproxy.NewFilter().Filter(conns)
+	procs, err := c.probe.ProcessesByPID(time.Now(), false)
+	if err != nil {
+		log.Warnf("error collecting processes for proxy filter: %s", err)
+	} else {
+		dockerproxy.NewFilter(procs).Filter(conns)
+	}
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
@@ -113,6 +125,9 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
 }
+
+// Cleanup frees any resource held by the ConnectionsCheck before the agent exits
+func (c *ConnectionsCheck) Cleanup() {}
 
 func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	tu, err := net.GetRemoteSystemProbeUtil()
@@ -127,7 +142,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 
 func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
 	// Process create-times required to construct unique process hash keys on the backend
-	createTimeForPID := Process.createTimesforPIDs(connectionPIDs(conns))
+	createTimeForPID := ProcessNotify.GetCreateTimes(connectionPIDs(conns))
 	for _, conn := range conns {
 		if _, ok := createTimeForPID[conn.Pid]; !ok {
 			createTimeForPID[conn.Pid] = 0

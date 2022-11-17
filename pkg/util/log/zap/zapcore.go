@@ -6,9 +6,10 @@
 package log
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var _ zapcore.Core = (*core)(nil)

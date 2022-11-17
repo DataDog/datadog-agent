@@ -1040,6 +1040,7 @@ func TestHandleDelete(t *testing.T) {
 	})
 
 	assertTagInfoListEqual(t, expected, actual)
+	assert.Empty(t, collector.children)
 }
 
 type fakeProcessor struct {

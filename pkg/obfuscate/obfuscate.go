@@ -116,14 +116,14 @@ type SQLConfig struct {
 	ReplaceDigits bool `json:"replace_digits"`
 
 	// KeepSQLAlias reports whether SQL aliases ("AS") should be truncated.
-	KeepSQLAlias bool
+	KeepSQLAlias bool `json:"keep_sql_alias"`
 
 	// DollarQuotedFunc reports whether to treat "$func$" delimited dollar-quoted strings
 	// differently and not obfuscate them as a string. To read more about dollar quoted
 	// strings see:
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
-	DollarQuotedFunc bool
+	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool

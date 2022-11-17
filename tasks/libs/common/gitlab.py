@@ -160,6 +160,14 @@ class Gitlab(RemoteAPI):
         path = f"/projects/{quote(self.project_name, safe='')}/pipelines/{pipeline_id}/jobs?per_page={per_page}&page={page}"
         return self.make_request(path, json_output=True)
 
+    def job_log(self, job_id):
+        """
+        Gets the log file for a given job.
+        """
+
+        path = f"/projects/{quote(self.project_name, safe='')}/jobs/{job_id}/trace"
+        return self.make_request(path)
+
     def all_pipeline_schedules(self):
         """
         Gets all pipelines schedules for the given project.

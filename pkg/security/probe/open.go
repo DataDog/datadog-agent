@@ -19,7 +19,7 @@ import (
 var openCapabilities = Capabilities{
 	"open.file.path": {
 		PolicyFlags:     PolicyFlagBasename,
-		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
+		FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 		ValidateFnc:     validateBasenameFilter,
 		FilterWeight:    15,
 	},

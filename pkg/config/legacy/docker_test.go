@@ -68,26 +68,26 @@ instances:
   tags:
   - tag:value
   - value
+  capped_metrics:
+    docker.cpu.system: 1000
+    docker.cpu.user: 1000
   collect_events: false
+  unbundle_events: false
   filtered_event_types:
   - top
   - exec_start
   - exec_create
-  capped_metrics:
-    docker.cpu.system: 1000
-    docker.cpu.user: 1000
+  collected_event_types: []
 `
 )
 
 func TestConvertDocker(t *testing.T) {
-	dir, err := ioutil.TempDir("", "agent_test_legacy")
-	require.Nil(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	src := filepath.Join(dir, "docker_daemon.yaml")
 	dst := filepath.Join(dir, "docker.yaml")
 
-	err = ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
+	err := ioutil.WriteFile(src, []byte(dockerDaemonLegacyConf), 0640)
 	require.Nil(t, err)
 
 	configConverter := config.NewConfigConverter()

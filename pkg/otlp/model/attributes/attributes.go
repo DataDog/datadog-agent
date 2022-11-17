@@ -92,10 +92,6 @@ var (
 		conventions.AttributeAWSECSContainerARN,
 	}
 
-	runningTagsAttributes = []string{
-		conventions.AttributeAWSECSTaskARN,
-	}
-
 	// Kubernetes mappings defines the mapping between Kubernetes conventions (both general and Datadog specific)
 	// and Datadog Agent conventions. The Datadog Agent conventions can be found at
 	// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/tagger/collectors/const.go and
@@ -128,31 +124,31 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		switch key {
 		// Process attributes
 		case conventions.AttributeProcessExecutableName:
-			processAttributes.ExecutableName = value.StringVal()
+			processAttributes.ExecutableName = value.Str()
 		case conventions.AttributeProcessExecutablePath:
-			processAttributes.ExecutablePath = value.StringVal()
+			processAttributes.ExecutablePath = value.Str()
 		case conventions.AttributeProcessCommand:
-			processAttributes.Command = value.StringVal()
+			processAttributes.Command = value.Str()
 		case conventions.AttributeProcessCommandLine:
-			processAttributes.CommandLine = value.StringVal()
+			processAttributes.CommandLine = value.Str()
 		case conventions.AttributeProcessPID:
-			processAttributes.PID = value.IntVal()
+			processAttributes.PID = value.Int()
 		case conventions.AttributeProcessOwner:
-			processAttributes.Owner = value.StringVal()
+			processAttributes.Owner = value.Str()
 
 		// System attributes
 		case conventions.AttributeOSType:
-			systemAttributes.OSType = value.StringVal()
+			systemAttributes.OSType = value.Str()
 		}
 
 		// conventions mapping
-		if datadogKey, found := conventionsMapping[key]; found && value.StringVal() != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.StringVal()))
+		if datadogKey, found := conventionsMapping[key]; found && value.Str() != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.Str()))
 		}
 
 		// Kubernetes labels mapping
-		if datadogKey, found := kubernetesMapping[key]; found && value.StringVal() != "" {
-			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.StringVal()))
+		if datadogKey, found := kubernetesMapping[key]; found && value.Str() != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", datadogKey, value.Str()))
 		}
 		return true
 	})
@@ -174,19 +170,6 @@ func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 		originID = "kubernetes_pod_uid://" + podUID.AsString()
 	}
 	return
-}
-
-// RunningTagsFromAttributes gets tags used for running metrics from attributes.
-func RunningTagsFromAttributes(attrs pcommon.Map) []string {
-	tags := make([]string, 0, 1)
-	for _, key := range runningTagsAttributes {
-		if val, ok := attrs.Get(key); ok {
-			if ddKey, found := conventionsMapping[key]; found && val.StringVal() != "" {
-				tags = append(tags, fmt.Sprintf("%s:%s", ddKey, val.StringVal()))
-			}
-		}
-	}
-	return tags
 }
 
 // ContainerTagFromAttributes extracts the value of _dd.tags.container from the given

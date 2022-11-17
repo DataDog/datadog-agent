@@ -106,6 +106,13 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/setup_new_exec",
+			EBPFFuncName: "kprobe_setup_new_exec",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/security_bprm_committed_creds",
 			EBPFFuncName: "kprobe_security_bprm_committed_creds",
 		},
@@ -136,6 +143,13 @@ var execProbes = []*manager.Probe{
 			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/switch_task_namespaces",
 			EBPFFuncName: "kprobe_switch_task_namespaces",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/do_coredump",
+			EBPFFuncName: "kprobe_do_coredump",
 		},
 	},
 }

@@ -11,8 +11,7 @@ from .flavor import AgentFlavor
 from .utils import REPO_PATH, bin_name, get_build_flags, get_version_numeric_only
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
-BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
+BIN_PATH = os.path.join(BIN_DIR, bin_name("process-agent"))
 
 
 @task
@@ -89,6 +88,18 @@ def build(
     ctx.run(cmd.format(**args), env=env)
 
 
+class TempDir:
+    def __enter__(self):
+        self.fname = tempfile.mkdtemp()
+        print(f"created tempdir: {self.fname}")
+        return self.fname
+
+    # The _ in front of the unused arguments are needed to pass lint check
+    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
+        print(f"deleting tempdir: {self.fname}")
+        shutil.rmtree(self.fname)
+
+
 @task
 def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
     """
@@ -117,6 +128,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
         ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
         ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
 
@@ -140,13 +152,20 @@ def go_generate(ctx):
         ctx.run("go generate ./...")
 
 
-class TempDir:
-    def __enter__(self):
-        self.fname = tempfile.mkdtemp()
-        print(f"created tempdir: {self.fname}")
-        return self.fname
+@task
+def gen_mocks(ctx):
+    """
+    Generate mocks
+    """
 
-    # The _ in front of the unused arguments are needed to pass lint check
-    def __exit__(self, _exception_type, _exception_value, _exception_traceback):
-        print(f"deleting tempdir: {self.fname}")
-        shutil.rmtree(self.fname)
+    interfaces = {
+        "./pkg/process/checks": ["Check", "CheckWithRealTime"],
+        "./pkg/process/net": ["SysProbeUtil"],
+        "./pkg/process/procutil": ["Probe"],
+    }
+
+    for path, names in interfaces.items():
+        interface_regex = "|".join(f"^{i}\\$" for i in names)
+
+        with ctx.cd(path):
+            ctx.run(f"mockery --case snake --name=\"{interface_regex}\"")

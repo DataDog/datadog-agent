@@ -156,7 +156,8 @@ func (s *store) Start(ctx context.Context) {
 
 // Subscribe returns a channel where workload metadata events will be streamed
 // as they happen. On first subscription, it will also generate an EventTypeSet
-// event for each entity present in the store that matches filter.
+// event for each entity present in the store that matches filter, unless the
+// filter type is EventTypeUnset.
 func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
@@ -177,33 +178,35 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
-	for kind, entitiesOfKind := range s.store {
-		if !sub.filter.MatchKind(kind) {
-			continue
-		}
+	if filter == nil || (filter != nil && filter.EventType() != EventTypeUnset) {
+		for kind, entitiesOfKind := range s.store {
+			if !sub.filter.MatchKind(kind) {
+				continue
+			}
 
-		for _, cachedEntity := range entitiesOfKind {
-			entity := cachedEntity.get(sub.filter.Source())
-			if entity != nil {
-				events = append(events, Event{
-					Type:   EventTypeSet,
-					Entity: entity,
-				})
+			for _, cachedEntity := range entitiesOfKind {
+				entity := cachedEntity.get(sub.filter.Source())
+				if entity != nil {
+					events = append(events, Event{
+						Type:   EventTypeSet,
+						Entity: entity,
+					})
+				}
 			}
 		}
+
+		// sort events by kind and ID for deterministic ordering
+		sort.Slice(events, func(i, j int) bool {
+			a := events[i].Entity.GetID()
+			b := events[j].Entity.GetID()
+
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+
+			return a.ID < b.ID
+		})
 	}
-
-	// sort events by kind and ID for deterministic ordering
-	sort.Slice(events, func(i, j int) bool {
-		a := events[i].Entity.GetID()
-		b := events[j].Entity.GetID()
-
-		if a.Kind != b.Kind {
-			return a.Kind < b.Kind
-		}
-
-		return a.ID < b.ID
-	})
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
@@ -248,19 +251,25 @@ func (s *store) GetContainer(id string) (*Container, error) {
 }
 
 // ListContainers implements Store#ListContainers.
-func (s *store) ListContainers() ([]*Container, error) {
-	entities, err := s.listEntitiesByKind(KindContainer)
-	if err != nil {
-		return nil, err
-	}
+func (s *store) ListContainers() []*Container {
+	return s.ListContainersWithFilter(nil)
+}
+
+// ListContainersWithFilter implements Store#ListContainersWithFilter
+func (s *store) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
+	entities := s.listEntitiesByKind(KindContainer)
 
 	// Not very efficient
 	containers := make([]*Container, 0, len(entities))
 	for _, entity := range entities {
-		containers = append(containers, entity.(*Container))
+		container := entity.(*Container)
+
+		if filter == nil || filter(container) {
+			containers = append(containers, container)
+		}
 	}
 
-	return containers, nil
+	return containers
 }
 
 // GetKubernetesPod implements Store#GetKubernetesPod
@@ -386,11 +395,17 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				cachedEntity = entitiesOfKind[entityID.ID]
 			}
 
-			if found := cachedEntity.set(ev.Source, ev.Entity); !found {
+			found, changed := cachedEntity.set(ev.Source, ev.Entity)
+
+			if !found {
 				telemetry.StoredEntities.Inc(
 					string(entityID.Kind),
 					string(ev.Source),
 				)
+			}
+
+			if !changed {
+				continue
 			}
 		case EventTypeUnset:
 			// if the entity we're trying to remove was not
@@ -475,6 +490,10 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 	s.storeMut.Unlock()
 
 	for sub, evs := range filteredEvents {
+		if len(evs) == 0 {
+			continue
+		}
+
 		notifyChannel(sub.name, sub.ch, evs, true)
 	}
 }
@@ -496,13 +515,13 @@ func (s *store) getEntityByKind(kind Kind, id string) (Entity, error) {
 	return entity.cached, nil
 }
 
-func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
+func (s *store) listEntitiesByKind(kind Kind) []Entity {
 	s.storeMut.RLock()
 	defer s.storeMut.RUnlock()
 
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil
 	}
 
 	entities := make([]Entity, 0, len(entitiesOfKind))
@@ -510,7 +529,7 @@ func (s *store) listEntitiesByKind(kind Kind) ([]Entity, error) {
 		entities = append(entities, entity.cached)
 	}
 
-	return entities, nil
+	return entities
 }
 
 func (s *store) unsubscribeAll() {
@@ -527,10 +546,6 @@ func (s *store) unsubscribeAll() {
 }
 
 func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
-	if len(events) == 0 {
-		return
-	}
-
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,

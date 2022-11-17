@@ -13,11 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewDomainForwarder(t *testing.T) {
@@ -120,15 +121,15 @@ func TestRetryTransactions(t *testing.T) {
 	// Default value should be 0
 	assert.Equal(t, int64(0), transaction.TransactionsDropped.Value())
 
-	payload := []byte{1}
+	payload := transaction.NewBytesPayloadWithoutMetaData([]byte{1})
 	t1 := transaction.NewHTTPTransaction()
 	t1.Domain = "domain/"
 	t1.Endpoint.Route = "test1"
-	t1.Payload = &payload
+	t1.Payload = payload
 	t2 := transaction.NewHTTPTransaction()
 	t2.Domain = "domain/"
 	t2.Endpoint.Route = "test2"
-	t2.Payload = &payload
+	t2.Payload = payload
 
 	// Create blocks
 	forwarder.blockedList.recover(t1.GetTarget())
@@ -247,7 +248,13 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	flushInterval = 1 * time.Minute
 
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
-	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
+	transactionRetryQueue := retry.NewTransactionRetryQueue(
+		transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true},
+		nil,
+		1+2,
+		0,
+		telemetry,
+		retry.NewPointDroppedSenderMock())
 	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
@@ -300,7 +307,13 @@ forwarder_requeue_buffer_size: 1300
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
-	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
+	transactionRetryQueue := retry.NewTransactionRetryQueue(
+		transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true},
+		nil,
+		2,
+		0,
+		telemetry,
+		retry.NewPointDroppedSenderMock())
 
 	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter)
 }

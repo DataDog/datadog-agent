@@ -6,9 +6,10 @@
 package dns
 
 import (
+	"github.com/google/gopacket/layers"
+
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
-	"github.com/google/gopacket/layers"
 )
 
 var si = intern.NewStringInterner()

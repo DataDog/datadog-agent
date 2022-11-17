@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The metrics reported by KSM core now include the tags "kube_app_name",
+    "kube_app_instance", and so on, if they're related to a Kubernetes entity
+    that has a standard label like "app.kubernetes.io/name",
+    "app.kubernetes.io/instance", etc.

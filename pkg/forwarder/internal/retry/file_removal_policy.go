@@ -15,9 +15,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
-	"github.com/hashicorp/go-multierror"
 )
 
 // FileRemovalPolicy handles the removal policy for `.retry` files.

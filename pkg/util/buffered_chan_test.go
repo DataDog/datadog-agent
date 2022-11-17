@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,4 +75,25 @@ func TestBufferedChanThreadSafety(t *testing.T) {
 		n++
 	}
 	r.Equal(3000, n)
+}
+
+func TestBufferedChanWaitForValueTrue(t *testing.T) {
+	bufferSize := 3
+	c := NewBufferedChan(context.Background(), 10, bufferSize)
+
+	go func() {
+		for i := 0; i <= bufferSize; i++ {
+			c.Put(42)
+		}
+	}()
+	assert.True(t, c.WaitForValue())
+}
+
+func TestBufferedChanWaitForValueFalse(t *testing.T) {
+	c := NewBufferedChan(context.Background(), 10, 3)
+
+	go func() {
+		c.Close()
+	}()
+	assert.False(t, c.WaitForValue())
 }

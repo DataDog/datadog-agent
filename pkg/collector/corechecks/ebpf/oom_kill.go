@@ -16,13 +16,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
-
 	yaml "gopkg.in/yaml.v2"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	process_net "github.com/DataDog/datadog-agent/pkg/process/net"
@@ -72,7 +72,7 @@ func (m *OOMKillCheck) Configure(config, initConfig integration.Data, source str
 	// TODO: Remove that hard-code and put it somewhere else
 	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
-	err := m.CommonConfigure(config, source)
+	err := m.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func (m *OOMKillCheck) Run() error {
 		return err
 	}
 
-	data, err := sysProbeUtil.GetCheck("oom_kill")
+	data, err := sysProbeUtil.GetCheck(sysconfig.OOMKillProbeModule)
 	if err != nil {
 		return err
 	}
@@ -112,7 +112,6 @@ func (m *OOMKillCheck) Run() error {
 		containerID, err := cgroups.ContainerFilter("", line.CgroupName)
 		if err != nil || containerID == "" {
 			log.Warnf("Unable to extract containerID from cgroup name: %s, err: %v", line.CgroupName, err)
-			continue
 		}
 
 		entityID := containers.BuildTaggerEntityName(containerID)

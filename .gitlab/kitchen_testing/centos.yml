@@ -47,42 +47,42 @@
     - .kitchen_agent_a6
     - .kitchen_os_centos_all_non_fips
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a6"]
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_all_non_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_all_non_fips
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a7"]
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 .kitchen_scenario_centos_6_7_non_fips_a6:
   extends:
     - .kitchen_os_centos_6_7_non_fips
     - .kitchen_agent_a6
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a6"]
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_6_7_non_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_6_7_non_fips
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a7"]
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 .kitchen_scenario_centos_8_fips_a6:
   extends:
     - .kitchen_agent_a6
     - .kitchen_os_centos_8_fips
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a6"]
+  needs: ["deploy_rpm_testing-a6_x64"]
 
 .kitchen_scenario_centos_8_fips_a7:
   extends:
     - .kitchen_agent_a7
     - .kitchen_os_centos_8_fips
     - .kitchen_azure_x64
-  needs: ["deploy_rpm_testing-a7"]
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------

@@ -10,8 +10,9 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 // Filter keeps track of every docker-proxy instance and filters network traffic going through them
@@ -28,19 +29,14 @@ type proxy struct {
 }
 
 // NewFilter instantiates a new filter loaded with docker-proxy instance information
-func NewFilter() *Filter {
+func NewFilter(procs map[int32]*procutil.Process) *Filter {
 	filter := new(Filter)
-	if procs, err := process.AllProcesses(); err == nil {
-		filter.LoadProxies(procs)
-	} else {
-		log.Errorf("error initiating proxy filter: %s", err)
-	}
-
+	filter.LoadProxies(procs)
 	return filter
 }
 
 // LoadProxies by inspecting processes information
-func (f *Filter) LoadProxies(procs map[int32]*process.FilledProcess) {
+func (f *Filter) LoadProxies(procs map[int32]*procutil.Process) {
 	f.proxyByPID = make(map[int32]*proxy)
 	f.proxyByTarget = make(map[model.ContainerAddr]*proxy)
 
@@ -126,7 +122,7 @@ func (f *Filter) discoverProxyIP(p *proxy, c *model.Connection) string {
 	return ""
 }
 
-func extractProxyTarget(p *process.FilledProcess) *proxy {
+func extractProxyTarget(p *procutil.Process) *proxy {
 	if len(p.Cmdline) == 0 {
 		return nil
 	}

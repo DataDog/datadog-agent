@@ -19,7 +19,7 @@ const fileHandlesCheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
-	counter *pdhutil.PdhMultiInstanceCounterSet
+	counter *pdhutil.PdhSingleInstanceCounterSet
 }
 
 // Run executes the check
@@ -29,26 +29,33 @@ func (c *fhCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	vals, err := c.counter.GetAllValues()
-	if err != nil {
-		log.Warnf("Error getting handle value %v", err)
-		return err
-	}
-	val := vals["_Total"]
-	log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
-	sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
-	sender.Commit()
 
+	var val float64
+
+	// counter ("Process", "Handle count")
+	if c.counter == nil {
+		c.counter, err = pdhutil.GetEnglishCounterInstance("Process", "Handle Count", "_Total")
+	}
+	if c.counter != nil {
+		val, err = c.counter.GetValue()
+	}
+	if err != nil {
+		c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
+	} else {
+		log.Debugf("Submitting system.fs.file_handles_in_use %v", val)
+		sender.Gauge("system.fs.file_handles.in_use", float64(val), "", nil)
+	}
+
+	sender.Commit()
 	return nil
 }
 
 // The check doesn't need configuration
 func (c *fhCheck) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(data, source); err != nil {
+	if err := c.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 
-	c.counter, err = pdhutil.GetMultiInstanceCounter("Process", "Handle Count", &[]string{"_Total"}, nil)
 	return err
 }
 

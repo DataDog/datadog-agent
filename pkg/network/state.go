@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +36,7 @@ const (
 // - closed connections
 // - sent and received bytes per connection
 type State interface {
-	// GetDelta returns the a Delta object for  given client when provided the latest set of active connections
+	// GetDelta returns a Delta object for the given client when provided the latest set of active connections
 	GetDelta(
 		clientID string,
 		latestTime uint64,
@@ -62,7 +62,7 @@ type State interface {
 	RemoveExpiredClients(now time.Time)
 
 	// RemoveConnections removes the given keys from the state
-	RemoveConnections(keys []string)
+	RemoveConnections(conns []*ConnectionStats)
 
 	// StoreClosedConnections stores a batch of closed connections
 	StoreClosedConnections(connections []ConnectionStats)
@@ -84,7 +84,7 @@ type Delta struct {
 type telemetry struct {
 	closedConnDropped  int64
 	connDropped        int64
-	statsResets        int64
+	statsUnderflows    int64
 	timeSyncCollisions int64
 	dnsStatsDropped    int64
 	httpStatsDropped   int64
@@ -96,9 +96,11 @@ const minClosedCapacity = 1024
 type client struct {
 	lastFetch time.Time
 
+	// generated via `ByteKey` and used exclusively to roll up closed connections
 	closedConnectionsKeys map[string]int
-	closedConnections     []ConnectionStats
-	stats                 map[string]*StatCounters
+
+	closedConnections []ConnectionStats
+	stats             map[string]StatCountersByCookie
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -118,7 +120,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[string]*StatCounters, len(c.stats))
+	newStats := make(map[string]StatCountersByCookie, len(c.stats))
 	for key, st := range c.stats {
 		// Only keep active connections stats
 		if _, isActive := active[key]; isActive {
@@ -132,8 +134,9 @@ type networkState struct {
 	sync.Mutex
 
 	// clients is a map of the connection id string to the client structure
-	clients   map[string]*client
-	telemetry telemetry
+	clients       map[string]*client
+	telemetry     telemetry // Monotonic state telemetry
+	lastTelemetry telemetry // Old telemetry state; used for logging
 
 	buf             []byte // Shared buffer
 	latestTimeEpoch uint64
@@ -244,6 +247,8 @@ func (ns *networkState) saveTelemetry(telemetry map[ConnTelemetryType]int64) {
 }
 
 func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetryType]int64) map[ConnTelemetryType]int64 {
+	ns.logTelemetry()
+
 	var res = make(map[ConnTelemetryType]int64)
 	client := ns.getClient(id)
 	ns.saveTelemetry(telemetry)
@@ -268,6 +273,41 @@ func (ns *networkState) getTelemetryDelta(id string, telemetry map[ConnTelemetry
 	return res
 }
 
+func (ns *networkState) logTelemetry() {
+	delta := telemetry{
+		closedConnDropped:  ns.telemetry.closedConnDropped - ns.lastTelemetry.closedConnDropped,
+		connDropped:        ns.telemetry.connDropped - ns.lastTelemetry.connDropped,
+		statsUnderflows:    ns.telemetry.statsUnderflows - ns.lastTelemetry.statsUnderflows,
+		timeSyncCollisions: ns.telemetry.timeSyncCollisions - ns.lastTelemetry.timeSyncCollisions,
+		dnsStatsDropped:    ns.telemetry.dnsStatsDropped - ns.lastTelemetry.dnsStatsDropped,
+		httpStatsDropped:   ns.telemetry.httpStatsDropped - ns.lastTelemetry.httpStatsDropped,
+		dnsPidCollisions:   ns.telemetry.dnsPidCollisions - ns.lastTelemetry.dnsPidCollisions,
+	}
+
+	// Flush log line if any metric is non-zero
+	if delta.statsUnderflows > 0 || delta.closedConnDropped > 0 || delta.connDropped > 0 || delta.timeSyncCollisions > 0 ||
+		delta.dnsStatsDropped > 0 || delta.httpStatsDropped > 0 || delta.dnsPidCollisions > 0 {
+		s := "state telemetry: "
+		s += " [%d stats stats_underflows]"
+		s += " [%d connections dropped due to stats]"
+		s += " [%d closed connections dropped]"
+		s += " [%d dns stats dropped]"
+		s += " [%d HTTP stats dropped]"
+		s += " [%d DNS pid collisions]"
+		s += " [%d time sync collisions]"
+		log.Warnf(s,
+			delta.statsUnderflows,
+			delta.connDropped,
+			delta.closedConnDropped,
+			delta.dnsStatsDropped,
+			delta.httpStatsDropped,
+			delta.dnsPidCollisions,
+			delta.timeSyncCollisions)
+	}
+
+	ns.lastTelemetry = ns.telemetry
+}
+
 // RegisterClient registers a client before it first gets stream of data.
 // This call is not strictly mandatory, although it is useful when users
 // want to first register and then start getting data at regular intervals.
@@ -284,14 +324,18 @@ func (ns *networkState) RegisterClient(id string) {
 // getConnsByKey returns a mapping of byte-key -> connection for easier access + manipulation
 func getConnsByKey(conns []ConnectionStats, buf []byte) map[string]*ConnectionStats {
 	connsByKey := make(map[string]*ConnectionStats, len(conns))
-	for i, c := range conns {
-		key, err := c.ByteKey(buf)
-		if err != nil {
-			log.Warnf("failed to create byte key: %s", err)
+	for i := range conns {
+		key := string(conns[i].ByteKey(buf))
+		var c *ConnectionStats
+		if c = connsByKey[key]; c == nil {
+			connsByKey[key] = &conns[i]
 			continue
 		}
-		connsByKey[string(key)] = &conns[i]
+
+		log.Tracef("duplicate connection in collection: key: %s, c1: %+v, c2: %+v", BeautifyKey(key), *c, conns[i])
+		mergeConnectionStats(c, &conns[i])
 	}
+
 	return connsByKey
 }
 
@@ -306,14 +350,10 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key, err := c.ByteKey(ns.buf)
-			if err != nil {
-				continue
-			}
+			key := string(c.ByteKeyNAT(ns.buf))
 
-			i, ok := client.closedConnectionsKeys[string(key)]
-			if ok {
-				addConnections(&client.closedConnections[i], &c)
+			if i, ok := client.closedConnectionsKeys[key]; ok {
+				mergeConnectionStats(&client.closedConnections[i], &c)
 				continue
 			}
 
@@ -323,7 +363,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			}
 
 			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[string(key)] = len(client.closedConnections) - 1
+			client.closedConnectionsKeys[key] = len(client.closedConnections) - 1
 		}
 	}
 }
@@ -394,7 +434,7 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeHTTPStats stores latest HTTP stats for all clients
+// storeHTTPStats stores the latest HTTP stats for all clients
 func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {
@@ -432,7 +472,7 @@ func (ns *networkState) getClient(clientID string) *client {
 
 	c := &client{
 		lastFetch:             time.Now(),
-		stats:                 map[string]*StatCounters{},
+		stats:                 make(map[string]StatCountersByCookie),
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
 		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
@@ -451,105 +491,77 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	client.lastFetch = now
 
 	closed := client.closedConnections
+	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
-		byteKey, err := closedConn.ByteKey(ns.buf)
-		if err != nil {
+		key := string(closedConn.ByteKey(ns.buf))
+		closedKeys[key] = struct{}{}
+
+		var activeConn *ConnectionStats
+		if activeConn = active[key]; activeConn != nil {
+			mergeConnectionStats(closedConn, activeConn)
+			ns.createStatsForKey(client, key)
+		}
+
+		ns.updateConnWithStats(client, key, closedConn)
+
+		if closedConn.Last.IsZero() {
 			continue
 		}
-		key := string(byteKey)
-
-		// If the connection is also active, check the epochs to understand what's going on
-		if activeConn, ok := active[key]; ok {
-			// If closed conn is newer it means that the active connection is outdated, let's ignore it
-			if closedConn.LastUpdateEpoch > activeConn.LastUpdateEpoch {
-				ns.updateConnWithStats(client, key, closedConn)
-			} else if closedConn.LastUpdateEpoch < activeConn.LastUpdateEpoch {
-				// Else if the active conn is newer, it likely means that it became active again
-				// in this case we aggregate the two
-				addConnections(closedConn, activeConn)
-				ns.createStatsForKey(client, key)
-				ns.updateConnWithStatWithActiveConn(client, key, activeConn, closedConn)
-			} else {
-				// Else the closed connection and the active connection have the same epoch
-				// XXX: For now we assume that the closed connection is the more recent one but this is not guaranteed
-				// To fix this we should have a way to uniquely identify a connection
-				// (using the startTimestamp or a monotonic counter)
-				ns.telemetry.timeSyncCollisions++
-				log.Tracef("Time collision for connections: closed:%+v, active:%+v", closedConn, activeConn)
-				ns.updateConnWithStats(client, key, closedConn)
-			}
-		} else {
-			ns.updateConnWithStats(client, key, closedConn)
-		}
+		*buffer.Next() = *closedConn
 	}
-	buffer.Append(closed)
 
 	// Active connections
 	for key, c := range active {
 		// If the connection was closed, it has already been processed so skip it
-		if _, ok := client.closedConnectionsKeys[key]; ok {
+		if _, ok := closedKeys[key]; ok {
 			continue
 		}
 
 		ns.createStatsForKey(client, key)
 		ns.updateConnWithStats(client, key, c)
 
+		if c.Last.IsZero() {
+			continue
+		}
 		*buffer.Next() = *c
 	}
 }
 
-// This is used to update the stats when we process a closed connection that became active again
-// in this case we want the stats to reflect the new active connections in order to avoid resets
-func (ns *networkState) updateConnWithStatWithActiveConn(client *client, key string, active *ConnectionStats, closed *ConnectionStats) {
-	if st, ok := client.stats[key]; ok {
-		// Check for underflows
-		ns.handleStatsUnderflow(key, st, closed)
-
-		closed.Last.SentBytes = closed.Monotonic.SentBytes - st.SentBytes
-		closed.Last.RecvBytes = closed.Monotonic.RecvBytes - st.RecvBytes
-		closed.Last.SentPackets = closed.Monotonic.SentPackets - st.SentPackets
-		closed.Last.RecvPackets = closed.Monotonic.RecvPackets - st.RecvPackets
-
-		closed.Last.Retransmits = closed.Monotonic.Retransmits - st.Retransmits
-		closed.Last.TCPEstablished = closed.Monotonic.TCPEstablished - st.TCPEstablished
-		closed.Last.TCPClosed = closed.Monotonic.TCPClosed - st.TCPClosed
-
-		// We also update the counters to reflect only the active connection
-		// The monotonic counters will be the sum of all connections that cross our interval start + finish.
-		*st = active.Monotonic
-	} else {
-		closed.Last = closed.Monotonic
-	}
-}
-
 func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
-	if st, ok := client.stats[key]; ok {
-		// Check for underflows
-		ns.handleStatsUnderflow(key, st, c)
+	c.Last = StatCounters{}
+	if sts, ok := client.stats[key]; ok {
+		for _, cm := range c.Monotonic {
+			cookie := cm.Cookie
+			counters := cm.StatCounters
 
-		c.Last.SentBytes = c.Monotonic.SentBytes - st.SentBytes
-		c.Last.RecvBytes = c.Monotonic.RecvBytes - st.RecvBytes
-		c.Last.SentPackets = c.Monotonic.SentPackets - st.SentPackets
-		c.Last.RecvPackets = c.Monotonic.RecvPackets - st.RecvPackets
-		c.Last.Retransmits = c.Monotonic.Retransmits - st.Retransmits
-		c.Last.TCPEstablished = c.Monotonic.TCPEstablished - st.TCPEstablished
-		c.Last.TCPClosed = c.Monotonic.TCPClosed - st.TCPClosed
+			st, ok := sts.Get(cookie)
+			if !ok {
+				c.Last = c.Last.Add(counters)
+				sts.Put(cookie, counters)
+				client.stats[key] = sts
+				continue
+			}
 
-		*st = c.Monotonic
+			var last StatCounters
+			var underflow bool
+			if last, underflow = counters.Sub(st); underflow {
+				ns.telemetry.statsUnderflows++
+				log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), st, *c)
+
+				counters = counters.Max(st)
+				last, _ = counters.Sub(st)
+			}
+
+			c.Last = c.Last.Add(last)
+
+			sts.Put(cookie, counters)
+			client.stats[key] = sts
+		}
 	} else {
-		c.Last = c.Monotonic
-	}
-}
-
-// handleStatsUnderflow checks if we are going to have an underflow when computing last stats and if it's the case it resets the stats to avoid it
-func (ns *networkState) handleStatsUnderflow(key string, st *StatCounters, c *ConnectionStats) {
-	if c.Monotonic.SentBytes < st.SentBytes || c.Monotonic.RecvBytes < st.RecvBytes || c.Monotonic.Retransmits < st.Retransmits {
-		ns.telemetry.statsResets++
-		log.Debugf("Stats reset triggered for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), *st, *c)
-		st.SentBytes = 0
-		st.RecvBytes = 0
-		st.Retransmits = 0
+		for _, counters := range c.Monotonic {
+			c.Last = c.Last.Add(counters.StatCounters)
+		}
 	}
 }
 
@@ -560,7 +572,7 @@ func (ns *networkState) createStatsForKey(client *client, key string) {
 			ns.telemetry.connDropped++
 			return
 		}
-		client.stats[key] = &StatCounters{}
+		client.stats[key] = make(StatCountersByCookie, 0, 3)
 	}
 }
 
@@ -584,37 +596,16 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 	}
 }
 
-func (ns *networkState) RemoveConnections(keys []string) {
+func (ns *networkState) RemoveConnections(conns []*ConnectionStats) {
 	ns.Lock()
 	defer ns.Unlock()
 
-	for _, c := range ns.clients {
-		for _, key := range keys {
-			delete(c.stats, key)
+	for _, cl := range ns.clients {
+		for _, c := range conns {
+			key := c.ByteKey(ns.buf)
+			delete(cl.stats, string(key))
 		}
 	}
-
-	// Flush log line if any metric is non zero
-	if ns.telemetry.statsResets > 0 || ns.telemetry.closedConnDropped > 0 || ns.telemetry.connDropped > 0 || ns.telemetry.timeSyncCollisions > 0 {
-		s := "state telemetry: "
-		s += " [%d stats stats_resets]"
-		s += " [%d connections dropped due to stats]"
-		s += " [%d closed connections dropped]"
-		s += " [%d dns stats dropped]"
-		s += " [%d HTTP stats dropped]"
-		s += " [%d DNS pid collisions]"
-		s += " [%d time sync collisions]"
-		log.Warnf(s,
-			ns.telemetry.statsResets,
-			ns.telemetry.connDropped,
-			ns.telemetry.closedConnDropped,
-			ns.telemetry.dnsStatsDropped,
-			ns.telemetry.httpStatsDropped,
-			ns.telemetry.dnsPidCollisions,
-			ns.telemetry.timeSyncCollisions)
-	}
-
-	ns.telemetry = telemetry{}
 }
 
 // GetStats returns a map of statistics about the current network state
@@ -634,7 +625,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"clients": clientInfo,
 		"telemetry": map[string]int64{
-			"stats_resets":         ns.telemetry.statsResets,
+			"stats_underflows":     ns.telemetry.statsUnderflows,
 			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
 			"conn_dropped":         ns.telemetry.connDropped,
 			"time_sync_collisions": ns.telemetry.timeSyncCollisions,
@@ -655,13 +646,18 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	data := map[string]interface{}{}
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
-			data[BeautifyKey(connKey)] = map[string]uint64{
-				"total_sent":            s.SentBytes,
-				"total_recv":            s.RecvBytes,
-				"total_retransmits":     uint64(s.Retransmits),
-				"total_tcp_established": uint64(s.TCPEstablished),
-				"total_tcp_closed":      uint64(s.TCPClosed),
+			byCookie := map[uint32]interface{}{}
+			for _, st := range s {
+				byCookie[st.Cookie] = map[string]uint64{
+					"total_sent":            st.SentBytes,
+					"total_recv":            st.RecvBytes,
+					"total_retransmits":     uint64(st.Retransmits),
+					"total_tcp_established": uint64(st.TCPEstablished),
+					"total_tcp_closed":      uint64(st.TCPClosed),
+				}
 			}
+
+			data[BeautifyKey(connKey)] = byCookie
 		}
 	}
 	return data
@@ -725,14 +721,15 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 	}
 }
 
-func addConnections(a, b *ConnectionStats) {
-	a.Monotonic.SentBytes += b.Monotonic.SentBytes
-	a.Monotonic.RecvBytes += b.Monotonic.RecvBytes
-	a.Monotonic.SentPackets += b.Monotonic.SentPackets
-	a.Monotonic.RecvPackets += b.Monotonic.RecvPackets
-	a.Monotonic.Retransmits += b.Monotonic.Retransmits
-	a.Monotonic.TCPEstablished += b.Monotonic.TCPEstablished
-	a.Monotonic.TCPClosed += b.Monotonic.TCPClosed
+func mergeConnectionStats(a, b *ConnectionStats) {
+	for _, bm := range b.Monotonic {
+		if ams, ok := a.Monotonic.Get(bm.Cookie); ok {
+			a.Monotonic.Put(bm.Cookie, ams.Max(bm.StatCounters))
+			continue
+		}
+
+		a.Monotonic.Put(bm.Cookie, bm.StatCounters)
+	}
 
 	if b.LastUpdateEpoch > a.LastUpdateEpoch {
 		a.LastUpdateEpoch = b.LastUpdateEpoch

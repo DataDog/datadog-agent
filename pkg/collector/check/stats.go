@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -26,6 +27,7 @@ var EventPlatformNameTranslations = map[string]string{
 	"dbm-metrics":                "Database Monitoring Query Metrics",
 	"dbm-activity":               "Database Monitoring Activity Samples",
 	"network-devices-metadata":   "Network Devices Metadata",
+	"network-devices-netflow":    "Network Devices NetFlow",
 	"network-devices-snmp-traps": "SNMP Traps",
 }
 

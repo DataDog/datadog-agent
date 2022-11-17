@@ -44,4 +44,5 @@ func TestConfigSetHandler(t *testing.T) {
 	logstr = r.AgentLog()
 	assert.NotContains(t, logstr, "Switched log level to")
 	assert.Equal(t, 200, resp.StatusCode)
+	resp.Body.Close()
 }

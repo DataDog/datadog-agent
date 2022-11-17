@@ -186,6 +186,7 @@ func getClientConfig(timeout time.Duration) (*rest.Config, error) {
 	return clientConfig, nil
 }
 
+// GetKubeClient returns a kubernetes API server client
 func GetKubeClient(timeout time.Duration) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
 	rest.SetDefaultWarningHandler(CustomWarningLogger{})
@@ -283,22 +284,25 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
+	if err != nil {
+		log.Infof("Could not get apiserver discovery client: %v", err)
+		return err
+	}
+
 	c.VPAClient, err = getKubeVPAClient(time.Duration(c.timeoutSeconds) * time.Second)
 	if err != nil {
 		log.Infof("Could not get apiserver vpa client: %v", err)
 		return err
 	}
 
-	if config.Datadog.GetBool("admission_controller.enabled") || config.Datadog.GetBool("compliance_config.enabled") {
+	if config.Datadog.GetBool("admission_controller.enabled") ||
+		config.Datadog.GetBool("compliance_config.enabled") ||
+		config.Datadog.GetBool("orchestrator_explorer.enabled") ||
+		config.Datadog.GetBool("cluster_checks.enabled") {
 		c.DynamicCl, err = getKubeDynamicClient(time.Duration(c.timeoutSeconds) * time.Second)
 		if err != nil {
 			log.Infof("Could not get apiserver dynamic client: %v", err)
-			return err
-		}
-
-		c.DiscoveryCl, err = getKubeDiscoveryClient(time.Duration(c.timeoutSeconds) * time.Second)
-		if err != nil {
-			log.Infof("Could not get apiserver discovery client: %v", err)
 			return err
 		}
 	}
@@ -600,4 +604,19 @@ func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.Metada
 		output.Services[key] = val
 	}
 	return output
+}
+
+func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
+	nodeList, err := c.Cl.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+		Limit: 1,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(nodeList.Items) == 0 {
+		return "", fmt.Errorf("No node found")
+	}
+
+	return nodeList.Items[0].Name, nil
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// GetConfigCheckCobraCmd TODO <container-integrations>
 func GetConfigCheckCobraCmd(flagNoColor *bool, confPath *string, loggerName config.LoggerName) *cobra.Command {
 	var withDebug bool
 	configCheckCommand := &cobra.Command{

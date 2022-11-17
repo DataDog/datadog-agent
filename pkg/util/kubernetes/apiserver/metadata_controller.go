@@ -49,6 +49,7 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
+// NewMetadataController returns a new metadata controller
 func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
@@ -75,6 +76,7 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	return m
 }
 
+// Run starts the metadata controller reconciler loop
 func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	defer m.queue.ShutDown()
 

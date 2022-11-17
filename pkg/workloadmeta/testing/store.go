@@ -39,11 +39,8 @@ func (s *Store) GetContainer(id string) (*workloadmeta.Container, error) {
 }
 
 // ListContainers returns metadata about all known containers.
-func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
-	entities, err := s.listEntitiesByKind(workloadmeta.KindContainer)
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) ListContainers() []*workloadmeta.Container {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainer)
 
 	// Not very efficient
 	containers := make([]*workloadmeta.Container, 0, len(entities))
@@ -51,7 +48,20 @@ func (s *Store) ListContainers() ([]*workloadmeta.Container, error) {
 		containers = append(containers, entity.(*workloadmeta.Container))
 	}
 
-	return containers, nil
+	return containers
+}
+
+// ListContainersWithFilter returns metadata about the containers that pass the given filter.
+func (s *Store) ListContainersWithFilter(filter workloadmeta.ContainerFilterFunc) []*workloadmeta.Container {
+	var res []*workloadmeta.Container
+
+	for _, container := range s.ListContainers() {
+		if filter(container) {
+			res = append(res, container)
+		}
+	}
+
+	return res
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
@@ -163,13 +173,13 @@ func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta
 	return entity, nil
 }
 
-func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entity, error) {
+func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) []workloadmeta.Entity {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil
 	}
 
 	entities := make([]workloadmeta.Entity, 0, len(entitiesOfKind))
@@ -177,5 +187,5 @@ func (s *Store) listEntitiesByKind(kind workloadmeta.Kind) ([]workloadmeta.Entit
 		entities = append(entities, entity)
 	}
 
-	return entities, nil
+	return entities
 }

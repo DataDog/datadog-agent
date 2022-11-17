@@ -17,6 +17,8 @@ const (
 	OTLPMetrics               = OTLPSection + "." + OTLPMetricsSubSectionKey
 	OTLPMetricsEnabled        = OTLPSection + "." + OTLPMetricsSubSectionKey + ".enabled"
 	OTLPTagCardinalityKey     = OTLPMetrics + ".tag_cardinality"
+	OTLPDebugKey              = "debug"
+	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
 )
 
 // SetupOTLP related configuration.
@@ -30,11 +32,14 @@ func SetupOTLP(config Config) {
 	config.BindEnvAndSetDefault(OTLPTagCardinalityKey, "low", "DD_OTLP_TAG_CARDINALITY")
 
 	config.SetKnown(OTLPMetrics)
-	// Set all subkeys of otlp.metrics as known
+	// Set all subkeys of otlp_config.metrics as known
 	config.SetKnown(OTLPMetrics + ".*")
 	config.SetKnown(OTLPReceiverSection)
-	// Set all subkeys of otlp.receiver as known
+	// Set all subkeys of otlp_config.receiver as known
 	config.SetKnown(OTLPReceiverSection + ".*")
+	config.SetKnown(OTLPDebug)
+	// Set all subkeys of otlp_config.debug as known
+	config.SetKnown(OTLPDebug + ".*")
 
 	// set environment variables for selected fields
 	setupOTLPEnvironmentVariables(config)
@@ -70,9 +75,14 @@ func setupOTLPEnvironmentVariables(config Config) {
 	config.BindEnv(OTLPSection + ".metrics.delta_ttl")
 	config.BindEnv(OTLPSection + ".metrics.resource_attributes_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.instrumentation_library_metadata_as_tags")
+	config.BindEnv(OTLPSection + ".metrics.instrumentation_scope_metadata_as_tags")
 	config.BindEnv(OTLPSection + ".metrics.tag_cardinality")
 	config.BindEnv(OTLPSection + ".metrics.histograms.mode")
 	config.BindEnv(OTLPSection + ".metrics.histograms.send_count_sum_metrics")
 	config.BindEnv(OTLPSection + ".metrics.sums.cumulative_monotonic_mode")
 	config.BindEnv(OTLPSection + ".metrics.summaries.mode")
+
+	// Debug settings
+	config.BindEnv(OTLPSection + ".debug.loglevel") // Deprecated
+	config.BindEnv(OTLPSection + ".debug.verbosity")
 }

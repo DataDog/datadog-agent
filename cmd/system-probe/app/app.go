@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/spf13/cobra"
+
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (

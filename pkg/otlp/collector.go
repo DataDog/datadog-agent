@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/loggingexporter"
 	"go.opentelemetry.io/collector/exporter/otlpexporter"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
@@ -56,6 +57,7 @@ func getComponents(s serializer.MetricSerializer) (
 	exporters, err := component.MakeExporterFactoryMap(
 		otlpexporter.NewFactory(),
 		serializerexporter.NewFactory(s),
+		loggingexporter.NewFactory(),
 	)
 	if err != nil {
 		errs = append(errs, err)
@@ -96,9 +98,36 @@ type PipelineConfig struct {
 	MetricsEnabled bool
 	// TracesEnabled states whether OTLP traces support is enabled.
 	TracesEnabled bool
-
+	// Debug contains debug configurations.
+	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+}
+
+// valid values for debug log level.
+var debugLogLevelMap = map[string]struct{}{
+	"disabled": {},
+	"debug":    {},
+	"info":     {},
+	"warn":     {},
+	"error":    {},
+}
+
+// shouldSetLoggingSection returns whether debug logging is enabled.
+// If an invalid loglevel value is set, it assumes debug logging is disabled.
+// If the special 'disabled' value is set, it returns false.
+// Otherwise it returns true and lets the Collector handle the rest.
+func (p *PipelineConfig) shouldSetLoggingSection() bool {
+	// Legacy behavior: keep it so that we support `loglevel: disabled`.
+	if v, ok := p.Debug["loglevel"]; ok {
+		if s, ok := v.(string); ok {
+			_, ok := debugLogLevelMap[s]
+			return ok && s != "disabled"
+		}
+	}
+
+	// If the legacy behavior does not apply, we always want to set the logging section.
+	return true
 }
 
 // Pipeline is an OTLP pipeline.

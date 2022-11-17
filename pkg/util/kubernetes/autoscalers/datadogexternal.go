@@ -45,6 +45,7 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 )
 
+// Point represents a metric data point
 type Point struct {
 	Value     float64
 	Timestamp int64

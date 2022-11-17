@@ -220,7 +220,7 @@
         {
           "name": "process.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -254,9 +254,21 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -311,6 +323,114 @@
           "name": "process.ancestors.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.ancestors.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "process.ancestors.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -490,7 +610,7 @@
         {
           "name": "process.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -524,9 +644,21 @@
           "constants": ""
         },
         {
+          "name": "process.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "process.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.file.path' string",
           "constants": ""
         },
         {
@@ -584,6 +716,114 @@
           "constants": ""
         },
         {
+          "name": "process.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "process.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'process.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'process.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "process.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "process.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "process.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "constants": ""
+        },
+        {
           "name": "process.pid",
           "type": "int",
           "definition": "Process ID of the process (also called thread group ID)",
@@ -632,7 +872,7 @@
           "name": "bind.addr.family",
           "type": "int",
           "definition": "Address family",
-          "constants": "Network Address Family constants"
+          "constants": ""
         },
         {
           "name": "bind.addr.ip",
@@ -784,7 +1024,7 @@
         {
           "name": "chmod.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -818,9 +1058,21 @@
           "constants": ""
         },
         {
+          "name": "chmod.file.name.length",
+          "type": "int",
+          "definition": "Length of 'chmod.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "chmod.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.path.length",
+          "type": "int",
+          "definition": "Length of 'chmod.file.path' string",
           "constants": ""
         },
         {
@@ -907,7 +1159,7 @@
         {
           "name": "chown.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -941,9 +1193,21 @@
           "constants": ""
         },
         {
+          "name": "chown.file.name.length",
+          "type": "int",
+          "definition": "Length of 'chown.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "chown.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.path.length",
+          "type": "int",
+          "definition": "Length of 'chown.file.path' string",
           "constants": ""
         },
         {
@@ -980,6 +1244,12 @@
       "experimental": false,
       "properties": [
         {
+          "name": "dns.id",
+          "type": "int",
+          "definition": "[Experimental] the DNS request ID",
+          "constants": ""
+        },
+        {
           "name": "dns.question.class",
           "type": "int",
           "definition": "the class looked up by the DNS question",
@@ -992,15 +1262,21 @@
           "constants": ""
         },
         {
+          "name": "dns.question.length",
+          "type": "int",
+          "definition": "the total DNS request size in bytes",
+          "constants": ""
+        },
+        {
           "name": "dns.question.name",
           "type": "string",
           "definition": "the queried domain name",
           "constants": ""
         },
         {
-          "name": "dns.question.size",
+          "name": "dns.question.name.length",
           "type": "int",
-          "definition": "the total DNS request size in bytes",
+          "definition": "the queried domain name",
           "constants": ""
         },
         {
@@ -1159,7 +1435,7 @@
         {
           "name": "exec.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1193,9 +1469,21 @@
           "constants": ""
         },
         {
+          "name": "exec.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exec.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "exec.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exec.file.path' string",
           "constants": ""
         },
         {
@@ -1253,6 +1541,114 @@
           "constants": ""
         },
         {
+          "name": "exec.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exec.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exec.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exec.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exec.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exec.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "exec.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "constants": ""
+        },
+        {
           "name": "exec.pid",
           "type": "int",
           "definition": "Process ID of the process (also called thread group ID)",
@@ -1284,6 +1680,417 @@
         },
         {
           "name": "exec.user",
+          "type": "string",
+          "definition": "User of the process",
+          "constants": ""
+        }
+      ]
+    },
+    {
+      "name": "exit",
+      "definition": "A process was terminated",
+      "type": "Process",
+      "from_agent_version": "7.38",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "exit.args",
+          "type": "string",
+          "definition": "Arguments of the process (as a string)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_flags",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_options",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.args_truncated",
+          "type": "bool",
+          "definition": "Indicator of arguments truncation",
+          "constants": ""
+        },
+        {
+          "name": "exit.argv",
+          "type": "string",
+          "definition": "Arguments of the process (as an array)",
+          "constants": ""
+        },
+        {
+          "name": "exit.argv0",
+          "type": "string",
+          "definition": "First argument of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.cap_effective",
+          "type": "int",
+          "definition": "Effective capability set of the process",
+          "constants": "Kernel Capability constants"
+        },
+        {
+          "name": "exit.cap_permitted",
+          "type": "int",
+          "definition": "Permitted capability set of the process",
+          "constants": "Kernel Capability constants"
+        },
+        {
+          "name": "exit.cause",
+          "type": "int",
+          "definition": "Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)",
+          "constants": ""
+        },
+        {
+          "name": "exit.code",
+          "type": "int",
+          "definition": "Exit code of the process or number of the signal that caused the process to terminate",
+          "constants": ""
+        },
+        {
+          "name": "exit.comm",
+          "type": "string",
+          "definition": "Comm attribute of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.container.id",
+          "type": "string",
+          "definition": "Container ID",
+          "constants": ""
+        },
+        {
+          "name": "exit.cookie",
+          "type": "int",
+          "definition": "Cookie of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.created_at",
+          "type": "int",
+          "definition": "Timestamp of the creation of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.egid",
+          "type": "int",
+          "definition": "Effective GID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.egroup",
+          "type": "string",
+          "definition": "Effective group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envp",
+          "type": "string",
+          "definition": "Environment variables of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envs",
+          "type": "string",
+          "definition": "Environment variable names of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.envs_truncated",
+          "type": "bool",
+          "definition": "Indicator of environment variables truncation",
+          "constants": ""
+        },
+        {
+          "name": "exit.euid",
+          "type": "int",
+          "definition": "Effective UID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.euser",
+          "type": "string",
+          "definition": "Effective user of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exit.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exit.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsgid",
+          "type": "int",
+          "definition": "FileSystem-gid of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsgroup",
+          "type": "string",
+          "definition": "FileSystem-group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsuid",
+          "type": "int",
+          "definition": "FileSystem-uid of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.fsuser",
+          "type": "string",
+          "definition": "FileSystem-user of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.gid",
+          "type": "int",
+          "definition": "GID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.group",
+          "type": "string",
+          "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'exit.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'exit.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "exit.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "exit.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "exit.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
+          "constants": ""
+        },
+        {
+          "name": "exit.pid",
+          "type": "int",
+          "definition": "Process ID of the process (also called thread group ID)",
+          "constants": ""
+        },
+        {
+          "name": "exit.ppid",
+          "type": "int",
+          "definition": "Parent process ID",
+          "constants": ""
+        },
+        {
+          "name": "exit.tid",
+          "type": "int",
+          "definition": "Thread ID of the thread",
+          "constants": ""
+        },
+        {
+          "name": "exit.tty_name",
+          "type": "string",
+          "definition": "Name of the TTY associated with the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.uid",
+          "type": "int",
+          "definition": "UID of the process",
+          "constants": ""
+        },
+        {
+          "name": "exit.user",
           "type": "string",
           "definition": "User of the process",
           "constants": ""
@@ -1330,7 +2137,7 @@
         {
           "name": "link.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1364,9 +2171,21 @@
           "constants": ""
         },
         {
+          "name": "link.file.destination.name.length",
+          "type": "int",
+          "definition": "Length of 'link.file.destination.name' string",
+          "constants": ""
+        },
+        {
           "name": "link.file.destination.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.path.length",
+          "type": "int",
+          "definition": "Length of 'link.file.destination.path' string",
           "constants": ""
         },
         {
@@ -1408,7 +2227,7 @@
         {
           "name": "link.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1442,9 +2261,21 @@
           "constants": ""
         },
         {
+          "name": "link.file.name.length",
+          "type": "int",
+          "definition": "Length of 'link.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "link.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "link.file.path.length",
+          "type": "int",
+          "definition": "Length of 'link.file.path' string",
           "constants": ""
         },
         {
@@ -1507,7 +2338,7 @@
         {
           "name": "load_module.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1541,9 +2372,21 @@
           "constants": ""
         },
         {
+          "name": "load_module.file.name.length",
+          "type": "int",
+          "definition": "Length of 'load_module.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "load_module.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.path.length",
+          "type": "int",
+          "definition": "Length of 'load_module.file.path' string",
           "constants": ""
         },
         {
@@ -1630,7 +2473,7 @@
         {
           "name": "mkdir.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1664,9 +2507,21 @@
           "constants": ""
         },
         {
+          "name": "mkdir.file.name.length",
+          "type": "int",
+          "definition": "Length of 'mkdir.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "mkdir.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.path.length",
+          "type": "int",
+          "definition": "Length of 'mkdir.file.path' string",
           "constants": ""
         },
         {
@@ -1729,7 +2584,7 @@
         {
           "name": "mmap.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1763,9 +2618,21 @@
           "constants": ""
         },
         {
+          "name": "mmap.file.name.length",
+          "type": "int",
+          "definition": "Length of 'mmap.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "mmap.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.path.length",
+          "type": "int",
+          "definition": "Length of 'mmap.file.path' string",
           "constants": ""
         },
         {
@@ -1873,7 +2740,7 @@
         {
           "name": "open.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -1907,9 +2774,21 @@
           "constants": ""
         },
         {
+          "name": "open.file.name.length",
+          "type": "int",
+          "definition": "Length of 'open.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "open.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "open.file.path.length",
+          "type": "int",
+          "definition": "Length of 'open.file.path' string",
           "constants": ""
         },
         {
@@ -2104,7 +2983,7 @@
         {
           "name": "ptrace.tracee.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2138,9 +3017,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -2195,6 +3086,114 @@
           "name": "ptrace.tracee.ancestors.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.ancestors.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -2374,7 +3373,7 @@
         {
           "name": "ptrace.tracee.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2408,9 +3407,21 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.file.path' string",
           "constants": ""
         },
         {
@@ -2465,6 +3476,114 @@
           "name": "ptrace.tracee.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'ptrace.tracee.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -2551,7 +3670,7 @@
         {
           "name": "removexattr.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2585,9 +3704,21 @@
           "constants": ""
         },
         {
+          "name": "removexattr.file.name.length",
+          "type": "int",
+          "definition": "Length of 'removexattr.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "removexattr.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.path.length",
+          "type": "int",
+          "definition": "Length of 'removexattr.file.path' string",
           "constants": ""
         },
         {
@@ -2656,7 +3787,7 @@
         {
           "name": "rename.file.destination.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2690,9 +3821,21 @@
           "constants": ""
         },
         {
+          "name": "rename.file.destination.name.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.destination.name' string",
+          "constants": ""
+        },
+        {
           "name": "rename.file.destination.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.path.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.destination.path' string",
           "constants": ""
         },
         {
@@ -2734,7 +3877,7 @@
         {
           "name": "rename.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2768,9 +3911,21 @@
           "constants": ""
         },
         {
+          "name": "rename.file.name.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "rename.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.path.length",
+          "type": "int",
+          "definition": "Length of 'rename.file.path' string",
           "constants": ""
         },
         {
@@ -2833,7 +3988,7 @@
         {
           "name": "rmdir.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -2867,9 +4022,21 @@
           "constants": ""
         },
         {
+          "name": "rmdir.file.name.length",
+          "type": "int",
+          "definition": "Length of 'rmdir.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "rmdir.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.path.length",
+          "type": "int",
+          "definition": "Length of 'rmdir.file.path' string",
           "constants": ""
         },
         {
@@ -3067,7 +4234,7 @@
         {
           "name": "setxattr.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3101,9 +4268,21 @@
           "constants": ""
         },
         {
+          "name": "setxattr.file.name.length",
+          "type": "int",
+          "definition": "Length of 'setxattr.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "setxattr.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.path.length",
+          "type": "int",
+          "definition": "Length of 'setxattr.file.path' string",
           "constants": ""
         },
         {
@@ -3292,7 +4471,7 @@
         {
           "name": "signal.target.ancestors.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3326,9 +4505,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.file.path' string",
           "constants": ""
         },
         {
@@ -3383,6 +4574,114 @@
           "name": "signal.target.ancestors.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.ancestors.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -3562,7 +4861,7 @@
         {
           "name": "signal.target.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3596,9 +4895,21 @@
           "constants": ""
         },
         {
+          "name": "signal.target.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "signal.target.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.file.path' string",
           "constants": ""
         },
         {
@@ -3653,6 +4964,114 @@
           "name": "signal.target.group",
           "type": "string",
           "definition": "Group of the process",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.change_time",
+          "type": "int",
+          "definition": "Change time of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.filesystem",
+          "type": "string",
+          "definition": "File's filesystem",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.gid",
+          "type": "int",
+          "definition": "GID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.group",
+          "type": "string",
+          "definition": "Group of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.in_upper_layer",
+          "type": "bool",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.inode",
+          "type": "int",
+          "definition": "Inode of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.mode",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "signal.target.interpreter.file.modification_time",
+          "type": "int",
+          "definition": "Modification time of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.mount_id",
+          "type": "int",
+          "definition": "Mount ID of the file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.name",
+          "type": "string",
+          "definition": "File's basename",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.name.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.path",
+          "type": "string",
+          "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.path.length",
+          "type": "int",
+          "definition": "Length of 'signal.target.interpreter.file.path' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.rights",
+          "type": "int",
+          "definition": "Mode/rights of the file",
+          "constants": "Chmod mode constants"
+        },
+        {
+          "name": "signal.target.interpreter.file.uid",
+          "type": "int",
+          "definition": "UID of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.user",
+          "type": "string",
+          "definition": "User of the file's owner",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.is_kworker",
+          "type": "bool",
+          "definition": "Indicates whether the process is a kworker",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.is_thread",
+          "type": "bool",
+          "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "constants": ""
         },
         {
@@ -3733,7 +5152,7 @@
         {
           "name": "splice.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3767,9 +5186,21 @@
           "constants": ""
         },
         {
+          "name": "splice.file.name.length",
+          "type": "int",
+          "definition": "Length of 'splice.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "splice.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.path.length",
+          "type": "int",
+          "definition": "Length of 'splice.file.path' string",
           "constants": ""
         },
         {
@@ -3844,7 +5275,7 @@
         {
           "name": "unlink.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -3878,9 +5309,21 @@
           "constants": ""
         },
         {
+          "name": "unlink.file.name.length",
+          "type": "int",
+          "definition": "Length of 'unlink.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "unlink.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.path.length",
+          "type": "int",
+          "definition": "Length of 'unlink.file.path' string",
           "constants": ""
         },
         {
@@ -3970,7 +5413,7 @@
         {
           "name": "utimes.file.in_upper_layer",
           "type": "bool",
-          "definition": "Indicator of the file layer, in an OverlayFS for example",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
           "constants": ""
         },
         {
@@ -4004,9 +5447,21 @@
           "constants": ""
         },
         {
+          "name": "utimes.file.name.length",
+          "type": "int",
+          "definition": "Length of 'utimes.file.name' string",
+          "constants": ""
+        },
+        {
           "name": "utimes.file.path",
           "type": "string",
           "definition": "File's path",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.path.length",
+          "type": "int",
+          "definition": "Length of 'utimes.file.path' string",
           "constants": ""
         },
         {

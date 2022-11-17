@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -28,12 +28,17 @@ func (dn *dockerCustomMetricsExtension) PreProcess(sender generic.SenderFunc, ag
 	dn.aggSender = aggSender
 }
 
-func (dn *dockerCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector provider.Collector, cacheValidity time.Duration) {
+func (dn *dockerCustomMetricsExtension) Process(tags []string, container *workloadmeta.Container, collector metrics.Collector, cacheValidity time.Duration) {
 	// Duplicate call with generic.Processor, but cache should allow for a fast response.
 	// We only need it for PIDs
 	containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 	if err != nil {
 		log.Debugf("Gathering container metrics for container: %v failed, metrics may be missing, err: %v", container, err)
+		return
+	}
+
+	if containerStats == nil {
+		log.Debugf("Metrics provider returned nil stats for container: %v", container)
 		return
 	}
 
@@ -47,9 +52,14 @@ func (dn *dockerCustomMetricsExtension) Process(tags []string, container *worklo
 			dn.sender(dn.aggSender.Gauge, "docker.mem.sw_limit", containerStats.Memory.SwapLimit, tags)
 		}
 
-		if containerStats.Memory.UsageTotal != nil && containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
-			memoryPct := *containerStats.Memory.UsageTotal / *containerStats.Memory.Limit
-			dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+		if containerStats.Memory.Limit != nil && *containerStats.Memory.Limit > 0 {
+			if containerStats.Memory.RSS != nil {
+				memoryPct := *containerStats.Memory.RSS / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			} else if containerStats.Memory.CommitBytes != nil {
+				memoryPct := *containerStats.Memory.CommitBytes / *containerStats.Memory.Limit
+				dn.sender(dn.aggSender.Gauge, "docker.mem.in_use", &memoryPct, tags)
+			}
 		}
 	}
 

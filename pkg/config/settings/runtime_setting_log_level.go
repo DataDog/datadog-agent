@@ -7,6 +7,7 @@ package settings
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,5 +52,7 @@ func (l LogLevelRuntimeSetting) Set(v interface{}) error {
 		key = l.ConfigKey
 	}
 	config.Datadog.Set(key, logLevel)
+	// we trigger a new inventory metadata payload since the configuration was updated by the user.
+	inventories.Refresh()
 	return nil
 }

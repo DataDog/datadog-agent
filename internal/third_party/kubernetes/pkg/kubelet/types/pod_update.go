@@ -23,21 +23,21 @@ import (
 )
 
 const (
-	// ConfigSourceAnnotationKey TODO (<container-integrations>): CONT-3353
+	// ConfigSourceAnnotationKey represents the annotation key for pod config source.
 	ConfigSourceAnnotationKey = "kubernetes.io/config.source"
 
 	// These constants identify the sources of pods
 
-	// FileSource TODO (<container-integrations>): CONT-3353
+	// FileSource represents the file config source.
 	// Updates from a file
 	FileSource = "file"
-	// HTTPSource TODO (<container-integrations>): CONT-3353
+	// HTTPSource represents the http config source.
 	// Updates from querying a web page
 	HTTPSource = "http"
-	// ApiserverSource TODO (<container-integrations>): CONT-3353
+	// ApiserverSource represents the api-server config source.
 	// Updates from Kubernetes API Server
 	ApiserverSource = "api"
-	// AllSource TODO (<container-integrations>): CONT-3353
+	// AllSource represents all config sources.
 	// Updates from all sources
 	AllSource = "*"
 )

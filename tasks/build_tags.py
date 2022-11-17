@@ -15,7 +15,6 @@ from .flavor import AgentFlavor
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
-    "android",
     "apm",
     "clusterchecks",
     "consul",
@@ -76,9 +75,6 @@ AGENT_TAGS = {
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {"containerd", "cri", "docker", "ec2", "jetson", "kubeapiserver", "kubelet", "orchestrator", "podman", "systemd"}
 )
-
-# ANDROID_TAGS lists the tags needed when building the android agent
-ANDROID_TAGS = {"android", "zlib"}
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "secrets", "zlib", "ec2", "gce"}
@@ -145,7 +141,6 @@ build_tags = {
     AgentFlavor.base: {
         # Build setups
         "agent": AGENT_TAGS,
-        "android": ANDROID_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
         "dogstatsd": DOGSTATSD_TAGS,
@@ -197,6 +192,26 @@ def compute_build_tags_for_flavor(
     return get_build_tags(build_include, build_exclude)
 
 
+@task
+def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.base.name):
+    """
+    Build the default list of tags based on the build type and current platform.
+    Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
+
+    The container integrations are currently only supported on Linux, disabling on
+    the Windows and Darwin builds.
+    """
+
+    try:
+        flavor = AgentFlavor[flavor]
+    except KeyError:
+        flavorOptions = [flavor.name for flavor in AgentFlavor]
+        print(f"'{flavor}' does not correspond to an agent flavor. Options: {flavorOptions}")
+        exit(1)
+
+    print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
+
+
 def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
     """
     Build the default list of tags based on the build type and current platform.
@@ -209,7 +224,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base):
         print("Warning: unrecognized build type, no build tags included.")
         include = set()
 
-    return filter_incompatible_tags(include, arch=arch)
+    return sorted(filter_incompatible_tags(include, arch=arch))
 
 
 def filter_incompatible_tags(include, arch="x64"):

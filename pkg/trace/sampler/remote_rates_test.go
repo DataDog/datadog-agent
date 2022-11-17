@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 const maxRemoteTPS = 12377
@@ -30,24 +30,18 @@ func TestRemoteConfInit(t *testing.T) {
 
 func newTestRemoteRates() *RemoteRates {
 	return &RemoteRates{
-		maxSigTPS: maxRemoteTPS,
-		samplers:  make(map[Signature]*remoteSampler),
-
-		stopped: make(chan struct{}),
+		maxSigTPS:          maxRemoteTPS,
+		samplers:           make(map[Signature]*remoteSampler),
+		tpsVersion:         atomic.NewUint64(0),
+		duplicateTargetTPS: atomic.NewUint64(0),
 	}
 }
 
-func configGenerator(version uint64, rates apmsampling.APMSampling) config.SamplingUpdate {
-	return config.SamplingUpdate{
-
-		Configs: map[string]client.ConfigAPMSamling{
-			"testid": {
-				ID:      "testid",
-				Version: version,
-				Config:  rates,
-			},
-		},
-	}
+func configGenerator(version uint64, rates apmsampling.APMSampling) []RemoteRateUpdate {
+	return []RemoteRateUpdate{{
+		Version: version,
+		Config:  rates,
+	}}
 }
 
 func TestRemoteTPSUpdate(t *testing.T) {

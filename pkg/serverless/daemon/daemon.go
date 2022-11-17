@@ -23,10 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// shutdownDelay is the amount of time we wait before shutting down the HTTP server
+// ShutdownDelay is the amount of time we wait before shutting down the HTTP server
 // after we receive a Shutdown event. This allows time for the final log messages
 // to arrive from the Logs API.
-const shutdownDelay time.Duration = 1 * time.Second
+var ShutdownDelay time.Duration = 1 * time.Second
 
 // FlushTimeout is the amount of time to wait for a flush to complete.
 const FlushTimeout time.Duration = 5 * time.Second
@@ -117,7 +117,7 @@ func StartDaemon(addr string) *Daemon {
 	mux.Handle("/lambda/flush", &Flush{daemon})
 	mux.Handle("/lambda/start-invocation", &StartInvocation{daemon})
 	mux.Handle("/lambda/end-invocation", &EndInvocation{daemon})
-	mux.Handle("/trace-context", &TraceContext{})
+	mux.Handle("/trace-context", &TraceContext{daemon})
 
 	// start the HTTP server used to communicate with the runtime and the Lambda platform
 	go func() {
@@ -281,7 +281,7 @@ func (d *Daemon) Stop() {
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")
-	time.Sleep(shutdownDelay)
+	time.Sleep(ShutdownDelay)
 
 	log.Debug("Shutting down HTTP server")
 	err := d.httpServer.Shutdown(context.Background())
@@ -321,6 +321,14 @@ func (d *Daemon) TellDaemonRuntimeStarted() {
 func (d *Daemon) TellDaemonRuntimeDone() {
 	d.runtimeStateMutex.Lock()
 	defer d.runtimeStateMutex.Unlock()
+	// It's possible that we have a lambda function from a previous invocation sending a finished
+	// log line to the agent, and it's possible that this happens before the current invocation is
+	// received, in which case TellDaemonRuntimeDoneOnce is nil. We add this check in to ensure that
+	// if this is the case, it won't crash the extension. This should be safe, since the code that modifies
+	// the Once is locked by a mutex.
+	if d.TellDaemonRuntimeDoneOnce == nil {
+		return
+	}
 	d.TellDaemonRuntimeDoneOnce.Do(func() {
 		d.RuntimeWg.Done()
 	})

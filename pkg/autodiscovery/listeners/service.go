@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -122,13 +123,18 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 // FilterTemplates implements Service#FilterTemplates.
 func (s *service) FilterTemplates(configs map[string]integration.Config) {
 	if !util.CcaInAD() {
-		// only applies when `logs_config.cca_in_ad` is set; otherwise this is
-		// handled in pkg/autodiscovery/configresolver/configresolver.go
+		// only applies when `logs_config.cca_in_ad` is set
 		return
 	}
 
+	// These two overrides are handled in
+	// pkg/autodiscovery/configresolver/configresolver.go when
+	// logs_config.cca_in_ad is false
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
+
+	// this is handled in the logs agent when logs_config.cca_in_ad is false
+	s.filterTemplatesContainerCollectAll(configs)
 }
 
 // filterTemplatesEmptyOverrides drops file-based templates if this service is a container
@@ -167,6 +173,32 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 				delete(configs, digest)
 			}
 		}
+	}
+}
+
+// filterTemplatesContainerCollectAll drops the container-collect-all template
+// added by the config provider (AddContainerCollectAllConfigs) if the service
+// has any other templates containing logs config.
+func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
+	if !config.Datadog.GetBool("logs_config.container_collect_all") {
+		return
+	}
+
+	var ccaDigest string
+	foundLogsConfig := false
+	for digest, config := range configs {
+		if config.Name == "container_collect_all" {
+			ccaDigest = digest
+			continue
+		}
+
+		if config.LogsConfig != nil {
+			foundLogsConfig = true
+		}
+	}
+
+	if foundLogsConfig && ccaDigest != "" {
+		delete(configs, ccaDigest)
 	}
 }
 

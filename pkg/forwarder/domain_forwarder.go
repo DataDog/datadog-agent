@@ -10,11 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 var (
@@ -206,6 +207,7 @@ func (f *domainForwarder) Start() error {
 		go f.scheduleConnectionResets()
 	}
 
+	f.retryQueue.Start()
 	f.internalState = Started
 	return nil
 }
@@ -220,6 +222,8 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		log.Warnf("the forwarder is already stopped")
 		return
 	}
+
+	f.retryQueue.Stop()
 
 	if f.connectionResetInterval != 0 {
 		f.stopConnectionReset <- true

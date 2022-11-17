@@ -38,8 +38,8 @@ type store struct {
 
 	// adIDToServices stores, for each AD identifier, the service IDs for
 	// services with that AD identifier.  The map structure is
-	// adIDTOServices[adID][serviceID] = true
-	adIDToServices map[string]map[string]bool
+	// adIDTOServices[adID][serviceID] = struct{}{}
+	adIDToServices map[string]map[string]struct{}
 
 	// entityToService maps serviceIDs to Service instances.
 	entityToService map[string]listeners.Service
@@ -60,7 +60,7 @@ func newStore() *store {
 		templateToConfigs: make(map[string][]integration.Config),
 		loadedConfigs:     make(map[string]integration.Config),
 		nameToJMXMetrics:  make(map[string]integration.Data),
-		adIDToServices:    make(map[string]map[string]bool),
+		adIDToServices:    make(map[string]map[string]struct{}),
 		entityToService:   make(map[string]listeners.Service),
 		templateCache:     newTemplateCache(),
 	}
@@ -202,14 +202,29 @@ func (s *store) setADIDForServices(adID string, serviceEntity string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if s.adIDToServices[adID] == nil {
-		s.adIDToServices[adID] = make(map[string]bool)
+		s.adIDToServices[adID] = make(map[string]struct{})
 	}
-	s.adIDToServices[adID][serviceEntity] = true
+	s.adIDToServices[adID][serviceEntity] = struct{}{}
 }
 
-func (s *store) getServiceEntitiesForADID(adID string) (map[string]bool, bool) {
+func (s *store) getServiceEntitiesForADID(adID string) (map[string]struct{}, bool) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	services, found := s.adIDToServices[adID]
 	return services, found
+}
+
+func (s *store) removeServiceForADID(entity string, adIdentifiers []string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	for _, adID := range adIdentifiers {
+		if services, found := s.adIDToServices[adID]; found {
+			delete(services, entity)
+			if len(services) == 0 {
+				// An AD identifier can be shared between multiple services (e.g image name)
+				// We delete the AD identifier entry only when it doesn't match any existing service anymore.
+				delete(s.adIDToServices, adID)
+			}
+		}
+	}
 }

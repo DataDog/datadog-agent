@@ -164,13 +164,16 @@
   <ItemGroup>
     <ClCompile Include="CustomAction.cpp" />
     <ClCompile Include="customactiondata.cpp" />
+    <ClCompile Include="PropertyView.cpp" />
     <ClCompile Include="ddreg.cpp" />
     <ClCompile Include="delfiles.cpp" />
     <ClCompile Include="doUninstall.cpp" />
     <ClCompile Include="Error.cpp" />
     <ClCompile Include="FinalizeInstall.cpp" />
+    <ClCompile Include="LogonCli.cpp" />
     <ClCompile Include="PropertyReplacer.cpp" />
     <ClCompile Include="rollback.cpp" />
+    <ClCompile Include="SID.cpp" />
     <ClCompile Include="TargetMachine.cpp" />
     <ClCompile Include="precompiled\stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -192,9 +195,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="customactiondata.h" />
+    <ClInclude Include="PropertyView.h" />
     <ClInclude Include="ddreg.h" />
     <ClInclude Include="Error.h" />
     <ClInclude Include="lmerr_str.h" />
+    <ClInclude Include="LogonCli.h" />
+    <ClInclude Include="NonCopyable.h" />
     <ClInclude Include="PropertyReplacer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="SID.h" />

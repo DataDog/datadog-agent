@@ -8,8 +8,9 @@ package kubernetes
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 var containerdHeaderOut = "2018-09-20T11:54:11.753589172Z stdout F"

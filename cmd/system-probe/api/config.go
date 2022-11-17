@@ -6,10 +6,11 @@
 package api
 
 import (
+	"github.com/gorilla/mux"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/gorilla/mux"
 )
 
 // setupConfigHandlers adds the specific handlers for /config endpoints

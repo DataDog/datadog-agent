@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +29,7 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening", t.file.Path, "for tailer key", t.file.GetScanKey())
-	f, err := openFile(fullpath)
+	f, err := filesystem.OpenShared(fullpath)
 	if err != nil {
 		return err
 	}
@@ -49,7 +50,7 @@ func (t *Tailer) read() (int, error) {
 	n, err := t.osFile.Read(inBuf)
 	if err != nil && err != io.EOF {
 		// an unexpected error occurred, stop the tailor
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return 0, log.Error("Unexpected error occurred while reading file: ", err)
 	}
 	if n == 0 {

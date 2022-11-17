@@ -11,10 +11,11 @@ import (
 	"C"
 
 	"fmt"
-	"golang.org/x/sys/windows"
 	"net"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (

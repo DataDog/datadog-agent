@@ -17,6 +17,12 @@ var (
 	debounceDelay = 5 * time.Second
 )
 
+// PolicyLoaderOpts options used during the loading
+type PolicyLoaderOpts struct {
+	MacroFilters []MacroFilter
+	RuleFilters  []RuleFilter
+}
+
 // PolicyLoader defines a policy loader
 type PolicyLoader struct {
 	sync.RWMutex
@@ -28,7 +34,7 @@ type PolicyLoader struct {
 }
 
 // LoadPolicies loads the policies
-func (p *PolicyLoader) LoadPolicies() ([]*Policy, *multierror.Error) {
+func (p *PolicyLoader) LoadPolicies(opts PolicyLoaderOpts) ([]*Policy, *multierror.Error) {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -40,13 +46,17 @@ func (p *PolicyLoader) LoadPolicies() ([]*Policy, *multierror.Error) {
 
 	// use the provider in the order of insertion, keep the very last default policy
 	for _, provider := range p.Providers {
-		policies, err := provider.LoadPolicies()
+		policies, err := provider.LoadPolicies(opts.MacroFilters, opts.RuleFilters)
 		if err.ErrorOrNil() != nil {
 			errs = multierror.Append(errs, err)
 		}
 
+		if policies == nil {
+			continue
+		}
+
 		for _, policy := range policies {
-			if policy.Name == defaultPolicyName {
+			if policy.Name == DefaultPolicyName {
 				defaultPolicy = policy
 			} else {
 				allPolicies = append(allPolicies, policy)
@@ -88,7 +98,7 @@ func (p *PolicyLoader) notifyListeners() {
 	}
 }
 
-// Stop the loader
+// Close stops the loader
 func (p *PolicyLoader) Close() {
 	p.RLock()
 	defer p.RUnlock()

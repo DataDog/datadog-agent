@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -79,13 +79,14 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	var splitSeries = []metricsserializer.Series{}
 	for _, payload := range payloads {
 		var s = map[string]metricsserializer.Series{}
+		localPayload := payload.GetContent()
 
 		if compress {
-			*payload, err = compression.Decompress(*payload)
+			localPayload, err = compression.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 
-		err = json.Unmarshal(*payload, &s)
+		err = json.Unmarshal(localPayload, &s)
 		require.Nil(t, err)
 		splitSeries = append(splitSeries, s["series"])
 	}
@@ -100,7 +101,7 @@ func testSplitPayloadsSeries(t *testing.T, numPoints int, compress bool) {
 	require.Equal(t, originalLength, newLength)
 }
 
-var result forwarder.Payloads
+var result transaction.BytesPayloads
 
 func BenchmarkSplitPayloadsSeries(b *testing.B) {
 	testSeries := metricsserializer.Series{}
@@ -118,7 +119,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		testSeries = append(testSeries, &point)
 	}
 
-	var r forwarder.Payloads
+	var r transaction.BytesPayloads
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.
@@ -135,7 +136,7 @@ func BenchmarkSplitPayloadsSeries(b *testing.B) {
 		if p == nil {
 			continue
 		}
-		compressedSize += len(*p)
+		compressedSize += len(p.GetContent())
 	}
 	if compressedSize > 3600000 {
 		panic(fmt.Sprintf("expecting no more than 3.6 MB, got %d", compressedSize))
@@ -191,13 +192,13 @@ func testSplitPayloadsEvents(t *testing.T, numPoints int, compress bool) {
 	unrolledEvents := []interface{}{}
 	for _, payload := range payloads {
 		var s map[string]interface{}
-
+		localPayload := payload.GetContent()
 		if compress {
-			*payload, err = compression.Decompress(*payload)
+			localPayload, err = compression.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 
-		err = json.Unmarshal(*payload, &s)
+		err = json.Unmarshal(localPayload, &s)
 		require.Nil(t, err)
 
 		for _, events := range s["events"].(map[string]interface{}) {
@@ -256,13 +257,13 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 	unrolledServiceChecks := []interface{}{}
 	for _, payload := range payloads {
 		var s []interface{}
-
+		localPayload := payload.GetContent()
 		if compress {
-			*payload, err = compression.Decompress(*payload)
+			localPayload, err = compression.Decompress(localPayload)
 			require.Nil(t, err)
 		}
 
-		err = json.Unmarshal(*payload, &s)
+		err = json.Unmarshal(localPayload, &s)
 		require.Nil(t, err)
 
 		for _, sc := range s {
@@ -271,65 +272,5 @@ func testSplitPayloadsServiceChecks(t *testing.T, numPoints int, compress bool) 
 	}
 
 	newLength := len(unrolledServiceChecks)
-	require.Equal(t, originalLength, newLength)
-}
-
-func TestSplitPayloadsSketches(t *testing.T) {
-	// Override size limits to avoid test timeouts
-	prevMaxPayloadSizeCompressed := maxPayloadSizeCompressed
-	maxPayloadSizeCompressed = 1024
-	defer func() { maxPayloadSizeCompressed = prevMaxPayloadSizeCompressed }()
-
-	prevMaxPayloadSizeUnCompressed := maxPayloadSizeUnCompressed
-	maxPayloadSizeUnCompressed = 2 * 1024
-	defer func() { maxPayloadSizeUnCompressed = prevMaxPayloadSizeUnCompressed }()
-
-	t.Run("both compressed and uncompressed sketch payload under limits", func(t *testing.T) {
-		testSplitPayloadsSketches(t, 2, false)
-	})
-	t.Run("compressed sketch payload over limit but uncompressed under limit", func(t *testing.T) {
-		testSplitPayloadsSketches(t, 3, false)
-	})
-	t.Run("both compressed and uncompressed sketch payload over limits", func(t *testing.T) {
-		testSplitPayloadsSketches(t, 8, false)
-	})
-	t.Run("compressed sketch payload under limit and uncompressed sketch payload over limit", func(t *testing.T) {
-		testSplitPayloadsSketches(t, 8, true)
-	})
-}
-
-func testSplitPayloadsSketches(t *testing.T, numPoints int, compress bool) {
-	testSketchSeries := make(metricsserializer.SketchSeriesList, numPoints)
-	for i := 0; i < numPoints; i++ {
-		testSketchSeries[i] = metricsserializer.Makeseries(i)
-	}
-
-	payloads, err := Payloads(testSketchSeries, compress, JSONMarshalFct)
-	require.Nil(t, err)
-
-	var splitSketches = []metricsserializer.SketchSeriesList{}
-	for _, payload := range payloads {
-		var s = map[string]metricsserializer.SketchSeriesList{}
-
-		if compress {
-			*payload, err = compression.Decompress(*payload)
-			require.Nil(t, err)
-		}
-
-		err = json.Unmarshal(*payload, &s)
-		require.Nil(t, err)
-
-		splitSketches = append(splitSketches, s["sketches"])
-	}
-
-	originalLength := len(testSketchSeries)
-	unrolledSketches := metricsserializer.SketchSeriesList{}
-	for _, sketches := range splitSketches {
-		for _, s := range sketches {
-			unrolledSketches = append(unrolledSketches, s)
-		}
-	}
-
-	newLength := len(unrolledSketches)
 	require.Equal(t, originalLength, newLength)
 }

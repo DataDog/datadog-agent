@@ -14,17 +14,22 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 func TestGetKernelHeaders(t *testing.T) {
 	if _, ok := os.LookupEnv("INTEGRATION"); !ok {
 		t.Skip("set INTEGRATION environment variable to run")
 	}
-	dirs, _, err := GetKernelHeaders(false, nil, "", "", "", "")
-	require.NoError(t, err)
+
+	cfg := testConfig()
+	dirs := GetKernelHeaders(cfg, nil)
 	assert.NotZero(t, len(dirs), "expected to find header directories")
 	t.Log(dirs)
+
+	result := HeaderProvider.GetResult()
+	assert.Equal(t, result.IsSuccess(), true)
 }
 
 func TestParseHeaderVersion(t *testing.T) {
@@ -49,5 +54,16 @@ func TestParseHeaderVersion(t *testing.T) {
 				assert.Equal(t, c.v, hv, "version mismatch of `%s`", c.body)
 			}
 		}
+	}
+}
+
+func testConfig() *ebpf.Config {
+	return &ebpf.Config{
+		EnableKernelHeaderDownload: false,
+		KernelHeadersDirs:          nil,
+		KernelHeadersDownloadDir:   "",
+		AptConfigDir:               "",
+		YumReposDir:                "",
+		ZypperReposDir:             "",
 	}
 }

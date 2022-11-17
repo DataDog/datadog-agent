@@ -15,8 +15,9 @@ package network
 import (
 	reflect "reflect"
 
-	util "github.com/DataDog/datadog-agent/pkg/process/util"
 	gomock "github.com/golang/mock/gomock"
+
+	util "github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 // MockRouteCache is a mock of RouteCache interface.

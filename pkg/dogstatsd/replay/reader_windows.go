@@ -21,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const maxMapSize = 0xFFFFFFFFFFFF // 256TB
-
 type memoryMap []byte
 
 // keep track of handles

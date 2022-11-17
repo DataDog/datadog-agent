@@ -17,7 +17,7 @@ import (
 func TestGetSyslogURI(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := Mock()
+	mockConfig := Mock(t)
 	mockConfig.Set("log_to_syslog", true)
 	mockConfig.Set("syslog_uri", "")
 

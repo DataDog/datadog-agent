@@ -13,10 +13,11 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/network"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 )
 
 const (
@@ -162,7 +163,7 @@ func newEmptyBatchManager() *perfBatchManager {
 }
 
 func newTestBatchManager(t *testing.T) (*perfBatchManager, func()) {
-	ctr, err := New(testConfig(), nil)
+	ctr, err := New(testConfig(), nil, nil)
 	require.NoError(t, err)
 
 	tr := ctr.(*kprobeTracer)

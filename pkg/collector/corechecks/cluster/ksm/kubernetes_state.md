@@ -316,6 +316,9 @@
 `kubernetes_state.job.completion.failed`
 : The job has failed its execution. Tags:`kube_job` or `kube_cronjob` `kube_namespace` (`env` `service` `version` from standard labels).
 
+`kubernetes_state.job.duration
+: Time elapsed between the start and completion time of the job, or the current time if the job is still running. Tags:`kube_job` `kube_namespace` (`env` `service` `version` from standard labels).
+
 `kubernetes_state.resourcequota.<resource>.limit`
 : Information about resource quota limits by resource. Tags:`kube_namespace` `resourcequota`.
 
@@ -357,6 +360,12 @@
 
 `kubernetes_state.service.type`
 : Service types. Tags:`kube_namespace` `kube_service` `type`.
+
+`kubernetes_state.ingress.count`
+: Number of ingresses. Tags:`kube_namespace`.
+
+`kubernetes_state.ingress.path`
+: Information about the ingress path. Tags:`kube_namespace` `kube_ingress_path` `kube_ingress` `kube_service` `kube_service_port` `kube_ingress_host` .
 
 ### Events
 

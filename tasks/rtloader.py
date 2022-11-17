@@ -4,6 +4,7 @@ RtLoader namespaced tasks
 import errno
 import os
 import shutil
+import sys
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -82,6 +83,9 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
 
     if arch == "x86":
         cmake_args += " -DARCH_I386=ON"
+
+    if sys.platform == 'darwin':
+        cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
 
     # Perform "out of the source build" in `rtloader_build_path` folder.
     try:

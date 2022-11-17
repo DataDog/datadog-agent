@@ -16,7 +16,7 @@ provider:
     DD_API_KEY: NO_NEED_TO_BE_VALID
     DD_LOGS_CONFIG_LOGS_DD_URL: 127.0.0.1:3333
     DD_LOGS_CONFIG_LOGS_NO_SSL: true
-    DD_LOGS_INJECTION: true
+    DD_LOGS_INJECTION: false
     DD_MERGE_XRAY_TRACES: false
     DD_TRACE_ENABLED: true
     DD_APM_DD_URL: http://127.0.0.1:3333
@@ -39,6 +39,9 @@ package:
     - "src"
     - "!src/csharp-tests"
     - "!src/java-tests"
+    - "!src/bin"
+    - "!recorder-extension"
+    - "!snapshots"
 
 custom:
   ddLambdaPythonLayerFlag:
@@ -78,6 +81,10 @@ functions:
 
   metric-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/metric
     handler: src/bin/metric
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -121,7 +128,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-node:
     runtime: nodejs14.x
@@ -179,7 +186,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   timeout-node:
     runtime: nodejs14.x
@@ -204,6 +211,10 @@ functions:
   timeout-go:
     runtime: provided.al2
     timeout: 1
+    package:
+      individually: true
+      patterns:
+        - src/bin/timeout
     handler: src/bin/timeout
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -249,7 +260,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   log-node:
     runtime: nodejs14.x
@@ -271,6 +282,10 @@ functions:
 
   log-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/log
     handler: src/bin/log
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -314,7 +329,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   trace-node:
     runtime: nodejs14.x
@@ -338,6 +353,10 @@ functions:
 
   trace-go:
     runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/trace
     handler: src/bin/trace
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
@@ -375,10 +394,10 @@ functions:
 
   trace-proxy:
     runtime: nodejs14.x
-    handler: src/proxyTestFunctions.noop 
+    handler: src/proxyTestFunctions.noop
     layers:
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       DD_EXPERIMENTAL_ENABLE_PROXY: true
-      AWS_LAMBDA_EXEC_WRAPPER: /opt/boot.sh
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper

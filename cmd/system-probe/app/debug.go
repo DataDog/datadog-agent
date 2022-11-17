@@ -11,9 +11,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/spf13/cobra"
 )
 
 const targetProcessName = "system-probe"

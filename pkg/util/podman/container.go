@@ -40,6 +40,7 @@ import (
 // - Deleted the `EnvSecrets` field of the `ContainerMiscConfig` struct.
 // - The `Container` struct only contains the 2 attributes that we need.
 
+// Container holds the configuration and the state of a container
 type Container struct {
 	Config *ContainerConfig
 	State  *ContainerState

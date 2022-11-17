@@ -29,12 +29,12 @@ import (
 //   - If the container exposes multiple IPs, this function just returns one of
 //   them. That means that if a container is attached to multiple networks this
 //   might not work as expected.
-func extractIP(container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
+func extractIP(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
 	if !config.IsHostProcAvailable() {
 		return "", nil
 	}
 
-	taskPids, err := containerdClient.TaskPids(container)
+	taskPids, err := containerdClient.TaskPids(namespace, container)
 	if err != nil {
 		return "", err
 	}

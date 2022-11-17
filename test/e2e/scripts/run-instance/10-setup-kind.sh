@@ -2,8 +2,18 @@
 
 set -euo pipefail
 
+arch=""
+case $(uname -m) in
+    x86_64)  arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+    *)
+        echo "Unsupported architecture"
+        exit 1
+        ;;
+esac
+
 download_and_install_kubectl() {
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl"
     sudo install kubectl /usr/local/bin/kubectl
 }
 
@@ -12,7 +22,7 @@ set -x
 
 if [[ $(uname) == "Darwin" ]]
 then
-    "Kind setup should not be run on Darwin"
+    echo "Kind setup should not be run on Darwin"
     exit 1
 fi
 
@@ -22,7 +32,7 @@ if [[ ! -f ./kubectl ]]; then
     download_and_install_kubectl
 else
     # else, download the SHA256 of the wanted version
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl.sha256"
+    curl --retry 5 --fail --retry-all-errors -LO "https://dl.k8s.io/release/$(curl --retry 5 --fail --retry-all-errors -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/$arch/kubectl.sha256"
     # And if it differs, force the download again
     if ! echo "$(<kubectl.sha256)  kubectl" | sha256sum --check ; then
         echo "SHA256 of kubectl differs, downloading it again"
@@ -30,7 +40,7 @@ else
     fi
 fi
 
-curl -Lo ./kind "https://kind.sigs.k8s.io/dl/$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].name')/kind-linux-amd64"
+curl -Lo ./kind "https://kind.sigs.k8s.io/dl/$(curl -s -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/kubernetes-sigs/kind/releases | jq -r '.[0].tag_name')/kind-linux-$arch"
 sudo install kind /usr/local/bin/kind
 
 

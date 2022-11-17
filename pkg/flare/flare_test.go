@@ -14,16 +14,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMkURL(t *testing.T) {
 	common.SetupConfig("./test")
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dd_url", "https://example.com")
 	mockConfig.Set("api_key", "123456")
 	expectedURLBase, _ := config.AddAgentVersionToDomain("https://example.com/", "flare")
@@ -70,7 +71,7 @@ func TestFlareHasRightForm(t *testing.T) {
 
 	ddURL := ts.URL
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dd_url", ddURL)
 
 	archivePath := "./test/blank.zip"

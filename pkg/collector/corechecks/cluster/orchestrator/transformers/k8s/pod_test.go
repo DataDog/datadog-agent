@@ -762,3 +762,14 @@ func TestGenerateUniqueStaticPodHashHardCoded(t *testing.T) {
 
 	assert.Equal(t, uniqueHash, expectedHash)
 }
+
+func TestMapToTags(t *testing.T) {
+	labels := map[string]string{}
+	labels["foo"] = "bar"
+	labels["node-role.kubernetes.io/nodeless"] = ""
+
+	tags := mapToTags(labels)
+
+	assert.ElementsMatch(t, []string{"foo:bar", "node-role.kubernetes.io/nodeless"}, tags)
+	assert.Len(t, tags, 2)
+}

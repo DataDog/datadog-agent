@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -15,23 +16,31 @@ import (
 // as a []string, with each element corresponding to the respective command.
 // If ignoreErrors is true, it will fail the test via t.Fatal immediately upon error.
 // Otherwise, the output on errors will be logged via t.Log.
-func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
-	t.Helper()
+func RunCommands(tb testing.TB, cmds []string, ignoreErrors bool) []string {
+	tb.Helper()
 	var output []string
 
 	for _, c := range cmds {
-		args := strings.Split(c, " ")
-		c := exec.Command(args[0], args[1:]...)
-		out, err := c.CombinedOutput()
-		output = append(output, string(out))
+		out, err := RunCommand(c)
+		output = append(output, out)
 		if err != nil {
 			if !ignoreErrors {
-				t.Fatalf("%s returned %s: %s", c, err, out)
+				tb.Fatal(err)
 				return nil
 			}
-
-			t.Logf("%s returned %s: %s", c, err, out)
+			tb.Log(err)
 		}
 	}
 	return output
+}
+
+// RunCommand runs a single command
+func RunCommand(cmd string) (string, error) {
+	args := strings.Split(cmd, " ")
+	c := exec.Command(args[0], args[1:]...)
+	out, err := c.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s returned %s: %s", c, err, out)
+	}
+	return string(out), nil
 }

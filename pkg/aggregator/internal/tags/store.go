@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"math/bits"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"go.uber.org/atomic"
 )
 
 // Entry is used to keep track of tag slices shared by the contexts.

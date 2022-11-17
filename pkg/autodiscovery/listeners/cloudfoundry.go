@@ -29,6 +29,7 @@ const (
 	CfServiceContainerIP = "container-ip"
 )
 
+// CloudFoundryListener defines a listener that periodically fetches Cloud Foundry services from the BBS API
 type CloudFoundryListener struct {
 	sync.RWMutex
 	newService    chan<- Service
@@ -40,6 +41,7 @@ type CloudFoundryListener struct {
 	bbsCache      cloudfoundry.BBSCacheI
 }
 
+// CloudFoundryService defines a Cloud Foundry service
 type CloudFoundryService struct {
 	tags           []string
 	adIdentifier   cloudfoundry.ADIdentifier

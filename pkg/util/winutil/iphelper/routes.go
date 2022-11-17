@@ -10,9 +10,10 @@ package iphelper
 import (
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/sys/windows"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var (

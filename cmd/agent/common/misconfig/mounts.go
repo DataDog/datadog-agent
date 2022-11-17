@@ -16,14 +16,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/pkg/errors"
 	"github.com/syndtr/gocapability/capability"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
-	registerCheck("proc mount", procMount)
+	registerCheck("proc mount", procMount, map[AgentType]struct{}{CoreAgent: {}, ProcessAgent: {}})
 }
 
 func procMount() error {

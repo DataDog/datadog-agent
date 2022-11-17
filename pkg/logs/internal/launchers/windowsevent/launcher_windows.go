@@ -12,9 +12,10 @@ import (
 	"fmt"
 	"unsafe"
 
+	"golang.org/x/sys/windows"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"golang.org/x/sys/windows"
 )
 
 /*
@@ -42,7 +43,7 @@ func EnumerateChannels() (chans []string, err error) {
 	if hEnum == evtEnumHandle(0) {
 		return
 	}
-	defer procEvtClose.Call(uintptr(hEnum))
+	defer procEvtClose.Call(uintptr(hEnum)) //nolint:errcheck
 
 	for {
 		var str string

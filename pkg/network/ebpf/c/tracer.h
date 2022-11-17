@@ -3,6 +3,8 @@
 
 #include <linux/types.h>
 
+#include "protocols/protocol-classification-defs.h"
+
 #define bool _Bool
 #define true 1
 #define false 0
@@ -28,9 +30,19 @@ typedef struct {
     __u64 recv_bytes;
     __u64 timestamp;
     __u32 flags;
-    __u8 direction;
+    // "cookie" that uniquely identifies
+    // a conn_stas_ts_t. This is used
+    // in user space to distinguish between
+    // stats for two or more connections that
+    // may share the same conn_tuple_t (this can
+    // happen when we're aggregating connections).
+    // This is not the same as a TCP cookie or
+    // the cookie in struct sock in the kernel
+    __u32 cookie;
     __u64 sent_packets;
     __u64 recv_packets;
+    __u8 direction;
+    protocol_t protocol;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -90,6 +102,7 @@ typedef struct {
 // tcp_flag_byte(th) (((u_int8_t *)th)[13])
 #define TCP_FLAGS_OFFSET 13
 #define TCPHDR_FIN 0x01
+#define TCPHDR_RST 0x04
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to
@@ -126,11 +139,8 @@ typedef struct {
     __u64 missed_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
-    __u64 conn_stats_max_entries_hit;
+    __u64 udp_dropped_conns;
 } telemetry_t;
-
-#define PORT_LISTENING 1
-#define PORT_CLOSED 0
 
 typedef struct {
     __u16 port;
@@ -150,5 +160,14 @@ typedef struct {
     __u32 pid;
     __u32 fd;
 } pid_fd_t;
+
+typedef struct {
+    struct sock *sk;
+    size_t len;
+    union {
+        struct flowi4 *fl4;
+        struct flowi6 *fl6;
+    };
+} ip_make_skb_args_t;
 
 #endif

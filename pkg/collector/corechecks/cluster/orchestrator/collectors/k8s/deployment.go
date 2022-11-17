@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewDeploymentCollectorVersions builds the group of collector versions.
+func NewDeploymentCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewDeploymentCollector(),
+	)
+}
+
 // DeploymentCollector is a collector for Kubernetes Deployments.
 type DeploymentCollector struct {
 	informer  appsv1Informers.DeploymentInformer
@@ -33,9 +40,11 @@ type DeploymentCollector struct {
 func NewDeploymentCollector() *DeploymentCollector {
 	return &DeploymentCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "deployments",
-			NodeType: orchestrator.K8sDeployment,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "deployments",
+			NodeType:         orchestrator.K8sDeployment,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
 	}
@@ -67,22 +76,16 @@ func (c *DeploymentCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

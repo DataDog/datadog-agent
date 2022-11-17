@@ -14,14 +14,15 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/docker/docker/api/types"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 const (
@@ -50,8 +51,8 @@ func NewContainer(container types.ContainerJSON, service *service.Service) *Cont
 
 // FindSource returns the source that most likely matches the container,
 // if no source is found return nil
-func (c *Container) FindSource(sources []*config.LogSource) *config.LogSource {
-	var bestMatch *config.LogSource
+func (c *Container) FindSource(sources []*sourcesPkg.LogSource) *sourcesPkg.LogSource {
+	var bestMatch *sourcesPkg.LogSource
 	for _, source := range sources {
 		if source.Config.Identifier != "" && c.isIdentifierMatch(source.Config.Identifier) {
 			// perfect match between the source and the container
@@ -97,7 +98,7 @@ func (c *Container) getShortImageName(ctx context.Context) (string, error) {
 }
 
 // computeScore returns the matching score between the container and the source.
-func (c *Container) computeScore(source *config.LogSource) int {
+func (c *Container) computeScore(source *sourcesPkg.LogSource) int {
 	score := 0
 	if c.isImageMatch(source.Config.Image) {
 		score++
@@ -112,7 +113,7 @@ func (c *Container) computeScore(source *config.LogSource) int {
 }
 
 // IsMatch returns true if the source matches with the container.
-func (c *Container) IsMatch(source *config.LogSource) bool {
+func (c *Container) IsMatch(source *sourcesPkg.LogSource) bool {
 	if (source.Config.Identifier != "" || c.ContainsADIdentifier()) && !c.isIdentifierMatch(source.Config.Identifier) {
 		// there is only one source matching a container when it contains an autodiscovery identifier,
 		// the one which has an identifier equals to the container identifier.

@@ -160,12 +160,14 @@ func (c *DCAClient) initHTTPClient() error {
 			}).DialContext,
 			ForceAttemptHTTP2:     false,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-			TLSHandshakeTimeout:   2 * time.Second,
+			TLSHandshakeTimeout:   5 * time.Second,
 			MaxConnsPerHost:       1,
+			MaxIdleConnsPerHost:   1,
 			IdleConnTimeout:       60 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
+			ResponseHeaderTimeout: 3 * time.Second,
 		},
-		Timeout: 3 * time.Second,
+		Timeout: 10 * time.Second,
 	}
 
 	// We need to have a client to perform `GetVersion`, only happens during the first call

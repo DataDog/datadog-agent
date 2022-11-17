@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 var (

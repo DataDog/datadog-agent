@@ -36,12 +36,9 @@ func TestFileCheck(t *testing.T) {
 		env.On("RelativeToHostRoot", file.Path).Return(file.Path)
 	}
 
-	cleanUpDirs := make([]string, 0)
 	createTempFiles := func(t *testing.T, numFiles int) (string, []string) {
 		paths := make([]string, 0, numFiles)
-		dir, err := os.MkdirTemp("", "cmplFileTest")
-		assert.NoError(err)
-		cleanUpDirs = append(cleanUpDirs, dir)
+		dir := t.TempDir()
 
 		for i := 0; i < numFiles; i++ {
 			fileName := fmt.Sprintf("test-%d-%d.dat", i, time.Now().Unix())
@@ -335,9 +332,5 @@ func TestFileCheck(t *testing.T) {
 				test.validate(t, test.resource.File, reports[0])
 			}
 		})
-	}
-
-	for _, dir := range cleanUpDirs {
-		os.RemoveAll(dir)
 	}
 }

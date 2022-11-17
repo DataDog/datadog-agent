@@ -142,6 +142,12 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, int dr_
     // invalidate user space inode, so no need to bump the discarder revision in the event
     if (retval >= 0) {
         invalidate_inode(ctx, syscall->rename.target_file.path_key.mount_id, syscall->rename.target_file.path_key.ino, !pass_to_userspace);
+
+        if (S_ISDIR(syscall->rename.target_file.metadata.mode)) {
+            // remove all discarders on the mount point as the rename could invalidate a child discarder in case of a
+            // folder rename. For the inode the discarder is invalidated in the ret.
+            bump_inode_discarder_revision(syscall->rename.target_file.path_key.mount_id);
+        }
     }
 
     if (pass_to_userspace) {
@@ -172,27 +178,12 @@ int __attribute__((always_inline)) kprobe_sys_rename_ret(struct pt_regs *ctx) {
     return sys_rename_ret(ctx, retval, DR_KPROBE);
 }
 
-SEC("tracepoint/syscalls/sys_exit_rename")
-int tracepoint_syscalls_sys_exit_rename(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_KRETPROBE(rename) {
     return kprobe_sys_rename_ret(ctx);
 }
 
-SEC("tracepoint/syscalls/sys_exit_renameat")
-int tracepoint_syscalls_sys_exit_renameat(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
-}
-
 SYSCALL_KRETPROBE(renameat) {
     return kprobe_sys_rename_ret(ctx);
-}
-
-SEC("tracepoint/syscalls/sys_exit_renameat2")
-int tracepoint_syscalls_sys_exit_renameat2(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_rename_ret(args, args->ret, DR_TRACEPOINT);
 }
 
 SYSCALL_KRETPROBE(renameat2) {

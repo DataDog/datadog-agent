@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
@@ -87,7 +87,7 @@ func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepeti
 		if err != nil {
 			return nil, err
 		}
-		newValues, nextOids := gosnmplib.ResultToColumnValues(columnOids, results)
+		newValues, nextOids := valuestore.ResultToColumnValues(columnOids, results)
 		updateColumnResultValues(returnValues, newValues)
 		curOids = nextOids
 	}

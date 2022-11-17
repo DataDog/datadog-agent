@@ -148,6 +148,7 @@ func TestAggregateEvents(t *testing.T) {
 					countByAction: map[string]int{
 						"unfiltered_action": 1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},
@@ -186,6 +187,7 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},
@@ -217,19 +219,22 @@ func TestAggregateEvents(t *testing.T) {
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 				"other_image": {
 					imageName: "other_image",
 					countByAction: map[string]int{
 						"other_action": 1,
 					},
+					alertType: metrics.EventAlertTypeInfo,
 				},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run("", func(t *testing.T) {
-			bundles := aggregateEvents(tc.events, tc.filteredActions)
+			transformer := newBundledTransformer("test-host", tc.filteredActions).(*bundledTransformer)
+			bundles := transformer.aggregateEvents(tc.events)
 			for _, b := range bundles {
 				// Strip underlying events to ease testing
 				// countByAction is enough for testing the

@@ -11,13 +11,17 @@ package ebpf
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/stretchr/testify/require"
+
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 func TestLoaderCompile(t *testing.T) {
-	cfg := ebpf.NewConfig()
-	_, err := getRuntimeCompiledProbe(cfg, false)
+	syscfg, err := sysconfig.New("")
+	require.NoError(t, err)
+	cfg, err := config.NewConfig(syscfg)
+	require.NoError(t, err)
+	_, err = getRuntimeCompiledPrograms(cfg, false, nil)
 	require.NoError(t, err)
 }

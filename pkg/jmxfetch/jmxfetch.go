@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -107,6 +108,7 @@ type checkInitCfg struct {
 	JavaOptions    string   `yaml:"java_options,omitempty"`
 }
 
+// Monitor TODO <agent-core> : IML-199
 func (j *JMXFetch) Monitor() {
 	limiter := newRestartLimiter(config.Datadog.GetInt("jmx_max_restarts"), float64(config.Datadog.GetInt("jmx_restart_interval")))
 	ticker := time.NewTicker(500 * time.Millisecond)

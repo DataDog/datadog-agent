@@ -16,6 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
+const Traces DataType = "traces"
+
 func setupAPM(config Config) {
 	config.SetKnown("apm_config.obfuscation.elasticsearch.enabled")
 	config.SetKnown("apm_config.obfuscation.elasticsearch.keep_values")
@@ -50,6 +53,8 @@ func setupAPM(config Config) {
 	config.SetKnown("apm_config.watchdog_check_delay")
 	config.SetKnown("apm_config.sync_flushing")
 
+	bindVectorOptions(config, Traces)
+
 	if runtime.GOARCH == "386" && runtime.GOOS == "windows" {
 		// on Windows-32 bit, the trace agent isn't installed.  Set the default to disabled
 		// so that there aren't messages in the log about failing to start.
@@ -70,7 +75,8 @@ func setupAPM(config Config) {
 	config.BindEnv("apm_config.max_events_per_second", "DD_APM_MAX_EPS", "DD_MAX_EPS")
 	config.BindEnv("apm_config.max_traces_per_second", "DD_APM_MAX_TPS", "DD_MAX_TPS")
 	config.BindEnv("apm_config.errors_per_second", "DD_APM_ERROR_TPS")
-	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER")
+	config.BindEnv("apm_config.enable_rare_sampler", "DD_APM_ENABLE_RARE_SAMPLER")
+	config.BindEnv("apm_config.disable_rare_sampler", "DD_APM_DISABLE_RARE_SAMPLER") //Deprecated
 	config.BindEnv("apm_config.max_remote_traces_per_second", "DD_APM_MAX_REMOTE_TPS")
 
 	config.BindEnv("apm_config.max_memory", "DD_APM_MAX_MEMORY")

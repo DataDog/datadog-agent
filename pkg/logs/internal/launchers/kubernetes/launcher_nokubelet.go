@@ -10,11 +10,11 @@ package kubernetes
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
@@ -22,7 +22,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *config.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
+func NewLauncher(sources *sources.LogSources, services *service.Services, cop containersorpods.Chooser, collectAll bool) *Launcher {
 	return &Launcher{}
 }
 

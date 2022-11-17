@@ -129,7 +129,7 @@ func TestGetHostname(t *testing.T) {
 		{"invalid", "", true},
 	}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	for _, tt := range cases {
 		mockConfig.Set(hostnameStyleSetting, tt.style)
@@ -141,7 +141,7 @@ func TestGetHostname(t *testing.T) {
 
 func TestGetHostnameWithInvalidMetadata(t *testing.T) {
 	ctx := context.Background()
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 
 	styles := []string{"vmid", "name", "name_and_resource_group", "full"}
 

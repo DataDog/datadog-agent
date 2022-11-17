@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package traps
 
 import (
@@ -9,10 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 )
 
 type DummyFormatter struct{}
@@ -61,9 +67,12 @@ func TestV1GenericTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	forwarder.trapsIn <- makeSnmpPacket(LinkDownv1GenericTrap)
+	packet := makeSnmpPacket(LinkDownv1GenericTrap)
+	rawEvent, err := forwarder.formatter.FormatPacket(packet)
+	require.NoError(t, err)
+	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "0db8c621a456b368b4af7570211b94769376541120b4110ef08c50226fcc63b4", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
 }
 
 func TestV1SpecificTrapAreForwarder(t *testing.T) {
@@ -71,9 +80,12 @@ func TestV1SpecificTrapAreForwarder(t *testing.T) {
 	require.NoError(t, err)
 	sender, ok := forwarder.sender.(*mocksender.MockSender)
 	require.True(t, ok)
-	forwarder.trapsIn <- makeSnmpPacket(AlarmActiveStatev1SpecificTrap)
+	packet := makeSnmpPacket(AlarmActiveStatev1SpecificTrap)
+	rawEvent, err := forwarder.formatter.FormatPacket(packet)
+	require.NoError(t, err)
+	forwarder.trapsIn <- packet
 	forwarder.Stop()
-	sender.AssertEventPlatformEvent(t, "5605a8dd09e575df722273edc9fae2c47e4a17c9d6844ff856ad0cd5913da04d", epforwarder.EventTypeSnmpTraps)
+	sender.AssertEventPlatformEvent(t, string(rawEvent), epforwarder.EventTypeSnmpTraps)
 }
 func TestV2TrapAreForwarder(t *testing.T) {
 	forwarder, err := createForwarder(t)

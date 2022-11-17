@@ -54,7 +54,7 @@ const (
 	// to calls from the client libraries and to logs from the AWS environment.
 	httpServerAddr = ":8124"
 
-	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationRoute   = "/2022-07-01/telemetry"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
@@ -65,6 +65,7 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
+	config.Datadog.Set("use_v2_api.series", false)
 	stopCh := make(chan struct{})
 
 	// run the agent
@@ -134,7 +135,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// ---------------
 
 	// API key reading priority:
-	// KSM > Secrets Manager > Plaintext API key
+	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
 	// some useful warnings first
@@ -154,10 +155,14 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
 	}
 
+	// Set secrets from the environment that are suffixed with
+	// KMS_ENCRYPTED or SECRET_ARN
+	setSecretsFromEnv(os.Environ())
+
 	// try to read API key from KMS
 
 	var apiKey string
-	if apiKey, err = readAPIKeyFromKMS(); err != nil {
+	if apiKey, err = readAPIKeyFromKMS(os.Getenv(kmsAPIKeyEnvVar)); err != nil {
 		log.Errorf("Error while trying to read an API Key from KMS: %s", err)
 	} else if apiKey != "" {
 		log.Info("Using deciphered KMS API Key.")
@@ -167,7 +172,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// try to read the API key from Secrets Manager, only if not set from KMS
 
 	if apiKey == "" {
-		if apiKey, err = readAPIKeyFromSecretsManager(); err != nil {
+		if apiKey, err = readAPIKeyFromSecretsManager(os.Getenv(secretsManagerAPIKeyEnvVar)); err != nil {
 			log.Errorf("Error while trying to read an API Key from Secrets Manager: %s", err)
 		} else if apiKey != "" {
 			log.Info("Using API key set in Secrets Manager.")
@@ -197,7 +202,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Error("No API key configured, exiting")
 	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
-
+	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
+	if _, err := config.Load(); err != nil {
+		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
+	}
+	config.LoadProxyFromEnv(config.Datadog)
 	logChannel := make(chan *logConfig.ChannelMessage)
 
 	metricAgent := &metrics.ServerlessMetricAgent{}
@@ -206,37 +215,38 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Add(1)
+	wg.Add(2)
 
 	// starts trace agent
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, serverlessDaemon.ExecutionContext)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// enable logs collection
+	// enable telemetry collection
 	go func() {
 		defer wg.Done()
-		log.Debug("Enabling logs collection HTTP route")
+		log.Debug("Enabling telemetry collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-		logRegistrationError := registration.EnableLogsCollection(
-			serverlessID,
-			logRegistrationURL,
-			logsAPIRegistrationTimeout,
-			os.Getenv(logsLogsTypeSubscribed),
-			logsAPIHttpServerPort,
-			logsAPICollectionRoute,
-			logsAPITimeout,
-			logsAPIMaxBytes,
-			logsAPIMaxItems)
+		logRegistrationError := registration.EnableTelemetryCollection(
+			registration.EnableTelemetryCollectionArgs{
+				ID:                  serverlessID,
+				RegistrationURL:     logRegistrationURL,
+				RegistrationTimeout: logsAPIRegistrationTimeout,
+				LogsType:            os.Getenv(logsLogsTypeSubscribed),
+				Port:                logsAPIHttpServerPort,
+				CollectionRoute:     logsAPICollectionRoute,
+				Timeout:             logsAPITimeout,
+				MaxBytes:            logsAPIMaxBytes,
+				MaxItems:            logsAPIMaxItems,
+			})
 
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
-			serverlessLogs.SetupLogAgent(logChannel)
+			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
 		}
 	}()
 

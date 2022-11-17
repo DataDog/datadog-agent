@@ -54,3 +54,12 @@ func getImageTags(imageName string) ([]string, error) {
 		fmt.Sprintf("short_image:%s", short),
 	}, nil
 }
+
+const (
+	eventActionOOM  = "oom"
+	eventActionKill = "kill"
+)
+
+func isAlertTypeError(action string) bool {
+	return action == eventActionOOM || action == eventActionKill
+}

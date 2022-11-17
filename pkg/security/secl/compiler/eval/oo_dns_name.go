@@ -8,7 +8,7 @@ package eval
 var (
 	// DNSNameCmp lower case values before comparing. Important : this operator override doesn't support approvers
 	DNSNameCmp = &OpOverrides{
-		StringEquals: func(a *StringEvaluator, b *StringEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
@@ -17,17 +17,17 @@ var (
 				b.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
-			return StringEquals(a, b, opts, state)
+			return StringEquals(a, b, state)
 		},
-		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
-			return StringValuesContains(a, b, opts, state)
+			return StringValuesContains(a, b, state)
 		},
-		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
@@ -36,15 +36,15 @@ var (
 				b.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
-			return StringArrayContains(a, b, opts, state)
+			return StringArrayContains(a, b, state)
 		},
-		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, opts *Opts, state *State) (*BoolEvaluator, error) {
+		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
 				a.StringCmpOpts.ScalarCaseInsensitive = true
 				a.StringCmpOpts.PatternCaseInsensitive = true
 			}
 
-			return StringArrayMatches(a, b, opts, state)
+			return StringArrayMatches(a, b, state)
 		},
 	}
 )

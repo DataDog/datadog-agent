@@ -15,7 +15,8 @@ type ChannelMessage struct {
 	Timestamp time.Time
 	// Optional.
 	// Used in the Serverless Agent
-	Lambda *Lambda
+	Lambda  *Lambda
+	IsError bool
 }
 
 // Lambda is a struct storing information about the Lambda function and function execution.

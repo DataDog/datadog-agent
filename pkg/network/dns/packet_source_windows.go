@@ -56,7 +56,7 @@ func (p *windowsPacketSource) PacketType() gopacket.LayerType {
 func (p *windowsPacketSource) Stats() map[string]int64 {
 	// this is a no-op because all the stats are handled by driver_interface.go
 	s, _ := p.di.GetStatsForHandle()
-	return s
+	return s["handle"]
 }
 
 func (p *windowsPacketSource) Close() {

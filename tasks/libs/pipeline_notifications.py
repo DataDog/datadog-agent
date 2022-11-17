@@ -4,45 +4,7 @@ import subprocess
 from collections import defaultdict
 
 from .common.gitlab import Gitlab, get_gitlab_token
-from .types import Test
-
-
-def get_failed_jobs(project_name, pipeline_id):
-    gitlab = Gitlab(project_name=project_name, api_token=get_gitlab_token())
-
-    # gitlab.all_jobs yields a generator, it needs to be converted to a list to be able to
-    # go through it twice
-    jobs = list(gitlab.all_jobs(pipeline_id))
-
-    # Get instances of failed jobs
-    failed_jobs = {job["name"]: [] for job in jobs if job["status"] == "failed"}
-
-    # Group jobs per name
-    for job in jobs:
-        if job["name"] in failed_jobs:
-            failed_jobs[job["name"]].append(job)
-
-    # There, we now have the following map:
-    # job name -> list of jobs with that name, including at least one failed job
-
-    final_failed_jobs = []
-    for job_name, jobs in failed_jobs.items():
-        # We sort each list per creation date
-        jobs.sort(key=lambda x: x["created_at"])
-        # Check the final job in the list: it contains the current status of the job
-        final_status = {
-            "name": job_name,
-            "id": jobs[-1]["id"],
-            "stage": jobs[-1]["stage"],
-            "status": jobs[-1]["status"],
-            "allow_failure": jobs[-1]["allow_failure"],
-            "url": jobs[-1]["web_url"],
-            "retry_summary": [job["status"] for job in jobs],
-        }
-        if final_status["status"] == "failed" and not final_status["allow_failure"]:
-            final_failed_jobs.append(final_status)
-
-    return final_failed_jobs
+from .types import FailedJobType, Test
 
 
 def read_owners(owners_file):
@@ -86,8 +48,9 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     owners_to_notify = defaultdict(list)
 
     for job in failed_jobs:
-        # Exclude jobs that were retried and succeeded
-        # Also exclude jobs allowed to fail
+        # Exclude jobs that failed due to infrastructure failures
+        if job["failure_type"] == FailedJobType.INFRA_FAILURE:
+            continue
         job_owners = owners.of(job["name"])
         # job_owners is a list of tuples containing the type of owner (eg. USERNAME, TEAM) and the name of the owner
         # eg. [('TEAM', '@DataDog/agent-platform')]
@@ -99,8 +62,8 @@ def find_job_owners(failed_jobs, owners_file=".gitlab/JOBOWNERS"):
     return owners_to_notify
 
 
-def base_message(header):
-    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} failed.
+def base_message(header, state):
+    return """{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
 {commit_title} (<{commit_url}|{commit_short_sha}>) by {author}""".format(  # noqa: FS002
         header=header,
         pipeline_url=os.getenv("CI_PIPELINE_URL"),
@@ -112,6 +75,7 @@ def base_message(header):
         ),
         commit_short_sha=os.getenv("CI_COMMIT_SHORT_SHA"),
         author=get_git_author(),
+        state=state,
     )
 
 

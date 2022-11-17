@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)
@@ -29,14 +30,14 @@ const cloudRunRevisionName = "K_REVISION"
 // This tailer attaches the tags from source.Config.ChannelTags to each
 // message, in addition to the origin tags and tags in source.Config.Tags.
 type Tailer struct {
-	source     *config.LogSource
+	source     *sources.LogSource
 	inputChan  chan *config.ChannelMessage
 	outputChan chan *message.Message
 	done       chan interface{}
 }
 
 // NewTailer returns a new Tailer
-func NewTailer(source *config.LogSource, inputChan chan *config.ChannelMessage, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, inputChan chan *config.ChannelMessage, outputChan chan *message.Message) *Tailer {
 	return &Tailer{
 		source:     source,
 		inputChan:  inputChan,
@@ -80,12 +81,20 @@ func (t *Tailer) run() {
 			origin.SetTags(channelTags)
 		}
 
-		if logline.Lambda != nil {
-			t.outputChan <- message.NewMessageFromLambda(logline.Content, origin, message.StatusInfo, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
-		} else {
-			t.outputChan <- message.NewMessage(logline.Content, origin, message.StatusInfo, time.Now().UnixNano())
-		}
+		t.outputChan <- buildMessage(logline, origin)
 	}
+}
+
+func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *message.Message {
+	status := message.StatusInfo
+	if logline.IsError {
+		status = message.StatusError
+	}
+
+	if logline.Lambda != nil {
+		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
+	}
+	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
 }
 
 func computeServiceName(lambdaConfig *config.Lambda, serviceName string) string {

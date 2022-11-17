@@ -10,10 +10,11 @@ import (
 	"math"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/mapping"
 	"github.com/DataDog/sketches-go/ddsketch/store"
+
+	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 )
 
 const (

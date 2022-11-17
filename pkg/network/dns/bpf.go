@@ -11,8 +11,9 @@ package dns
 import (
 	"math"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"golang.org/x/net/bpf"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 const port = 53

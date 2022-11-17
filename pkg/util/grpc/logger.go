@@ -11,8 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

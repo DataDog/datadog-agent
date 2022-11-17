@@ -22,9 +22,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/util"
-
 	"google.golang.org/grpc"
-	kubeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	kubeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	apitest "k8s.io/cri-api/pkg/apis/testing"
 	utilexec "k8s.io/utils/exec"
 )
@@ -261,6 +260,27 @@ func (f *RemoteRuntime) ListContainerStats(ctx context.Context, req *kubeapi.Lis
 	}
 
 	return &kubeapi.ListContainerStatsResponse{Stats: stats}, nil
+}
+
+// PodSandboxStats returns stats of the pod. If the pod does not
+// exist, the call returns an error.
+func (f *RemoteRuntime) PodSandboxStats(ctx context.Context, req *kubeapi.PodSandboxStatsRequest) (*kubeapi.PodSandboxStatsResponse, error) {
+	stats, err := f.RuntimeService.PodSandboxStats(req.PodSandboxId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubeapi.PodSandboxStatsResponse{Stats: stats}, nil
+}
+
+// ListPodSandboxStats returns stats of all running pods.
+func (f *RemoteRuntime) ListPodSandboxStats(ctx context.Context, req *kubeapi.ListPodSandboxStatsRequest) (*kubeapi.ListPodSandboxStatsResponse, error) {
+	stats, err := f.RuntimeService.ListPodSandboxStats(req.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubeapi.ListPodSandboxStatsResponse{Stats: stats}, nil
 }
 
 // UpdateRuntimeConfig updates the runtime configuration based on the given request.

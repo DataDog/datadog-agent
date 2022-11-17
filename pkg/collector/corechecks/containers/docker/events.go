@@ -12,16 +12,34 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	dockerEvents = telemetry.NewCounterWithOpts(
+		dockerCheckName,
+		"events",
+		[]string{"action"},
+		"Number of Docker events received by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
+
+	emittedEvents = telemetry.NewCounterWithOpts(
+		dockerCheckName,
+		"emitted_events",
+		[]string{"type"},
+		"Number of events emitted by the check.",
+		telemetry.Options{NoDoubleUnderscoreSep: true},
+	)
 )
 
 // reportEvents handles the event retrieval logic
@@ -66,7 +84,7 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 			status = metrics.ServiceCheckCritical
 		}
 
-		tags, err := tagger.Tag(ev.ContainerEntityName(), collectors.HighCardinality)
+		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ev.ContainerID), collectors.HighCardinality)
 		if err != nil {
 			log.Debugf("no tags for %s: %s", ev.ContainerID, err)
 			tags = []string{}
@@ -79,58 +97,15 @@ func (d *DockerCheck) reportExitCodes(events []*docker.ContainerEvent, sender ag
 
 // reportEvents aggregates and sends events to the Datadog event feed
 func (d *DockerCheck) reportEvents(events []*docker.ContainerEvent, sender aggregator.Sender) error {
-	bundles := aggregateEvents(events, d.instance.FilteredEventType)
+	datadogEvs, errs := d.eventTransformer.Transform(events)
 
-	for _, bundle := range bundles {
-		ev, err := bundle.toDatadogEvent(d.dockerHostname)
-		if err != nil {
-			log.Warnf("can't submit event: %s", err)
-		} else {
-			sender.Event(ev)
-		}
+	for _, err := range errs {
+		d.Warnf("Error transforming events: %s", err.Error()) //nolint:errcheck
 	}
+
+	for _, ev := range datadogEvs {
+		sender.Event(ev)
+	}
+
 	return nil
-}
-
-// aggregateEvents converts a bunch of ContainerEvent to bundles aggregated by
-// image name. It also filters out unwanted event types.
-func aggregateEvents(events []*docker.ContainerEvent, filteredActions []string) map[string]*dockerEventBundle {
-	// Pre-aggregate container events by image
-	eventsByImage := make(map[string]*dockerEventBundle)
-	filteredByType := make(map[string]int)
-
-	for _, event := range events {
-		if matchFilter(event.Action, filteredActions) {
-			filteredByType[event.Action] = filteredByType[event.Action] + 1
-			continue
-		}
-		bundle, found := eventsByImage[event.ImageName]
-		if found == false {
-			bundle = newDockerEventBundler(event.ImageName)
-			eventsByImage[event.ImageName] = bundle
-		}
-		bundle.addEvent(event) //nolint:errcheck
-	}
-
-	if len(filteredByType) > 0 {
-		log.Debugf("filtered out the following events: %s", formatStringIntMap(filteredByType))
-	}
-	return eventsByImage
-}
-
-func matchFilter(item string, filterList []string) bool {
-	for _, filtered := range filterList {
-		if filtered == item {
-			return true
-		}
-	}
-	return false
-}
-
-func formatStringIntMap(input map[string]int) string {
-	var parts []string
-	for k, v := range input {
-		parts = append(parts, fmt.Sprintf("%d %s", v, k))
-	}
-	return strings.Join(parts, " ")
 }

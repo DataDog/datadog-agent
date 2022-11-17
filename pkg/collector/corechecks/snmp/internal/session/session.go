@@ -14,10 +14,11 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"
@@ -153,7 +154,7 @@ func FetchSysObjectID(session Session) (string, error) {
 		return "", fmt.Errorf("expected 1 value, but got %d: variables=%v", len(result.Variables), result.Variables)
 	}
 	pduVar := result.Variables[0]
-	oid, value, err := gosnmplib.GetValueFromPDU(pduVar)
+	oid, value, err := valuestore.GetResultValueFromPDU(pduVar)
 	if err != nil {
 		return "", fmt.Errorf("error getting value from pdu: %s", err)
 	}

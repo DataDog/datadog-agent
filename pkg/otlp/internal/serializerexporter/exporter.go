@@ -9,21 +9,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-var _ config.Exporter = (*exporterConfig)(nil)
+var _ component.ExporterConfig = (*exporterConfig)(nil)
 
-func newDefaultConfig() config.Exporter {
+func newDefaultConfig() component.ExporterConfig {
 	return &exporterConfig{
-		ExporterSettings: config.NewExporterSettings(config.NewComponentID(TypeStr)),
+		ExporterSettings: config.NewExporterSettings(component.NewID(TypeStr)),
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
@@ -34,6 +38,7 @@ func newDefaultConfig() config.Exporter {
 			ExporterConfig: metricsExporterConfig{
 				ResourceAttributesAsTags:             false,
 				InstrumentationLibraryMetadataAsTags: false,
+				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
@@ -50,14 +55,19 @@ func newDefaultConfig() config.Exporter {
 	}
 }
 
-var _ translator.HostnameProvider = (*hostnameProviderFunc)(nil)
+var _ source.Provider = (*sourceProviderFunc)(nil)
 
-// hostnameProviderFunc is an adapter to allow the use of a function as a translator.HostnameProvider.
-type hostnameProviderFunc func(context.Context) (string, error)
+// sourceProviderFunc is an adapter to allow the use of a function as a translator.HostnameProvider.
+type sourceProviderFunc func(context.Context) (string, error)
 
-// Hostname calls f.
-func (f hostnameProviderFunc) Hostname(ctx context.Context) (string, error) {
-	return f(ctx)
+// Source calls f and wraps in a source struct.
+func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
+	hostnameIdentifier, err := f(ctx)
+	if err != nil {
+		return source.Source{}, err
+	}
+
+	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
 }
 
 // exporter translate OTLP metrics into the Datadog format and sends
@@ -80,7 +90,8 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 	}
 
 	options := []translator.Option{
-		translator.WithFallbackHostnameProvider(hostnameProviderFunc(util.GetHostname)),
+		translator.WithFallbackSourceProvider(sourceProviderFunc(hostname.Get)),
+		translator.WithPreviewHostnameFromAttributes(),
 		translator.WithHistogramMode(histogramMode),
 		translator.WithDeltaTTL(cfg.Metrics.DeltaTTL),
 	}
@@ -98,7 +109,15 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithResourceAttributesAsTags())
 	}
 
+	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
+		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
+	}
+
 	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
+		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
+	}
+
+	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
 	}
 
@@ -120,7 +139,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}
 
-	hostname, err := util.GetHostname(context.TODO())
+	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +160,7 @@ func newExporter(logger *zap.Logger, s serializer.MetricSerializer, cfg *exporte
 	return &exporter{
 		tr:          tr,
 		s:           s,
-		hostname:    hostname,
+		hostname:    hname,
 		extraTags:   extraTags,
 		cardinality: cardinality,
 	}, nil

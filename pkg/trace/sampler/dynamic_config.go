@@ -9,10 +9,11 @@ import (
 	"math"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/client/products/apmsampling"
+	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 )
 
 // DynamicConfig contains configuration items which may change
@@ -114,8 +115,8 @@ func (rbs *RateByService) GetNewState(version string) State {
 	return ret
 }
 
-var localVersion int64
+var localVersion atomic.Int64
 
 func newVersion() string {
-	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(atomic.AddInt64(&localVersion, 1), 16)
+	return strconv.FormatInt(time.Now().Unix(), 16) + "-" + strconv.FormatInt(localVersion.Inc(), 16)
 }

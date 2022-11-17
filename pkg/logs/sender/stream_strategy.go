@@ -34,7 +34,7 @@ func (s *streamStrategy) Start() {
 			if msg.Origin != nil {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
-			s.outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content}
+			s.outputChan <- &message.Payload{Messages: []*message.Message{msg}, Encoded: msg.Content, UnencodedSize: len(msg.Content)}
 		}
 		s.done <- struct{}{}
 	}()

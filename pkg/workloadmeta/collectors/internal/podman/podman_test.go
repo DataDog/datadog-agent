@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/podman"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/util"
 )
 
 type fakeWorkloadmetaStore struct {
@@ -253,46 +252,15 @@ func TestPull(t *testing.T) {
 		},
 	}
 
-	cacheWithExpired := util.NewExpire(1 * time.Second)
-	expiredID := "1"
-	cacheWithExpired.Update(workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   expiredID,
-	}, time.Now().Add(-1*time.Hour)) // Expired because 1 hour > 10s defined above
-
-	// The cache is initialized with a "lastExpire" that equals time.Now, and
-	// the caller has no control over it. When calculating the expired entities,
-	// it first checks that the last expire happen at least TTL seconds ago.
-	// That's why here we need to sleep at least for the TTL defined (1 second
-	// in this case).
-	time.Sleep(1 * time.Second)
-
 	tests := []struct {
 		name           string
 		client         podmanClient
-		cache          *util.Expire
 		expectedEvents []workloadmeta.CollectorEvent
 	}{
 		{
-			name:           "without expired entities",
+			name:           "expected events",
 			client:         &client,
-			cache:          util.NewExpire(10 * time.Second),
 			expectedEvents: expectedEvents,
-		},
-		{
-			name:   "with expired entities",
-			client: &client,
-			cache:  cacheWithExpired,
-			expectedEvents: append(expectedEvents, workloadmeta.CollectorEvent{
-				Type:   workloadmeta.EventTypeUnset,
-				Source: workloadmeta.SourceRuntime,
-				Entity: &workloadmeta.Container{
-					EntityID: workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   expiredID,
-					},
-				},
-			}),
 		},
 	}
 
@@ -302,7 +270,6 @@ func TestPull(t *testing.T) {
 			podmanCollector := collector{
 				client: test.client,
 				store:  &workloadmetaStore,
-				expire: test.cache,
 			}
 
 			err := podmanCollector.Pull(context.TODO())

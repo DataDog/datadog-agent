@@ -36,7 +36,7 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, hostname string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
+func InitAndStartServerlessDemultiplexer(domainResolvers map[string]resolver.DomainResolver, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
 	forwarder := forwarder.NewSyncForwarder(domainResolvers, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil, nil)
@@ -100,43 +100,36 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	defer d.flushLock.Unlock()
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
 
-	metrics.StartIteration(
-		createIterableSeries(
-			d.flushAndSerializeInParallel,
-			logPayloads,
-		),
-		func(seriesSink metrics.SerieSink) {
+	metrics.Serialize(
+		series,
+		sketches,
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 			trigger := flushTrigger{
 				trigger: trigger{
 					time:              start,
 					blockChan:         make(chan struct{}),
 					waitForSerializer: waitForSerializer,
 				},
-				flushedSketches: &flushedSketches,
-				seriesSink:      seriesSink,
+				sketchesSink: sketchesSink,
+				seriesSink:   seriesSink,
 			}
 
 			d.statsdWorker.flushChan <- trigger
 			<-trigger.blockChan
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.serializer, start, serieSource)
+		}, func(sketches metrics.SketchesSource) {
+			// Don't send empty sketches payloads
+			if sketches.WaitForValue() {
+				d.serializer.SendSketch(sketches) //nolint:errcheck
+			}
 		})
-
-	var sketches metrics.SketchSeriesList
-	for _, s := range flushedSketches {
-		sketches = append(sketches, s...)
-	}
-
-	log.DebugfServerless("Sending sketches payload : %s", sketches.String())
-	if len(sketches) > 0 {
-		d.serializer.SendSketch(sketches) //nolint:errcheck
-	}
 }
 
-// AddTimeSample send a MetricSample to the TimeSampler.
-func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AggregateSample send a MetricSample to the TimeSampler.
+func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	batch := d.GetMetricSamplePool().GetBatch()
@@ -144,18 +137,18 @@ func (d *ServerlessDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
 	d.statsdWorker.samplesChan <- batch[:1]
 }
 
-// AddTimeSampleBatch send a MetricSampleBatch to the TimeSampler.
+// AggregateSamples send a MetricSampleBatch to the TimeSampler.
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
-// In the Serverless Agent, consider using `AddTimeSample` instead.
-func (d *ServerlessDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// In the Serverless Agent, consider using `AggregateSample` instead.
+func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 	d.statsdWorker.samplesChan <- samples
 }
 
-// AddCheckSample doesn't do anything in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }
 

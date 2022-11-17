@@ -226,7 +226,7 @@ func (s *StringValuesEvaluator) SetFieldValues(values ...FieldValue) error {
 
 // AppendMembers add members to the evaluator
 func (s *StringValuesEvaluator) AppendMembers(members ...ast.StringMember) {
-	var values []FieldValue
+	values := make([]FieldValue, 0, len(members))
 	var value FieldValue
 
 	for _, member := range members {

@@ -6,12 +6,10 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,22 +36,10 @@ var (
 		PrometheusPortAnnotation,
 	}
 	// OpenmetricsDefaultMetricsV1 containers the wildcard pattern to match all metrics
-	OpenmetricsDefaultMetricsV1 = []string{"*"}
+	OpenmetricsDefaultMetricsV1 = []interface{}{"*"}
 	// OpenmetricsDefaultMetricsV2 containers the match-all regular expression to match all metrics
-	OpenmetricsDefaultMetricsV2 = []string{".*"}
+	OpenmetricsDefaultMetricsV2 = []interface{}{".*"}
 )
-
-func configPrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
-
-func init() {
-	config.PrometheusScrapeChecksTransformer = configPrometheusScrapeChecksTransformer
-}
 
 // PrometheusCheck represents the openmetrics check instances and the corresponding autodiscovery rules
 type PrometheusCheck struct {
@@ -65,7 +51,7 @@ type PrometheusCheck struct {
 type OpenmetricsInstance struct {
 	PrometheusURL                 string                      `mapstructure:"prometheus_url" yaml:"prometheus_url,omitempty" json:"prometheus_url,omitempty"`
 	Namespace                     string                      `mapstructure:"namespace" yaml:"namespace,omitempty" json:"namespace"`
-	Metrics                       []string                    `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Metrics                       []interface{}               `mapstructure:"metrics" yaml:"metrics,omitempty" json:"metrics,omitempty"`
 	PromPrefix                    string                      `mapstructure:"prometheus_metrics_prefix" yaml:"prometheus_metrics_prefix,omitempty" json:"prometheus_metrics_prefix,omitempty"`
 	HealthCheck                   *bool                       `mapstructure:"health_service_check" yaml:"health_service_check,omitempty" json:"health_service_check,omitempty"`
 	LabelToHostname               string                      `mapstructure:"label_to_hostname" yaml:"label_to_hostname,omitempty" json:"label_to_hostname,omitempty"`
@@ -142,15 +128,14 @@ type InclExcl struct {
 
 // Init prepares the PrometheusCheck structure and defaults its values
 // init must be called only once
-func (pc *PrometheusCheck) Init() error {
-	pc.initInstances()
+func (pc *PrometheusCheck) Init(version int) error {
+	pc.initInstances(version)
 	return pc.initAD()
 }
 
 // initInstances defaults the Instances field in PrometheusCheck
-func (pc *PrometheusCheck) initInstances() {
-	var openmetricsDefaultMetrics []string
-	version := config.Datadog.GetInt("prometheus_scrape.version")
+func (pc *PrometheusCheck) initInstances(version int) {
+	var openmetricsDefaultMetrics []interface{}
 	switch version {
 	case 1:
 		openmetricsDefaultMetrics = OpenmetricsDefaultMetricsV1
@@ -272,7 +257,7 @@ func (ad *ADConfig) MatchContainer(name string) bool {
 var DefaultPrometheusCheck = &PrometheusCheck{
 	Instances: []*OpenmetricsInstance{
 		{
-			Metrics:   []string{"PLACEHOLDER"},
+			Metrics:   []interface{}{"PLACEHOLDER"},
 			Namespace: openmetricsDefaultNS,
 		},
 	},

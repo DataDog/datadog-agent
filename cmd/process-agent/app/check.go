@@ -16,12 +16,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -30,14 +32,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
+var (
+	waitInterval time.Duration
+)
+
+const (
+	defaultWaitInterval = time.Second
+)
+
 func init() {
 	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
+	CheckCmd.Flags().DurationVarP(&waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
 }
 
 // CheckCmd is a command that runs the process-agent version data
 var CheckCmd = &cobra.Command{
 	Use:   "check",
-	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery",
+	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
 
 	Args:         cobra.ExactArgs(1),
 	RunE:         runCheckCmd,
@@ -53,6 +64,9 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	if checkOutputJSON {
 		ddconfig.Datadog.Set("log_to_console", false)
 	}
+
+	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
+	ddconfig.Datadog.Set("disable_file_logging", true)
 
 	// We need to load in the system probe environment variables before we load the config, otherwise an
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
@@ -113,10 +127,28 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 	check := args[0]
 
+	cleanups := make([]func(), 0)
+	defer func() {
+		for _, c := range cleanups {
+			c()
+		}
+	}()
+
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
+
+	if checks.Process.SysprobeProcessModuleEnabled {
+		net.SetSystemProbePath(cfg.SystemProbeAddress)
+	}
+
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
+		// use a different client ID to prevent destructive querying of connections data
+		checks.ProcessAgentClientID = "process-agent-cli-check-id"
 		checks.Process.Init(cfg, sysInfo)
 		checks.Process.Run(cfg, 0) //nolint:errcheck
+		// Clean up the process check state only after the connections check is executed
+		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
 
 	names := make([]string, 0, len(checks.All))
@@ -125,12 +157,14 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 
 		if ch.Name() == check {
 			ch.Init(cfg, sysInfo)
+			cleanups = append(cleanups, ch.Cleanup)
 			return runCheck(cfg, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == check {
 			withRealTime.Init(cfg, sysInfo)
+			cleanups = append(cleanups, withRealTime.Cleanup)
 			return runCheckAsRealTime(cfg, withRealTime)
 		}
 	}
@@ -143,7 +177,8 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.Name())
@@ -175,7 +210,8 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	time.Sleep(1 * time.Second)
+	log.Infof("Waiting %s before running the check", waitInterval.String())
+	time.Sleep(waitInterval)
 
 	if !checkOutputJSON {
 		printResultsBanner(ch.RealTimeName())

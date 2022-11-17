@@ -18,9 +18,17 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
 
+func mkurl(rawurl string) *url.URL {
+	urlResult, err := url.Parse(rawurl)
+	if err != nil {
+		panic(err)
+	}
+	return urlResult
+}
+
 func TestProcessDiscovery(t *testing.T) {
 	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
@@ -47,7 +55,7 @@ func TestProcessDiscovery(t *testing.T) {
 
 func TestContainerCheck(t *testing.T) {
 	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
@@ -95,7 +103,7 @@ func TestContainerCheck(t *testing.T) {
 }
 
 func TestProcessCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	scfg, err := sysconfig.New("")
 	assert.NoError(t, err)
@@ -117,7 +125,7 @@ func TestProcessCheck(t *testing.T) {
 }
 
 func TestSysprobeProcessModule(t *testing.T) {
-	cfg, ocfg := config.Mock(), &oconfig.OrchestratorConfig{}
+	cfg, ocfg := config.Mock(t), &oconfig.OrchestratorConfig{}
 	cfg.Set("process_config.process_collection.enabled", true)
 	cfg.Set("system_probe_config.enabled", true)
 
@@ -141,7 +149,7 @@ func TestSysprobeProcessModule(t *testing.T) {
 }
 
 func TestConnectionsCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 	ocfg := &oconfig.OrchestratorConfig{}
 	cfg.Set("system_probe_config.enabled", true)
 
@@ -165,7 +173,7 @@ func TestConnectionsCheck(t *testing.T) {
 }
 
 func TestPodCheck(t *testing.T) {
-	cfg := config.Mock()
+	cfg := config.Mock(t)
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
@@ -190,15 +198,29 @@ func TestPodCheck(t *testing.T) {
 	})
 }
 
-func TestGetAPIEndpoints(t *testing.T) {
-	mkurl := func(rawurl string) *url.URL {
-		urlResult, err := url.Parse(rawurl)
-		if err != nil {
-			panic(err)
-		}
-		return urlResult
-	}
+func TestProcessEventsCheck(t *testing.T) {
+	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	cfg := config.Mock(t)
 
+	t.Run("default", func(t *testing.T) {
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		cfg.Set("process_config.event_collection.enabled", true)
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.Contains(t, enabledChecks, checks.ProcessEvents)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg.Set("process_config.event_collection.enabled", false)
+		enabledChecks := getChecks(scfg, ocfg, false)
+		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
+	})
+}
+
+func TestGetAPIEndpoints(t *testing.T) {
 	for _, tc := range []struct {
 		name, apiKey, ddURL string
 		additionalEndpoints map[string][]string
@@ -259,7 +281,7 @@ func TestGetAPIEndpoints(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			cfg.Set("api_key", tc.apiKey)
 			if tc.ddURL != "" {
 				cfg.Set("process_config.process_dd_url", tc.ddURL)
@@ -281,32 +303,48 @@ func TestGetAPIEndpoints(t *testing.T) {
 // TestGetAPIEndpointsSite is a test for GetAPIEndpoints. It makes sure that the deprecated `site` setting still works
 func TestGetAPIEndpointsSite(t *testing.T) {
 	for _, tc := range []struct {
-		name, site, ddURL, expectedHostname string
+		name                                     string
+		site                                     string
+		ddURL, eventsDDURL                       string
+		expectedHostname, expectedEventsHostname string
 	}{
 		{
-			name:             "site only",
-			site:             "datadoghq.io",
-			expectedHostname: "process.datadoghq.io",
+			name:                   "site only",
+			site:                   "datadoghq.io",
+			expectedHostname:       "process.datadoghq.io",
+			expectedEventsHostname: "process-events.datadoghq.io",
 		},
 		{
-			name:             "dd_url only",
-			ddURL:            "https://process.datadoghq.eu",
-			expectedHostname: "process.datadoghq.eu",
+			name:                   "dd_url only",
+			ddURL:                  "https://process.datadoghq.eu",
+			expectedHostname:       "process.datadoghq.eu",
+			expectedEventsHostname: "process-events.datadoghq.com",
 		},
 		{
-			name:             "both site and dd_url",
-			site:             "datacathq.eu",
-			ddURL:            "https://burrito.com",
-			expectedHostname: "burrito.com",
+			name:                   "events_dd_url only",
+			eventsDDURL:            "https://process-events.datadoghq.eu",
+			expectedHostname:       "process.datadoghq.com",
+			expectedEventsHostname: "process-events.datadoghq.eu",
+		},
+		{
+			name:                   "both site and dd_url",
+			site:                   "datacathq.eu",
+			ddURL:                  "https://burrito.com",
+			eventsDDURL:            "https://burrito-events.com",
+			expectedHostname:       "burrito.com",
+			expectedEventsHostname: "burrito-events.com",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock()
+			cfg := config.Mock(t)
 			if tc.site != "" {
 				cfg.Set("site", tc.site)
 			}
 			if tc.ddURL != "" {
 				cfg.Set("process_config.process_dd_url", tc.ddURL)
+			}
+			if tc.eventsDDURL != "" {
+				cfg.Set("process_config.events_dd_url", tc.eventsDDURL)
 			}
 
 			eps, err := getAPIEndpoints()
@@ -314,6 +352,156 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 
 			mainEndpoint := eps[0]
 			assert.Equal(t, tc.expectedHostname, mainEndpoint.Endpoint.Hostname())
+
+			eventsEps, err := getEventsAPIEndpoints()
+			assert.NoError(t, err)
+
+			mainEventEndpoint := eventsEps[0]
+			assert.Equal(t, tc.expectedEventsHostname, mainEventEndpoint.Endpoint.Hostname())
+		})
+	}
+}
+
+// TestGetConcurrentAPIEndpoints ensures that process and process-events endpoints can be independently set
+func TestGetConcurrentAPIEndpoints(t *testing.T) {
+	for _, tc := range []struct {
+		name                       string
+		ddURL, eventsDDURL, apiKey string
+		additionalEndpoints        map[string][]string
+		additionalEventsEndpoints  map[string][]string
+		expectedEndpoints          []apicfg.Endpoint
+		expectedEventsEndpoints    []apicfg.Endpoint
+	}{
+		{
+			name:   "default",
+			apiKey: "test",
+			expectedEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl(config.DefaultProcessEndpoint),
+				},
+			},
+			expectedEventsEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+				},
+			},
+		},
+		{
+			name:   "set only process endpoint",
+			ddURL:  "https://process.datadoghq.eu",
+			apiKey: "test",
+			expectedEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl("https://process.datadoghq.eu"),
+				},
+			},
+			expectedEventsEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+				},
+			},
+		},
+		{
+			name:        "set only process-events endpoint",
+			eventsDDURL: "https://process-events.datadoghq.eu",
+			apiKey:      "test",
+			expectedEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl(config.DefaultProcessEndpoint),
+				},
+			},
+			expectedEventsEndpoints: []apicfg.Endpoint{
+				{
+					APIKey:   "test",
+					Endpoint: mkurl("https://process-events.datadoghq.eu"),
+				},
+			},
+		},
+		{
+			name:   "multiple eps",
+			apiKey: "test",
+			additionalEndpoints: map[string][]string{
+				"https://mock.datadoghq.com": {
+					"key1",
+					"key2",
+				},
+				"https://mock2.datadoghq.com": {
+					"key3",
+				},
+			},
+			additionalEventsEndpoints: map[string][]string{
+				"https://mock-events.datadoghq.com": {
+					"key2",
+				},
+				"https://mock2-events.datadoghq.com": {
+					"key3",
+				},
+			},
+			expectedEndpoints: []apicfg.Endpoint{
+				{
+					Endpoint: mkurl(config.DefaultProcessEndpoint),
+					APIKey:   "test",
+				},
+				{
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key1",
+				},
+				{
+					Endpoint: mkurl("https://mock.datadoghq.com"),
+					APIKey:   "key2",
+				},
+				{
+					Endpoint: mkurl("https://mock2.datadoghq.com"),
+					APIKey:   "key3",
+				},
+			},
+			expectedEventsEndpoints: []apicfg.Endpoint{
+				{
+					Endpoint: mkurl(config.DefaultProcessEventsEndpoint),
+					APIKey:   "test",
+				},
+				{
+					Endpoint: mkurl("https://mock-events.datadoghq.com"),
+					APIKey:   "key2",
+				},
+				{
+					Endpoint: mkurl("https://mock2-events.datadoghq.com"),
+					APIKey:   "key3",
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock(t)
+			cfg.Set("api_key", tc.apiKey)
+			if tc.ddURL != "" {
+				cfg.Set("process_config.process_dd_url", tc.ddURL)
+			}
+
+			if tc.eventsDDURL != "" {
+				cfg.Set("process_config.events_dd_url", tc.eventsDDURL)
+			}
+
+			if tc.additionalEndpoints != nil {
+				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
+			}
+
+			if tc.additionalEventsEndpoints != nil {
+				cfg.Set("process_config.events_additional_endpoints", tc.additionalEventsEndpoints)
+			}
+
+			eps, err := getAPIEndpoints()
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, tc.expectedEndpoints, eps)
+
+			eventsEps, err := getEventsAPIEndpoints()
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, tc.expectedEventsEndpoints, eventsEps)
 		})
 	}
 }

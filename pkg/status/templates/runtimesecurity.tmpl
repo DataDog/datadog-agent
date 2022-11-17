@@ -47,6 +47,12 @@ Runtime Security
     {{ if .kernelLockdown }}
     Kernel lockdown: {{ .kernelLockdown }}
     {{- end }}
+    {{- if .mmapableMaps }}
+    Use eBPF mmapable maps: {{ .mmapableMaps }}
+    {{- end }}
+    {{- if .ringBuffer }}
+    Use eBPF ring buffer: {{ .ringBuffer }}
+    {{- end }}
     {{ if .constantFetchers }}
     Available constant fetchers
     ===========================

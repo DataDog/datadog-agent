@@ -23,7 +23,7 @@ type ProcessMonitoring struct {
 // HandleEvent implement the EventHandler interface
 func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 	// Force resolution of all event fields before exposing it through the API server
-	event.ResolveFields()
+	event.ResolveFields(false)
 	event.ResolveEventTimestamp()
 
 	entry := event.ResolveProcessCacheEntry()
@@ -31,10 +31,28 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 		return
 	}
 
-	e := &model.ProcessMonitoringEvent{
-		ProcessCacheEntry: entry,
-		EventType:         event.GetEventType().String(),
-		CollectionTime:    event.Timestamp,
+	var cmdline []string
+	if entry.ArgsEntry != nil {
+		// ignore if the args have been truncated
+		cmdline, _ = entry.ArgsEntry.ToArray()
+	}
+
+	e := &model.ProcessEvent{
+		EventType:      model.NewEventType(event.GetEventType().String()),
+		CollectionTime: event.Timestamp,
+		Pid:            entry.Pid,
+		ContainerID:    entry.ContainerID,
+		Ppid:           entry.PPid,
+		UID:            entry.UID,
+		GID:            entry.GID,
+		Username:       entry.User,
+		Group:          entry.Group,
+		Exe:            entry.FileEvent.PathnameStr, // FileEvent is not a pointer, so it can be directly accessed
+		Cmdline:        cmdline,
+		ForkTime:       entry.ForkTime,
+		ExecTime:       entry.ExecTime,
+		ExitTime:       entry.ExitTime,
+		ExitCode:       event.Exit.Code,
 	}
 
 	data, err := e.MarshalMsg(nil)

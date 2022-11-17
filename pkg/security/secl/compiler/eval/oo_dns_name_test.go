@@ -26,13 +26,13 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
+		e, err := DNSNameCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
-		e, err = DNSNameCmp.StringEquals(b, a, nil, state)
+		e, err = DNSNameCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -51,13 +51,13 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
+		e, err := DNSNameCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = DNSNameCmp.StringEquals(b, a, nil, state)
+		e, err = DNSNameCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -76,13 +76,13 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
+		e, err := DNSNameCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 
-		e, err = DNSNameCmp.StringEquals(b, a, nil, state)
+		e, err = DNSNameCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -101,13 +101,13 @@ func TestLowerCaseEquals(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringEquals(a, b, nil, state)
+		e, err := DNSNameCmp.StringEquals(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
-		e, err = DNSNameCmp.StringEquals(b, a, nil, state)
+		e, err = DNSNameCmp.StringEquals(b, a, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -131,9 +131,9 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -155,9 +155,9 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -179,9 +179,9 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -203,9 +203,9 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 
@@ -215,7 +215,7 @@ func TestLowerCaseContains(t *testing.T) {
 			Values: values,
 		}
 
-		e, err = DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err = DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -248,9 +248,9 @@ func TestLowerCaseContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringValuesContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringValuesContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -270,9 +270,9 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.False(t, e.Eval(&ctx).(bool))
 	})
@@ -290,9 +290,9 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
@@ -312,10 +312,17 @@ func TestLowerCaseArrayContains(t *testing.T) {
 		}
 
 		var ctx Context
-		state := NewState(&testModel{}, "", nil)
+		state := NewState(&testModel{}, "", nil, nilReplCtx())
 
-		e, err := DNSNameCmp.StringArrayContains(a, b, nil, state)
+		e, err := DNSNameCmp.StringArrayContains(a, b, state)
 		assert.Empty(t, err)
 		assert.True(t, e.Eval(&ctx).(bool))
 	})
+}
+
+func nilReplCtx() ReplacementContext {
+	return ReplacementContext{
+		Opts:       nil,
+		MacroStore: nil,
+	}
 }

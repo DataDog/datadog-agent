@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -60,7 +61,9 @@ func (d *ContainerConfigProvider) String() string {
 // Collect retrieves all running containers and extract AD templates from their labels.
 func (d *ContainerConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	d.once.Do(func() {
-		go d.listen()
+		ch := make(chan struct{})
+		go d.listen(ch)
+		<-ch
 	})
 
 	d.Lock()
@@ -72,7 +75,8 @@ func (d *ContainerConfigProvider) Collect(ctx context.Context) ([]integration.Co
 	return d.generateConfigs()
 }
 
-func (d *ContainerConfigProvider) listen() {
+// listen, closing the given channel after the initial set of events are received
+func (d *ContainerConfigProvider) listen(ch chan struct{}) {
 	d.Lock()
 	d.streaming = true
 	health := health.RegisterLiveness("ad-containerprovider")
@@ -83,6 +87,8 @@ func (d *ContainerConfigProvider) listen() {
 		}
 	}()
 	d.Unlock()
+
+	var ranOnce bool
 
 	workloadmetaEventsChannel := d.workloadmetaStore.Subscribe("ad-containerprovider", workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
@@ -98,6 +104,11 @@ func (d *ContainerConfigProvider) listen() {
 			}
 
 			d.processEvents(evBundle)
+
+			if !ranOnce {
+				close(ch)
+				ranOnce = true
+			}
 
 		case <-health.C:
 
@@ -174,6 +185,10 @@ func (d *ContainerConfigProvider) generateConfigs() ([]integration.Config, error
 
 		for _, err := range errors {
 			log.Errorf("Can't parse template for container %s: %s", containerID, err)
+		}
+
+		if util.CcaInAD() {
+			c = utils.AddContainerCollectAllConfigs(c, containerEntityName)
 		}
 
 		for idx := range c {

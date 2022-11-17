@@ -16,7 +16,8 @@ import (
 	"sync"
 
 	"github.com/acobaugh/osrelease"
-	"github.com/pkg/errors"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -51,6 +52,8 @@ var (
 	Kernel5_0 = kernel.VersionCode(5, 0, 0) //nolint:deadcode,unused
 	// Kernel5_1 is the KernelVersion representation of kernel version 5.1
 	Kernel5_1 = kernel.VersionCode(5, 1, 0) //nolint:deadcode,unused
+	// Kernel5_2 is the KernelVersion representation of kernel version 5.2
+	Kernel5_2 = kernel.VersionCode(5, 2, 0) //nolint:deadcode,unused
 	// Kernel5_3 is the KernelVersion representation of kernel version 5.3
 	Kernel5_3 = kernel.VersionCode(5, 3, 0) //nolint:deadcode,unused
 	// Kernel5_4 is the KernelVersion representation of kernel version 5.4
@@ -94,18 +97,23 @@ func (k *Version) String() string {
 }
 
 var kernelVersionCache struct {
-	sync.Mutex
+	sync.RWMutex
 	*Version
 }
 
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
-	kernelVersionCache.Lock()
-	defer kernelVersionCache.Unlock()
-
+	// fast read path
+	kernelVersionCache.RLock()
 	if kernelVersionCache.Version != nil {
+		kernelVersionCache.RUnlock()
 		return kernelVersionCache.Version, nil
 	}
+	kernelVersionCache.RUnlock()
+
+	// slow write path
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
 
 	var err error
 	kernelVersionCache.Version, err = newKernelVersion()
@@ -168,7 +176,7 @@ func newKernelVersion() (*Version, error) {
 		}
 	}
 
-	return nil, errors.New("failed to detect operating system version")
+	return nil, fmt.Errorf("failed to detect operating system version for %s", unameRelease)
 }
 
 // IsDebianKernel returns whether the kernel is a debian kernel
@@ -196,7 +204,7 @@ func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
-	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
+	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && strings.HasPrefix(k.OsRelease["VERSION_ID"], "7")
 }
 
 // IsRH8Kernel returns whether the kernel is a rh8 kernel
@@ -239,8 +247,25 @@ func (k *Version) IsAmazonLinuxKernel() bool {
 	return k.OsRelease["ID"] == "amzn"
 }
 
+// IsAmazonLinuxKernel returns whether the kernel is an amazon kernel
+func (k *Version) IsAmazonLinux2022Kernel() bool {
+	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2022"
+}
+
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
+}
+
+// HaveMmapableMaps returns whether the kernel supports mmapable maps.
+func (k *Version) HaveMmapableMaps() bool {
+	return features.HaveMapFlag(features.BPF_F_MMAPABLE) == nil
+
+}
+
+// HaveRingBuffers returns whether the kernel supports ring buffer.
+func (k *Version) HaveRingBuffers() bool {
+	// This checks ring buffer maps, which appeared in 5.8
+	return features.HaveMapType(ebpf.RingBuf) == nil
 }

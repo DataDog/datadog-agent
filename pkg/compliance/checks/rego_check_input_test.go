@@ -9,11 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 type regoInputFixture struct {
@@ -37,7 +38,7 @@ func (f *regoInputFixture) newRegoCheck() (*regoCheck, error) {
 		inputs: f.inputs,
 	}
 
-	if err := regoCheck.compileRule(rule, "", &compliance.SuiteMeta{}); err != nil {
+	if err := regoCheck.compileRule(rule, nil, &compliance.SuiteMeta{}); err != nil {
 		return nil, err
 	}
 
@@ -50,9 +51,6 @@ func (f *regoInputFixture) run(t *testing.T) {
 
 	cache.Cache.Delete(processCacheKey)
 	processFetcher = func() (processes, error) {
-		for pid, p := range f.processes {
-			p.Pid = pid
-		}
 		return f.processes, nil
 	}
 
@@ -111,10 +109,7 @@ func TestRegoInputCheck(t *testing.T) {
 				},
 			},
 			processes: processes{
-				42: {
-					Name:    "proc1",
-					Cmdline: []string{"arg1", "--path=foo"},
-				},
+				NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
 			expectedInput: `
 				{

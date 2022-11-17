@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
-	// Init packages
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/windows"
-
 	"github.com/cihub/seelog"
 	"golang.org/x/sys/windows/registry"
 )
@@ -25,12 +22,7 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath   string
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
+	viewsPath string
 )
 
 var (

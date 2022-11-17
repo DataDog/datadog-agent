@@ -10,7 +10,6 @@ package dogstatsd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,17 +34,14 @@ const (
 // we can't just `netcat` to the socket, that's why we run a custom python
 // script that will stay up after sending packets.
 func testUDSOriginDetection(t *testing.T) {
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(nil)
 
 	// Detect whether we are containerised and set the socket path accordingly
 	var socketVolume string
 	var composeFile string
 	dir := os.ExpandEnv("$SCRATCH_VOLUME_PATH")
 	if dir == "" { // Running on the host
-		var err error
-		dir, err = ioutil.TempDir("", "dd-test-")
-		assert.Nil(t, err)
-		defer os.RemoveAll(dir) // clean up
+		dir = t.TempDir()
 		socketVolume = dir
 		composeFile = "mount_path.compose"
 

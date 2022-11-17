@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestOTLPIngest(t *testing.T) {
@@ -52,11 +53,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -106,11 +107,11 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithInsecure())
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
-		client := ptraceotlp.NewClient(conn)
+		client := ptraceotlp.NewGRPCClient(conn)
 		now := uint64(time.Now().UnixNano())
 		pack := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 			{
@@ -119,16 +120,16 @@ apm_config:
 				Attributes: map[string]interface{}{"service.name": "pylons"},
 				Spans: []*testutil.OTLPSpan{
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
 						Kind:    ptrace.SpanKindServer,
 						Start:   now,
 						End:     now + 200000000,
 					},
 					{
-						TraceID: testutil.OTLPFixedTraceID.Bytes(),
-						SpanID:  testutil.OTLPFixedSpanID.Bytes(),
+						TraceID: testutil.OTLPFixedTraceID,
+						SpanID:  testutil.OTLPFixedSpanID,
 						Name:    "/path",
 						Kind:    ptrace.SpanKindServer,
 						Start:   now,

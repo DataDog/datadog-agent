@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -12,6 +12,8 @@ import (
 	"context"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 // DebugConntrackEntry is a entry in a conntrack table (host or cached).
@@ -68,11 +70,11 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 			Family: ck.transport.String(),
 			Origin: DebugConntrackTuple{
 				Src: DebugConntrackAddress{
-					IP:   ck.src.IP().String(),
+					IP:   ck.src.Addr().String(),
 					Port: ck.src.Port(),
 				},
 				Dst: DebugConntrackAddress{
-					IP:   ck.dst.IP().String(),
+					IP:   ck.dst.Addr().String(),
 					Port: ck.dst.Port(),
 				},
 			},
@@ -92,8 +94,12 @@ func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]D
 }
 
 // DumpHostTable dumps the host conntrack NAT entries grouped by network namespace
-func DumpHostTable(ctx context.Context, procRoot string) (map[uint32][]DebugConntrackEntry, error) {
-	consumer := NewConsumer(procRoot, -1, true)
+func DumpHostTable(ctx context.Context, cfg *config.Config) (map[uint32][]DebugConntrackEntry, error) {
+	consumer, err := NewConsumer(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	decoder := NewDecoder()
 	defer consumer.Stop()
 
@@ -142,21 +148,21 @@ func DumpHostTable(ctx context.Context, procRoot string) (map[uint32][]DebugConn
 						Proto:  src.transport.String(),
 						Origin: DebugConntrackTuple{
 							Src: DebugConntrackAddress{
-								IP:   src.src.IP().String(),
+								IP:   src.src.Addr().String(),
 								Port: src.src.Port(),
 							},
 							Dst: DebugConntrackAddress{
-								IP:   src.dst.IP().String(),
+								IP:   src.dst.Addr().String(),
 								Port: src.dst.Port(),
 							},
 						},
 						Reply: DebugConntrackTuple{
 							Src: DebugConntrackAddress{
-								IP:   dst.src.IP().String(),
+								IP:   dst.src.Addr().String(),
 								Port: dst.src.Port(),
 							},
 							Dst: DebugConntrackAddress{
-								IP:   dst.dst.IP().String(),
+								IP:   dst.dst.Addr().String(),
 								Port: dst.dst.Port(),
 							},
 						},

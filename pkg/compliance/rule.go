@@ -20,6 +20,7 @@ type RuleCommon struct {
 	Description  string        `yaml:"description,omitempty"`
 	Scope        RuleScopeList `yaml:"scope,omitempty"`
 	HostSelector string        `yaml:"hostSelector,omitempty"`
+	SkipOnK8s    bool          `yaml:"skipOnKubernetes,omitempty"`
 }
 
 // ConditionFallbackRule defines a rule in a compliance config

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a bug in autodiscovery that would not unschedule some checks when check configuration contains secrets.

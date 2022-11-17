@@ -36,6 +36,7 @@ const jsonContentType = "application/json"
 
 type admissionFunc func([]byte, string, dynamic.Interface) ([]byte, error)
 
+// Server TODO <container-integrations>
 type Server struct {
 	decoder runtime.Decoder
 	mux     *http.ServeMux
@@ -78,6 +79,11 @@ func (s *Server) Register(uri string, f admissionFunc, dc dynamic.Interface) {
 
 // Run starts the kubernetes admission webhook server.
 func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
+	var tlsMinVersion uint16 = tls.VersionTLS13
+	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+		tlsMinVersion = tls.VersionTLS10
+	}
+
 	server := &http.Server{
 		Addr:    fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
 		Handler: s.mux,
@@ -91,6 +97,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 				}
 				return cert, nil
 			},
+			MinVersion: tlsMinVersion,
 		},
 	}
 	go func() error {

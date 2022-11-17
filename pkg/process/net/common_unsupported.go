@@ -10,8 +10,11 @@ package net
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
+
+var _ SysProbeUtil = &RemoteSysProbeUtil{}
 
 // RemoteSysProbeUtil is not supported
 type RemoteSysProbeUtil struct{}

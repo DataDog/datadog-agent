@@ -6,7 +6,7 @@
 package mapper
 
 import (
-	"github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 type mapperCache struct {

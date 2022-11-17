@@ -45,7 +45,7 @@ func TestProcess(t *testing.T) {
 	transaction.Domain = ts.URL
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
-	transaction.Payload = &payload
+	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
 
@@ -58,7 +58,7 @@ func TestProcessInvalidDomain(t *testing.T) {
 	transaction.Domain = "://invalid"
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
-	transaction.Payload = &payload
+	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
 
@@ -71,7 +71,7 @@ func TestProcessNetworkError(t *testing.T) {
 	transaction.Domain = "http://localhost:1234"
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
-	transaction.Payload = &payload
+	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
 
@@ -91,7 +91,7 @@ func TestProcessHTTPError(t *testing.T) {
 	transaction.Domain = ts.URL
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
-	transaction.Payload = &payload
+	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
 
@@ -119,7 +119,7 @@ func TestProcessCancel(t *testing.T) {
 	transaction.Domain = "example.com"
 	transaction.Endpoint.Route = "/endpoint/test"
 	payload := []byte("test payload")
-	transaction.Payload = &payload
+	transaction.Payload = NewBytesPayloadWithoutMetaData(payload)
 
 	client := &http.Client{}
 	ctx, cancel := context.WithCancel(context.Background())

@@ -8,14 +8,17 @@
 
 package file
 
-import "github.com/DataDog/datadog-agent/pkg/util/log"
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
 // DidRotate returns true if the file has been log-rotated.
 //
 // On Windows, log rotation is identified by the file size being smaller
 // than the last offset read.
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := openFile(t.fullpath)
+	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
 		return false, err
 	}
@@ -36,6 +39,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 	offset := t.lastReadOffset.Load()
 
 	if sz < offset {
+		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", offset, sz)
 		return true, nil
 	}
 

@@ -32,6 +32,7 @@ var bpfProbes = []*manager.Probe{
 			EBPFSection:  "kprobe/check_helper_call",
 			EBPFFuncName: "kprobe_check_helper_call",
 		},
+		MatchFuncName: "check_helper_call",
 	},
 }
 

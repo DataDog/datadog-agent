@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -52,7 +53,9 @@ func (k *KubeletConfigProvider) String() string {
 // Collect retrieves all running pods and extract AD templates from their annotations.
 func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	k.once.Do(func() {
-		go k.listen()
+		ch := make(chan struct{})
+		go k.listen(ch)
+		<-ch
 	})
 
 	k.Lock()
@@ -62,7 +65,8 @@ func (k *KubeletConfigProvider) Collect(ctx context.Context) ([]integration.Conf
 	return k.generateConfigs()
 }
 
-func (k *KubeletConfigProvider) listen() {
+// listen, closing the given channel after the initial set of events are received
+func (k *KubeletConfigProvider) listen(ch chan struct{}) {
 	const name = "ad-kubeletprovider"
 
 	k.Lock()
@@ -76,7 +80,9 @@ func (k *KubeletConfigProvider) listen() {
 	}()
 	k.Unlock()
 
-	ch := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
+	var ranOnce bool
+
+	wlmetaCh := k.workloadmetaStore.Subscribe(name, workloadmeta.NormalPriority, workloadmeta.NewFilter(
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 		workloadmeta.SourceNodeOrchestrator,
 		workloadmeta.EventTypeAll,
@@ -84,12 +90,17 @@ func (k *KubeletConfigProvider) listen() {
 
 	for {
 		select {
-		case evBundle, ok := <-ch:
+		case evBundle, ok := <-wlmetaCh:
 			if !ok {
 				return
 			}
 
 			k.processEvents(evBundle)
+
+			if !ranOnce {
+				close(ch)
+				ranOnce = true
+			}
 
 		case <-health.C:
 
@@ -163,7 +174,14 @@ func (k *KubeletConfigProvider) generateConfigs() ([]integration.Config, error) 
 					log.Errorf("Can't parse template for pod %s: %s", pod.Name, err)
 					errs = append(errs, err)
 				}
-				continue
+				if len(c) == 0 {
+					// Only got errors, no valid configs so let's move on to the next container.
+					continue
+				}
+			}
+
+			if util.CcaInAD() {
+				c = utils.AddContainerCollectAllConfigs(c, containerEntity)
 			}
 
 			containerIdentifiers[adIdentifier] = struct{}{}

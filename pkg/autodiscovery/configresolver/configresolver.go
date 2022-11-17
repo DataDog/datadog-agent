@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,20 @@ var templateVariables = map[string]variableGetter{
 	"env":      getEnvvar,
 	"extra":    getAdditionalTplVariables,
 	"kube":     getAdditionalTplVariables,
+}
+
+type NoServiceError struct {
+	message string
+}
+
+func (n *NoServiceError) Error() string {
+	return n.message
+}
+
+func NewNoServiceError(message string) *NoServiceError {
+	return &NoServiceError{
+		message: message,
+	}
 }
 
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
@@ -188,7 +203,7 @@ func listDataToResolve(config *integration.Config) []dataToResolve {
 
 	if config.IsLogConfig() {
 		p := yamlp
-		if config.Provider == names.Container || config.Provider == names.Kubernetes {
+		if config.Provider == names.Container || config.Provider == names.Kubernetes || config.Provider == names.KubeContainer {
 			p = jsonp
 		}
 		res = append(res, dataToResolve{
@@ -283,10 +298,10 @@ func resolveDataWithTemplateVars(ctx context.Context, data integration.Data, svc
 			}
 			top.set(s)
 
-		case int, bool:
+		case nil, int, bool:
 
 		default:
-			return data, fmt.Errorf("Unknown type: %T", elem)
+			log.Errorf("Unknown type: %T", elem)
 		}
 	}
 
@@ -463,15 +478,22 @@ func tagsAdder(tags []string) func(interface{}) error {
 					}
 				}
 			}
+
 			for _, t := range tags {
 				tagSet[t] = struct{}{}
 			}
-			typedTree["tags"] = make([]string, len(tagSet))
+
+			allTags := make([]string, len(tagSet))
+
 			i := 0
 			for k := range tagSet {
-				typedTree["tags"].([]string)[i] = k
+				allTags[i] = k
 				i++
 			}
+
+			sort.Strings(allTags)
+
+			typedTree["tags"] = allTags
 		}
 		return nil
 	}
@@ -479,7 +501,7 @@ func tagsAdder(tags []string) func(interface{}) error {
 
 func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%host%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := svc.GetHosts(ctx)
@@ -507,9 +529,9 @@ func getHost(ctx context.Context, tplVar string, svc listeners.Service) (string,
 
 // getFallbackHost implements the fallback strategy to get a service's IP address
 // the current strategy is:
-// 		- if there's only one network we use its IP
-// 		- otherwise we look for the bridge net and return its IP address
-// 		- if we can't find it we fail because we shouldn't try and guess the IP address
+//   - if there's only one network we use its IP
+//   - otherwise we look for the bridge net and return its IP address
+//   - if we can't find it we fail because we shouldn't try and guess the IP address
 func getFallbackHost(hosts map[string]string) (string, error) {
 	if len(hosts) == 1 {
 		for _, host := range hosts {
@@ -528,7 +550,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 // getPort returns ports of the service
 func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%port%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%port%%%% is not allowed")
 	}
 
 	ports, err := svc.GetPorts(ctx)
@@ -561,7 +583,7 @@ func getPort(ctx context.Context, tplVar string, svc listeners.Service) (string,
 // getPid returns the process identifier of the service
 func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%pid%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%pid%%%% is not allowed")
 	}
 
 	pid, err := svc.GetPid(ctx)
@@ -575,7 +597,7 @@ func getPid(ctx context.Context, _ string, svc listeners.Service) (string, error
 // when the IP is unavailable or erroneous
 func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%hostname%%%% is not allowed")
+		return "", NewNoServiceError("No service. %%%%hostname%%%% is not allowed")
 	}
 
 	name, err := svc.GetHostname(ctx)
@@ -592,7 +614,7 @@ func getHostname(ctx context.Context, _ string, svc listeners.Service) (string, 
 // the AD listener and what the template variable represents.
 func getAdditionalTplVariables(_ context.Context, tplVar string, svc listeners.Service) (string, error) {
 	if svc == nil {
-		return "", fmt.Errorf("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
+		return "", NewNoServiceError("No service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
 	value, err := svc.GetExtraConfig(tplVar)

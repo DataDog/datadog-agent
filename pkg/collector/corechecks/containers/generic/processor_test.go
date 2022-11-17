@@ -8,45 +8,36 @@ package generic
 import (
 	"fmt"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	taggerUtils "github.com/DataDog/datadog-agent/pkg/tagger/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
 )
-
-func createContainerMeta(runtime, cID string) *workloadmeta.Container {
-	return &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   cID,
-		},
-		Runtime: workloadmeta.ContainerRuntime(runtime),
-		State: workloadmeta.ContainerState{
-			Running:   true,
-			StartedAt: time.Now(),
-		},
-	}
-}
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
-		createContainerMeta("docker", "cID100"),
+		CreateContainerMeta("docker", "cID100"),
+		// Container with no stats (returns nil)
+		CreateContainerMeta("docker", "cID101"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),
+		"cID101": {
+			ContainerStats: nil,
+		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 
 	expectedTags := []string{"runtime:docker"}
 	mockSender.AssertNumberOfCalls(t, "Rate", 17)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 13)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 14)
 
 	mockSender.AssertMetricInRange(t, "Gauge", "container.uptime", 0, 600, "", expectedTags)
 	mockSender.AssertMetric(t, "Rate", "container.cpu.usage", 100, "", expectedTags)
@@ -91,9 +82,9 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 func TestProcessorRunPartialStats(t *testing.T) {
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats
-		createContainerMeta("containerd", "cID201"),
+		CreateContainerMeta("containerd", "cID201"),
 		// Container with explicit error
-		createContainerMeta("containerd", "cID202"),
+		CreateContainerMeta("containerd", "cID202"),
 	}
 
 	containersStats := map[string]mock.ContainerEntry{
@@ -102,7 +93,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 		},
 	}
 
-	mockSender, processor, _ := CreateTestProcessor(containersMeta, nil, containersStats, GenericMetricsAdapter{}, nil)
+	mockSender, processor, _ := CreateTestProcessor(containersMeta, containersStats, GenericMetricsAdapter{}, nil)
 	err := processor.Run(mockSender, 0)
 	assert.ErrorIs(t, err, nil)
 

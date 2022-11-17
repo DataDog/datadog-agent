@@ -34,5 +34,5 @@ var (
 		"PTRACE_SET_SYSCALL":     unix.PTRACE_SET_SYSCALL,
 	}
 
-	mmapFlagArchConstants = map[string]int{}
+	mmapFlagArchConstants = map[string]uint64{}
 )

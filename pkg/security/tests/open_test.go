@@ -11,6 +11,7 @@ package tests
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,7 +22,6 @@ import (
 	"unsafe"
 
 	"github.com/iceber/iouring-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 

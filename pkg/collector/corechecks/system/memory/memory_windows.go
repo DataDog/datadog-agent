@@ -8,13 +8,9 @@
 package memory
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
@@ -23,7 +19,6 @@ import (
 var virtualMemory = winutil.VirtualMemory
 var swapMemory = winutil.SwapMemory
 var pageMemory = winutil.PagefileMemory
-var runtimeOS = runtime.GOOS
 
 // Check doesn't need additional fields
 type Check struct {
@@ -38,20 +33,10 @@ const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
 func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(data, source); err != nil {
+	if err := c.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 
-	c.cacheBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Cache Bytes")
-	if err == nil {
-		c.committedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Committed Bytes")
-		if err == nil {
-			c.pagedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Pool Paged Bytes")
-			if err == nil {
-				c.nonpagedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Pool Nonpaged Bytes")
-			}
-		}
-	}
 	return err
 }
 
@@ -63,41 +48,59 @@ func (c *Check) Run() error {
 	}
 
 	var val float64
+
+	// counter ("Memory", "Cache Bytes")
+	if c.cacheBytes == nil {
+		c.cacheBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Cache Bytes")
+	}
 	if c.cacheBytes != nil {
 		val, err = c.cacheBytes.GetValue()
-		if err == nil {
-			sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
-		} else {
-			log.Warnf("Could not retrieve value for system.mem.cached %v", err)
-		}
+	}
+	if err == nil {
+		sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
+	} else {
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.cached: %v", err)
 	}
 
+	// counter ("Memory", "Committed Bytes")
+	if c.committedBytes == nil {
+		c.committedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Committed Bytes")
+	}
 	if c.committedBytes != nil {
 		val, err = c.committedBytes.GetValue()
-		if err == nil {
-			sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
-		} else {
-			log.Warnf("Could not retrieve value for system.mem.committed %v", err)
-		}
+	}
+	if err == nil {
+		sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
+	} else {
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.committed: %v", err)
 	}
 
+	// counter ("Memory", "Pool Paged Bytes")
+	if c.pagedBytes == nil {
+		c.pagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Paged Bytes")
+	}
 	if c.pagedBytes != nil {
 		val, err = c.pagedBytes.GetValue()
-		if err == nil {
-			sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
-		} else {
-			log.Warnf("Could not retrieve value for system.mem.paged %v", err)
-		}
+	}
+	if err == nil {
+		sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
+	} else {
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.paged: %v", err)
 	}
 
+	// counter ("Memory", "Pool Nonpaged Bytes")
+	if c.nonpagedBytes == nil {
+		c.nonpagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Nonpaged Bytes")
+	}
 	if c.nonpagedBytes != nil {
 		val, err = c.nonpagedBytes.GetValue()
-		if err == nil {
-			sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
-		} else {
-			log.Warnf("Could not retrieve value for system.mem.nonpaged %v", err)
-		}
 	}
+	if err == nil {
+		sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
+	} else {
+		c.Warnf("memory.Check: Could not retrieve value for system.mem.nonpaged: %v", err)
+	}
+
 	v, errVirt := virtualMemory()
 	if errVirt == nil {
 		sender.Gauge("system.mem.total", float64(v.Total)/mbSize, "", nil)
@@ -106,7 +109,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.used", float64(v.Total-v.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pct_usable", float64(100-v.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
+		c.Warnf("memory.Check: could not retrieve virtual memory stats: %s", errVirt)
 	}
 
 	s, errSwap := swapMemory()
@@ -116,7 +119,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.swap.used", float64(s.Used)/mbSize, "", nil)
 		sender.Gauge("system.swap.pct_free", float64(100-s.UsedPercent)/100, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
+		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	p, errPage := pageMemory()
@@ -126,11 +129,7 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.pagefile.free", float64(p.Available)/mbSize, "", nil)
 		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
-		log.Errorf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
-	}
-
-	if errVirt != nil && errSwap != nil {
-		return fmt.Errorf("failed to gather any memory information")
+		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
 	}
 
 	sender.Commit()

@@ -26,6 +26,7 @@ func TestStreamStrategy(t *testing.T) {
 
 	payload := <-output
 	assert.Equal(t, message1, payload.Messages[0])
+	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 
 	content = []byte("b")
@@ -34,6 +35,7 @@ func TestStreamStrategy(t *testing.T) {
 
 	payload = <-output
 	assert.Equal(t, message2, payload.Messages[0])
+	assert.Equal(t, 1, payload.UnencodedSize)
 	assert.Equal(t, content, payload.Encoded)
 	s.Stop()
 }

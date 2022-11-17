@@ -9,11 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
@@ -89,7 +90,7 @@ func ReadConfig(agentHostname string) (*Config, error) {
 	if c.Namespace == "" {
 		c.Namespace = config.Datadog.GetString("network_devices.namespace")
 	}
-	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load config: %w", err)
 	}
@@ -113,36 +114,14 @@ func (c *Config) BuildSNMPParams() (*gosnmp.GoSNMP, error) {
 		}, nil
 	}
 	user := c.Users[0]
-	var authProtocol gosnmp.SnmpV3AuthProtocol
-	switch lowerAuthProtocol := strings.ToLower(user.AuthProtocol); lowerAuthProtocol {
-	case "":
-		authProtocol = gosnmp.NoAuth
-	case "md5":
-		authProtocol = gosnmp.MD5
-	case "sha":
-		authProtocol = gosnmp.SHA
-	default:
-		return nil, fmt.Errorf("unsupported authentication protocol: %s", user.AuthProtocol)
+	authProtocol, err := gosnmplib.GetAuthProtocol(user.AuthProtocol)
+	if err != nil {
+		return nil, err
 	}
 
-	var privProtocol gosnmp.SnmpV3PrivProtocol
-	switch lowerPrivProtocol := strings.ToLower(user.PrivProtocol); lowerPrivProtocol {
-	case "":
-		privProtocol = gosnmp.NoPriv
-	case "des":
-		privProtocol = gosnmp.DES
-	case "aes":
-		privProtocol = gosnmp.AES
-	case "aes192":
-		privProtocol = gosnmp.AES192
-	case "aes192c":
-		privProtocol = gosnmp.AES192C
-	case "aes256":
-		privProtocol = gosnmp.AES256
-	case "aes256c":
-		privProtocol = gosnmp.AES256C
-	default:
-		return nil, fmt.Errorf("unsupported privacy protocol: %s", user.PrivProtocol)
+	privProtocol, err := gosnmplib.GetPrivProtocol(user.PrivProtocol)
+	if err != nil {
+		return nil, err
 	}
 
 	msgFlags := gosnmp.NoAuthNoPriv

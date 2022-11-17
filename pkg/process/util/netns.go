@@ -16,9 +16,10 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // WithRootNS executes a function within root network namespace and then switch back
@@ -29,13 +30,18 @@ func WithRootNS(procRoot string, fn func() error) error {
 	if err != nil {
 		return err
 	}
+	defer rootNS.Close()
 
-	return WithNS(procRoot, rootNS, fn)
+	return WithNS(rootNS, fn)
 }
 
 // WithNS executes the given function in the given network namespace, and then
 // switches back to the previous namespace.
-func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
+func WithNS(ns netns.NsHandle, fn func() error) error {
+	if ns == netns.None() {
+		return fn()
+	}
+
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -43,6 +49,7 @@ func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
 	if err != nil {
 		return err
 	}
+	defer prevNS.Close()
 
 	if ns.Equal(prevNS) {
 		return fn()

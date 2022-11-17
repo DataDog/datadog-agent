@@ -107,16 +107,14 @@ var expectedHostTags = map[string]string{
 }
 
 func TestConvertKubernetes(t *testing.T) {
-	dir, err := ioutil.TempDir("", "agent_test_legacy")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	src := filepath.Join(dir, "kubernetes.yaml")
 	srcEmpty := filepath.Join(dir, "kubernetes-empty.yaml")
 	dst := filepath.Join(dir, "kubelet.yaml")
 	dstEmpty := filepath.Join(dir, "kubelet-empty.yaml")
 
-	err = ioutil.WriteFile(src, []byte(kubernetesLegacyConf), 0640)
+	err := ioutil.WriteFile(src, []byte(kubernetesLegacyConf), 0640)
 	require.NoError(t, err)
 	err = ioutil.WriteFile(srcEmpty, []byte(kubernetesLegacyEmptyConf), 0640)
 	require.NoError(t, err)

@@ -64,7 +64,6 @@ func CheckIsInferredSpan(span *pb.Span) bool {
 
 // FilterFunctionTags filters out DD tags & function specific tags
 func FilterFunctionTags(input map[string]string) map[string]string {
-
 	if input == nil {
 		return nil
 	}
@@ -94,23 +93,6 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	return output
 }
 
-// DispatchInferredSpan decodes the event and routes it to the correct
-// enrichment function for that event source
-func (inferredSpan *InferredSpan) DispatchInferredSpan(event string) {
-	attributes := parseEvent(event)
-	eventSource := attributes.extractEventSource()
-	switch eventSource {
-	case APIGATEWAY:
-		inferredSpan.enrichInferredSpanWithAPIGatewayRESTEvent(attributes)
-	case HTTPAPI:
-		inferredSpan.enrichInferredSpanWithAPIGatewayHTTPEvent(attributes)
-	case WEBSOCKET:
-		inferredSpan.enrichInferredSpanWithAPIGatewayWebsocketEvent(attributes)
-	case SNS:
-		inferredSpan.enrichInferredSpanWithSNSEvent(attributes)
-	}
-}
-
 // CompleteInferredSpan finishes the inferred span and passes it
 // as an API payload to be processed by the trace agent
 func (inferredSpan *InferredSpan) CompleteInferredSpan(
@@ -120,8 +102,12 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	traceID uint64,
 	samplingPriority sampler.SamplingPriority) {
 
+	durationIsSet := inferredSpan.Span.Duration != 0
 	if inferredSpan.IsAsync {
-		inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
 	} else {
 		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
 	}
@@ -147,19 +133,25 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	})
 }
 
-// GenerateInferredSpan declares and initializes a new inferred span
+// generateInferredSpan declares and initializes a new inferred span
 // with the SpanID and TraceID
-func (inferredSpan *InferredSpan) GenerateInferredSpan(startTime time.Time) {
+func (inferredSpan *InferredSpan) generateInferredSpan(startTime time.Time) {
 
 	inferredSpan.CurrentInvocationStartTime = startTime
 	inferredSpan.Span = &pb.Span{
 		SpanID: random.Random.Uint64(),
 	}
-	log.Debugf("Generated new Inferred span: %s", inferredSpan)
+	log.Debugf("Generated new Inferred span: %+v", inferredSpan)
 }
 
 // IsInferredSpansEnabled is used to determine if we need to
 // generate and enrich inferred spans for a particular invocation
 func IsInferredSpansEnabled() bool {
 	return config.Datadog.GetBool("serverless.trace_enabled") && config.Datadog.GetBool("serverless.trace_managed_services")
+}
+
+// AddTagToInferredSpan is used to add new tags to the inferred span in
+// inferredSpan.Span.Meta[]. Should be used before completing an inferred span.
+func (inferredSpan *InferredSpan) AddTagToInferredSpan(key string, value string) {
+	inferredSpan.Span.Meta[key] = value
 }

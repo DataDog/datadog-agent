@@ -8,6 +8,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 
@@ -22,7 +23,7 @@ func checkHandler(w http.ResponseWriter, req *http.Request) {
 	checkOutput, ok := checks.GetCheckOutput(requestedCheck)
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
-		_, err := io.WriteString(w, fmt.Sprintf("%s check is not running or has not been scheduled yet\n", requestedCheck))
+		_, err := io.WriteString(w, fmt.Sprintf("%s check is not running or has not been scheduled yet\n", html.EscapeString(requestedCheck)))
 		if err != nil {
 			_ = log.Error()
 		}

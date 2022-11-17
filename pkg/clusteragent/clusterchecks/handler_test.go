@@ -153,7 +153,7 @@ func TestHandlerRun(t *testing.T) {
 		dispatcher:           newDispatcher(),
 		leaderStatusCallback: le.get,
 		port:                 5005,
-		leaderForwarder:      api.NewLeaderForwarder(testPort, 10, 1),
+		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
 
 	//
@@ -180,6 +180,7 @@ func TestHandlerRun(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Equal(t, "503 Service Unavailable", resp.Status)
 	assert.Equal(t, 503, resp.StatusCode)
+	resp.Body.Close()
 
 	//
 	// Unknown -> follower
@@ -200,6 +201,7 @@ func TestHandlerRun(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Equal(t, "418 I'm a teapot", resp.Status)
 	assert.Equal(t, 418, resp.StatusCode)
+	resp.Body.Close()
 
 	//
 	// Follower -> leader
@@ -262,6 +264,7 @@ func TestHandlerRun(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Equal(t, "418 I'm a teapot", resp.Status)
 	assert.Equal(t, 418, resp.StatusCode)
+	resp.Body.Close()
 
 	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// RemoveScheduler is called

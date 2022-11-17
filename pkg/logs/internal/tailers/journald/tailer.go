@@ -12,12 +12,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"time"
 
 	"github.com/coreos/go-systemd/sdjournal"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,22 +31,24 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	source       *config.LogSource
-	outputChan   chan *message.Message
-	journal      *sdjournal.Journal
-	excludeUnits struct {
-		system map[string]bool
-		user   map[string]bool
+	source     *sources.LogSource
+	outputChan chan *message.Message
+	journal    Journal
+	exclude    struct {
+		systemUnits map[string]bool
+		userUnits   map[string]bool
+		matches     map[string]map[string]bool
 	}
 	stop chan struct{}
 	done chan struct{}
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *config.LogSource, outputChan chan *message.Message) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal) *Tailer {
 	return &Tailer{
 		source:     source,
 		outputChan: outputChan,
+		journal:    journal,
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
@@ -61,39 +65,31 @@ func (t *Tailer) Start(cursor string) error {
 		return err
 	}
 	t.source.Status.Success()
-	t.source.AddInput(t.journalPath())
-	log.Info("Start tailing journal ", t.journalPath())
+	t.source.AddInput(t.Identifier())
+	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	go t.tail()
 	return nil
 }
 
 // Stop stops the tailer
 func (t *Tailer) Stop() {
-	log.Info("Stop tailing journal ", t.journalPath())
+	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 	t.stop <- struct{}{}
-	t.source.RemoveInput(t.journalPath())
+	t.source.RemoveInput(t.Identifier())
 	<-t.done
 }
 
 // setup configures the tailer
 func (t *Tailer) setup() error {
 	config := t.source.Config
-	var err error
+
+	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
 
 	t.initializeTagger()
 
-	if config.Path == "" {
-		// open the default journal
-		t.journal, err = sdjournal.NewJournal()
-	} else {
-		t.journal, err = sdjournal.NewJournalFromDir(config.Path)
-	}
-	if err != nil {
-		return err
-	}
-
 	// add filters to collect only the logs of the units defined in the configuration,
-	// if no units are defined for both System and User, collect all the logs of the journal by default.
+	// if no units for both System and User, and no matches are defined,
+	// collect all the logs of the journal by default.
 	for _, unit := range config.IncludeSystemUnits {
 		// add filters to collect only the logs of the system-level units defined in the configuration.
 		match := sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT + "=" + unit
@@ -120,16 +116,44 @@ func (t *Tailer) setup() error {
 		}
 	}
 
-	t.excludeUnits.system = make(map[string]bool)
-	for _, unit := range config.ExcludeSystemUnits {
-		// add filters to drop all the logs related to system units to exclude.
-		t.excludeUnits.system[unit] = true
+	for _, match := range config.IncludeMatches {
+		// add filters to collect only the logs of the matches defined in the configuration.
+		submatches := matchRe.FindStringSubmatch(match)
+		if len(submatches) < 1 {
+			return fmt.Errorf("incorrectly formatted IncludeMatch (must be `[field]=[value]`: %s", match)
+		}
+		err := t.journal.AddMatch(match)
+		if err != nil {
+			return fmt.Errorf("could not add filter %s: %s", match, err)
+		}
 	}
 
-	t.excludeUnits.user = make(map[string]bool)
+	t.exclude.systemUnits = make(map[string]bool)
+	for _, unit := range config.ExcludeSystemUnits {
+		// add filters to drop all the logs related to system units to exclude.
+		t.exclude.systemUnits[unit] = true
+	}
+
+	t.exclude.userUnits = make(map[string]bool)
 	for _, unit := range config.ExcludeUserUnits {
 		// add filters to drop all the logs related to user units to exclude.
-		t.excludeUnits.user[unit] = true
+		t.exclude.userUnits[unit] = true
+	}
+
+	t.exclude.matches = make(map[string]map[string]bool)
+	for _, match := range config.ExcludeMatches {
+		// add filters to drop all the logs related to the matches to exclude.
+		submatches := matchRe.FindStringSubmatch(match)
+		if len(submatches) < 1 {
+			return fmt.Errorf("incorrectly formatted ExcludeMatch (must be `[field]=[value]`: %s", match)
+		}
+
+		key := submatches[1]
+		if t.exclude.matches[key] == nil {
+			t.exclude.matches[key] = map[string]bool{}
+		}
+		value := submatches[2]
+		t.exclude.matches[key][value] = true
 	}
 
 	return nil
@@ -138,6 +162,16 @@ func (t *Tailer) setup() error {
 // seek seeks to the cursor if it is not empty or the end of the journal,
 // returns an error if the operation failed.
 func (t *Tailer) seek(cursor string) error {
+	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
+
+	if mode == config.ForceBeginning {
+		return t.journal.SeekHead()
+	}
+	if mode == config.ForceEnd {
+		return t.journal.SeekTail()
+	}
+
+	// If a position is not forced from the config, try the cursor
 	if cursor != "" {
 		err := t.journal.SeekCursor(cursor)
 		if err != nil {
@@ -146,6 +180,11 @@ func (t *Tailer) seek(cursor string) error {
 		// must skip one entry since the cursor points to the last committed one.
 		_, err = t.journal.NextSkip(1)
 		return err
+	}
+
+	// If there is no cursor and an option is not forced, use the config setting
+	if mode == config.Beginning {
+		return t.journal.SeekHead()
 	}
 	return t.journal.SeekTail()
 }
@@ -163,7 +202,6 @@ func (t *Tailer) tail() {
 			return
 		default:
 			n, err := t.journal.Next()
-			t.source.BytesRead.Add(int64(n))
 			if err != nil && err != io.EOF {
 				err := fmt.Errorf("cant't tail journal %s: %s", t.journalPath(), err)
 				t.source.Status.Error(err)
@@ -183,7 +221,11 @@ func (t *Tailer) tail() {
 			if t.shouldDrop(entry) {
 				continue
 			}
-			t.outputChan <- t.toMessage(entry)
+			select {
+			case <-t.stop:
+				return
+			case t.outputChan <- t.toMessage(entry):
+			}
 		}
 	}
 }
@@ -191,6 +233,14 @@ func (t *Tailer) tail() {
 // shouldDrop returns true if the entry should be dropped,
 // returns false otherwise.
 func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
+	for key, values := range t.exclude.matches {
+		if value, ok := entry.Fields[key]; ok {
+			if _, contains := values[value]; contains {
+				return true
+			}
+		}
+	}
+
 	sysUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_UNIT]
 	if !exists {
 		return false
@@ -198,15 +248,15 @@ func (t *Tailer) shouldDrop(entry *sdjournal.JournalEntry) bool {
 	usrUnit, exists := entry.Fields[sdjournal.SD_JOURNAL_FIELD_SYSTEMD_USER_UNIT]
 	if !exists {
 		// JournalEntry is a System-level unit
-		excludeAllSys := t.excludeUnits.system["*"]
-		if _, excluded := t.excludeUnits.system[sysUnit]; excludeAllSys || excluded {
+		excludeAllSys := t.exclude.systemUnits["*"]
+		if _, excluded := t.exclude.systemUnits[sysUnit]; excludeAllSys || excluded {
 			// drop the entry
 			return true
 		}
 	} else {
 		// JournalEntry is a User-level unit
-		excludeAllUsr := t.excludeUnits.user["*"]
-		if _, excluded := t.excludeUnits.user[usrUnit]; excludeAllUsr || excluded {
+		excludeAllUsr := t.exclude.userUnits["*"]
+		if _, excluded := t.exclude.userUnits[usrUnit]; excludeAllUsr || excluded {
 			// drop the entry
 			return true
 		}
@@ -253,6 +303,7 @@ func (t *Tailer) getContent(entry *sdjournal.JournalEntry) []byte {
 		value, _ := entry.Fields[sdjournal.SD_JOURNAL_FIELD_MESSAGE]
 		content = []byte(value)
 	}
+	t.source.BytesRead.Add(int64(len(content)))
 
 	return content
 }
@@ -341,7 +392,18 @@ const journaldIntegration = "journald"
 
 // Identifier returns the unique identifier of the current journal being tailed.
 func (t *Tailer) Identifier() string {
-	return journaldIntegration + ":" + t.journalPath()
+	return Identifier(t.source.Config)
+}
+
+// Identifier returns the unique identifier of the current journald config
+func Identifier(config *config.LogsConfig) string {
+	id := "default"
+	if config.ConfigId != "" {
+		id = config.ConfigId
+	} else if config.Path != "" {
+		id = config.Path
+	}
+	return journaldIntegration + ":" + id
 }
 
 // journalPath returns the path of the journal

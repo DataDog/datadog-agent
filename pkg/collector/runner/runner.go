@@ -11,13 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -29,8 +30,8 @@ const (
 
 var (
 	// Atomic incrementing variables for generating globally unique runner and worker object IDs
-	runnerIDGenerator *atomic.Uint64 = atomic.NewUint64(0)
-	workerIDGenerator *atomic.Uint64 = atomic.NewUint64(0)
+	runnerIDGenerator = atomic.NewUint64(0)
+	workerIDGenerator = atomic.NewUint64(0)
 )
 
 // Runner is the object in charge of running all the checks

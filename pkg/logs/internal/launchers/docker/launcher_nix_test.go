@@ -12,13 +12,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetPath(t *testing.T) {
 	t.Run("use_podman_logs=false", func(t *testing.T) {
-		mockConfig := config.Mock()
+		mockConfig := config.Mock(t)
 		mockConfig.Set("logs_config.use_podman_logs", false)
 
 		require.Equal(t,
@@ -26,7 +27,7 @@ func TestGetPath(t *testing.T) {
 			getPath("123abc"))
 	})
 	t.Run("use_podman_logs=true", func(t *testing.T) {
-		mockConfig := config.Mock()
+		mockConfig := config.Mock(t)
 		mockConfig.Set("logs_config.use_podman_logs", true)
 
 		require.Equal(t,

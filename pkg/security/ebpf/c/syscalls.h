@@ -26,6 +26,8 @@ struct dentry_resolver_input_t {
     int callback;
     int ret;
     int iteration;
+    u32 ad_state; // defines if an activity dump is running
+    u32 saved_by_ad; // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
 union selinux_write_payload_t {
@@ -37,10 +39,16 @@ union selinux_write_payload_t {
     } status;
 };
 
+// linux_binprm_t contains content from the linux_binprm struct, which holds the arguments used for loading binaries
+// We only need enough information from the executable field to be able to resolve the dentry.
+struct linux_binprm_t {
+    struct path_key_t interpreter;
+};
+
 struct syscall_cache_t {
     struct policy_t policy;
     u64 type;
-    u32 discarded;
+    u8 discarded;
     u8 async;
 
     struct dentry_resolver_input_t resolver;
@@ -130,6 +138,7 @@ struct syscall_cache_t {
             struct str_array_ref_t args;
             struct str_array_ref_t envs;
             struct span_context_t span_context;
+            struct linux_binprm_t linux_binprm;
             u32 next_tail;
             u8 is_parsed;
         } exec;
@@ -234,9 +243,8 @@ void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscal
     bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
     if (!syscall) {
         return NULL;
     }
@@ -244,6 +252,11 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
         return syscall;
     }
     return NULL;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return peek_task_syscall(key, type);
 }
 
 struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
@@ -271,17 +284,21 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_syscall_with(int (*pr
     return NULL;
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
-    u64 key = bpf_get_current_pid_tgid();
-    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &key);
+struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
+    struct syscall_cache_t *syscall = (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
     if (!syscall) {
         return NULL;
     }
     if (!type || syscall->type == type) {
-        bpf_map_delete_elem(&syscalls, &key);
+        bpf_map_delete_elem(&syscalls, &pid_tgid);
         return syscall;
     }
     return NULL;
+}
+
+struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 type) {
+    u64 key = bpf_get_current_pid_tgid();
+    return pop_task_syscall(key, type);
 }
 
 int __attribute__((always_inline)) discard_syscall(struct syscall_cache_t *syscall) {
@@ -300,18 +317,27 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         return 0;
     }
 
-    u32 tgid = bpf_get_current_pid_tgid() >> 32;
-    u64 now = bpf_ktime_get_ns();
-    u64 timeout = lookup_or_delete_traced_pid_timeout(tgid, now);
-    if (timeout > 0) {
-        // return immediately
-        return 0;
-    }
-
     char pass_to_userspace = syscall->policy.mode == ACCEPT ? 1 : 0;
 
     if (syscall->policy.mode == DENY) {
         pass_to_userspace = check_approvers(syscall);
+    }
+
+    u32 tgid = bpf_get_current_pid_tgid() >> 32;
+    u32 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
+    if (cookie != NULL) {
+        u64 now = bpf_ktime_get_ns();
+        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
+        if (config != NULL) {
+            // is this event type traced ?
+            if (mask_has_event(config->event_mask, syscall->type)
+                && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+                if (!pass_to_userspace) {
+                    syscall->resolver.saved_by_ad = true;
+                }
+                return 0;
+            }
+        }
     }
 
     return !pass_to_userspace;

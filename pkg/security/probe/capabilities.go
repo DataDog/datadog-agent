@@ -84,7 +84,7 @@ func oneBasenameCapabilities(event string) Capabilities {
 	return Capabilities{
 		event + ".file.path": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 			ValidateFnc:     validateBasenameFilter,
 		},
 		event + ".file.name": {

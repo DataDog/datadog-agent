@@ -12,10 +12,13 @@ spec:
       - name: datadog-agent-site
       - name: datadog-cluster-agent-image-repository
       - name: datadog-cluster-agent-image-tag
+      - name: ci_commit_short_sha
+      - name: ci_pipeline_id
+      - name: ci_job_id
   volumes:
-  - name: datadog-agent-volume
-    hostPath:
-      path: /host/datadog-agent
+    - name: datadog-agent-volume
+      hostPath:
+        path: /host/datadog-agent
   templates:
     - name: main
       inputs:
@@ -25,6 +28,9 @@ spec:
           - name: datadog-agent-site
           - name: datadog-cluster-agent-image-repository
           - name: datadog-cluster-agent-image-tag
+          - name: ci_commit_short_sha
+          - name: ci_pipeline_id
+          - name: ci_job_id
       steps:
         - - name: start-fake-datadog
             templateRef:
@@ -50,20 +56,26 @@ spec:
               template: create
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
-              - name: agent-image-repository
-                value: "{{inputs.parameters.datadog-agent-image-repository}}"
-              - name: agent-image-tag
-                value: "{{inputs.parameters.datadog-agent-image-tag}}"
-              - name: cluster-agent-image-repository
-                value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
-              - name: cluster-agent-image-tag
-                value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
-              - name: site
-                value: "{{inputs.parameters.datadog-agent-site}}"
-              - name: dd-url
-                value: ""
+                - name: namespace
+                  value: "{{workflow.namespace}}"
+                - name: agent-image-repository
+                  value: "{{inputs.parameters.datadog-agent-image-repository}}"
+                - name: agent-image-tag
+                  value: "{{inputs.parameters.datadog-agent-image-tag}}"
+                - name: cluster-agent-image-repository
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-repository}}"
+                - name: cluster-agent-image-tag
+                  value: "{{inputs.parameters.datadog-cluster-agent-image-tag}}"
+                - name: site
+                  value: "{{inputs.parameters.datadog-agent-site}}"
+                - name: dd-url
+                  value: ""
+                - name: ci_commit_short_sha
+                  value: "{{inputs.parameters.ci_commit_short_sha}}"
+                - name: ci_pipeline_id
+                  value: "{{inputs.parameters.ci_pipeline_id}}"
+                - name: ci_job_id
+                  value: "{{inputs.parameters.ci_job_id}}"
 
         - - name: wait-datadog-agent
             templateRef:
@@ -71,8 +83,8 @@ spec:
               template: wait
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
         - - name: test-cspm-e2e
             templateRef:
@@ -103,8 +115,8 @@ spec:
               template: delete
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"
 
     - name: diagnose
       steps:
@@ -114,5 +126,5 @@ spec:
               template: diagnose
             arguments:
               parameters:
-              - name: namespace
-                value: "{{workflow.namespace}}"
+                - name: namespace
+                  value: "{{workflow.namespace}}"

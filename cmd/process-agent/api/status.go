@@ -15,11 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func writeError(err error, code int, w http.ResponseWriter) {
-	body, _ := json.Marshal(map[string]string{"error": err.Error()})
-	http.Error(w, string(body), code)
-}
-
 func statusHandler(w http.ResponseWriter, _ *http.Request) {
 	log.Info("Got a request for the status. Making status.")
 

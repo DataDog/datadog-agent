@@ -28,7 +28,6 @@ func TestString(t *testing.T) {
 	require.NotEmpty(t, s)
 
 	procRoot := createTmpProcSys(t)
-	defer os.RemoveAll(procRoot)
 
 	createTmpSysctl(t, procRoot, "foo", "bar\n")
 	sctl := NewString(procRoot, "foo", 10*time.Second)
@@ -66,7 +65,6 @@ func TestInt(t *testing.T) {
 	require.NotZero(t, i)
 
 	procRoot := createTmpProcSys(t)
-	defer os.RemoveAll(procRoot)
 
 	createTmpSysctl(t, procRoot, "foo", "12\n")
 	sctl := NewInt(procRoot, "foo", 10*time.Second)
@@ -96,10 +94,7 @@ func TestInt(t *testing.T) {
 }
 
 func createTmpProcSys(t *testing.T) (procRoot string) {
-	d, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
-
-	procRoot = d
+	procRoot = t.TempDir()
 
 	require.NoError(t, os.Mkdir(filepath.Join(procRoot, "sys"), 0777))
 	return procRoot

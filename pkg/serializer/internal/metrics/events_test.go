@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib
-// +build zlib
+//go:build zlib && test
+// +build zlib,test
 
 package metrics
 
@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
@@ -75,7 +76,7 @@ func TestMarshalJSON(t *testing.T) {
 		SourceTypeName: "custom_source_type",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -95,7 +96,7 @@ func TestMarshalJSONOmittedFields(t *testing.T) {
 		Host:  "my-hostname",
 	}}
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	oldName := mockConfig.GetString("hostname")
 	defer mockConfig.Set("hostname", oldName)
 	mockConfig.Set("hostname", "test-hostname")
@@ -330,7 +331,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 		b.ResetTimer()
 
 		for n := 0; n < b.N; n++ {
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 		}
 	})
 }
@@ -344,7 +345,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 
 		for n := 0; n < b.N; n++ {
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})
@@ -369,9 +370,9 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			// As CreateMarshalersBySourceType is called only after CreateSingleMarshaler,
 			// we also call CreateSingleMarshaler in this benchmark.
-			payloadBuilder.Build(events.CreateSingleMarshaler())
+			stream.BuildJSONPayload(payloadBuilder, events.CreateSingleMarshaler())
 			for _, m := range events.CreateMarshalersBySourceType() {
-				payloadBuilder.Build(m)
+				stream.BuildJSONPayload(payloadBuilder, m)
 			}
 		}
 	})

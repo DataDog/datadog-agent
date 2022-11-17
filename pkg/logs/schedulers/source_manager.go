@@ -6,8 +6,8 @@
 package schedulers
 
 import (
-	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // sourceManager implements the SourceManager interface.
@@ -15,24 +15,24 @@ import (
 // NOTE: when support for services is removed, this struct will be unnecessary,
 // as config.Sources will satisfy the interface.
 type sourceManager struct {
-	sources  *logsConfig.LogSources
+	sources  *sources.LogSources
 	services *service.Services
 }
 
 var _ SourceManager = &sourceManager{}
 
 // AddSource implements SourceManager#AddSource.
-func (sm *sourceManager) AddSource(source *logsConfig.LogSource) {
+func (sm *sourceManager) AddSource(source *sources.LogSource) {
 	sm.sources.AddSource(source)
 }
 
 // RemoveSource implements SourceManager#RemoveSource.
-func (sm *sourceManager) RemoveSource(source *logsConfig.LogSource) {
+func (sm *sourceManager) RemoveSource(source *sources.LogSource) {
 	sm.sources.RemoveSource(source)
 }
 
 // GetSources implements SourceManager#GetSources.
-func (sm *sourceManager) GetSources() []*logsConfig.LogSource {
+func (sm *sourceManager) GetSources() []*sources.LogSource {
 	return sm.sources.GetSources()
 }
 
@@ -52,7 +52,7 @@ type MockAddRemove struct {
 	Add bool
 
 	// Source is the source that was added or removed, or nil.
-	Source *logsConfig.LogSource
+	Source *sources.LogSource
 
 	// Service is the service that was added or removed, or nil.
 	Service *service.Service
@@ -68,24 +68,24 @@ type MockSourceManager struct {
 	Events []MockAddRemove
 
 	// Sources are the sources returned by GetSources
-	Sources []*logsConfig.LogSource
+	Sources []*sources.LogSource
 }
 
 var _ SourceManager = &MockSourceManager{}
 
 // AddSource implements SourceManager#AddSource.
-func (sm *MockSourceManager) AddSource(source *logsConfig.LogSource) {
+func (sm *MockSourceManager) AddSource(source *sources.LogSource) {
 	sm.Events = append(sm.Events, MockAddRemove{Add: true, Source: source})
 }
 
 // RemoveSource implements SourceManager#RemoveSource.
-func (sm *MockSourceManager) RemoveSource(source *logsConfig.LogSource) {
+func (sm *MockSourceManager) RemoveSource(source *sources.LogSource) {
 	sm.Events = append(sm.Events, MockAddRemove{Add: false, Source: source})
 }
 
 // GetSources implements SourceManager#GetSources.
-func (sm *MockSourceManager) GetSources() []*logsConfig.LogSource {
-	sources := make([]*logsConfig.LogSource, len(sm.Sources))
+func (sm *MockSourceManager) GetSources() []*sources.LogSource {
+	sources := make([]*sources.LogSource, len(sm.Sources))
 	copy(sources, sm.Sources)
 	return sources
 }

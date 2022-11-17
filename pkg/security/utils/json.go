@@ -12,14 +12,17 @@ import (
 	"github.com/mailru/easyjson/jwriter"
 )
 
+// EasyjsonTime represents a EasyJSON enabled time wrapper
 type EasyjsonTime struct {
 	inner time.Time
 }
 
+// NewEasyjsonTime returns a new EasyjsonTime based on the provided time
 func NewEasyjsonTime(t time.Time) EasyjsonTime {
 	return EasyjsonTime{inner: t}
 }
 
+// MarshalEasyJSON does JSON marshaling using easyjson interface
 func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 	if y := t.inner.Year(); y < 0 || y >= 10000 {
 		if w.Error == nil {
@@ -34,6 +37,7 @@ func (t EasyjsonTime) MarshalEasyJSON(w *jwriter.Writer) {
 	w.Buffer.AppendByte('"')
 }
 
+// UnmarshalJSON does JSON unmarshaling
 func (t *EasyjsonTime) UnmarshalJSON(b []byte) error {
 	return t.inner.UnmarshalJSON(b)
 }

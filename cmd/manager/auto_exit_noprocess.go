@@ -8,9 +8,10 @@ package manager
 import (
 	"regexp"
 
+	"github.com/DataDog/gopsutil/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 type processes map[int32]*process.FilledProcess

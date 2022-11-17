@@ -20,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,16 +39,13 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
+	httpMonitor     http.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
 	connLock     sync.Mutex
 
 	timerInterval int
-
-	// ticker for the polling interval for writing
-	inTicker            *time.Ticker
-	stopInTickerRoutine chan bool
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -55,7 +54,7 @@ type Tracer struct {
 
 // NewTracer returns an initialized tracer struct
 func NewTracer(config *config.Config) (*Tracer, error) {
-	di, err := network.NewDriverInterface(config)
+	di, err := network.NewDriverInterface(config, driver.NewHandle)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
@@ -89,6 +88,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
+		httpMonitor:     newHttpMonitor(config, di.GetHandle()),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -99,6 +99,9 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // Stop function stops running tracer
 func (t *Tracer) Stop() {
 	close(t.stopChan)
+	if t.httpMonitor != nil { //nolint
+		_ = t.httpMonitor.Stop()
+	}
 	t.reverseDNS.Close()
 	err := t.driverInterface.Close()
 	if err != nil {
@@ -124,7 +127,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.state.RemoveExpiredClients(time.Now())
 
 	t.state.StoreClosedConnections(closedConnStats)
-	delta := t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+
+	var delta network.Delta
+	if t.httpMonitor != nil { //nolint
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), t.httpMonitor.GetHTTPStats())
+	} else {
+		delta = t.state.GetDelta(clientID, uint64(time.Now().Nanosecond()), activeConnStats, t.reverseDNS.GetDNSStats(), nil)
+	}
 
 	t.activeBuffer.Reset()
 	t.closedBuffer.Reset()
@@ -137,6 +146,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	telemetryDelta := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
 	return &network.Connections{
 		BufferedData:  delta.BufferedData,
+		HTTP:          delta.HTTP,
 		DNS:           names,
 		DNSStats:      delta.DNSStats,
 		ConnTelemetry: telemetryDelta,
@@ -216,4 +226,23 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 // DebugHostConntrack is not implemented on this OS for Tracer
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+func newHttpMonitor(c *config.Config, dh driver.Handle) http.Monitor {
+	if !c.EnableHTTPMonitoring && !c.EnableHTTPSMonitoring {
+		return nil
+	}
+	log.Infof("http monitoring has been enabled")
+
+	var monitor http.Monitor
+	var err error
+
+	monitor, err = http.NewWindowsMonitor(c, dh)
+
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return nil
+	}
+	monitor.Start()
+	return monitor
 }

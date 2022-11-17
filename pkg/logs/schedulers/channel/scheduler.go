@@ -8,6 +8,7 @@ package channel
 import (
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +31,7 @@ type Scheduler struct {
 	extraTags []string
 
 	// logSource is the source currently managed by the scheduler
-	logSource *config.LogSource
+	logSource *sources.LogSource
 
 	// sourceMgr is the schedulers.SourceManager used to add/remove sources
 	sourceMgr schedulers.SourceManager
@@ -65,7 +66,7 @@ func (s *Scheduler) setSource() {
 		s.sourceMgr.RemoveSource(s.logSource)
 	}
 
-	s.logSource = config.NewLogSource(s.sourceName, &config.LogsConfig{
+	s.logSource = sources.NewLogSource(s.sourceName, &config.LogsConfig{
 		Type:        config.StringChannelType,
 		Source:      s.source,
 		ChannelTags: s.extraTags,

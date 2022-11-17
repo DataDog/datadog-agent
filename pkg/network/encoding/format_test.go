@@ -6,12 +6,14 @@
 package encoding
 
 import (
+	"github.com/stretchr/testify/assert"
 	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 func TestFormatRouteIdx(t *testing.T) {
@@ -88,4 +90,41 @@ func BenchmarkConnectionReset(b *testing.B) {
 		c.Reset()
 	}
 	runtime.KeepAlive(c)
+}
+
+func TestFormatProtocols(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol network.ProtocolType
+		want     *model.ProtocolStack
+	}{
+		{
+			name:     "unknown protocol",
+			protocol: network.ProtocolUnknown,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolUnknown,
+				},
+			},
+		},
+		{
+			name:     "unclassified protocol",
+			protocol: network.ProtocolUnclassified,
+			want:     nil,
+		},
+		{
+			name:     "http protocol",
+			protocol: network.ProtocolHTTP,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolHTTP,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, formatProtocol(tt.protocol), "formatProtocol(%v)", tt.protocol)
+		})
+	}
 }

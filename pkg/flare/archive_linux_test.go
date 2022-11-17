@@ -18,13 +18,8 @@ import (
 )
 
 func TestZipLinuxFileWrapper(t *testing.T) {
-	srcDir, err := ioutil.TempDir("", "ZipLinuxFileSource")
-	require.NoError(t, err)
-	defer os.RemoveAll(srcDir)
-
-	dstDir, err := ioutil.TempDir("", "ZipLinuxFileTarget")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
+	srcDir := t.TempDir()
+	dstDir := t.TempDir()
 
 	file, err := os.Create(filepath.Join(srcDir, "testfile.txt"))
 	require.NoError(t, err)

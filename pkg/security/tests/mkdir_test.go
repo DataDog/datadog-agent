@@ -9,13 +9,13 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
 	"testing"
 
 	"github.com/iceber/iouring-go"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 

@@ -7,9 +7,8 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -39,7 +38,7 @@ func newTelemetry() (*telemetry, error) {
 	}, nil
 }
 
-func (t *telemetry) run(ctx context.Context) {
+func (t *telemetry) run(ctx context.Context, rsa *RuntimeSecurityAgent) {
 	log.Info("started collecting Runtime Security Agent telemetry")
 	defer log.Info("stopping Runtime Security Agent telemetry")
 
@@ -54,6 +53,9 @@ func (t *telemetry) run(ctx context.Context) {
 			if err := t.reportContainers(); err != nil {
 				log.Debugf("couldn't report containers: %v", err)
 			}
+			if rsa.storage != nil {
+				rsa.storage.SendTelemetry()
+			}
 		}
 	}
 }
@@ -62,7 +64,7 @@ func (t *telemetry) reportContainers() error {
 	// retrieve the runtime security module config
 	cfg, err := t.runtimeSecurityClient.GetConfig()
 	if err != nil {
-		return errors.Errorf("couldn't fetch config from runtime security module")
+		return errors.New("couldn't fetch config from runtime security module")
 	}
 
 	var metricName string
@@ -75,5 +77,7 @@ func (t *telemetry) reportContainers() error {
 		return nil
 	}
 
-	return t.containers.ReportContainers(metricName)
+	t.containers.ReportContainers(metricName)
+
+	return nil
 }

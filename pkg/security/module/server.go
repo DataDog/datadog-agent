@@ -11,6 +11,7 @@ package module
 import (
 	"context"
 	json "encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,18 +19,17 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -45,11 +45,15 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
+	api.UnimplementedSecurityModuleServer
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
+	activityDumps        chan *api.ActivityDumpStreamMessage
 	expiredEventsLock    sync.RWMutex
 	expiredEvents        map[rules.RuleID]*atomic.Int64
 	expiredProcessEvents *atomic.Int64
+	expiredDumpsLock     sync.RWMutex
+	expiredDumps         *atomic.Int64
 	rate                 *Limiter
 	statsdClient         statsd.ClientInterface
 	probe                *sprobe.Probe
@@ -58,6 +62,43 @@ type APIServer struct {
 	retention            time.Duration
 	cfg                  *config.Config
 	module               *Module
+}
+
+// GetActivityDumpStream waits for activity dumps and forwards them to the stream
+func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
+	// read one activity dump or timeout after one second
+	select {
+	case dump := <-a.activityDumps:
+		if err := stream.Send(dump); err != nil {
+			return err
+		}
+	case <-time.After(time.Second):
+		break
+	}
+	return nil
+}
+
+// SendActivityDump queues an activity dump to the chan of activity dumps
+func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
+	// send the dump to the channel
+	select {
+	case a.activityDumps <- dump:
+		break
+	default:
+		// The channel is full, consume the oldest dump
+		oldestDump := <-a.activityDumps
+		// Try to send the event again
+		select {
+		case a.activityDumps <- dump:
+			break
+		default:
+			// Looks like the channel is full again, expire the current message too
+			a.expireDump(dump)
+			break
+		}
+		a.expireDump(oldestDump)
+		break
+	}
 }
 
 // GetEvents waits for security events
@@ -71,7 +112,7 @@ LOOP:
 			return nil
 		}
 
-		// Read on message
+		// Read one message
 		select {
 		case msg := <-a.msgs:
 			if err := stream.Send(msg); err != nil {
@@ -117,16 +158,21 @@ LOOP:
 	return nil
 }
 
-// Event is the interface that an event must implement to be sent to the backend
-type Event interface {
-	GetTags() []string
-	GetType() string
-}
-
 // RuleEvent is a wrapper used to send an event to the backend
 type RuleEvent struct {
 	RuleID string `json:"rule_id"`
 	Event  Event  `json:"event"`
+}
+
+// DumpDiscarders handles discarder dump requests
+func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
+	filePath, err := a.probe.DumpDiscarders()
+	if err != nil {
+		return nil, err
+	}
+	seclog.Infof("Discarder dump file path: %s", filePath)
+
+	return &api.DumpDiscardersMessage{DumpFilename: filePath}, nil
 }
 
 // DumpProcessCache handles process cache dump requests
@@ -144,7 +190,7 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 }
 
 // DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityParams) (*api.SecurityActivityDumpMessage, error) {
+func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	if monitor := a.probe.GetMonitor(); monitor != nil {
 		msg, err := monitor.DumpActivity(params)
 		if err != nil {
@@ -157,7 +203,7 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.DumpActivityPa
 }
 
 // ListActivityDumps returns the list of active dumps
-func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActivityDumpsParams) (*api.SecurityActivityDumpListMessage, error) {
+func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	if monitor := a.probe.GetMonitor(); monitor != nil {
 		msg, err := monitor.ListActivityDumps(params)
 		if err != nil {
@@ -170,7 +216,7 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ListActiv
 }
 
 // StopActivityDump stops an active activity dump if it exists
-func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivityDumpParams) (*api.SecurityActivityDumpStoppedMessage, error) {
+func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	if monitor := a.probe.GetMonitor(); monitor != nil {
 		msg, err := monitor.StopActivityDump(params)
 		if err != nil {
@@ -182,23 +228,10 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.StopActivi
 	return nil, fmt.Errorf("monitor not configured")
 }
 
-// GenerateProfile generates a profile from an activity dump
-func (a *APIServer) GenerateProfile(ctx context.Context, params *api.GenerateProfileParams) (*api.SecurityProfileGeneratedMessage, error) {
+// TranscodingRequest encodes an activity dump following the requested parameters
+func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateProfile(params)
-		if err != nil {
-			seclog.Errorf(err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, fmt.Errorf("monitor not configured")
-}
-
-// GenerateGraph generates a graph from an activity dump
-func (a *APIServer) GenerateGraph(ctx context.Context, params *api.GenerateGraphParams) (*api.SecurityGraphGeneratedMessage, error) {
-	if monitor := a.probe.GetMonitor(); monitor != nil {
-		msg, err := monitor.GenerateGraph(params)
+		msg, err := monitor.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
 		}
@@ -243,6 +276,11 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 	}
 
 	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
+
+	if kernel, err := a.probe.GetKernelVersion(); err == nil {
+		apiStatus.Environment.UseMmapableMaps = kernel.HaveMmapableMaps()
+		apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
+	}
 
 	return apiStatus, nil
 }
@@ -403,13 +441,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 	probeJSON, err := json.Marshal(event)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event"))
+		seclog.Errorf("failed to marshal event: %v", err)
 		return
 	}
 
 	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event context"))
+		seclog.Errorf("failed to marshal event context: %v", err)
 		return
 	}
 
@@ -450,6 +488,16 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 		count.Inc()
 	}
 	seclog.Tracef("the event server channel is full, an event of ID %v was dropped", msg.RuleID)
+}
+
+// expireDump updates the count of expired dumps
+func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
+	a.expiredDumpsLock.Lock()
+	defer a.expiredDumpsLock.Unlock()
+
+	// update metric
+	_ = a.expiredDumps.Inc()
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
@@ -515,7 +563,7 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 		break
 	default:
 		// The channel is full, expire the oldest event
-		_ = <-a.processMsgs
+		<-a.processMsgs
 		a.expiredProcessEvents.Inc()
 		// Try to send the event again
 		select {
@@ -535,8 +583,10 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientI
 	es := &APIServer{
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
+		expiredDumps:         atomic.NewInt64(0),
 		rate:                 NewLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:         client,
 		probe:                probe,

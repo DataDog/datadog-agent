@@ -45,7 +45,7 @@ func init() {
 
 func initF() {
 	demultiplexerInstance = nil
-	opts := DefaultDemultiplexerOptions(nil)
+	opts := DefaultAgentDemultiplexerOptions(nil)
 	opts.FlushInterval = 1 * time.Hour
 	opts.DontStartForwarders = true
 	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
@@ -57,7 +57,7 @@ func initF() {
 
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
-	flushedSketches := make([]metrics.SketchSeriesList, 0)
+	flushedSketches := make(metrics.SketchSeriesList, 0)
 
 	return flushTrigger{
 		trigger: trigger{
@@ -65,8 +65,8 @@ func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 			blockChan:         nil,
 			waitForSerializer: waitForSerializer,
 		},
-		flushedSketches: &flushedSketches,
-		seriesSink:      seriesSink,
+		sketchesSink: &flushedSketches,
+		seriesSink:   seriesSink,
 	}
 }
 
@@ -84,36 +84,59 @@ func TestRegisterCheckSampler(t *testing.T) {
 	agg := getAggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
+	lenSenders := func(n int) bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == n
+	}
+
 	err := agg.registerSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 1)
+
+	require.Eventually(t, func() bool { return lenSenders(1) }, time.Second, 10*time.Millisecond)
 
 	err = agg.registerSender(checkID2)
 	assert.Nil(t, err)
-	assert.Len(t, agg.checkSamplers, 2)
-
-	// Already registered sender => error
-	err = agg.registerSender(checkID2)
-	assert.NotNil(t, err)
+	require.Eventually(t, func() bool { return lenSenders(2) }, time.Second, 10*time.Millisecond)
 }
 
 func TestDeregisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -
 
-	agg := getAggregator()
+	opts := demuxTestOptions()
+	demux := InitAndStartAgentDemultiplexer(opts, defaultHostname)
+	defer demux.Stop(false)
+
+	agg := demux.Aggregator()
 	agg.checkSamplers = make(map[check.ID]*CheckSampler)
 
 	agg.registerSender(checkID1)
 	agg.registerSender(checkID2)
-	assert.Len(t, agg.checkSamplers, 2)
+
+	require.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == 2
+	}, time.Second, 10*time.Millisecond)
 
 	agg.deregisterSender(checkID1)
+
+	require.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return agg.checkSamplers[checkID1].deregistered && !agg.checkSamplers[checkID2].deregistered
+	}, time.Second, 10*time.Millisecond)
+
+	agg.Flush(testNewFlushTrigger(time.Now(), false))
+
+	agg.mu.Lock()
 	require.Len(t, agg.checkSamplers, 1)
 	_, ok := agg.checkSamplers[checkID1]
 	assert.False(t, ok)
 	_, ok = agg.checkSamplers[checkID2]
 	assert.True(t, ok)
+	agg.mu.Unlock()
 }
 
 func TestAddServiceCheckDefaultValues(t *testing.T) {
@@ -195,25 +218,6 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, metrics.EventAlertTypeError, event2.AlertType)
 	assert.Equal(t, "my_agg_key", event2.AggregationKey)
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
-}
-
-func TestSetHostname(t *testing.T) {
-	// this test IS USING globals
-	// -
-
-	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
-
-	assert.Equal(t, "hostname", agg.hostname)
-	sender, err := GetSender(checkID1)
-	require.NoError(t, err)
-	checkSender, ok := sender.(*checkSender)
-	require.True(t, ok)
-	assert.Equal(t, "hostname", checkSender.defaultHostname)
-
-	agg.SetHostname("different-hostname")
-	assert.Equal(t, "different-hostname", agg.hostname)
-	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
 }
 
 func TestDefaultData(t *testing.T) {
@@ -360,7 +364,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 				Host:      "",
 				Timestamp: timeNowNano() - 10000000,
 			}
-			demux.AddTimeSample(samp)
+			demux.AggregateSample(samp)
 
 			time.Sleep(1 * time.Second)
 
@@ -583,7 +587,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		for i := 0; i < sampleCount; i++ {
 			name := fmt.Sprintf("serie%d", i)
 
-			demux.AddTimeSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
+			demux.AggregateSample(metrics.MetricSample{Name: name, Value: value, Mtype: metrics.CountType, Timestamp: timestamp})
 
 			if _, found := expectedSeries[name]; !found {
 				expectedSeries[name] = &metrics.Serie{
@@ -597,7 +601,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 		}
 	}
 
-	// we have to wait here because AddTimeSample is async and we want to be
+	// we have to wait here because AggregateSample is async and we want to be
 	// sure all samples have been processed by the sampler
 	time.Sleep(1 * time.Second)
 

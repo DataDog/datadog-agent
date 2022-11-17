@@ -13,11 +13,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/gogo/protobuf/proto"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestTraceWriter(t *testing.T) {

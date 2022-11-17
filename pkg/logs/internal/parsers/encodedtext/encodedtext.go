@@ -7,11 +7,12 @@
 package encodedtext
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/japanese"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 )
 
 // Encoding specifies the encoding which should be decoded by the DecodingParser

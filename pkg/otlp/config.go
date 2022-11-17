@@ -12,9 +12,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	colConfig "go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/multierr"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/mohae/deepcopy"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -26,7 +28,7 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // readConfigSection from a config.Config object.
-func readConfigSection(cfg config.Config, section string) *colConfig.Map {
+func readConfigSection(cfg config.Config, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -45,9 +47,10 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	// `GetStringMap` it will fail to cast `interface{}` nil to
 	// `map[string]interface{}` nil; we use `Get` and cast manually.
 	rawVal := cfg.Get(section)
-	cfgMap := colConfig.NewMap()
-	if stringMap, ok := rawVal.(map[string]interface{}); ok {
-		cfgMap = colConfig.NewMapFromStringMap(stringMap)
+	stringMap := map[string]interface{}{}
+	if val, ok := rawVal.(map[string]interface{}); ok {
+		// deep copy since `cfg.Get` returns a reference
+		stringMap = deepcopy.Copy(val).(map[string]interface{})
 	}
 
 	// Step two works around https://github.com/spf13/viper/issues/1012
@@ -56,11 +59,12 @@ func readConfigSection(cfg config.Config, section string) *colConfig.Map {
 	prefix := section + "."
 	for _, key := range cfg.AllKeys() {
 		if strings.HasPrefix(key, prefix) && cfg.IsSet(key) {
-			mapKey := strings.ReplaceAll(key[len(prefix):], ".", colConfig.KeyDelimiter)
-			cfgMap.Set(mapKey, cfg.Get(key))
+			mapKey := strings.ReplaceAll(key[len(prefix):], ".", confmap.KeyDelimiter)
+			// deep copy since `cfg.Get` returns a reference
+			stringMap[mapKey] = deepcopy.Copy(cfg.Get(key))
 		}
 	}
-	return cfgMap
+	return confmap.NewFromStringMap(stringMap)
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
@@ -78,8 +82,8 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 	if !metricsEnabled && !tracesEnabled {
 		errs = append(errs, fmt.Errorf("at least one OTLP signal needs to be enabled"))
 	}
-
 	metricsConfig := readConfigSection(cfg, config.OTLPMetrics)
+	debugConfig := readConfigSection(cfg, config.OTLPDebug)
 
 	return PipelineConfig{
 		OTLPReceiverConfig: otlpConfig.ToStringMap(),
@@ -87,6 +91,7 @@ func FromAgentConfig(cfg config.Config) (PipelineConfig, error) {
 		MetricsEnabled:     metricsEnabled,
 		TracesEnabled:      tracesEnabled,
 		Metrics:            metricsConfig.ToStringMap(),
+		Debug:              debugConfig.ToStringMap(),
 	}, multierr.Combine(errs...)
 }
 

@@ -8,12 +8,13 @@ package cca
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+	"gotest.tools/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	logsConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/stretchr/testify/require"
-	"gotest.tools/assert"
 )
 
 func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
@@ -25,7 +26,7 @@ func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *scheduler
 
 func TestNothingWhenNoConfig(t *testing.T) {
 	scheduler, _, spy := setup()
-	config := coreConfig.Mock()
+	config := coreConfig.Mock(t)
 	config.Set("logs_config.container_collect_all", false)
 
 	scheduler.Start(spy)
@@ -35,7 +36,7 @@ func TestNothingWhenNoConfig(t *testing.T) {
 
 func TestAfterACStarts(t *testing.T) {
 	scheduler, ac, spy := setup()
-	config := coreConfig.Mock()
+	config := coreConfig.Mock(t)
 	config.Set("logs_config.container_collect_all", true)
 
 	scheduler.Start(spy)

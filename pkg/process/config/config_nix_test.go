@@ -12,15 +12,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"testing"
 
 	// This test calls ContainerProvider behind the scene, need to initialize the linux provider
-	"github.com/DataDog/datadog-agent/pkg/config"
-	_ "github.com/DataDog/datadog-agent/pkg/util/containers/providers/cgroup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var secretScriptBuilder sync.Once
@@ -53,7 +52,7 @@ func setupSecretScript() error {
 func TestAgentConfigYamlEnc(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
@@ -68,7 +67,7 @@ func TestAgentConfigYamlEnc(t *testing.T) {
 func TestAgentConfigYamlEnc2(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
 	config.InitConfig(config.Datadog)
@@ -83,7 +82,7 @@ func TestAgentConfigYamlEnc2(t *testing.T) {
 func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	secretScriptBuilder.Do(func() { require.NoError(t, setupSecretScript()) })
 
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newConfig()
 	defer restoreGlobalConfig()
 
 	// Secrets settings are initialized only once by initConfig in the agent package so we have to setup them
@@ -91,10 +90,8 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	config.Datadog.Set("secret_backend_timeout", 15)
 	config.Datadog.Set("secret_backend_output_max_size", 1024)
 
-	os.Setenv("DD_API_KEY", "ENC[my_api_key]")
-	os.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
-	defer os.Unsetenv("DD_API_KEY")
-	defer os.Unsetenv("DD_HOSTNAME")
+	t.Setenv("DD_API_KEY", "ENC[my_api_key]")
+	t.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
 
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 

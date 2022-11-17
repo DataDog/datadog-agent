@@ -14,26 +14,23 @@
 package listeners
 
 import (
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/packets"
-	"golang.org/x/sys/unix"
 )
 
 func TestUDSPassCred(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
-	mockConfig := config.Mock()
+	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", true)
 

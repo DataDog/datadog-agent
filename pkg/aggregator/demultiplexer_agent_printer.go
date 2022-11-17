@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks

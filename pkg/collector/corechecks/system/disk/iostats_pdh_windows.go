@@ -9,7 +9,6 @@ package disk
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 	"unsafe"
@@ -26,8 +25,7 @@ import (
 var (
 	modkernel32 = windows.NewLazyDLL("kernel32.dll")
 
-	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
-	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
+	procGetDriveType = modkernel32.NewProc("GetDriveTypeW")
 
 	driveLetterPattern    = regexp.MustCompile(`[A-Za-z]:`)
 	unmountedDrivePattern = regexp.MustCompile(`HarddiskVolume([0-9])+`)
@@ -89,13 +87,10 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, 
 	}
 
 	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
-
 	for name := range c.counternames {
-		c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
-		if err != nil {
-			return err
-		}
+		c.counters[name] = nil
 	}
+
 	return nil
 }
 
@@ -105,12 +100,26 @@ func (c *IOCheck) Run() error {
 	if err != nil {
 		return err
 	}
+	// Try to initialize any nil counters
+	for name := range c.counternames {
+		if c.counters[name] == nil {
+			c.counters[name], err = pdhutil.GetEnglishMultiInstanceCounter("LogicalDisk", name, isDrive)
+			if err != nil {
+				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
+			}
+		}
+	}
 	var tagbuff bytes.Buffer
 	for cname, cset := range c.counters {
+		if cset == nil {
+			// counter is not yet initialized
+			continue
+		}
+		// get counter values
 		vals, err := cset.GetAllValues()
 		if err != nil {
-			fmt.Printf("Error getting values %v\n", err)
-			return err
+			c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
+			continue
 		}
 		for inst, val := range vals {
 			if c.blacklist != nil && c.blacklist.MatchString(inst) {
@@ -131,7 +140,7 @@ func (c *IOCheck) Run() error {
 			}
 
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
-				val /= 1024
+				val /= kB
 			}
 			if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
 				// r_await/w_await are in milliseconds, but the performance counter

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 // ResultValue represent a snmp value
@@ -35,27 +37,7 @@ func (sv *ResultValue) ToFloat64() (float64, error) {
 
 // ToString converts value to string
 func (sv ResultValue) ToString() (string, error) {
-	switch sv.Value.(type) {
-	case float64:
-		return strconv.Itoa(int(sv.Value.(float64))), nil
-	case string:
-		return sv.Value.(string), nil
-	case []byte:
-		bytesValue := sv.Value.([]byte)
-		var strValue string
-		if !isString(bytesValue) {
-			// We hexify like Python/pysnmp impl (keep compatibility) if the value contains non ascii letters:
-			// https://github.com/etingof/pyasn1/blob/db8f1a7930c6b5826357646746337dafc983f953/pyasn1/type/univ.py#L950-L953
-			// hexifying like pysnmp prettyPrint might lead to unpredictable results since `[]byte` might or might not have
-			// elements outside of 32-126 range. New lines, tabs and carriage returns are also stripped from the string.
-			// An alternative solution is to explicitly force the conversion to specific type using profile config.
-			strValue = fmt.Sprintf("%#x", bytesValue)
-		} else {
-			strValue = string(bytesValue)
-		}
-		return strValue, nil
-	}
-	return "", fmt.Errorf("invalid type %T for value %#v", sv.Value, sv.Value)
+	return gosnmplib.StandardTypeToString(sv.Value)
 }
 
 // ExtractStringValue extract value using a regex

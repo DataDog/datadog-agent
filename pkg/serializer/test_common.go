@@ -35,10 +35,16 @@ func (s *MockSerializer) SendIterableSeries(serieSource metrics.SerieSource) err
 	return s.Called(serieSource).Error(0)
 }
 
+// AreSeriesEnabled returns whether series are enabled for serialization
+func (s *MockSerializer) AreSeriesEnabled() bool { return true }
+
 // SendSketch serializes a list of SketSeriesList and sends the payload to the forwarder
-func (s *MockSerializer) SendSketch(sketches metrics.SketchSeriesList) error {
+func (s *MockSerializer) SendSketch(sketches metrics.SketchesSource) error {
 	return s.Called(sketches).Error(0)
 }
+
+// AreSeriesEnabled returns whether sketches are enabled for serialization
+func (s *MockSerializer) AreSketchesEnabled() bool { return true }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
 func (s *MockSerializer) SendMetadata(m marshaler.JSONMarshaler) error {
@@ -68,4 +74,9 @@ func (s *MockSerializer) SendOrchestratorMetadata(msgs []ProcessMessageBody, hos
 // SendContainerLifecycleEvent serializes & send container lifecycle event payloads
 func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
+}
+
+// SendOrchestratorManifests serializes & send orchestrator manifest payloads
+func (s *MockSerializer) SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error {
+	return s.Called(msgs, hostName, clusterID).Error(0)
 }

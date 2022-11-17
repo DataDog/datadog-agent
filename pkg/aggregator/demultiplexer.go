@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	agentruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -31,7 +30,7 @@ var demultiplexerInstanceMu sync.Mutex
 // Demultiplexer is composed of multiple samplers (check and time/dogstatsd)
 // a shared forwarder, the event platform forwarder, orchestrator data buffers
 // and other data that need to be sent to the forwarders.
-// DemultiplexerOptions let you configure which forwarders have to be started.
+// AgentDemultiplexerOptions let you configure which forwarders have to be started.
 type Demultiplexer interface {
 	// General
 	// --
@@ -44,18 +43,22 @@ type Demultiplexer interface {
 	// Serializer returns the serializer used by the Demultiplexer instance.
 	Serializer() serializer.MetricSerializer
 
-	// Aggregation API
+	// Samples API
 	// --
 
-	// AddTimeSample sends a MetricSample to the time sampler.
+	// AggregateSample sends a MetricSample to the DogStatsD time sampler.
 	// In sharded implementation, the metric is sent to the first time sampler.
-	AddTimeSample(sample metrics.MetricSample)
-	// AddTimeSampleBatch sends a batch of MetricSample to the given time
-	// sampler shard.
+	AggregateSample(sample metrics.MetricSample)
+	// AggregateSamples sends a batch of MetricSample to the given DogStatsD
+	// time sampler shard.
 	// Implementation not supporting sharding may ignore the `shard` parameter.
-	AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch)
-	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-	AddCheckSample(sample metrics.MetricSample)
+	AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch)
+
+	// SendSamplesWithoutAggregation pushes metrics in the no-aggregation pipeline: a pipeline
+	// where the metrics are not sampled and sent as-is.
+	// This is the method to use to send metrics with a valid timestamp attached.
+	SendSamplesWithoutAggregation(metrics metrics.MetricSampleBatch)
+
 	// ForceFlushToSerializer flushes all the aggregated data from the different samplers to
 	// the serialization/forwarding parts.
 	ForceFlushToSerializer(start time.Time, waitForSerializer bool)
@@ -73,22 +76,7 @@ type Demultiplexer interface {
 	SetSender(sender Sender, id check.ID) error
 	DestroySender(id check.ID)
 	GetDefaultSender() (Sender, error)
-	ChangeAllSendersDefaultHostname(hostname string)
 	cleanSenders()
-}
-
-// DemultiplexerOptions are the options used to initialize a Demultiplexer.
-type DemultiplexerOptions struct {
-	SharedForwarderOptions         *forwarder.Options
-	UseNoopForwarder               bool
-	UseNoopEventPlatformForwarder  bool
-	UseNoopOrchestratorForwarder   bool
-	UseEventPlatformForwarder      bool
-	UseOrchestratorForwarder       bool
-	UseContainerLifecycleForwarder bool
-	FlushInterval                  time.Duration
-
-	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.
@@ -111,35 +99,40 @@ type trigger struct {
 type flushTrigger struct {
 	trigger
 
-	flushedSketches *[]metrics.SketchSeriesList
-	seriesSink      metrics.SerieSink
+	sketchesSink metrics.SketchesSink
+	seriesSink   metrics.SerieSink
 }
 
-// DefaultDemultiplexerOptions returns the default options to initialize a Demultiplexer.
-func DefaultDemultiplexerOptions(options *forwarder.Options) DemultiplexerOptions {
-	if options == nil {
-		options = forwarder.NewOptions(nil)
-	}
-
-	return DemultiplexerOptions{
-		SharedForwarderOptions:         options,
-		FlushInterval:                  DefaultFlushInterval,
-		UseEventPlatformForwarder:      true,
-		UseOrchestratorForwarder:       true,
-		UseContainerLifecycleForwarder: false,
-	}
-}
-
-func createIterableSeries(
+func createIterableMetrics(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
+	serializer serializer.MetricSerializer,
 	logPayloads bool,
-) *metrics.IterableSeries {
-	return metrics.NewIterableSeries(func(se *metrics.Serie) {
-		if logPayloads {
-			log.Debugf("Flushing serie: %s", se)
-		}
-		tagsetTlm.updateHugeSerieTelemetry(se)
-	}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	isServerless bool,
+) (*metrics.IterableSeries, *metrics.IterableSketches) {
+	var series *metrics.IterableSeries
+	var sketches *metrics.IterableSketches
+
+	if serializer.AreSeriesEnabled() {
+		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
+			if logPayloads {
+				log.Debugf("Flushing serie: %s", se)
+			}
+			tagsetTlm.updateHugeSerieTelemetry(se)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	}
+
+	if serializer.AreSketchesEnabled() {
+		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
+			if logPayloads {
+				log.Debugf("Flushing Sketches: %v", sketch)
+			}
+			if isServerless {
+				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+			}
+			tagsetTlm.updateHugeSketchesTelemetry(sketch)
+		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+	}
+	return series, sketches
 }
 
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
@@ -150,7 +143,7 @@ func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time,
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
 	err := serializer.SendIterableSeries(serieSource)
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
-	count := serieSource.SeriesCount()
+	count := serieSource.Count()
 	addFlushCount("Series", int64(count))
 	updateSerieTelemetry(start, count, err)
 	log.Debug("Demultiplexer: sendIterableSeries: stop routine")

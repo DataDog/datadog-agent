@@ -18,14 +18,14 @@ import (
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
-	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
+
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 )
 
 const (
@@ -35,6 +35,7 @@ const (
 	extraQueryCharacters = 16
 )
 
+// DatadogClient abstracts the dependency on the Datadog api
 type DatadogClient interface {
 	QueryMetrics(from, to int64, query string) ([]datadog.Series, error)
 	GetRateLimitStats() map[string]datadog.RateLimit
@@ -83,7 +84,7 @@ func (p *Processor) ProcessEMList(emList []custommetrics.ExternalMetricValue) ma
 }
 
 // ProcessHPAs processes the HorizontalPodAutoscalers into a list of ExternalMetricValues.
-func (p *Processor) ProcessHPAs(hpa *autoscalingv2.HorizontalPodAutoscaler) map[string]custommetrics.ExternalMetricValue {
+func (p *Processor) ProcessHPAs(hpa interface{}) map[string]custommetrics.ExternalMetricValue {
 	externalMetrics := make(map[string]custommetrics.ExternalMetricValue)
 	emList := InspectHPA(hpa)
 	for _, em := range emList {

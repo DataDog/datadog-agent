@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/internal/osutil"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -39,6 +41,14 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
+	// rcClientName is the default name for remote configuration clients in the trace agent
+	rcClientName = "trace-agent"
+)
+
+const (
+	// rcClientPollInterval is the default poll interval for remote configuration clients. 1 second ensures that
+	// clients remain up to date without paying too much of a performance cost (polls that contain no updates are cheap)
+	rcClientPollInterval = time.Second * 1
 )
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
@@ -64,6 +74,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.LogFilePath = DefaultLogFilePath
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
+	cfg.GitCommit = version.Commit
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	orch := fargate.GetOrchestrator(ctx)
 	cancel()
@@ -80,13 +91,15 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		if client, err := newRemoteClient(); err != nil {
+		client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteSamplingClient = client
 		}
 	}
 	cfg.ContainerTags = containerTagsFunc
+	cfg.ContainerProcRoot = coreconfig.Datadog.GetString("container_proc_root")
 	return cfg, nil
 }
 
@@ -127,7 +140,15 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		c.StatsdPort = coreconfig.Datadog.GetInt("dogstatsd_port")
 	}
 
-	c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	if coreconfig.Datadog.GetBool("vector.traces.enabled") {
+		if host := coreconfig.Datadog.GetString("vector.traces.url"); host == "" {
+			log.Error("vector.traces.enabled but vector.traces.url is empty.")
+		} else {
+			c.Endpoints[0].Host = host
+		}
+	} else {
+		c.Endpoints[0].Host = coreconfig.GetMainEndpoint(apiEndpointPrefix, "apm_config.apm_dd_url")
+	}
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if coreconfig.Datadog.IsSet("proxy.no_proxy") {
@@ -159,21 +180,11 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.log_file") {
 		c.LogFilePath = coreconfig.Datadog.GetString("apm_config.log_file")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.env") {
-		c.DefaultEnv = coreconfig.Datadog.GetString("apm_config.env")
-		log.Debugf("Setting DefaultEnv to %q (from apm_config.env)", c.DefaultEnv)
-	} else if coreconfig.Datadog.IsSet("env") {
-		c.DefaultEnv = coreconfig.Datadog.GetString("env")
-		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", c.DefaultEnv)
-	} else {
-		for _, tag := range coreconfig.GetConfiguredTags(false) {
-			if strings.HasPrefix(tag, "env:") {
-				c.DefaultEnv = strings.TrimPrefix(tag, "env:")
-				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", c.DefaultEnv, tag)
-				break
-			}
-		}
+
+	if env := coreconfig.GetTraceAgentDefaultEnv(); env != "" {
+		c.DefaultEnv = env
 	}
+
 	prevEnv := c.DefaultEnv
 	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
@@ -200,8 +211,17 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if coreconfig.Datadog.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = coreconfig.Datadog.GetFloat64("apm_config.errors_per_second")
 	}
-	if coreconfig.Datadog.IsSet("apm_config.disable_rare_sampler") {
-		c.DisableRareSampler = coreconfig.Datadog.GetBool("apm_config.disable_rare_sampler")
+	if coreconfig.Datadog.IsSet("apm_config.enable_rare_sampler") {
+		c.RareSamplerEnabled = coreconfig.Datadog.GetBool("apm_config.enable_rare_sampler")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.tps") {
+		c.RareSamplerTPS = coreconfig.Datadog.GetInt("apm_config.rare_sampler.tps")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cooldown") {
+		c.RareSamplerCooldownPeriod = coreconfig.Datadog.GetDuration("apm_config.rare_sampler.cooldown")
+	}
+	if coreconfig.Datadog.IsSet("apm_config.rare_sampler.cardinality") {
+		c.RareSamplerCardinality = coreconfig.Datadog.GetInt("apm_config.rare_sampler.cardinality")
 	}
 
 	if coreconfig.Datadog.IsSet("apm_config.max_remote_traces_per_second") {
@@ -254,11 +274,12 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		grpcPort = coreconfig.Datadog.GetInt(coreconfig.OTLPTracePort)
 	}
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		BindHost:                c.ReceiverHost,
+		GRPCPort:                grpcPort,
+		UsePreviewHostnameLogic: true,
+		MaxRequestBytes:         c.MaxRequestBytes,
+		SpanNameRemappings:      coreconfig.Datadog.GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:  coreconfig.Datadog.GetBool("otlp_config.traces.span_name_as_resource_name"),
 	}
 
 	if coreconfig.Datadog.GetBool("apm_config.telemetry.enabled") {
@@ -340,7 +361,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 			log.Warn("analyzed_rate_by_service is deprecated, please use analyzed_spans instead")
 		}
 	}
-	// undocumeted
+	// undocumented
 	if k := "apm_config.analyzed_spans"; coreconfig.Datadog.IsSet(k) {
 		for key, rate := range coreconfig.Datadog.GetStringMap("apm_config.analyzed_spans") {
 			serviceName, operationName, err := parseServiceAndOp(key)
@@ -377,14 +398,8 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	if c.Site == "" {
 		c.Site = coreconfig.DefaultSite
 	}
-	if k := "appsec_config.enabled"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.Enabled = coreconfig.Datadog.GetBool(k)
-	}
-	if k := "appsec_config.appsec_dd_url"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.DDURL = coreconfig.Datadog.GetString(k)
-	}
-	if k := "appsec_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
-		c.AppSec.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
+	if k := "use_dogstatsd"; coreconfig.Datadog.IsSet(k) {
+		c.StatsdEnabled = coreconfig.Datadog.GetBool(k)
 	}
 	if v := coreconfig.Datadog.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
@@ -400,6 +415,27 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 	}
 	if k := "apm_config.debugger_api_key"; coreconfig.Datadog.IsSet(k) {
 		c.DebuggerProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.enabled"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.Enabled = coreconfig.Datadog.GetBool(k)
+	}
+	if k := "evp_proxy_config.dd_url"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.DDURL = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.api_key"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.APIKey = coreconfig.Datadog.GetString(k)
+	}
+	if k := "evp_proxy_config.app_key"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString(k)
+	} else {
+		// Default to the agent-wide app_key if set
+		c.EVPProxy.ApplicationKey = coreconfig.Datadog.GetString("app_key")
+	}
+	if k := "evp_proxy_config.additional_endpoints"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.AdditionalEndpoints = coreconfig.Datadog.GetStringMapStringSlice(k)
+	}
+	if k := "evp_proxy_config.max_payload_size"; coreconfig.Datadog.IsSet(k) {
+		c.EVPProxy.MaxPayloadSize = coreconfig.Datadog.GetInt64(k)
 	}
 	return nil
 }
@@ -425,6 +461,9 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	if cfg.IsSet("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
 		c.WatchdogInterval = d * time.Second
+	}
+	if cfg.IsSet("apm_config.disable_rare_sampler") {
+		log.Warn("apm_config.disable_rare_sampler/DD_APM_DISABLE_RARE_SAMPLER is deprecated and the rare sampler is now disabled by default. To enable the rare sampler use apm_config.enable_rare_sampler or DD_APM_ENABLE_RARE_SAMPLER")
 	}
 	return nil
 }
@@ -527,7 +566,7 @@ func validate(c *config.AgentConfig) error {
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")
 	}
-	if c.Hostname == "" {
+	if c.Hostname == "" && !coreconfig.Datadog.GetBool("serverless.enabled") {
 		// no user-set hostname, try to acquire
 		if err := acquireHostname(c); err != nil {
 			log.Debugf("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
