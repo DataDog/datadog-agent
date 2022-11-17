@@ -946,17 +946,16 @@ func go_ddwaf_object_free(v *C.ddwaf_object) {
 // Go reimplementation of ddwaf_result_free to avoid yet another CGO call in the
 // request hot-path and avoiding it when there are no results to free.
 func freeWAFResult(result *C.ddwaf_result) {
-	if result.data == nil || result.actions.array == nil {
-		return
+	if data := result.data; data != nil {
+		C.free(unsafe.Pointer(data))
 	}
 
-	C.free(unsafe.Pointer(result.data))
-
-	array := result.actions.array
-	for i := 0; i < int(result.actions.size); i++ {
-		C.free(unsafe.Pointer(cindexCharPtrArray(array, i)))
+	if array := result.actions.array; array != nil {
+		for i := 0; i < int(result.actions.size); i++ {
+			C.free(unsafe.Pointer(cindexCharPtrArray(array, i)))
+		}
+		C.free(unsafe.Pointer(array))
 	}
-	C.free(unsafe.Pointer(array))
 }
 
 // Helper function to access to i-th element of the given **C.char array.
