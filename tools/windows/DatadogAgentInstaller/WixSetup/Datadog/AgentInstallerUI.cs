@@ -16,6 +16,9 @@ namespace WixSetup.Datadog
             wixProjectEvents.WixSourceGenerated += OnWixSourceGenerated;
 
             CustomUI = new CustomUI();
+            // NOTE: CustomActions called from dialog Controls will not be able to add messages to the log.
+            //       If possible, prefer adding the custom action to an install sequence.
+            //       https://learn.microsoft.com/en-us/windows/win32/msi/doaction-controlevent
 
             CustomUI.On(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.LicenseAgreementDlg, Condition.NOT_Installed));
             CustomUI.On(NativeDialogs.WelcomeDlg, Buttons.Next, new ShowDialog(NativeDialogs.VerifyReadyDlg, Conditions.Installed_AND_PATCH));

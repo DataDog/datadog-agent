@@ -25,7 +25,7 @@ namespace WixSetup.Datadog
                     Return.ignore,
                     // AppSearch is when RegistrySearch is run, so that will overwrite
                     // any command line values.
-                    // Prefer using our CA over RegsitrySearch.
+                    // Prefer using our CA over RegistrySearch.
                     // It is executed on the Welcome screen of the installer.
                     When.After,
                     Step.AppSearch,
@@ -102,8 +102,11 @@ namespace WixSetup.Datadog
                     new Id("ProcessDdAgentUserCredentials"),
                     UserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
+                    // Run at end of "config phase", right before the "make changes" phase.
                     When.Before,
                     Step.InstallInitialize,
+                    // Run unless we are being uninstalled.
+                    // This CA produces properties used for services, accounts, and permissions.
                     Condition.NOT_BeingRemoved
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
