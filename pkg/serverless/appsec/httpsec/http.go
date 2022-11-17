@@ -47,6 +47,10 @@ func (p *InvocationSubProcessor) OnInvokeStart(_ *invocationlifecycle.Invocation
 }
 
 func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.InvocationEndDetails, invocCtx *invocationlifecycle.RequestHandler) {
+	span := invocCtx
+	// Set the span tags that are always expected to be there when appsec is enabled
+	setAppSecEnabledTags(span)
+
 	var ctx context
 	switch event := invocCtx.Event().(type) {
 	case events.APIGatewayProxyRequest:
@@ -105,12 +109,14 @@ func (p *InvocationSubProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 		)
 
 	default:
-		log.Debugf("appsec: ignoring the unsupported lamdba event type %T", event)
+		if event == nil {
+			log.Debugf("appsec: ignoring unsupported lamdba event", event)
+		} else {
+			log.Debugf("appsec: ignoring unsupported lamdba event type %T", event)
+		}
 		return
 	}
 
-	span := invocCtx
-	setAppSecEnabledTags(span)
 	reqHeaders := ctx.requestHeaders
 	setClientIPTags(span, ctx.requestSourceIP, reqHeaders)
 
