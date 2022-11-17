@@ -2,18 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build linux
+// +build linux
 
-//go:build linux || windows
-// +build linux,windows
+package modules
 
-package module
-
-import (
-	"github.com/DataDog/datadog-go/v5/statsd"
+const (
+	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
+	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 )
 
-// Opts define module options
-type Opts struct {
-	StatsdClient statsd.ClientInterface
-	EventSender  EventSender
-}

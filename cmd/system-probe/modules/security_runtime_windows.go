@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//go:build linux
+// +build linux
 
 package modules
 
@@ -18,24 +20,5 @@ import (
 
 const (
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
-	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
+	DefaultRuntimePoliciesDir = "c:\\ProgrammData\\DataDog\\runtime-security.d"
 )
-
-// SecurityRuntime - Security runtime Factory
-var SecurityRuntime = module.Factory{
-	Name:             config.SecurityRuntimeModule,
-	ConfigNamespaces: []string{"runtime_security_config"},
-	Fn: func(agentConfig *config.Config) (module.Module, error) {
-		config, err := sconfig.NewConfig(agentConfig)
-		if err != nil {
-			return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
-		}
-
-		m, err := secmodule.NewModule(config)
-		if err == ebpf.ErrNotImplemented {
-			log.Info("Datadog runtime security agent is only supported on Linux")
-			return nil, module.ErrNotEnabled
-		}
-		return m, err
-	},
-}
