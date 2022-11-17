@@ -248,7 +248,7 @@ type ASMDataRuleData struct {
 
 // ASMDataRuleDataEntry represents a data entry in a rule data file
 type ASMDataRuleDataEntry struct {
-	Expiration int    `json:"expiration,omitempty"`
+	Expiration int64  `json:"expiration,omitempty"`
 	Value      string `json:"value"`
 }
 
