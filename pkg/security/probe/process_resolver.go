@@ -261,14 +261,45 @@ func (p *ProcessResolver) SendStats() error {
 	return nil
 }
 
+type argsEnvsCacheEntry struct {
+	values []byte
+}
+
+func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) argsEnvsCacheEntry {
+	values := make([]byte, event.Size)
+	copy(values, event.ValuesRaw[:event.Size])
+
+	return argsEnvsCacheEntry{
+		values: values,
+	}
+}
+
+func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
+	e.values = append(e.values, event.ValuesRaw[:event.Size]...)
+}
+
+func (e *argsEnvsCacheEntry) toArray() ([]string, bool) {
+	var truncated bool
+
+	values, err := model.UnmarshalStringArray(e.values)
+	if err != nil || len(e.values) >= model.MaxArgEnvSize {
+		truncated = true
+	}
+
+	if truncated && len(values) != 0 {
+		values[len(values)-1] += "..."
+	}
+
+	return values, truncated
+}
+
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
-	entry := p.argsEnvsPool.GetFrom(event)
 	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		list := e.(*model.ArgsEnvsCacheEntry)
-		list.Append(entry)
+		list := e.(*argsEnvsCacheEntry)
+		list.extend(event)
 	} else {
-		p.argsEnvsCache.Add(event.ID, entry)
+		p.argsEnvsCache.Add(event.ID, newArgsEnvsCacheEntry(event))
 	}
 }
 
@@ -362,12 +393,6 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
-		}
-	}
-
-	if parent := p.entryCache[entry.PPid]; parent != nil {
-		if parent.Equals(entry) {
-			parent.ShareArgsEnvs(entry)
 		}
 	}
 
@@ -778,17 +803,15 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 			p.argsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
-		p.argsSize.Add(int64(entry.TotalSize))
+		entry := e.(*argsEnvsCacheEntry)
+		values, truncated := entry.toArray()
+
+		p.argsSize.Add(int64(len(values)))
 
 		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: entry,
+			Values:    values,
+			Truncated: truncated,
 		}
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.ArgsEntry.ArgsEnvsCacheEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
@@ -849,17 +872,15 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 			p.envsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
-		p.envsSize.Add(int64(entry.TotalSize))
+		entry := e.(*argsEnvsCacheEntry)
+		values, truncated := entry.toArray()
+
+		p.envsSize.Add(int64(len(values)))
 
 		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: entry,
+			Values:    values,
+			Truncated: truncated,
 		}
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.EnvsEntry.ArgsEnvsCacheEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
