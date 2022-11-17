@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"container/list"
 	"context"
 	"errors"
 	"fmt"
@@ -126,81 +125,9 @@ type ProcessResolver struct {
 	entryCache    map[uint32]*model.ProcessCacheEntry
 	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
 
-	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
 
 	exitedQueue []uint32
-}
-
-// ArgsEnvsPool defines a pool for args/envs allocations
-type ArgsEnvsPool struct {
-	lock sync.Mutex
-	pool *sync.Pool
-
-	// entries that wont be release to the pool
-	maxResidents   int
-	totalResidents int
-	freeResidents  *list.List
-}
-
-// Get returns a cache entry
-func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	// first try from resident pool
-	if el := a.freeResidents.Front(); el != nil {
-		entry := el.Value.(*model.ArgsEnvsCacheEntry)
-		a.freeResidents.Remove(el)
-		return entry
-	}
-
-	return a.pool.Get().(*model.ArgsEnvsCacheEntry)
-}
-
-// GetFrom returns a new entry with value from the given entry
-func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
-	entry := a.Get()
-
-	entry.Size = event.ArgsEnvs.Size
-	entry.ValuesRaw = make([]byte, entry.Size)
-	copy(entry.ValuesRaw, event.ArgsEnvs.ValuesRaw[:])
-
-	return entry
-}
-
-// Put returns a cache entry to the pool
-func (a *ArgsEnvsPool) Put(entry *model.ArgsEnvsCacheEntry) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-
-	if entry.Container != nil {
-		// from the residents list
-		a.freeResidents.MoveToBack(entry.Container)
-	} else if a.totalResidents < a.maxResidents {
-		// still some places so we can create a new node
-		entry.Container = &list.Element{Value: entry}
-		a.totalResidents++
-
-		a.freeResidents.MoveToBack(entry.Container)
-	} else {
-		a.pool.Put(entry)
-	}
-}
-
-// NewArgsEnvsPool returns a new ArgsEnvEntry pool
-func NewArgsEnvsPool(maxResident int) *ArgsEnvsPool {
-	ap := ArgsEnvsPool{
-		pool:          &sync.Pool{},
-		maxResidents:  maxResident,
-		freeResidents: list.New(),
-	}
-
-	ap.pool.New = func() interface{} {
-		return model.NewArgsEnvsCacheEntry(ap.Put)
-	}
-
-	return &ap
 }
 
 // ProcessCacheEntryPool defines a pool for process entry allocations
@@ -227,13 +154,6 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 		return model.NewProcessCacheEntry(func(pce *model.ProcessCacheEntry) {
 			if pce.Ancestor != nil {
 				pce.Ancestor.Release()
-			}
-
-			if pce.ArgsEntry != nil {
-				pce.ArgsEntry.Release()
-			}
-			if pce.EnvsEntry != nil {
-				pce.EnvsEntry.Release()
 			}
 
 			p.cacheSize.Dec()
@@ -351,13 +271,59 @@ func (p *ProcessResolver) SendStats() error {
 	return nil
 }
 
+type argsEnvsCacheEntry struct {
+	values    []byte
+	truncated bool
+	indices   []int
+}
+
+func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) *argsEnvsCacheEntry {
+	values := make([]byte, event.Size)
+	copy(values, event.ValuesRaw[:event.Size])
+
+	return &argsEnvsCacheEntry{
+		values:    values,
+		truncated: event.Size == model.MaxArgEnvSize,
+		indices:   []int{0},
+	}
+}
+
+func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
+	e.indices = append(e.indices, len(e.values))
+	e.values = append(e.values, event.ValuesRaw[:event.Size]...)
+	if event.Size == model.MaxArgEnvSize {
+		e.truncated = true
+	}
+}
+
+func (e *argsEnvsCacheEntry) toArray() ([]string, bool) {
+	truncated := e.truncated
+	var totalValues []string
+
+	for i, begin := range e.indices {
+		end := len(e.values)
+		if i+1 < len(e.indices) {
+			end = e.indices[i+1]
+		}
+
+		values, err := model.UnmarshalStringArray(e.values[begin:end])
+		if err != nil && len(values) != 0 {
+			values[len(values)-1] += "..."
+			truncated = true
+		}
+		totalValues = append(totalValues, values...)
+	}
+
+	return totalValues, truncated
+}
+
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
-	entry := p.argsEnvsPool.GetFrom(event)
-	if list, found := p.argsEnvsCache.Get(event.ID); found {
-		list.Append(entry)
+	if e, found := p.argsEnvsCache.Get(event.ID); found {
+		list := e.(*argsEnvsCacheEntry)
+		list.extend(event)
 	} else {
-		p.argsEnvsCache.Add(event.ID, entry)
+		p.argsEnvsCache.Add(event.ID, newArgsEnvsCacheEntry(event))
 	}
 }
 
@@ -451,12 +417,6 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{
 			Values: envs,
-		}
-	}
-
-	if parent := p.entryCache[entry.PPid]; parent != nil {
-		if parent.Equals(entry) {
-			parent.ShareArgsEnvs(entry)
 		}
 	}
 
@@ -867,16 +827,13 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 			p.argsTruncated.Inc()
 		}
 
-		p.argsSize.Add(int64(entry.TotalSize))
+		values, truncated := entry.toArray()
+		p.argsSize.Add(int64(len(values)))
 
 		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: entry,
+			Values:    values,
+			Truncated: truncated,
 		}
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.ArgsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
@@ -937,16 +894,13 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 			p.envsTruncated.Inc()
 		}
 
-		p.envsSize.Add(int64(entry.TotalSize))
+		values, truncated := entry.toArray()
+		p.envsSize.Add(int64(len(values)))
 
 		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: entry,
+			Values:    values,
+			Truncated: truncated,
 		}
-
-		// attach to a process thus retain the head of the chain
-		// note: only the head of the list is retained and when released
-		// the whole list will be released
-		pce.EnvsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.EnvsID)
@@ -1296,7 +1250,6 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,
 		state:          atomic.NewInt64(snapshotting),
-		argsEnvsPool:   NewArgsEnvsPool(maxArgsEnvResidents),
 		hitsStats:      map[string]*atomic.Int64{},
 		cacheSize:      atomic.NewInt64(0),
 		missStats:      atomic.NewInt64(0),

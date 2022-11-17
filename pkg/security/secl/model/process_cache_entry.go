@@ -6,7 +6,6 @@
 package model
 
 import (
-	"container/list"
 	"strings"
 	"time"
 
@@ -87,22 +86,9 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
-// ShareArgsEnvs share args and envs between the current entry and the given child entry
-func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
-	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil {
-		childEntry.ArgsEntry.Retain()
-	}
-	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil {
-		childEntry.EnvsEntry.Retain()
-	}
-}
-
 // SetParentOfForkChild set the parent of a fork child
 func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
-	parent.ShareArgsEnvs(pc)
 	pc.IsThread = true
 }
 
@@ -133,148 +119,14 @@ type ArgsEnvs struct {
 	ValuesRaw [MaxArgEnvSize]byte
 }
 
-// ArgsEnvsCacheEntry defines a args/envs base entry
-type ArgsEnvsCacheEntry struct {
-	Size      uint32
-	ValuesRaw []byte
-
-	TotalSize uint64
-
-	Container *list.Element
-
-	next *ArgsEnvsCacheEntry
-	last *ArgsEnvsCacheEntry
-
-	refCount  uint64
-	onRelease func(_ *ArgsEnvsCacheEntry)
-}
-
-// Reset the entry
-func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
-	entry := p
-	for entry != nil {
-		next := entry.next
-
-		entry.Size = 0
-		entry.ValuesRaw = nil
-		entry.next = nil
-		entry.last = nil
-		entry.refCount = 0
-
-		// all the element of the list need to return to the
-		// pool
-		if p.onRelease != nil {
-			p.onRelease(entry)
-		}
-
-		entry = next
-	}
-}
-
-// Append an entry to the list
-func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
-	p.TotalSize += uint64(entry.Size)
-
-	// this shouldn't happen, but is here to protect against infinite loops
-	entry.next = nil
-	entry.last = nil
-
-	if p.last != nil {
-		p.last.next = entry
-	} else {
-		p.next = entry
-	}
-	p.last = entry
-}
-
-// Retain increment ref counter
-func (p *ArgsEnvsCacheEntry) retain() {
-	p.refCount++
-}
-
-// Release decrement and eventually release the entry
-func (p *ArgsEnvsCacheEntry) release() bool {
-	p.refCount--
-	if p.refCount > 0 {
-		return false
-	}
-
-	p.forceReleaseAll()
-
-	return true
-}
-
-// NewArgsEnvsCacheEntry returns a new args/env cache entry
-func NewArgsEnvsCacheEntry(onRelease func(_ *ArgsEnvsCacheEntry)) *ArgsEnvsCacheEntry {
-	entry := &ArgsEnvsCacheEntry{
-		onRelease: onRelease,
-	}
-
-	return entry
-}
-
-func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
-	entry := p
-
-	var values []string
-	var truncated bool
-
-	for entry != nil {
-		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == MaxArgEnvSize {
-			if len(v) > 0 {
-				v[len(v)-1] = v[len(v)-1] + "..."
-			}
-			truncated = true
-		}
-		if len(v) > 0 {
-			values = append(values, v...)
-		}
-
-		entry = entry.next
-	}
-
-	return values, truncated
-}
-
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
-
 	Values    []string
 	Truncated bool
-
-	parsed bool
-}
-
-// Retain increment ref counter
-func (p *ArgsEntry) Retain() {
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.retain()
-	}
-}
-
-// Release decrement and eventually release the entry
-func (p *ArgsEntry) Release() {
-	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
-		p.ArgsEnvsCacheEntry = nil
-	}
 }
 
 // ToArray returns args as array
 func (p *ArgsEntry) ToArray() ([]string, bool) {
-	if len(p.Values) > 0 || p.parsed {
-		return p.Values, p.Truncated
-	}
-	p.Values, p.Truncated = p.toArray()
-	p.parsed = true
-
-	// now we have the cache we can force the free without having to check the refcount
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.forceReleaseAll()
-		p.ArgsEnvsCacheEntry = nil
-	}
-
 	return p.Values, p.Truncated
 }
 
@@ -294,45 +146,15 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
-
 	Values    []string
 	Truncated bool
 
-	parsed       bool
 	filteredEnvs []string
 	kv           map[string]string
 }
 
-// Retain increment ref counter
-func (p *EnvsEntry) Retain() {
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.retain()
-	}
-}
-
-// Release decrement and eventually release the entry
-func (p *EnvsEntry) Release() {
-	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
-		p.ArgsEnvsCacheEntry = nil
-	}
-}
-
 // ToArray returns envs as an array
 func (p *EnvsEntry) ToArray() ([]string, bool) {
-	if p.parsed {
-		return p.Values, p.Truncated
-	}
-
-	p.Values, p.Truncated = p.toArray()
-	p.parsed = true
-
-	// now we have the cache we can force the free without having to check the refcount
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.forceReleaseAll()
-		p.ArgsEnvsCacheEntry = nil
-	}
-
 	return p.Values, p.Truncated
 }
 
