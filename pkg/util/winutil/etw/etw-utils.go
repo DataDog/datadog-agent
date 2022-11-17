@@ -103,7 +103,8 @@ var (
 	}
 )
 
-func verbToMethod(verb uint32) uint32 {
+// VerbToMethod converts an http verb to a method
+func VerbToMethod(verb uint32) uint32 {
 	if verb >= httpVerbMaximum {
 		return methodUnknown
 	}
@@ -111,8 +112,8 @@ func verbToMethod(verb uint32) uint32 {
 	return verb2method[verb]
 }
 
-//nolint:deadcode
-func httpVerbToStr(httVerb uint32) string {
+// HttpVerbToStr converts the integer verb type to a human readable string
+func HttpVerbToStr(httVerb uint32) string {
 	if httVerb >= httpVerbMaximum {
 		return "<UNKNOWN>"
 	}
@@ -141,7 +142,8 @@ func httpVerbToStr(httVerb uint32) string {
 	}[httVerb]
 }
 
-func httpMethodToStr(httpMethod uint32) string {
+// HttpMethodToStr converts the integer representation of the method to string
+func HttpMethodToStr(httpMethod uint32) string {
 	if httpMethod >= methodMaximum {
 		return "<UNKNOWN>"
 	}
@@ -166,7 +168,7 @@ func httpMethodToStr(httpMethod uint32) string {
 // 	return binary.LittleEndian.Uint16(arr[:])
 // }
 
-func goBytes(data unsafe.Pointer, len C.int) []byte {
+func GoBytes(data unsafe.Pointer, len int) []byte {
 	// It could be as simple and safe as
 	// 		C.GoBytes(edata, len))
 	// but it copies buffer data which seems to be a waste in many
@@ -209,14 +211,16 @@ func convertWindowsString(winput []uint8) string {
 	return windows.UTF16ToString(p)
 }
 
-func formatGuid(guid C.DDGUID) string {
+// FormatGuid converts a guid structure to a go string
+func FormatGuid(guid DDGUID) string {
 	return fmt.Sprintf("{%08X-%04X-%04X-%02X%02X%02X%02X%02X%02X%02X%02X}",
 		guid.Data1, guid.Data2, guid.Data3,
 		guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
 		guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7])
 }
 
-func bytesFormat(b uint64) string {
+// BytesFormat converts a uint64 into a nice string
+func BytesFormat(b uint64) string {
 	const unit = 1000
 	if b < unit {
 		return fmt.Sprintf("%d B", b)
@@ -229,7 +233,8 @@ func bytesFormat(b uint64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
 
-func formatUInt(num uint64) string {
+// FormatUInt converts a uint64 to a string with commas in every 3 orders of magnitude.
+func FormatUInt(num uint64) string {
 	output := strconv.FormatUint(num, 10)
 	offset := 3
 
@@ -244,16 +249,20 @@ func formatUInt(num uint64) string {
 // stampToTime translates FileTime to a golang time. Same as in standard packages.
 // // From GetUnixTimestamp() datadog-windows-filter\ddfilter\http\http_callbacks.c
 // returns timestamp in ns since unix epoch
-func fileTimeToUnixTime(ft uint64) uint64 {
+
+// FilteTimeToUnixTime converts a windows Filetime to unix time
+func FileTimeToUnixTime(ft uint64) uint64 {
 	return (ft - EPOCH_DIFFERENCE_SECS) * 100
 }
 
-func formatUnixTime(t uint64) string {
+// FormatUnixTime takes a unix timestamp and returns a human readable string
+func FormatUnixTime(t uint64) string {
 	tm := time.Unix(int64(t/1000000000), int64(t%1000000000))
 	return tm.Format("01/02/2006 03:04:05.000000 pm")
 }
 
-func parseUnicodeString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
+// ParuseUnicodeString takes a slice of bytes and converts it to a string
+func ParseUnicodeString(data []byte, offset int) (val string, nextOffset int, valFound bool, foundTermZeroIdx int) {
 	termZeroIdx := bytesIndexOfDoubleZero(data[offset:])
 	var lenString int
 	var skip int
@@ -314,7 +323,8 @@ func ipAndPortFromTup(tup driver.ConnTupleType, srv bool) ([16]uint8, uint16) {
 	}
 }
 
-func ipFormat(tup driver.ConnTupleType, srv bool) string {
+// IpFormat takes a binary ip representation and returns a string type
+func IpFormat(tup driver.ConnTupleType, srv bool) string {
 	ip, port := ipAndPortFromTup(tup, srv)
 
 	if tup.Family == 2 {

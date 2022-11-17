@@ -16,7 +16,7 @@ import (
 )
 
 func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
-	var tx FullHttpTransaction
+	var tx WinHttpTransaction
 
 	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
 	latencyNS := uint64(latency)
