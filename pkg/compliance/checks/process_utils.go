@@ -6,6 +6,8 @@
 package checks
 
 import (
+	"errors"
+	"io/fs"
 	"strings"
 	"time"
 
@@ -72,7 +74,11 @@ func (p *CheckedProcess) Exe() string {
 
 	innerExe, err := p.inner.Exe()
 	if err != nil {
-		log.Warnf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
+		if errors.Is(err, fs.ErrPermission) {
+			log.Debugf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
+		} else {
+			log.Warnf("failed to fetch process (pid=%d) exe: %v", p.pid, err)
+		}
 		return ""
 	}
 	p.exe = innerExe
