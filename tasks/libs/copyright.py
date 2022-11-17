@@ -60,6 +60,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// Copyright.* The Go Authors',
     '^// This file includes software developed at CoreOS',
     '^// Copyright 2017 Kinvolk',
+    '^// Copyright 2021 The Vitess Authors.',
 ]
 
 
