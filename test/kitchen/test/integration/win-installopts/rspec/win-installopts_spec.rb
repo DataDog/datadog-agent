@@ -42,15 +42,15 @@ shared_examples_for 'a configured Agent' do
 
       expect(confYaml).to have_key("logs_config")
       expect(confYaml["logs_config"]).to have_key("logs_dd_url")
-      expect(URI.parse(confYaml["logs_config"]["logs_dd_url"]).to eq(URI.parse("https://logs.someurl.datadoghq.com"))
+      expect(URI.parse(confYaml["logs_config"]["logs_dd_url"])).to eq(URI.parse("https://logs.someurl.datadoghq.com"))
 
       expect(confYaml).to have_key("process_config")
       expect(confYaml["process_config"]).to have_key("process_dd_url")
-      expect(URI.parse(confYaml["process_config"]["process_dd_url"]).to eq(URI.parse("https://process.someurl.datadoghq.com"))
+      expect(URI.parse(confYaml["process_config"]["process_dd_url"])).to eq(URI.parse("https://process.someurl.datadoghq.com"))
 
       expect(confYaml).to have_key("apm_config")
       expect(confYaml["apm_config"]).to have_key("apm_dd_url")
-      expect(URI.parse(confYaml["apm_config"]["apm_dd_url"]).to eq(URI.parse("https://trace.someurl.datadoghq.com"))
+      expect(URI.parse(confYaml["apm_config"]["apm_dd_url"])).to eq(URI.parse("https://trace.someurl.datadoghq.com"))
 
     end
 end
