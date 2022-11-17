@@ -93,8 +93,8 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	eventType := trigger.GetEventType(lowercaseEventPayload)
-	if err != nil {
-		log.Debugf("[lifecycle] Failed to extract event type: %v", err)
+	if eventType == trigger.Unknown {
+		log.Debugf("[lifecycle] Failed to extract event type")
 	}
 
 	// Initialize basic values in the request handler
