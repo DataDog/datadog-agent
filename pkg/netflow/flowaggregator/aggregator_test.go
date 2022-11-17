@@ -305,8 +305,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.decoder.messages", 1, "", []string{"collector_type:netflow5", "worker:0"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flows", 1, "", []string{"device_ip:127.0.0.1", "version:5", "flow_protocol:netflow"})
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.processor.flowsets", 6, "", []string{"device_ip:127.0.0.1", "type:data_flow_set", "version:5", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 312, "", []string{"listener_port:52056", "device_ip:127.0.0.1"})
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52056", "device_ip:127.0.0.1"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.bytes", 312, "", []string{"listener_port:52056", "device_ip:127.0.0.1", "collector_type:netflow5"})
+	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.traffic.packets", 1, "", []string{"listener_port:52056", "device_ip:127.0.0.1", "collector_type:netflow5"})
 
 	flowState.Shutdown()
 	aggregator.Stop()
