@@ -243,11 +243,11 @@ func New() *Config {
 
 		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
 
-		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableKafkaMonitoring: cfg.GetBool(join(netNS, "enable_kafka_monitoring")),
-		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
-
+		EnableHTTPMonitoring:      cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring:     cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableKafkaMonitoring:     cfg.GetBool(join(netNS, "enable_kafka_monitoring")),
+		MaxHTTPStatsBuffered:      cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		MaxKafkaStatsBuffered:     cfg.GetInt(join(netNS, "max_kafka_stats_buffered")),
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
 		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
