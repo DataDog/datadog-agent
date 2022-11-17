@@ -272,6 +272,7 @@ func (lp *LifecycleProcessor) newRequest(lambdaPayloadString []byte, startTime t
 	if lp.requestHandler == nil {
 		lp.requestHandler = &RequestHandler{}
 	}
+	lp.requestHandler.event = nil
 	lp.requestHandler.executionInfo = &ExecutionStartInfo{
 		requestPayload: lambdaPayloadString,
 		startTime:      startTime,
