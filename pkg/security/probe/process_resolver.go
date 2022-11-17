@@ -262,35 +262,49 @@ func (p *ProcessResolver) SendStats() error {
 }
 
 type argsEnvsCacheEntry struct {
-	values []byte
+	values    []byte
+	truncated bool
+	indices   []int
 }
 
-func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) argsEnvsCacheEntry {
+func newArgsEnvsCacheEntry(event *model.ArgsEnvsEvent) *argsEnvsCacheEntry {
 	values := make([]byte, event.Size)
 	copy(values, event.ValuesRaw[:event.Size])
 
-	return argsEnvsCacheEntry{
-		values: values,
+	return &argsEnvsCacheEntry{
+		values:    values,
+		truncated: event.Size == model.MaxArgEnvSize,
+		indices:   []int{0},
 	}
 }
 
 func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
+	e.indices = append(e.indices, len(e.values))
 	e.values = append(e.values, event.ValuesRaw[:event.Size]...)
+	if event.Size == model.MaxArgEnvSize {
+		e.truncated = true
+	}
 }
 
 func (e *argsEnvsCacheEntry) toArray() ([]string, bool) {
-	var truncated bool
+	truncated := e.truncated
+	var totalValues []string
 
-	values, err := model.UnmarshalStringArray(e.values)
-	if err != nil || len(e.values) >= model.MaxArgEnvSize {
-		truncated = true
+	for i, begin := range e.indices {
+		end := len(e.values)
+		if i+1 < len(e.indices) {
+			end = e.indices[i+1]
+		}
+
+		values, err := model.UnmarshalStringArray(e.values[begin:end])
+		if err != nil && len(values) != 0 {
+			values[len(values)-1] += "..."
+			truncated = true
+		}
+		totalValues = append(totalValues, values...)
 	}
 
-	if truncated && len(values) != 0 {
-		values[len(values)-1] += "..."
-	}
-
-	return values, truncated
+	return totalValues, truncated
 }
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
