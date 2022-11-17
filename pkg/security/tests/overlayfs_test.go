@@ -11,6 +11,7 @@ package tests
 import (
 	"os"
 	"os/exec"
+	"path"
 	"syscall"
 	"testing"
 	"time"
@@ -88,6 +89,14 @@ func TestOverlayFS(t *testing.T) {
 		{
 			ID:         "test_rule_link",
 			Expression: `link.file.path == "{{.Root}}/bind/linked.txt"`,
+		},
+		{
+			ID:         "test_rule_parent",
+			Expression: `open.file.path == "{{.Root}}/bind/parent/child"`,
+		},
+		{
+			ID:         "test_rule_renamed_parent",
+			Expression: `open.file.path == "{{.Root}}/bind/renamed/child"`,
 		},
 	}
 
@@ -311,6 +320,48 @@ func TestOverlayFS(t *testing.T) {
 
 			assert.Equal(t, inode, event.Unlink.File.Inode, "wrong unlink inode")
 			assert.Equal(t, true, inUpperLayer, "should be in upper layer")
+		})
+	})
+
+	t.Run("rename-parent", func(t *testing.T) {
+		testFile, _, err := test.Path("bind/parent/child")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(testFile)
+
+		dir := path.Dir(testFile)
+		if err := os.MkdirAll(dir, 0777); err != nil {
+			t.Fatalf("failed to create directory: %s", err)
+		}
+
+		test.WaitSignal(t, func() error {
+			f, err := os.Create(testFile)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_parent")
+		})
+
+		test.WaitSignal(t, func() error {
+			newFile, _, err := test.Path("bind/renamed/child")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(newFile)
+
+			if err = os.Rename(dir, path.Dir(newFile)); err != nil {
+				t.Fatal(err)
+			}
+			f, err := os.OpenFile(newFile, os.O_RDWR, 0755)
+			if err != nil {
+				return err
+			}
+			return f.Close()
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_renamed_parent")
 		})
 	})
 

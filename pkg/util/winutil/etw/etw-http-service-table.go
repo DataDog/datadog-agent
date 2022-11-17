@@ -222,7 +222,8 @@ var (
 	}
 )
 
-func formatHttpServiceEventId(eventId uint16) string {
+// FormatHttpServiceEventId converts an id to a string
+func FormatHttpServiceEventId(eventId uint16) string {
 	if eventId == IdHTTP_DUMMY_START || eventId >= IdHTTP_DUMMY_MAX {
 		return "<UNKNOWN_HTTP_EVENT_ID>"
 	}

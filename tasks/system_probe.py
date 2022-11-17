@@ -271,7 +271,14 @@ def ninja_cgo_type_files(nw, windows):
     nw.pool(name="cgo_pool", depth=1)
     if windows:
         go_platform = "windows"
-        def_files = {"pkg/network/driver/types.go": ["pkg/network/driver/ddnpmapi.h"]}
+        def_files = {
+            "pkg/network/driver/types.go": [
+                "pkg/network/driver/ddnpmapi.h",
+            ],
+            "pkg/util/winutil/etw/types.go": [
+                "pkg/util/winutil/etw/etw-provider.h",
+            ],
+        }
         nw.rule(
             name="godefs",
             pool="cgo_pool",

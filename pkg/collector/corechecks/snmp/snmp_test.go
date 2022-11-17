@@ -288,6 +288,8 @@ tags:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", telemetryTags)
+
+	chk.Cancel()
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
@@ -986,13 +988,6 @@ namespace: '%s'
 func TestCheck_Run_sessionCloseError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -1011,7 +1006,7 @@ metrics:
     name: myMetric
 `)
 
-	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1028,17 +1023,12 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	w.Flush()
-	logs := b.String()
-
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
-
-	assert.Equal(t, strings.Count(logs, "failed to close sess"), 1, logs)
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
@@ -1655,6 +1645,9 @@ metric_tags:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+
+	chk.Cancel()
+	assert.Nil(t, chk.discovery)
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
@@ -2082,4 +2075,28 @@ metrics:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+}
+
+func TestCheckCancel(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{sessionFactory: sessionFactory}
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	// check Cancel does not panic when called with single check
+	// it shouldn't try to stop discovery
+	chk.Cancel()
 }

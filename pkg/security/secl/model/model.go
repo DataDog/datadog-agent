@@ -23,6 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+const (
+	// OverlayFS overlay filesystem
+	OverlayFS = "overlay"
+)
+
 // Model describes the data model for the runtime security agent events
 type Model struct{}
 
@@ -528,7 +533,7 @@ func (m *MountEvent) GetFSType() string {
 
 // IsOverlayFS returns whether it is an overlay fs
 func (m *MountEvent) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
+	return m.GetFSType() == OverlayFS
 }
 
 // OpenEvent represents an open event
