@@ -10,6 +10,7 @@ package probe
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // ValidateField validates the value of a field
@@ -30,3 +31,24 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}, nil
 }
 */
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
+	}
+
+	if ev.ProcessCacheEntry == nil {
+		// keep the original PIDContext
+		ev.ProcessCacheEntry = model.NewProcessCacheEntry(nil)
+		ev.ProcessCacheEntry.PIDContext = ev.PIDContext
+
+		ev.ProcessCacheEntry.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.FileEvent.SetBasenameStr("")
+
+		// mark interpreter as resolved too
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
+		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+	}
+
+	return ev.ProcessCacheEntry
+}

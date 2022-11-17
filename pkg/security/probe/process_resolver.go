@@ -22,13 +22,11 @@ import (
 	"time"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/golang-lru/simplelru"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -68,22 +66,6 @@ func getDoForkInput(probe *Probe) uint64 {
 	return doForkListInput
 }
 
-// getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
-// space
-func getCGroupWriteConstants() manager.ConstantEditor {
-	cgroupWriteConst := uint64(1)
-	kv, err := kernel.NewKernelVersion()
-	if err == nil {
-		if kv.IsRH7Kernel() {
-			cgroupWriteConst = 2
-		}
-	}
-
-	return manager.ConstantEditor{
-		Name:  "cgroup_write_type",
-		Value: cgroupWriteConst,
-	}
-}
 
 // ProcessResolverOpts options of resolver
 type ProcessResolverOpts struct {

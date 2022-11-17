@@ -67,7 +67,7 @@ func RunLoop(f func(*WinProcessNotification)) {
 		if err == nil && returnedsize > 0 {
 			consumed := uint32(0)
 			for consumed < returnedsize {
-				wpn, used := decodeStruct(readbuffer[:consumed], returnedsize-consumed)
+				wpn, used := decodeStruct(readbuffer[consumed:], returnedsize-consumed)
 				consumed += used
 				f(wpn)
 			}
@@ -84,7 +84,7 @@ func RunLoop(f func(*WinProcessNotification)) {
 		if err == nil && returnedsize > 0 {
 			consumed := uint32(0)
 			for consumed < returnedsize {
-				wpn, used := decodeStruct(readbuffer[:consumed], returnedsize-consumed)
+				wpn, used := decodeStruct(readbuffer[consumed:], returnedsize-consumed)
 				consumed += used
 				f(wpn)
 			}

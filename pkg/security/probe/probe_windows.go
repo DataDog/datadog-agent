@@ -13,9 +13,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/winprocmon"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -25,11 +27,28 @@ type CustomEvent struct {
 	tags []string
 }
 
+// EventHandler represents an handler for the events sent by the probe
+type EventHandler interface {
+	HandleEvent(event *Event)
+	HandleCustomEvent(rule *rules.Rule, event *CustomEvent)
+}
+
 type Probe struct {
 	config       *config.Config
 	statsdClient statsd.ClientInterface
+	handlers     [model.MaxAllEventType][]EventHandler
+	ctx          context.Context
+}
 
-	ctx context.Context
+// Event describes a probe event
+type Event struct {
+	model.Event
+	WPT winprocmon.WinProcessNotification
+
+	resolvers           *Resolvers
+	pathResolutionError error
+	scrubber            *pconfig.DataScrubber
+	probe               *Probe
 }
 
 func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
@@ -40,9 +59,12 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 }
 
 func (p *Probe) Run() {
-	winprocmon.RunLoop(func(evt *winprocmon.WinProcessNotification) {
-		p.handleEvent(evt)
-	})
+
+}
+
+// Init initializes the probe
+func (p *Probe) Init() error {
+	return nil
 }
 
 // handleEvent is essentially a dispatcher for monitoring events
@@ -50,7 +72,18 @@ func (p *Probe) Run() {
 // support multiple types of events via changing `WinProcessNotification` to a generic interface.
 func (p *Probe) handleEvent(evt *winprocmon.WinProcessNotification) {
 	// From here we call out to process_monitor_windows.go
-
+	ev := &Event{
+		WPT: *evt,
+	}
+	switch ev.WPT.Type {
+	case winprocmon.ProcmonNotifyStart:
+		ev.Type = uint32(model.ExecEventType)
+	case winprocmon.ProcmonNotifyStop:
+		ev.Type = uint32(model.ExitEventType)
+	default:
+		return
+	}
+	p.DispatchEvent(ev)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -66,7 +99,16 @@ func (p *Probe) Setup() error {
 
 // Start processing events
 func (p *Probe) Start() error {
+	go winprocmon.RunLoop(func(evt *winprocmon.WinProcessNotification) {
+		p.handleEvent(evt)
+	})
+
 	return nil
+}
+
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
+	p.handlers[eventType] = append(p.handlers[eventType], handler)
 }
 
 // SelectProbes applies the loaded set of rules and returns a report
@@ -84,4 +126,22 @@ func (p *Probe) Close() error {
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
 	return nil
+}
+
+// DispatchEvent sends an event to the probe event handler
+func (p *Probe) DispatchEvent(event *Event) {
+	//seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
+
+	// send wildcard first
+	//for _, handler := range p.handlers[model.UnknownEventType] {
+	//	handler.HandleEvent(event)
+	//}
+
+	// send specific event
+	for _, handler := range p.handlers[event.GetEventType()] {
+		handler.HandleEvent(event)
+	}
+
+	// Process after evaluation because some monitors need the DentryResolver to have been called first.
+	//p.monitor.ProcessEvent(event)
 }

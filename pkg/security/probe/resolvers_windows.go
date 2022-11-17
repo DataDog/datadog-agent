@@ -13,7 +13,7 @@ import "github.com/DataDog/datadog-agent/pkg/security/config"
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	probe *Probe
-	//ProcessResolver   *ProcessResolver
+	ProcessResolver   *ProcessResolver
 }
 
 // NewResolvers creates a new instance of Resolvers

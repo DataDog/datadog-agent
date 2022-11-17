@@ -16,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
-	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
-)
-
 // SecurityRuntime - Security runtime Factory
 var SecurityRuntime = module.Factory{
 	Name:             config.SecurityRuntimeModule,
@@ -36,6 +31,7 @@ var SecurityRuntime = module.Factory{
 			log.Info("Datadog runtime security agent is only supported on Linux")
 			return nil, module.ErrNotEnabled
 		}
+		log.Info("I think I started %v  %v", m, err)
 		return m, err
 	},
 }

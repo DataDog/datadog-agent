@@ -48,6 +48,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+// Event describes a probe event
+type Event struct {
+	model.Event
+
+	resolvers           *Resolvers
+	pathResolutionError error
+	scrubber            *pconfig.DataScrubber
+	probe               *Probe
+}
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
 type ActivityDumpHandler interface {

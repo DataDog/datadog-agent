@@ -143,6 +143,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 pkg/network/**/_obj/
+pkg/security/**/_obj/
 
 # windows container build output
 build.out/

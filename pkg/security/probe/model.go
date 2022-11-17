@@ -36,16 +36,6 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// Event describes a probe event
-type Event struct {
-	model.Event
-
-	resolvers           *Resolvers
-	pathResolutionError error
-	scrubber            *pconfig.DataScrubber
-	probe               *Probe
-}
-
 // Retain the event
 func (ev *Event) Retain() Event {
 	if ev.ProcessCacheEntry != nil {

@@ -46,9 +46,9 @@ type Module struct {
 	currentRuleSet *atomic.Value
 	reloading      *atomic.Bool
 	statsdClient   statsd.ClientInterface
-	//	apiServer        *APIServer
-	grpcServer *grpc.Server
-	listener   net.Listener
+	apiServer      *APIServer
+	grpcServer     *grpc.Server
+	listener       net.Listener
 	//	rateLimiter      *RateLimiter
 	sigupChan        chan os.Signal
 	ctx              context.Context
@@ -107,18 +107,18 @@ func (m *Module) Init() error {
 
 		m.probe.AddEventHandler(model.UnknownEventType, m)
 		m.probe.AddActivityDumpHandler(m)
+	*/
+	// initialize extra event monitors
+	if m.config.EventMonitoring {
+		InitEventMonitors(m)
+	}
 
-		// initialize extra event monitors
-		if m.config.EventMonitoring {
-			InitEventMonitors(m)
-		}
-
-		// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
-		// running yet.
-		if err := m.probe.Init(); err != nil {
-			return fmt.Errorf("failed to init probe: %w", err)
-		}
-
+	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
+	// running yet.
+	if err := m.probe.Init(); err != nil {
+		return fmt.Errorf("failed to init probe: %w", err)
+	}
+	/*
 		// policy loader
 		m.policyLoader = rules.NewPolicyLoader()
 	*/
@@ -490,8 +490,8 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		currentRuleSet: new(atomic.Value),
 		reloading:      atomic.NewBool(false),
 		statsdClient:   statsdClient,
-		//apiServer:      NewAPIServer(cfg, probe, statsdClient),
-		grpcServer: grpc.NewServer(),
+		apiServer:      NewAPIServer(cfg, probe, statsdClient),
+		grpcServer:     grpc.NewServer(),
 		//rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
 		sigupChan: make(chan os.Signal, 1),
 		ctx:       ctx,
@@ -511,7 +511,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)
 
-	sapi.RegisterSecurityModuleServer(m.grpcServer, nil) //m.apiServer)
+	sapi.RegisterSecurityModuleServer(m.grpcServer, m.apiServer)
 
 	return m, nil
 }
