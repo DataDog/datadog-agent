@@ -10,7 +10,10 @@ package integrations
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,6 +86,7 @@ type CmdMock struct {
 	stderrPipeWriter *io.PipeWriter
 	stdoutPipeReader *io.PipeReader
 	stderrPipeReader *io.PipeReader
+	env              []string
 }
 
 func (c *CmdMock) Output() ([]byte, error) {
@@ -118,6 +122,10 @@ func (c *CmdMock) Wait() error {
 	return nil
 }
 
+func (c *CmdMock) SetEnv(newEnv []string) {
+	c.env = newEnv
+}
+
 func TestPip(t *testing.T) {
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -140,4 +148,44 @@ func TestPip(t *testing.T) {
 
 	assert.Equal(t, cmdMock.stdout, string(stdout.Bytes()))
 	assert.Equal(t, cmdMock.stderr, string(stderr.Bytes()))
+}
+
+func TestDownloadWheel(t *testing.T) {
+	stderr := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+	tempdir := t.TempDir()
+	packagePath := filepath.Join(tempdir, "package", "path.whl")
+	os.MkdirAll(filepath.Dir(packagePath), 0777)
+	f, err := os.Create(packagePath)
+	if err != nil {
+		t.Errorf("failed to create: %s", err)
+		return
+	}
+	f.Close()
+
+	cmdMock := &CmdMock{
+		stdout: fmt.Sprintf("%s\n", packagePath),
+		stderr: "...And this is the error\n",
+	}
+
+	newCommand := func(name string, arg ...string) commandRunner {
+		cmdMock.name = name
+		cmdMock.arg = arg
+		return cmdMock
+	}
+
+	wheelPath, err := downloadWheel("my/python", 0, "datadog-integration", "3.1.4", "core", stdout, stderr, newCommand)
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "my/python", cmdMock.name)
+	assert.Equal(t, []string{"-m", downloaderModule, "datadog-integration", "--version", "3.1.4", "--type", "core"}, cmdMock.arg)
+
+	assert.Equal(t, cmdMock.stdout, string(stdout.Bytes()))
+	assert.Equal(t, cmdMock.stderr, string(stderr.Bytes()))
+	assert.Equal(t, packagePath, wheelPath)
+
+	// Test that we get an error when the downloader exists but we can't find the wheel
+	packagePath = filepath.Join(tempdir, "non-existing-wheel")
+	cmdMock.stdout = fmt.Sprintf("%s\n", packagePath)
+	_, err = downloadWheel("my/python", 0, "datadog-integration", "3.1.4", "core", stdout, stderr, newCommand)
+	assert.Equal(t, fmt.Sprintf("wheel %s does not exist", packagePath), err.Error())
 }

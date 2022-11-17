@@ -473,7 +473,11 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Download the wheel
-	wheelPath, err := downloadWheel(cliParams, integration, semverToPEP440(versionToInstall), rootLayoutType)
+	pyPath, err := getCommandPython(cliParams)
+	if err != nil {
+		return err
+	}
+	wheelPath, err := downloadWheel(pyPath, cliParams.verbose, integration, semverToPEP440(versionToInstall), rootLayoutType, os.Stdout, os.Stderr, execCommand)
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
@@ -513,23 +517,18 @@ func install(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
-	pyPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return "", err
-	}
-
+func downloadWheel(pythonPath string, verbose int, integration, version, rootLayoutType string, stdout, stderr io.Writer, newCommand commandConstructor) (string, error) {
 	args := []string{
 		"-m", downloaderModule,
 		integration,
 		"--version", version,
 		"--type", rootLayoutType,
 	}
-	if cliParams.verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
+	if verbose > 0 {
+		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 
-	downloaderCmd := exec.Command(pyPath, args...)
+	downloaderCmd := newCommand(pythonPath, args...)
 
 	// We do all of the following so that when we call our downloader, which will
 	// in turn call in-toto, which will in turn call Python to inspect the wheel,
@@ -537,7 +536,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	// First, get the current PATH as an array.
 	pathArr := filepath.SplitList(os.Getenv("PATH"))
 	// Get the directory of our embedded Python.
-	pythonDir := filepath.Dir(pyPath)
+	pythonDir := filepath.Dir(pythonPath)
 	// Prepend this dir to PATH array.
 	pathArr = append([]string{pythonDir}, pathArr...)
 	// Build a new PATH string from the array.
@@ -551,47 +550,61 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 			// NOTE: Don't break so that we replace duplicate PATH-s, too.
 		}
 	}
-	// Now, while downloaderCmd itself won't use the new PATH, any child process,
-	// such as in-toto subprocesses, will.
-	downloaderCmd.Env = environ
 
 	// Proxy support
 	proxies := pkgconfig.GetProxies()
 	if proxies != nil {
-		downloaderCmd.Env = append(downloaderCmd.Env,
+		environ = append(environ,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
 			fmt.Sprintf("HTTPS_PROXY=%s", proxies.HTTPS),
 			fmt.Sprintf("NO_PROXY=%s", strings.Join(proxies.NoProxy, ",")),
 		)
 	}
 
+	// Now, while downloaderCmd itself won't use the new PATH, any child process,
+	// such as in-toto subprocesses, will.
+	downloaderCmd.SetEnv(environ)
+
+	// Create a waitgroup for waiting for piping goroutines
+	var wg sync.WaitGroup
+
 	// forward the standard error to stderr
-	stderr, err := downloaderCmd.StderrPipe()
+	pipStderr, err := downloaderCmd.StderrPipe()
 	if err != nil {
 		return "", err
 	}
+	wg.Add(1)
 	go func() {
-		in := bufio.NewScanner(stderr)
+		defer wg.Done()
+		in := bufio.NewScanner(pipStderr)
 		for in.Scan() {
-			fmt.Fprintf(os.Stderr, "%s\n", color.RedString(in.Text()))
+			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
 		}
 	}()
 
-	stdout, err := downloaderCmd.StdoutPipe()
+	// forward the standard output to stdout and save the last line
+	pipStdout, err := downloaderCmd.StdoutPipe()
 	if err != nil {
 		return "", err
 	}
+
+	lastLine := ""
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		in := bufio.NewScanner(pipStdout)
+		for in.Scan() {
+			lastLine = in.Text()
+			fmt.Fprintf(stdout, "%s\n", lastLine)
+		}
+	}()
+
 	if err := downloaderCmd.Start(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)
 	}
-	lastLine := ""
-	go func() {
-		in := bufio.NewScanner(stdout)
-		for in.Scan() {
-			lastLine = in.Text()
-			fmt.Println(lastLine)
-		}
-	}()
+
+	// Wait for both piping goroutines to complete to ensure pipes are exhausted
+	wg.Wait()
 
 	if err := downloaderCmd.Wait(); err != nil {
 		return "", fmt.Errorf("error running command: %v", err)

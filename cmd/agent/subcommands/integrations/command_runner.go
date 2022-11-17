@@ -21,10 +21,22 @@ type commandRunner interface {
 	StderrPipe() (io.ReadCloser, error)
 	StdoutPipe() (io.ReadCloser, error)
 	Wait() error
+	// We need this additional method to wrap access to the `.Env` field
+	SetEnv([]string)
 }
 
 type commandConstructor func(name string, arg ...string) commandRunner
 
+type defaultRunner struct {
+	*exec.Cmd
+}
+
+func (c *defaultRunner) SetEnv(newEnv []string) {
+	c.Cmd.Env = newEnv
+}
+
 func execCommand(name string, arg ...string) commandRunner {
-	return commandRunner(exec.Command(name, arg...))
+	cmd := &defaultRunner{}
+	cmd.Cmd = exec.Command(name, arg...)
+	return commandRunner(cmd)
 }
