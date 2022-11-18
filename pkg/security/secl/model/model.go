@@ -565,6 +565,12 @@ type FileEvent struct {
 
 	PathResolutionError error `field:"-" json:"-"`
 
+	PkgName    string `field:"package.name,handler:ResolvePackageName"`       // SECLDoc[package.name] Definition:`Name of the package that provided this file`
+	PkgVersion string `field:"package.version,handler:ResolvePackageVersion"` // SECLDoc[package.version] Definition:`Full version of the package that provided this file`
+	PkgMajor   int    `field:"package.major,handler:ResolvePackageMajor"`     // SECLDoc[package.major] Definition:`Major version of the package that provided this file`
+	PkgMinor   int    `field:"package.minor,handler:ResolvePackageMinor"`     // SECLDoc[package.minor] Definition:`Minor version of the package that provided this file`
+	PkgPatch   int    `field:"package.patch,handler:ResolvePackagePatch"`     // SECLDoc[package.patch] Definition:`Patch version of the package that provided this file`
+
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
 	IsBasenameStrResolved bool `field:"-" json:"-"`
@@ -704,8 +710,8 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
-// IsContainerInit returns whether this is the entrypoint of the container
-func (pc *ProcessCacheEntry) IsContainerInit() bool {
+// IsContainerRoot returns whether this is a top level process in the container ID
+func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
 }
 

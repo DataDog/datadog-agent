@@ -402,3 +402,49 @@ func (fh *FieldHandlers) ResolveAsync(ev *model.Event) bool {
 	ev.Async = ev.Flags&model.EventFlagsAsync > 0
 	return ev.Async
 }
+
+// ResolvePackageName resolves the name of the package providing this file
+func (fh *FieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgName == "" {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgName
+}
+
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.FileEvent) string {
+	if f.PkgVersion == "" {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+			f.PkgName = pkg.Name
+			f.PkgVersion = pkg.Version
+		}
+	}
+	return f.PkgVersion
+}
+
+// ResolvePackageMajor resolves the major version of the package providing this file
+func (fh *FieldHandlers) ResolvePackageMajor(ev *model.Event, f *model.FileEvent) int {
+	// if f.PkgMajor == 0 {
+	// Do the resolution and set package name
+	// }
+	return f.PkgMajor
+}
+
+// ResolvePackageMinor resolves the filesystem a file resides in
+func (fh *FieldHandlers) ResolvePackageMinor(ev *model.Event, f *model.FileEvent) int {
+	// if f.PkgMinor == 0 {
+	// Do the resolution and set package minor
+	// }
+	return f.PkgMinor
+}
+
+// ResolvePackagePatch resolves the filesystem a file resides in
+func (fh *FieldHandlers) ResolvePackagePatch(ev *model.Event, f *model.FileEvent) int {
+	// if f.PkgPatch == 0 {
+	// Do the resolution and set package patch
+	// }
+	return f.PkgPatch
+}

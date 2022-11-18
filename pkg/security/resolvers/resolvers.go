@@ -15,6 +15,9 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -26,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
@@ -33,8 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // Resolvers holds the list of the event attribute resolvers
@@ -51,6 +53,7 @@ type Resolvers struct {
 	CgroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
 	PathResolver      *path.Resolver
+	SBOMResolver      *sbom.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -77,7 +80,13 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver()
+	tagsResolver := tags.NewResolver(config)
+	sbomResolver, err := sbom.NewSBOMResolver(config, tagsResolver, statsdClient)
+	if err != nil {
+		return nil, err
+	}
+
+	cgroupsResolver, err := cgroup.NewResolver(sbomResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -102,13 +111,14 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		ContainerResolver: containerResolver,
 		TimeResolver:      timeResolver,
 		UserGroupResolver: userGroupResolver,
-		TagsResolver:      tags.NewResolver(config),
+		TagsResolver:      tagsResolver,
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 		CgroupResolver:    cgroupsResolver,
 		TCResolver:        tcResolver,
 		ProcessResolver:   processResolver,
 		PathResolver:      pathResolver,
+		SBOMResolver:      sbomResolver,
 	}
 
 	return resolvers, nil
@@ -129,6 +139,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
+	r.SBOMResolver.Start(ctx)
 	return r.NamespaceResolver.Start(ctx)
 }
 

@@ -566,8 +566,18 @@ require (
 )
 
 require (
+	github.com/VividCortex/ewma v1.1.1 // indirect
+	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+	github.com/cheggaaa/pb/v3 v3.1.0 // indirect
+	github.com/hashicorp/go-getter v1.6.2 // indirect
+	github.com/hashicorp/go-safetemp v1.0.0 // indirect
+	github.com/mitchellh/go-testing-interface v1.0.0 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/sigstore/rekor v1.0.1 // indirect
+	github.com/spf13/viper v1.14.0 // indirect
+	github.com/subosito/gotenv v1.4.1 // indirect
 	gonum.org/v1/gonum v0.12.0 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
@@ -589,6 +599,7 @@ replace k8s.io/kube-state-metrics/v2 => github.com/datadog/kube-state-metrics/v2
 // Pull in replacements needed by upstream Trivy
 replace (
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230120171913-9b1b011fb2fe
+	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20221128132416-4ca87a1f1023
 	github.com/spdx/tools-golang => github.com/spdx/tools-golang v0.3.0
 	oras.land/oras-go => oras.land/oras-go v1.1.1
 )

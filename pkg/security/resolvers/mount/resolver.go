@@ -22,12 +22,13 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (
@@ -153,7 +154,7 @@ func (mr *Resolver) syncCache(pids ...uint32) error {
 	for _, pid := range pids {
 		mnts, err = kernel.ParseMountInfoFile(int32(pid))
 		if err != nil {
-			mr.cgroupsResolver.DelByPID(pid)
+			mr.cgroupsResolver.DelPID(pid)
 			continue
 		}
 
@@ -235,7 +236,7 @@ func (mr *Resolver) ResolveFilesystem(mountID, pid uint32, containerID string) (
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, pid, containerID)
+	mount, err := mr.resolveMount(mountID, containerID, pid)
 	if err != nil {
 		return "", err
 	}
@@ -388,7 +389,7 @@ func (mr *Resolver) ResolveMountRoot(mountID, pid uint32, containerID string) (s
 }
 
 func (mr *Resolver) resolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
-	mount, err := mr.resolveMount(mountID, pid, containerID)
+	mount, err := mr.resolveMount(mountID, containerID, pid)
 	if err != nil {
 		return "", err
 	}
@@ -400,7 +401,7 @@ func (mr *Resolver) ResolveMountPath(mountID, pid uint32, containerID string) (s
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMountPath(mountID, pid, containerID)
+	return mr.resolveMountPath(mountID, containerID, pid)
 }
 
 func (mr *Resolver) isSyncCacheAllowed(mountID uint32) bool {
@@ -422,9 +423,17 @@ func (mr *Resolver) syncCacheMiss(mountID uint32) {
 	mr.fallbackLimiter.Add(mountID, time.Now().Add(fallbackLimiterPeriod))
 }
 
-func (mr *Resolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32, containerID string, pids ...uint32) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
+	}
+
+	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
+	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
+	if exists {
+		pids = append(pids, workload.GetRootPIDs()...)
+	} else if len(containerID) == 0 {
+		pids = append(pids, 1)
 	}
 
 	path, err := mr.getMountPath(mountID)
@@ -442,18 +451,11 @@ func (mr *Resolver) resolveMountPath(mountID, pid uint32, containerID string) (s
 		return "", ErrMountNotFound
 	}
 
-	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
-	pid1, _ := mr.cgroupsResolver.GetPID1(containerID)
-	if pid1 == 0 {
-		// use the pid1 of the host
-		pid1 = 1
-	}
-
 	if !mr.isSyncCacheAllowed(mountID) {
 		return "", ErrMountNotFound
 	}
 
-	if err := mr.syncCache(pid, pid1); err != nil {
+	if err := mr.syncCache(pids...); err != nil {
 		mr.syncCacheMiss(mountID)
 		return "", err
 	}
@@ -473,12 +475,20 @@ func (mr *Resolver) ResolveMount(mountID, pid uint32, containerID string) (*mode
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(mountID, pid, containerID)
+	return mr.resolveMount(mountID, containerID, pid)
 }
 
-func (mr *Resolver) resolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
+func (mr *Resolver) resolveMount(mountID uint32, containerID string, pids ...uint32) (*model.Mount, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, err
+	}
+
+	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
+	workload, exists := mr.cgroupsResolver.GetWorkload(containerID)
+	if exists {
+		pids = append(pids, workload.GetRootPIDs()...)
+	} else if len(containerID) == 0 {
+		pids = append(pids, 1)
 	}
 
 	mount, exists := mr.mounts[mountID]
@@ -496,14 +506,7 @@ func (mr *Resolver) resolveMount(mountID, pid uint32, containerID string) (*mode
 		return nil, ErrMountNotFound
 	}
 
-	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
-	pid1, _ := mr.cgroupsResolver.GetPID1(containerID)
-	if pid1 == 0 {
-		// use the pid1 of the host
-		pid1 = 1
-	}
-
-	if err := mr.syncCache(mountID, pid, pid1); err != nil {
+	if err := mr.syncCache(pids...); err != nil {
 		mr.syncCacheMiss(mountID)
 		return nil, err
 	}

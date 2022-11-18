@@ -281,6 +281,36 @@ func (_m *SecurityModuleClient) GetProcessEvents(ctx context.Context, in *api.Ge
 	return r0, r1
 }
 
+// GetSBOMStream provides a mock function with given fields: ctx, in, opts
+func (_m *SecurityModuleClient) GetSBOMStream(ctx context.Context, in *api.GetSBOMStreamParams, opts ...grpc.CallOption) (api.SecurityModule_GetSBOMStreamClient, error) {
+	_va := make([]interface{}, len(opts))
+	for _i := range opts {
+		_va[_i] = opts[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, in)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 api.SecurityModule_GetSBOMStreamClient
+	if rf, ok := ret.Get(0).(func(context.Context, *api.GetSBOMStreamParams, ...grpc.CallOption) api.SecurityModule_GetSBOMStreamClient); ok {
+		r0 = rf(ctx, in, opts...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(api.SecurityModule_GetSBOMStreamClient)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *api.GetSBOMStreamParams, ...grpc.CallOption) error); ok {
+		r1 = rf(ctx, in, opts...)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetStatus provides a mock function with given fields: ctx, in, opts
 func (_m *SecurityModuleClient) GetStatus(ctx context.Context, in *api.GetStatusParams, opts ...grpc.CallOption) (*api.Status, error) {
 	_va := make([]interface{}, len(opts))

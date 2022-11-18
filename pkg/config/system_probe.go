@@ -258,11 +258,19 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	cfg.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
+	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
+	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+
+	// CWS Network
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.lazy_interface_prefixes", []string{})
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_priority", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.network.classifier_handle", 0)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", false)
+
+	// Activity Dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.cleanup_period", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.tags_resolution_period", 60)
@@ -285,6 +293,10 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", true)
 	cfg.BindEnv("runtime_security_config.event_stream.buffer_size")
 	cfg.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+
+	// SBOM
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 }
 
 func join(pieces ...string) string {

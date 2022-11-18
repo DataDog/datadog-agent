@@ -187,6 +187,20 @@ func (_m *SecurityModuleServer) GetProcessEvents(_a0 *api.GetProcessEventParams,
 	return r0
 }
 
+// GetSBOMStream provides a mock function with given fields: _a0, _a1
+func (_m *SecurityModuleServer) GetSBOMStream(_a0 *api.GetSBOMStreamParams, _a1 api.SecurityModule_GetSBOMStreamServer) error {
+	ret := _m.Called(_a0, _a1)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*api.GetSBOMStreamParams, api.SecurityModule_GetSBOMStreamServer) error); ok {
+		r0 = rf(_a0, _a1)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetStatus provides a mock function with given fields: _a0, _a1
 func (_m *SecurityModuleServer) GetStatus(_a0 context.Context, _a1 *api.GetStatusParams) (*api.Status, error) {
 	ret := _m.Called(_a0, _a1)

@@ -210,6 +210,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.ancestors.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.ancestors.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.ancestors.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.ancestors.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -232,6 +237,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.ancestors.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -275,6 +285,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -297,6 +312,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -334,6 +354,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.parent.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.parent.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.parent.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.parent.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.parent.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -356,6 +381,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`process.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`process.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`process.parent.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`process.parent.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`process.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`process.parent.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`process.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`process.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`process.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`process.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -433,6 +463,11 @@ A file’s permissions were changed
 | [`chmod.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`chmod.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chmod.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chmod.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`chmod.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`chmod.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`chmod.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`chmod.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`chmod.file.path`](#common-fileevent-path-doc) | File's path |
 | [`chmod.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`chmod.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -461,6 +496,11 @@ A file’s owner was changed
 | [`chown.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`chown.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`chown.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`chown.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`chown.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`chown.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`chown.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`chown.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`chown.file.path`](#common-fileevent-path-doc) | File's path |
 | [`chown.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`chown.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -518,6 +558,11 @@ A process was executed or forked
 | [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`exec.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`exec.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`exec.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`exec.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`exec.file.path`](#common-fileevent-path-doc) | File's path |
 | [`exec.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exec.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -540,6 +585,11 @@ A process was executed or forked
 | [`exec.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exec.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exec.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exec.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`exec.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`exec.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`exec.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`exec.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`exec.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`exec.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exec.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -592,6 +642,11 @@ A process was terminated
 | [`exit.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`exit.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`exit.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`exit.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`exit.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`exit.file.path`](#common-fileevent-path-doc) | File's path |
 | [`exit.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exit.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -614,6 +669,11 @@ A process was terminated
 | [`exit.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`exit.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`exit.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`exit.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`exit.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`exit.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`exit.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`exit.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`exit.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`exit.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`exit.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -646,6 +706,11 @@ Create a new name/alias for a file
 | [`link.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`link.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.destination.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`link.file.destination.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`link.file.destination.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`link.file.destination.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`link.file.destination.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`link.file.destination.path`](#common-fileevent-path-doc) | File's path |
 | [`link.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`link.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -661,6 +726,11 @@ Create a new name/alias for a file
 | [`link.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`link.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`link.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`link.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`link.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`link.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`link.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`link.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`link.file.path`](#common-fileevent-path-doc) | File's path |
 | [`link.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`link.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -685,6 +755,11 @@ A new kernel module was loaded
 | [`load_module.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`load_module.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`load_module.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`load_module.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`load_module.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`load_module.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`load_module.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`load_module.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`load_module.file.path`](#common-fileevent-path-doc) | File's path |
 | [`load_module.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`load_module.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -713,6 +788,11 @@ A directory was created
 | [`mkdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`mkdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mkdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mkdir.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`mkdir.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`mkdir.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`mkdir.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`mkdir.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`mkdir.file.path`](#common-fileevent-path-doc) | File's path |
 | [`mkdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`mkdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -737,6 +817,11 @@ A mmap command was executed
 | [`mmap.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`mmap.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`mmap.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`mmap.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`mmap.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`mmap.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`mmap.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`mmap.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`mmap.file.path`](#common-fileevent-path-doc) | File's path |
 | [`mmap.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`mmap.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -787,6 +872,11 @@ A file was opened
 | [`open.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`open.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`open.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`open.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`open.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`open.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`open.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`open.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`open.file.path`](#common-fileevent-path-doc) | File's path |
 | [`open.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`open.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -833,6 +923,11 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.ancestors.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -855,6 +950,11 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.ancestors.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -898,6 +998,11 @@ A ptrace command was executed
 | [`ptrace.tracee.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -920,6 +1025,11 @@ A ptrace command was executed
 | [`ptrace.tracee.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -957,6 +1067,11 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.parent.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.parent.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -979,6 +1094,11 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`ptrace.tracee.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`ptrace.tracee.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`ptrace.tracee.parent.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`ptrace.tracee.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`ptrace.tracee.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`ptrace.tracee.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`ptrace.tracee.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1018,6 +1138,11 @@ Remove extended attributes
 | [`removexattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`removexattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`removexattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`removexattr.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`removexattr.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`removexattr.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`removexattr.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`removexattr.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`removexattr.file.path`](#common-fileevent-path-doc) | File's path |
 | [`removexattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`removexattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1043,6 +1168,11 @@ A file/directory was renamed
 | [`rename.file.destination.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.destination.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.destination.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.destination.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`rename.file.destination.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`rename.file.destination.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`rename.file.destination.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`rename.file.destination.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`rename.file.destination.path`](#common-fileevent-path-doc) | File's path |
 | [`rename.file.destination.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rename.file.destination.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1058,6 +1188,11 @@ A file/directory was renamed
 | [`rename.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rename.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rename.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rename.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`rename.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`rename.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`rename.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`rename.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`rename.file.path`](#common-fileevent-path-doc) | File's path |
 | [`rename.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rename.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1082,6 +1217,11 @@ A directory was removed
 | [`rmdir.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`rmdir.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`rmdir.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`rmdir.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`rmdir.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`rmdir.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`rmdir.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`rmdir.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`rmdir.file.path`](#common-fileevent-path-doc) | File's path |
 | [`rmdir.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`rmdir.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1145,6 +1285,11 @@ Set exteneded attributes
 | [`setxattr.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`setxattr.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`setxattr.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`setxattr.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`setxattr.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`setxattr.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`setxattr.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`setxattr.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`setxattr.file.path`](#common-fileevent-path-doc) | File's path |
 | [`setxattr.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`setxattr.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1190,6 +1335,11 @@ A signal was sent
 | [`signal.target.ancestors.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.ancestors.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.ancestors.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.ancestors.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.ancestors.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.ancestors.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.ancestors.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.ancestors.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1212,6 +1362,11 @@ A signal was sent
 | [`signal.target.ancestors.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.ancestors.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.ancestors.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.ancestors.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.ancestors.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.ancestors.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.ancestors.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.ancestors.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1255,6 +1410,11 @@ A signal was sent
 | [`signal.target.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1277,6 +1437,11 @@ A signal was sent
 | [`signal.target.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1314,6 +1479,11 @@ A signal was sent
 | [`signal.target.parent.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.parent.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.parent.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.parent.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.parent.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.parent.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.parent.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.parent.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1336,6 +1506,11 @@ A signal was sent
 | [`signal.target.parent.interpreter.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`signal.target.parent.interpreter.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`signal.target.parent.interpreter.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`signal.target.parent.interpreter.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`signal.target.parent.interpreter.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`signal.target.parent.interpreter.file.path`](#common-fileevent-path-doc) | File's path |
 | [`signal.target.parent.interpreter.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`signal.target.parent.interpreter.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1374,6 +1549,11 @@ A splice command was executed
 | [`splice.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`splice.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`splice.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`splice.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`splice.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`splice.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`splice.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`splice.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`splice.file.path`](#common-fileevent-path-doc) | File's path |
 | [`splice.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`splice.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1400,6 +1580,11 @@ A file was deleted
 | [`unlink.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`unlink.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`unlink.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`unlink.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`unlink.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`unlink.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`unlink.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`unlink.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`unlink.file.path`](#common-fileevent-path-doc) | File's path |
 | [`unlink.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`unlink.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1434,6 +1619,11 @@ Change file access/modification times
 | [`utimes.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
 | [`utimes.file.name`](#common-fileevent-name-doc) | File's basename |
 | [`utimes.file.name.length`](#common-string-length-doc) | Length of the corresponding string |
+| [`utimes.file.package.major`](#common-fileevent-package-major-doc) | Major version of the package that provided this file |
+| [`utimes.file.package.minor`](#common-fileevent-package-minor-doc) | Minor version of the package that provided this file |
+| [`utimes.file.package.name`](#common-fileevent-package-name-doc) | Name of the package that provided this file |
+| [`utimes.file.package.patch`](#common-fileevent-package-patch-doc) | Patch version of the package that provided this file |
+| [`utimes.file.package.version`](#common-fileevent-package-version-doc) | Full version of the package that provided this file |
 | [`utimes.file.path`](#common-fileevent-path-doc) | File's path |
 | [`utimes.file.path.length`](#common-string-length-doc) | Length of the corresponding string |
 | [`utimes.file.rights`](#common-filefields-rights-doc) | Rights of the file |
@@ -1872,6 +2062,51 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.package.major` {#common-fileevent-package-major-doc}
+Type: int
+
+Definition: Major version of the package that provided this file
+
+`*.package.major` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.minor` {#common-fileevent-package-minor-doc}
+Type: int
+
+Definition: Minor version of the package that provided this file
+
+`*.package.minor` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.name` {#common-fileevent-package-name-doc}
+Type: string
+
+Definition: Name of the package that provided this file
+
+`*.package.name` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.patch` {#common-fileevent-package-patch-doc}
+Type: int
+
+Definition: Patch version of the package that provided this file
+
+`*.package.patch` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.package.version` {#common-fileevent-package-version-doc}
+Type: string
+
+Definition: Full version of the package that provided this file
+
+`*.package.version` has 38 possible prefixes:
+`chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
 
 ### `*.path` {#common-fileevent-path-doc}
 Type: string
