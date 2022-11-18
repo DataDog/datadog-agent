@@ -239,6 +239,7 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 			}
 			log.Warnf("available metrics: %v", metrics)
 			d.config.Metrics = []checkconfig.MetricsConfig{}
+			d.config.AddUptimeMetric()
 			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil, d.config.CollectTopology)
 		}
 	}
@@ -255,13 +256,16 @@ func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfi
 
 	log.Warnf("root tries: %v", root)
 
-	log.Warnf("fetch all oids: %v", len(allOids))
+	root.Print("")
+
+	log.Warnf("fetch all oids: %v", allOids)
 
 	log.Warnf("d.config.Profiles: %v", len(d.config.Profiles))
 
 	var metrics []checkconfig.MetricsConfig
 
-	for _, profileDef := range d.config.Profiles {
+	for profile, profileDef := range d.config.Profiles {
+		log.Warnf("loop profile: %s", profile)
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			newMetricConfig.MetricTags = checkconfig.MetricTagConfigList{}
@@ -271,17 +275,16 @@ func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfi
 				continue
 			}
 			for _, symbol := range metricConfig.Symbols {
+				log.Infof("colum symbol: %s, NodeExist: %t", symbol.OID, root.NodeExist(symbol.OID))
 				if symbol.OID != "" && root.NodeExist(symbol.OID) {
 					newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 				}
 			}
 
 			for _, metricTag := range metricConfig.MetricTags {
-				if metricTag.Column.OID != "" && root.NodeExist(metricTag.Column.OID) {
-					newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
-				}
+				newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
 			}
-			if len(newMetricConfig.MetricTags) > 0 {
+			if len(newMetricConfig.Symbols) > 0 {
 				metrics = append(metrics, newMetricConfig)
 			}
 		}

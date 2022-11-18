@@ -7,19 +7,19 @@ import (
 
 func TestBuildTries(t *testing.T) {
 	trie := BuildTries([]string{"1.2.3", "1.3.4.5"})
-	assert.Equal(t, &oidTrie{
-		children: map[int]*oidTrie{
+	assert.Equal(t, &OidTrie{
+		Children: map[int]*OidTrie{
 			1: {
-				children: map[int]*oidTrie{
+				Children: map[int]*OidTrie{
 					2: {
-						children: map[int]*oidTrie{
+						Children: map[int]*OidTrie{
 							3: {},
 						},
 					},
 					3: {
-						children: map[int]*oidTrie{
+						Children: map[int]*OidTrie{
 							4: {
-								children: map[int]*oidTrie{
+								Children: map[int]*OidTrie{
 									5: {},
 								},
 							},
@@ -35,7 +35,7 @@ func Test_oidTrie_LeafExist(t *testing.T) {
 	trie := BuildTries([]string{"1.2.3", "1.3.4.5"})
 	assert.Equal(t, true, trie.LeafExist("1.2.3"))
 	assert.Equal(t, true, trie.LeafExist("1.3.4.5"))
-	assert.Equal(t, true, trie.LeafExist("1.2"))
+	assert.Equal(t, false, trie.LeafExist("1.2"))
 	assert.Equal(t, false, trie.LeafExist("1.4"))
 }
 
@@ -43,6 +43,6 @@ func Test_oidTrie_NodeExist(t *testing.T) {
 	trie := BuildTries([]string{"1.2.3", "1.3.4.5"})
 	assert.Equal(t, true, trie.NodeExist("1.2.3"))
 	assert.Equal(t, true, trie.NodeExist("1.3.4.5"))
-	assert.Equal(t, false, trie.NodeExist("1.2"))
+	assert.Equal(t, true, trie.NodeExist("1.2"))
 	assert.Equal(t, false, trie.NodeExist("1.4"))
 }

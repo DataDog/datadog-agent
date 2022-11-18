@@ -230,7 +230,7 @@ func (c *CheckConfig) UpdateDeviceIDAndTags() {
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
-func (c *CheckConfig) addUptimeMetric() {
+func (c *CheckConfig) AddUptimeMetric() {
 	c.Metrics = append(c.Metrics, uptimeMetricConfig)
 }
 
@@ -489,7 +489,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.InstanceTags = instance.Tags
 	c.MetricTags = instance.MetricTags
 
-	c.addUptimeMetric()
+	c.AddUptimeMetric()
 
 	c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
 	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))

@@ -1,19 +1,21 @@
 package common
 
 import (
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"strconv"
 	"strings"
 )
 
-type oidTrie struct {
-	children map[int]*oidTrie
+type OidTrie struct {
+	Children map[int]*OidTrie
 }
 
-func newOidTrie() *oidTrie {
-	return &oidTrie{}
+func newOidTrie() *OidTrie {
+	return &OidTrie{}
 }
 
-func BuildTries(allOids []string) *oidTrie {
+func BuildTries(allOids []string) *OidTrie {
 	root := newOidTrie()
 	for _, oid := range allOids {
 		current := root
@@ -24,19 +26,19 @@ func BuildTries(allOids []string) *oidTrie {
 			if err != nil {
 				break
 			}
-			if current.children == nil {
-				current.children = make(map[int]*oidTrie)
+			if current.Children == nil {
+				current.Children = make(map[int]*OidTrie)
 			}
-			if _, ok := current.children[num]; !ok {
-				current.children[num] = newOidTrie()
+			if _, ok := current.Children[num]; !ok {
+				current.Children[num] = newOidTrie()
 			}
-			current = current.children[num]
+			current = current.Children[num]
 		}
 	}
 	return root
 }
 
-func (o *oidTrie) exist(oid string, isLeaf bool) bool {
+func (o *OidTrie) exist(oid string, isLeaf bool) bool {
 	current := o
 	oid = strings.TrimLeft(oid, ".")
 	segs := strings.Split(oid, ".")
@@ -46,11 +48,11 @@ func (o *oidTrie) exist(oid string, isLeaf bool) bool {
 			return false
 		}
 
-		child, ok := current.children[num]
+		child, ok := current.Children[num]
 		if !ok {
 			return false
 		}
-		if len(child.children) == 0 {
+		if len(child.Children) == 0 {
 			return true
 		}
 		current = child
@@ -61,10 +63,19 @@ func (o *oidTrie) exist(oid string, isLeaf bool) bool {
 	return true
 }
 
-func (o *oidTrie) NodeExist(oid string) bool {
+func (o *OidTrie) NodeExist(oid string) bool {
+	return o.exist(oid, false)
+}
+
+func (o *OidTrie) LeafExist(oid string) bool {
 	return o.exist(oid, true)
 }
 
-func (o *oidTrie) LeafExist(oid string) bool {
-	return o.exist(oid, false)
+func (o *OidTrie) Print(prefix string) {
+	if len(o.Children) == 0 {
+		log.Infof("OID: %s", prefix)
+	}
+	for oid, child := range o.Children {
+		child.Print(fmt.Sprintf("%s.%d", prefix, oid))
+	}
 }
