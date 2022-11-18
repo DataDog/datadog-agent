@@ -40,6 +40,19 @@ const (
 	// Python config
 	pythonPathKey   = "PYTHONPATH"
 	pythonPathValue = "/datadog-lib/"
+
+	// Dotnet config
+	dotnetClrEnableProfilingKey   = "CORECLR_ENABLE_PROFILING"
+	dotnetClrEnableProfilingValue = "1"
+
+	dotnetClrProfilerIdKey   = "CORECLR_PROFILER"
+	dotnetClrProfilerIdValue = "{846F5F1C-F9AE-4B07-969E-05C26BC060D8}"
+
+	dotnetClrProfilerPathKey   = "CORECLR_PROFILER_PATH"
+	dotnetClrProfilerPathValue = "/datadog-lib/Datadog.Trace.ClrProfiler.Native.so"
+
+	dotnetTracerHomeKey   = "DD_DOTNET_TRACER_HOME"
+	dotnetTracerHomeValue = "/datadog-lib"
 )
 
 type language string
@@ -48,6 +61,7 @@ const (
 	java   language = "java"
 	js     language = "js"
 	python language = "python"
+	dotnet language = "dotnet"
 
 	libVersionAnnotationKeyFormat    = "admission.datadoghq.com/%s-lib.version"
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
@@ -56,7 +70,7 @@ const (
 )
 
 var (
-	supportedLanguages = []language{java, js, python}
+	supportedLanguages = []language{java, js, python, dotnet}
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -165,6 +179,8 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 			err = injectLibRequirements(pod, lib.ctrName, nodeOptionsKey, jsEnvValFunc)
 		case python:
 			err = injectLibRequirements(pod, lib.ctrName, pythonPathKey, pythonEnvValFunc)
+		case dotnet:
+			err = injectLibRequirementsDotnet(pod, lib.ctrName)
 		default:
 			metrics.LibInjectionErrors.Inc(langStr)
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
@@ -249,6 +265,48 @@ func injectLibRequirements(pod *corev1.Pod, ctrName string, envKey string, envVa
 	return nil
 }
 
+// injectLibRequirements injects the minimal config requirements to enable instrumentation
+func injectLibRequirementsDotnet(pod *corev1.Pod, ctrName string) error {
+	for i, ctr := range pod.Spec.Containers {
+		if ctrName != "" && ctrName != ctr.Name {
+			continue
+		}
+
+		err := setEnvVar(&pod.Spec.Containers[i], dotnetClrEnableProfilingKey, dotnetClrEnableProfilingValue)
+		if err != nil {
+			return err
+		}
+
+		err2 := setEnvVar(&pod.Spec.Containers[i], dotnetClrProfilerIdKey, dotnetClrProfilerIdValue)
+		if err2 != nil {
+			return err2
+		}
+
+		err3 := setEnvVar(&pod.Spec.Containers[i], dotnetClrProfilerPathKey, dotnetClrProfilerPathValue)
+		if err3 != nil {
+			return err3
+		}
+
+		err4 := setEnvVar(&pod.Spec.Containers[i], dotnetTracerHomeKey, dotnetTracerHomeValue)
+		if err4 != nil {
+			return err4
+		}
+
+		volumeAlreadyMounted := false
+		for _, vol := range pod.Spec.Containers[i].VolumeMounts {
+			if vol.Name == volumeName {
+				volumeAlreadyMounted = true
+				break
+			}
+		}
+		if !volumeAlreadyMounted {
+			pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{Name: volumeName, MountPath: mountPath})
+		}
+	}
+
+	return nil
+}
+
 // injectLibConfig injects additional library configuration extracted from pod annotations
 func injectLibConfig(pod *corev1.Pod, lang language) error {
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, lang)
@@ -266,6 +324,27 @@ func injectLibConfig(pod *corev1.Pod, lang language) error {
 	for _, env := range libConfig.ToEnvs() {
 		_ = injectEnv(pod, env)
 	}
+
+	return nil
+}
+
+func setEnvVar(ctr *corev1.Container, envKey string, envValue string) error {
+	index := envIndex(ctr.Env, envKey)
+
+	if index < 0 {
+		ctr.Env = append(ctr.Env, corev1.EnvVar{
+			Name:  envKey,
+			Value: envValue,
+		})
+	} else {
+		if ctr.Env[index].ValueFrom != nil {
+			return fmt.Errorf("%q is defined via ValueFrom", envKey)
+		}
+
+		// TBC: If the values has been set, then we should override any preexisting values
+		ctr.Env[index].Value = envValue
+	}
+
 	return nil
 }
 
