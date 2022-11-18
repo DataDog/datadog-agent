@@ -94,7 +94,7 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 		err := c.runCheckDevice(job)
 		if err != nil {
 			c.workerRunDeviceCheckErrors.Inc()
-			log.Errorf("worker %d : error collecting for device %s: %s", workerID, job.GetIPAddress(), err)
+			log.Errorf("worker %d : error collecting for device %s (total errors: %d): %s", workerID, job.GetIPAddress(), c.workerRunDeviceCheckErrors.Load(), err)
 		}
 	}
 }
