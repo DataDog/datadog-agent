@@ -201,7 +201,7 @@ You must specify a version of the package to install using the syntax: <package>
 	return []*cobra.Command{integrationCmd}
 }
 
-func loadPythonInfo(config config.Component, cliParams *cliParams) error {
+func findAndSetRootDir(config config.Component, cliParams *cliParams) error {
 	rootDir, _ = executable.Folder()
 	for {
 		agentReleaseFile := filepath.Join(rootDir, reqAgentReleaseFile)
@@ -338,7 +338,7 @@ func getConstraintsPath(version string, rootDir string) (string, error) {
 
 func install(config config.Component, cliParams *cliParams) error {
 	cliParams.fallbackVersion(config.GetString("python_version"))
-	if err := loadPythonInfo(config, cliParams); err != nil {
+	if err := findAndSetRootDir(config, cliParams); err != nil {
 		return err
 	}
 
@@ -795,7 +795,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 
 func remove(config config.Component, cliParams *cliParams) error {
 	cliParams.fallbackVersion(config.GetString("python_version"))
-	if err := loadPythonInfo(config, cliParams); err != nil {
+	if err := findAndSetRootDir(config, cliParams); err != nil {
 		return err
 	}
 
@@ -820,7 +820,7 @@ func remove(config config.Component, cliParams *cliParams) error {
 
 func list(config config.Component, cliParams *cliParams) error {
 	cliParams.fallbackVersion(config.GetString("python_version"))
-	if err := loadPythonInfo(config, cliParams); err != nil {
+	if err := findAndSetRootDir(config, cliParams); err != nil {
 		return err
 	}
 
@@ -848,7 +848,7 @@ func list(config config.Component, cliParams *cliParams) error {
 
 func show(config config.Component, cliParams *cliParams) error {
 	cliParams.fallbackVersion(config.GetString("python_version"))
-	if err := loadPythonInfo(config, cliParams); err != nil {
+	if err := findAndSetRootDir(config, cliParams); err != nil {
 		return err
 	}
 
