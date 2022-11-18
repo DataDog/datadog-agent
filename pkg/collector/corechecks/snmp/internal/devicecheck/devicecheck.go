@@ -37,6 +37,7 @@ const (
 	deviceHostnamePrefix = "device:"
 )
 
+// define timeNow as variable to make it possible to mock it during test
 var timeNow = time.Now
 
 // DeviceCheck hold info necessary to collect info for a single device
