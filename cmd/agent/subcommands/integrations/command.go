@@ -15,13 +15,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 
 	"go.uber.org/fx"
 
@@ -80,6 +78,21 @@ type cliParams struct {
 	localWheel         bool
 	thirdParty         bool
 	pythonMajorVersion string
+}
+
+func (cp *cliParams) python() *pythonRunner {
+	var pyPath pythonPath
+	if cp.useSysPython {
+		pyPath = sysPythonPath()
+	} else {
+		pyPath = defaultPythonPath()
+	}
+
+	if cp.pythonMajorVersion == "2" {
+		return python(pyPath.py2)
+	} else {
+		return python(pyPath.py3)
+	}
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -270,7 +283,7 @@ func getCommandPython(cliParams *cliParams) (string, error) {
 		return pythonBin, nil
 	}
 
-	pyPath := filepath.Join(rootDir, getRelPyPath(cliParams))
+	pyPath := filepath.Join(rootDir, getRelPyPath(cliParams.pythonMajorVersion))
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -308,10 +321,10 @@ func validateArgs(args []string, local bool) (string, error) {
 	return packageName, nil
 }
 
-func pip(pythonPath string, verbose int, cmd string, args []string, stdout io.Writer, stderr io.Writer, newCommand commandConstructor) error {
+func pip(python *pythonRunner, cmd string, args []string, verbose int) error {
 	implicitFlags := args[0:]
 	implicitFlags = append(implicitFlags, "--disable-pip-version-check")
-	args = append([]string{"-mpip"}, cmd)
+	args = []string{cmd}
 
 	if verbose > 0 {
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
@@ -320,52 +333,7 @@ func pip(pythonPath string, verbose int, cmd string, args []string, stdout io.Wr
 	// Append implicit flags to the *pip* command
 	args = append(args, implicitFlags...)
 
-	pipCmd := newCommand(pythonPath, args...)
-
-	// Create a waitgroup for waiting for piping goroutines
-	var wg sync.WaitGroup
-
-	// forward the standard output to stdout
-	pipStdout, err := pipCmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		in := bufio.NewScanner(pipStdout)
-		for in.Scan() {
-			fmt.Fprintf(stdout, "%s\n", in.Text())
-		}
-	}()
-
-	// forward the standard error to stderr
-	pipStderr, err := pipCmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		in := bufio.NewScanner(pipStderr)
-		for in.Scan() {
-			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
-		}
-	}()
-
-	if err = pipCmd.Start(); err != nil {
-		return fmt.Errorf("error running command: %v", err)
-	}
-
-	// Wait for both piping goroutines to complete to ensure pipes are exhausted
-	wg.Wait()
-
-	err = pipCmd.Wait()
-	if err != nil {
-		return fmt.Errorf("error running command: %v", err)
-	}
-
-	return nil
+	return python.runModule("pip", args)
 }
 
 func install(config config.Component, cliParams *cliParams) error {
@@ -414,11 +382,7 @@ func install(config config.Component, cliParams *cliParams) error {
 		integration = normalizePackageName(strings.TrimSpace(integration))
 
 		// Install the wheel
-		pythonPath, err := getCommandPython(cliParams)
-		if err != nil {
-			return err
-		}
-		if err := pip(pythonPath, cliParams.verbose, "install", append(pipArgs, wheelPath), os.Stdout, os.Stderr, execCommand); err != nil {
+		if err := pip(cliParams.python(), "install", append(pipArgs, wheelPath), cliParams.verbose); err != nil {
 			return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 		}
 
@@ -475,11 +439,7 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Download the wheel
-	pyPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return err
-	}
-	wheelPath, err := downloadWheel(pyPath, cliParams.verbose, integration, semverToPEP440(versionToInstall), rootLayoutType, os.Stdout, os.Stderr, execCommand)
+	wheelPath, err := downloadWheel(cliParams.python(), integration, semverToPEP440(versionToInstall), rootLayoutType, cliParams.verbose)
 	if err != nil {
 		return fmt.Errorf("error when downloading the wheel for %s %s: %v", integration, versionToInstall, err)
 	}
@@ -499,11 +459,7 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Install the wheel
-	pythonPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return err
-	}
-	if err := pip(pythonPath, cliParams.verbose, "install", append(pipArgs, wheelPath), os.Stdout, os.Stderr, execCommand); err != nil {
+	if err := pip(cliParams.python(), "install", append(pipArgs, wheelPath), cliParams.verbose); err != nil {
 		return fmt.Errorf("error installing wheel %s: %v", wheelPath, err)
 	}
 
@@ -519,9 +475,8 @@ func install(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-func downloadWheel(pythonPath string, verbose int, integration, version, rootLayoutType string, stdout, stderr io.Writer, newCommand commandConstructor) (string, error) {
+func downloadWheel(python *pythonRunner, integration, version, rootLayoutType string, verbose int) (string, error) {
 	args := []string{
-		"-m", downloaderModule,
 		integration,
 		"--version", version,
 		"--type", rootLayoutType,
@@ -530,15 +485,13 @@ func downloadWheel(pythonPath string, verbose int, integration, version, rootLay
 		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", verbose)))
 	}
 
-	downloaderCmd := newCommand(pythonPath, args...)
-
 	// We do all of the following so that when we call our downloader, which will
 	// in turn call in-toto, which will in turn call Python to inspect the wheel,
 	// we will use our embedded Python.
 	// First, get the current PATH as an array.
 	pathArr := filepath.SplitList(os.Getenv("PATH"))
 	// Get the directory of our embedded Python.
-	pythonDir := filepath.Dir(pythonPath)
+	pythonDir := filepath.Dir(python.path)
 	// Prepend this dir to PATH array.
 	pathArr = append([]string{pythonDir}, pathArr...)
 	// Build a new PATH string from the array.
@@ -565,51 +518,15 @@ func downloadWheel(pythonPath string, verbose int, integration, version, rootLay
 
 	// Now, while downloaderCmd itself won't use the new PATH, any child process,
 	// such as in-toto subprocesses, will.
-	downloaderCmd.SetEnv(environ)
-
-	// Create a waitgroup for waiting for piping goroutines
-	var wg sync.WaitGroup
-
-	// forward the standard error to stderr
-	pipStderr, err := downloaderCmd.StderrPipe()
-	if err != nil {
-		return "", err
-	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		in := bufio.NewScanner(pipStderr)
-		for in.Scan() {
-			fmt.Fprintf(stderr, "%s\n", color.RedString(in.Text()))
-		}
-	}()
-
-	// forward the standard output to stdout and save the last line
-	pipStdout, err := downloaderCmd.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
+	python = python.withEnv(environ)
 
 	lastLine := ""
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		in := bufio.NewScanner(pipStdout)
-		for in.Scan() {
-			lastLine = in.Text()
-			fmt.Fprintf(stdout, "%s\n", lastLine)
-		}
-	}()
 
-	if err := downloaderCmd.Start(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+	callback := func(line string) {
+		lastLine = line
 	}
-
-	// Wait for both piping goroutines to complete to ensure pipes are exhausted
-	wg.Wait()
-
-	if err := downloaderCmd.Wait(); err != nil {
-		return "", fmt.Errorf("error running command: %v", err)
+	if err := python.runModuleWithCallback(downloaderModule, args, callback); err != nil {
+		return "", err
 	}
 
 	// The path to the wheel will be at the last line of the output
@@ -896,11 +813,7 @@ func remove(config config.Component, cliParams *cliParams) error {
 	pipArgs = append(pipArgs, pkgName)
 	pipArgs = append(pipArgs, "-y")
 
-	pythonPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return err
-	}
-	return pip(pythonPath, cliParams.verbose, "uninstall", pipArgs, os.Stdout, os.Stderr, execCommand)
+	return pip(cliParams.python(), "uninstall", pipArgs, cliParams.verbose)
 }
 
 func list(config config.Component, cliParams *cliParams) error {
@@ -913,11 +826,8 @@ func list(config config.Component, cliParams *cliParams) error {
 	}
 
 	pipStdo := bytes.NewBuffer(nil)
-	pythonPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return err
-	}
-	err = pip(pythonPath, cliParams.verbose, "list", pipArgs, io.Writer(pipStdo), os.Stderr, execCommand)
+
+	err := pip(cliParams.python(), "list", pipArgs, cliParams.verbose)
 	if err != nil {
 		return err
 	}

@@ -141,10 +141,15 @@ func TestPip(t *testing.T) {
 		return cmdMock
 	}
 
-	err := pip("my/python", 0, "freeze", []string{}, stdout, stderr, newCommand)
+	py := python(defaultPythonPath().py3)
+	py.stdout = stdout
+	py.stderr = stderr
+	py.cmdConstructor = newCommand
+
+	err := pip(py, "freeze", []string{}, 0)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "my/python", cmdMock.name)
-	assert.Equal(t, []string{"-mpip", "freeze", "--disable-pip-version-check"}, cmdMock.arg)
+	assert.Equal(t, defaultPythonPath().py3, cmdMock.name)
+	assert.Equal(t, []string{"-m", "pip", "freeze", "--disable-pip-version-check"}, cmdMock.arg)
 
 	assert.Equal(t, cmdMock.stdout, string(stdout.Bytes()))
 	assert.Equal(t, cmdMock.stderr, string(stderr.Bytes()))
@@ -174,9 +179,14 @@ func TestDownloadWheel(t *testing.T) {
 		return cmdMock
 	}
 
-	wheelPath, err := downloadWheel("my/python", 0, "datadog-integration", "3.1.4", "core", stdout, stderr, newCommand)
+	py := python(defaultPythonPath().py3)
+	py.stdout = stdout
+	py.stderr = stderr
+	py.cmdConstructor = newCommand
+
+	wheelPath, err := downloadWheel(py, "datadog-integration", "3.1.4", "core", 0)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "my/python", cmdMock.name)
+	assert.Equal(t, defaultPythonPath().py3, cmdMock.name)
 	assert.Equal(t, []string{"-m", downloaderModule, "datadog-integration", "--version", "3.1.4", "--type", "core"}, cmdMock.arg)
 
 	assert.Equal(t, cmdMock.stdout, string(stdout.Bytes()))
@@ -186,6 +196,6 @@ func TestDownloadWheel(t *testing.T) {
 	// Test that we get an error when the downloader exists but we can't find the wheel
 	packagePath = filepath.Join(tempdir, "non-existing-wheel")
 	cmdMock.stdout = fmt.Sprintf("%s\n", packagePath)
-	_, err = downloadWheel("my/python", 0, "datadog-integration", "3.1.4", "core", stdout, stderr, newCommand)
+	_, err = downloadWheel(py, "datadog-integration", "3.1.4", "core", 0)
 	assert.Equal(t, fmt.Sprintf("wheel %s does not exist", packagePath), err.Error())
 }

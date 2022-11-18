@@ -19,8 +19,8 @@ const (
 	pythonBin = "python.exe"
 )
 
-func getRelPyPath(cliParams *cliParams) string {
-	return filepath.Join(fmt.Sprintf("embedded%s", cliParams.pythonMajorVersion), pythonBin)
+func getRelPyPath(version string) string {
+	return filepath.Join(fmt.Sprintf("embedded%s", version), pythonBin)
 }
 
 func getRelChecksPath(cliParams *cliParams) (string, error) {
