@@ -75,7 +75,10 @@ namespace Datadog.CustomActions
                         session.Log($"Found {propertyName} in registry {session[propertyName]}");
                     }
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    session.Log($"Exception processing registry value for {propertyName}: {e}");
+                }
             }
             else
             {
