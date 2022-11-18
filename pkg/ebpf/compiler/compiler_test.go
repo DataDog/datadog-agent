@@ -10,6 +10,7 @@ package compiler
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
