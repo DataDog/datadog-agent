@@ -151,7 +151,7 @@ func (m *Module) Start() error {
 	}
 
 	// runtime security is disabled but might be used by other component like process
-	if !m.config.IsEnabled() {
+	if !m.config.IsRuntimeEnabled() {
 		if m.config.EventMonitoring {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
