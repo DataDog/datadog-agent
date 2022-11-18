@@ -76,6 +76,22 @@ func TestShowCommand(t *testing.T) {
 		})
 }
 
+func TestCliParamsFallbackVersion(t *testing.T) {
+	tests := map[string]struct {
+		cp              cliParams
+		configValue     string
+		expectedVersion string
+	}{
+		"falls back to config": {cliParams{}, "2", "2"},
+		"overrides config":     {cliParams{pythonMajorVersion: "3"}, "2", "3"},
+	}
+	for name, test := range tests {
+		t.Logf("Running test %s", name)
+		test.cp.fallbackVersion(test.configValue)
+		assert.Equal(t, test.expectedVersion, test.cp.pythonMajorVersion)
+	}
+}
+
 // A minimal mock for a command that lets us control its output and make assertions
 type CmdMock struct {
 	name             string

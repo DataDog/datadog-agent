@@ -103,6 +103,12 @@ func (cp *cliParams) python() *pythonRunner {
 	}
 }
 
+func (cp *cliParams) fallbackVersion(configValue string) {
+	if cp.pythonMajorVersion == "" {
+		cp.pythonMajorVersion = configValue
+	}
+}
+
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{}
@@ -211,10 +217,6 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 		}
 
 		rootDir = parentDir
-	}
-
-	if cliParams.pythonMajorVersion == "" {
-		cliParams.pythonMajorVersion = config.GetString("python_version")
 	}
 
 	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
@@ -333,6 +335,7 @@ func pip(python *pythonRunner, cmd string, args []string, verbose int) error {
 }
 
 func install(config config.Component, cliParams *cliParams) error {
+	cliParams.fallbackVersion(config.GetString("python_version"))
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -784,6 +787,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 }
 
 func remove(config config.Component, cliParams *cliParams) error {
+	cliParams.fallbackVersion(config.GetString("python_version"))
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -808,6 +812,7 @@ func remove(config config.Component, cliParams *cliParams) error {
 }
 
 func list(config config.Component, cliParams *cliParams) error {
+	cliParams.fallbackVersion(config.GetString("python_version"))
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
@@ -835,6 +840,7 @@ func list(config config.Component, cliParams *cliParams) error {
 }
 
 func show(config config.Component, cliParams *cliParams) error {
+	cliParams.fallbackVersion(config.GetString("python_version"))
 	if err := loadPythonInfo(config, cliParams); err != nil {
 		return err
 	}
