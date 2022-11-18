@@ -14,7 +14,7 @@ static __always_inline int get_cgroup_name(char *buf, size_t sz) {
         return -1;
 
     struct cgroup_subsys_state *css;
-    if (bpf_probe_read(&css, sizeof(css), &css_set->subsys[0]) < 0)
+    if (bpf_probe_read(&css, sizeof(css), &css_set->subsys[memory_cgrp_id]) < 0)
         return -1;
 
     struct cgroup *cgrp;
