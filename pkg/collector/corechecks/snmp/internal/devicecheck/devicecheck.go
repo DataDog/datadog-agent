@@ -203,7 +203,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	if !d.config.AutodetectMetrics {
 		return nil
 	}
-	if d.config.DetectMetricsToCollect {
+	if d.config.DetectMetricsEnabled {
 		detectedMetrics := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
 		d.config.Metrics = []checkconfig.MetricsConfig{}

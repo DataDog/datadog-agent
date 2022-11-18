@@ -311,7 +311,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
-detect_metrics_to_collect: true
+detect_metrics_enabled: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`

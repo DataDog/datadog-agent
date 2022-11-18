@@ -41,6 +41,7 @@ const defaultWorkers = 5
 const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
+const defaultDetectMetricRefreshInterval = 3600
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
@@ -60,16 +61,17 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles                   profileConfigMap `yaml:"profiles"`
-	GlobalMetrics              []MetricsConfig  `yaml:"global_metrics"`
-	OidBatchSize               Number           `yaml:"oid_batch_size"`
-	BulkMaxRepetitions         Number           `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata      Boolean          `yaml:"collect_device_metadata"`
-	CollectTopology            Boolean          `yaml:"collect_topology"`
-	UseDeviceIDAsHostname      Boolean          `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval      int              `yaml:"min_collection_interval"`
-	Namespace                  string           `yaml:"namespace"`
-	CollectAllAvailableMetrics Boolean          `yaml:"detect_metrics_to_collect"`
+	Profiles                    profileConfigMap `yaml:"profiles"`
+	GlobalMetrics               []MetricsConfig  `yaml:"global_metrics"`
+	OidBatchSize                Number           `yaml:"oid_batch_size"`
+	BulkMaxRepetitions          Number           `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata       Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology             Boolean          `yaml:"collect_topology"`
+	UseDeviceIDAsHostname       Boolean          `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval       int              `yaml:"min_collection_interval"`
+	Namespace                   string           `yaml:"namespace"`
+	DetectMetricEnabled         Boolean          `yaml:"detect_metrics_enabled"`
+	DetectMetricRefreshInterval int              `yaml:"detect_metrics_refresh_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -124,9 +126,10 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
 
-	// When DetectMetricsToCollect is enabled, instead of using profile detection using sysObjectID
+	// When DetectMetricsEnabled is enabled, instead of using profile detection using sysObjectID
 	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
-	DetectMetricsToCollect *Boolean `yaml:"detect_metrics_to_collect"`
+	DetectMetricsEnabled        *Boolean `yaml:"detect_metrics_enabled"`
+	DetectMetricRefreshInterval int      `yaml:"detect_metrics_refresh_interval"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -166,7 +169,8 @@ type CheckConfig struct {
 	AutodetectMetrics     bool
 	MinCollectionInterval time.Duration
 
-	DetectMetricsToCollect bool
+	DetectMetricsEnabled        bool
+	DetectMetricRefreshInterval int
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -303,13 +307,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
-
-	if instance.DetectMetricsToCollect != nil {
-		c.DetectMetricsToCollect = bool(*instance.DetectMetricsToCollect)
-	} else {
-		c.DetectMetricsToCollect = bool(initConfig.CollectAllAvailableMetrics)
-	}
-
 	if c.IPAddress == "" && c.Network == "" {
 		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
 	}
@@ -334,6 +331,20 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectTopology = bool(*instance.CollectTopology)
 	} else {
 		c.CollectTopology = bool(initConfig.CollectTopology)
+	}
+
+	if instance.DetectMetricsEnabled != nil {
+		c.DetectMetricsEnabled = bool(*instance.DetectMetricsEnabled)
+	} else {
+		c.DetectMetricsEnabled = bool(initConfig.DetectMetricEnabled)
+	}
+
+	if instance.DetectMetricRefreshInterval != 0 {
+		c.DetectMetricRefreshInterval = int(instance.DetectMetricRefreshInterval)
+	} else if initConfig.DetectMetricRefreshInterval != 0 {
+		c.DetectMetricRefreshInterval = int(initConfig.DetectMetricRefreshInterval)
+	} else {
+		c.DetectMetricRefreshInterval = defaultDetectMetricRefreshInterval
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -614,7 +625,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectMetrics = c.AutodetectMetrics
-	newConfig.DetectMetricsToCollect = c.DetectMetricsToCollect
+	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig
