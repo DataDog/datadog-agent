@@ -13,10 +13,8 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -278,22 +276,6 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	return semver.NewVersion(versionString)
 }
 
-func getCommandPython(cliParams *cliParams) (string, error) {
-	if cliParams.useSysPython {
-		return pythonBin, nil
-	}
-
-	pyPath := filepath.Join(rootDir, getRelPyPath(cliParams.pythonMajorVersion))
-
-	if _, err := os.Stat(pyPath); err != nil {
-		if os.IsNotExist(err) {
-			return pyPath, errors.New("unable to find python executable")
-		}
-	}
-
-	return pyPath, nil
-}
-
 // Ensures a single argument is given and that it's valid as a package in the given context
 func validateArgs(args []string, local bool) (string, error) {
 	if len(args) > 1 {
@@ -413,7 +395,7 @@ func install(config config.Component, cliParams *cliParams) error {
 	if err != nil || versionToInstall == nil {
 		return fmt.Errorf("unable to get version of %s to install: %v", integration, err)
 	}
-	currentVersion, found, err := installedVersion(cliParams, integration)
+	currentVersion, found, err := installedVersion(cliParams.python(), integration)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", integration, err)
 	}
@@ -445,7 +427,7 @@ func install(config config.Component, cliParams *cliParams) error {
 	}
 
 	// Verify datadog-checks-base is compatible with the requirements
-	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
+	shippedBaseVersion, found, err := installedVersion(cliParams.python(), "datadog-checks-base")
 	if err != nil {
 		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
 	}
@@ -659,12 +641,7 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 }
 
 // Return the version of an installed integration and whether or not it was found
-func installedVersion(cliParams *cliParams, integration string) (*semver.Version, bool, error) {
-	pythonPath, err := getCommandPython(cliParams)
-	if err != nil {
-		return nil, false, err
-	}
-
+func installedVersion(python *pythonRunner, integration string) (*semver.Version, bool, error) {
 	validName, err := regexp.MatchString("^[0-9a-z_-]+$", integration)
 	if err != nil {
 		return nil, false, fmt.Errorf("Error validating integration name: %s", err)
@@ -673,18 +650,9 @@ func installedVersion(cliParams *cliParams, integration string) (*semver.Version
 		return nil, false, fmt.Errorf("Cannot get installed version of %s: invalid integration name", integration)
 	}
 
-	pythonCmd := exec.Command(pythonPath, "-c", fmt.Sprintf(integrationVersionScript, integration))
-	output, err := pythonCmd.Output()
-
+	output, err := python.runCommand(fmt.Sprintf(integrationVersionScript, integration))
 	if err != nil {
-		errMsg := ""
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			errMsg = string(exitErr.Stderr)
-		} else {
-			errMsg = err.Error()
-		}
-
-		return nil, false, fmt.Errorf("error executing python: %s", errMsg)
+		return nil, false, err
 	}
 
 	outputStr := strings.TrimSpace(string(output))
@@ -854,7 +822,7 @@ func show(config config.Component, cliParams *cliParams) error {
 	}
 	packageName = normalizePackageName(packageName)
 
-	version, found, err := installedVersion(cliParams, packageName)
+	version, found, err := installedVersion(cliParams.python(), packageName)
 	if err != nil {
 		return fmt.Errorf("could not get current version of %s: %v", packageName, err)
 	} else if !found {

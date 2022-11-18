@@ -10,7 +10,6 @@ package integrations
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -20,16 +19,12 @@ const (
 	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 )
 
-var (
-	pythonMinorVersion string
-)
-
 func getRelPyPath(version string) string {
 	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, version))
 }
 
 func getRelChecksPath(cliParams *cliParams) (string, error) {
-	err := detectPythonMinorVersion(cliParams)
+	pythonMinorVersion, err := detectPythonMinorVersion(cliParams)
 	if err != nil {
 		return "", err
 	}
@@ -38,21 +33,11 @@ func getRelChecksPath(cliParams *cliParams) (string, error) {
 	return filepath.Join("embedded", "lib", pythonDir, "site-packages", "datadog_checks"), nil
 }
 
-func detectPythonMinorVersion(cliParams *cliParams) error {
-	if pythonMinorVersion == "" {
-		pythonPath, err := getCommandPython(cliParams)
-		if err != nil {
-			return err
-		}
+func detectPythonMinorVersion(cliParams *cliParams) (string, error) {
+	minorVersion, err := cliParams.python().runCommand(pythonMinorVersionScript)
 
-		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
-		minorVersion, err := versionCmd.Output()
-		if err != nil {
-			return err
-		}
-
-		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
+	if err != nil {
+		return "", err
 	}
-
-	return nil
+	return strings.TrimSpace(string(minorVersion)), nil
 }

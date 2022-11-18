@@ -199,3 +199,22 @@ func TestDownloadWheel(t *testing.T) {
 	_, err = downloadWheel(py, "datadog-integration", "3.1.4", "core", 0)
 	assert.Equal(t, fmt.Sprintf("wheel %s does not exist", packagePath), err.Error())
 }
+
+func TestInstalledVersion(t *testing.T) {
+	cmdMock := &CmdMock{}
+	cmdMock.stdout = "3.1.4"
+
+	newCommand := func(name string, arg ...string) commandRunner {
+		cmdMock.name = name
+		cmdMock.arg = arg
+		return cmdMock
+	}
+
+	py := python(defaultPythonPath().py3)
+	py.cmdConstructor = newCommand
+
+	version, found, err := installedVersion(py, "datadog-integration")
+	assert.Equal(t, "3.1.4", version.String())
+	assert.Equal(t, true, found)
+	assert.Nil(t, err)
+}

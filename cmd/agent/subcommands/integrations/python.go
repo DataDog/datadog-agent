@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 
@@ -100,6 +101,25 @@ func (p *pythonRunner) runModuleWithCallback(module string, args []string, callb
 	}
 
 	return nil
+}
+
+// Runs a python command (python literal program) and returns its output
+func (p *pythonRunner) runCommand(cmd string) (string, error) {
+	pythonCmd := p.cmdConstructor(p.path, "-c", cmd)
+	output, err := pythonCmd.Output()
+
+	if err != nil {
+		errMsg := ""
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			errMsg = string(exitErr.Stderr)
+		} else {
+			errMsg = err.Error()
+		}
+
+		return "", fmt.Errorf("error executing python: %s", errMsg)
+	}
+
+	return string(output), nil
 }
 
 // Holds paths for both versions of Python
