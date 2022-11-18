@@ -260,11 +260,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			continue
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	for _, id := range undefinedProbes {
@@ -272,11 +271,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			continue
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	return specs, nil
