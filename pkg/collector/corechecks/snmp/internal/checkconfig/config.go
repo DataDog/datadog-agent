@@ -186,28 +186,14 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	c.ProfileDef = &definition
 	c.Profile = profile
 
-	c.Metadata = updateMetadataDefinitionWithDefaults(definition.Metadata, c.CollectTopology)
-	c.Metrics = append(c.Metrics, definition.Metrics...)
-	c.MetricTags = append(c.MetricTags, definition.MetricTags...)
-
-	c.OidConfig.clean()
-	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
-	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
-
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
 	tags = append(tags, definition.StaticTags...)
 	c.ProfileTags = tags
 
-	c.ProfileDef = &definition
-	c.Profile = profile
+	c.UpdateConfigMetadataMetricsAndTags(definition.Metadata, definition.Metrics, definition.MetricTags, c.CollectTopology)
 
-	//metadata := definition.Metadata
-	//metrics := definition.Metrics
-	//metricTags := definition.MetricTags
-	//
-	//c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags, c.CollectTopology)
 	return nil
 }
 
