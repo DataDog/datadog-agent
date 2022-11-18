@@ -162,39 +162,35 @@ func FetchSysObjectID(session Session) (string, error) {
 	return strValue, err
 }
 
-// FetchAllOidsUsingGetNext fetches all available OIDs
-func FetchAllOidsUsingGetNext(session Session) ([]string, error) {
-	// TODO: TEST ME
-	var savedOids []string
-	curReqOid := "1.3"
+// FetchAllOIDsUsingGetNext fetches all available OIDs
+func FetchAllOIDsUsingGetNext(session Session) []string {
+	var savedOIDs []string
+	curRequestOid := "1.0"
+
 	for {
-		log.Infof("GETNEXT %s", curReqOid)
-		results, err := session.GetNext([]string{curReqOid})
+		results, err := session.GetNext([]string{curRequestOid})
 		if err != nil {
-			log.Errorf("GetNext error: %s", err)
-			continue
+			log.Debugf("GetNext error: %s", err)
+			break
 		}
 		variable := results.Variables[0]
 		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
-			log.Info("No more OIDs")
+			log.Debug("No more OIDs to fetch")
 			break
 		}
-		log.Infof("variable %+v", variable)
 		oid := strings.TrimLeft(variable.Name, ".")
 		if strings.HasSuffix(oid, ".0") {
-			curReqOid = oid
+			curRequestOid = oid
 		} else {
 			nextColumn, err := GetNextColumnOid(oid)
 			if err != nil {
-				log.Errorf("Invalid column oid: %s", oid)
-				curReqOid = oid
-				// TODO: TEST ME
+				log.Debugf("Invalid column oid: %s", oid)
+				curRequestOid = oid
 			} else {
-				curReqOid = nextColumn
+				curRequestOid = nextColumn
 			}
 		}
-		savedOids = append(savedOids, oid)
-
+		savedOIDs = append(savedOIDs, oid)
 	}
-	return savedOids, nil
+	return savedOIDs
 }

@@ -24,6 +24,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 )
 
+func createGetNextPacket(oid string, varType gosnmp.Asn1BER, value interface{}) *gosnmp.SnmpPacket {
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  oid,
+				Type:  varType,
+				Value: value,
+			},
+		},
+	}
+	return &packet
+}
+
 func Test_snmpSession_Configure(t *testing.T) {
 	tests := []struct {
 		name                       string
@@ -295,4 +308,71 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	s.Connect()
 	assert.NotEqual(t, logger, gosnmpSess.gosnmpInst.Logger)
 	assert.Equal(t, logger2, gosnmpSess.gosnmpInst.Logger)
+}
+
+func TestFetchAllOIDsUsingGetNext(t *testing.T) {
+	sess := CreateMockSession()
+
+	sess.On("GetNext", []string{"1.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`123`)), nil)
+
+	// Scalar OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.2.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.3.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.3.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`)), nil)
+
+	// Table OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.3"}).Return(createGetNextPacket("1.3.6.1.2.1.1.9.1.3.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.4"}).Return(createGetNextPacket("1.3.6.1.2.1.1.9.1.4.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.5"}).Return(createGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+		"1.3.6.1.2.1.1.3.0",
+		"1.3.6.1.2.1.1.9.1.2.1",
+		"1.3.6.1.2.1.1.9.1.3.1",
+		"1.3.6.1.2.1.1.9.1.4.1",
+	}, resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_invalidColumnOid(t *testing.T) {
+	sess := CreateMockSession()
+
+	sess.On("GetNext", []string{"1.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`)), nil)
+	// Table OIDs
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.3"}).Return(createGetNextPacket("1.2.3.4.5", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.2.3.4.5"}).Return(createGetNextPacket("1.2.3.4.6.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.2.3.4.6.0"}).Return(createGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	assert.Equal(t, []string{
+		"1.3.6.1.2.1.1.9.1.2.1",
+		"1.2.3.4.5",
+		"1.2.3.4.6.0",
+	}, resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_End(t *testing.T) {
+	tests := []struct {
+		valueType gosnmp.Asn1BER
+	}{
+		{
+			valueType: gosnmp.EndOfMibView,
+		},
+		{
+			valueType: gosnmp.EndOfContents,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.valueType.String(), func(t *testing.T) {
+			sess := CreateMockSession()
+			sess.On("GetNext", []string{"1.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`123`)), nil)
+			sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(createGetNextPacket("1.3.6.1.2.1.1.2.0", gosnmp.OctetString, []byte(`123`)), nil)
+			sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(createGetNextPacket("", test.valueType, nil), nil)
+			resultOIDs := FetchAllOIDsUsingGetNext(sess)
+			assert.Equal(t, []string{"1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.2.0"}, resultOIDs)
+
+		})
+	}
 }
