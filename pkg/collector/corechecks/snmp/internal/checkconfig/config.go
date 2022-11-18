@@ -124,6 +124,8 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
 
+	// When DetectMetricsToCollect is enabled, instead of using profile detection using sysObjectID
+	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
 	DetectMetricsToCollect *Boolean `yaml:"detect_metrics_to_collect"`
 }
 
