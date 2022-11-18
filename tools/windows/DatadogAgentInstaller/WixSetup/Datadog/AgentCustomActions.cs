@@ -133,7 +133,7 @@ namespace WixSetup.Datadog
                 {
                     Execute = Execute.deferred
                 }
-                .SetProperties("DDAGENTUSER_FQ_NAME=[DDAGENTUSER_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
         }
     }
 }

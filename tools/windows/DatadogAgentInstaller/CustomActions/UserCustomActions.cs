@@ -157,7 +157,7 @@ namespace Datadog.CustomActions
         {
             try
             {
-                if (!string.IsNullOrEmpty(session["DDAGENTUSER_FQ_NAME"]))
+                if (!string.IsNullOrEmpty(session["DDAGENTUSER_PROCESSED_FQ_NAME"]))
                 {
                   // This function has already executed succesfully
                   return ActionResult.Success;
@@ -198,12 +198,12 @@ namespace Datadog.CustomActions
                 {
                     domain = GetDefaultDomainPart();
                 }
-                session.Log($"Installing with DDAGENTUSER_USERNAME={userName} and DDAGENTUSER_DOMAIN={domain}");
-                // Create new DDAGENTUSER_USERNAME property so we don't modify the property containing
+                session.Log($"Installing with DDAGENTUSER_PROCESSED_NAME={userName} and DDAGENTUSER_PROCESSED_DOMAIN={domain}");
+                // Create new DDAGENTUSER_PROCESSED_NAME property so we don't modify the property containing
                 // the user provided value DDAGENTUSER_NAME
-                session["DDAGENTUSER_USERNAME"] = userName;
-                session["DDAGENTUSER_DOMAIN"] = domain;
-                session["DDAGENTUSER_FQ_NAME"] = $"{domain}\\{userName}";
+                session["DDAGENTUSER_PROCESSED_NAME"] = userName;
+                session["DDAGENTUSER_PROCESSED_DOMAIN"] = domain;
+                session["DDAGENTUSER_PROCESSED_FQ_NAME"] = $"{domain}\\{userName}";
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
@@ -217,7 +217,7 @@ namespace Datadog.CustomActions
                     ddAgentUserPassword = null;
                 }
 
-                session["DDAGENTUSER_PASSWORD"] = ddAgentUserPassword;
+                session["DDAGENTUSER_PROCESSED_PASSWORD"] = ddAgentUserPassword;
             }
             catch (Exception e)
             {
@@ -240,7 +240,7 @@ namespace Datadog.CustomActions
                 SecurityIdentifier securityIdentifier;
                 if (string.IsNullOrEmpty(session.Property("DDAGENTUSER_SID")))
                 {
-                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_FQ_NAME")}";
+                    var ddAgentUserName = $"{session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
                     var userFound = LookupAccountName(ddAgentUserName,
                         out _,
                         out _,
