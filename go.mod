@@ -420,6 +420,7 @@ require (
 require google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 
 require (
+	github.com/DataDog/go-libddwaf v0.0.0-20221118102553-40bc70a9cbc3
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317
 )

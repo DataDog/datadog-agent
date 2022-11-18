@@ -10,7 +10,8 @@ package appsec
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
+	"github.com/DataDog/go-libddwaf"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

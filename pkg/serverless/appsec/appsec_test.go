@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
+	"github.com/DataDog/go-libddwaf"
 	"github.com/stretchr/testify/require"
 )
 

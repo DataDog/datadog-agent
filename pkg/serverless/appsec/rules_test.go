@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/waf"
+	"github.com/DataDog/go-libddwaf"
 )
 
 func TestStaticRule(t *testing.T) {

@@ -15,10 +15,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aws/aws-lambda-go/events"
+
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/aws/aws-lambda-go/events"
 )
 
 // Monitorer is the interface type execpted by the httpsec invocation
