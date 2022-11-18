@@ -44,9 +44,9 @@ func TestSummaryMetrics(t *testing.T) {
 			tags:     []string{"attribute_tag:attribute_value"},
 		},
 		{
-			name:     "summary-with-quantiles-and-attributes",
+			name:     "summary-with-attributes-quantiles",
 			otlpfile: "testdata/otlpdata/summary/with-attributes.json",
-			ddogfile: "testdata/datadogdata/summary/with-attributes-and-quantile_summary.json",
+			ddogfile: "testdata/datadogdata/summary/with-attributes-quantile_summary.json",
 			options: []Option{
 				WithFallbackSourceProvider(testProvider("fallbackHostname")),
 				WithQuantiles(),
