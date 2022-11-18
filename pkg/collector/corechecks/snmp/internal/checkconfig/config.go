@@ -60,17 +60,16 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles              profileConfigMap `yaml:"profiles"`
-	GlobalMetrics         []MetricsConfig  `yaml:"global_metrics"`
-	OidBatchSize          Number           `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
-	CollectTopology       Boolean          `yaml:"collect_topology"`
-	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval int              `yaml:"min_collection_interval"`
-	Namespace             string           `yaml:"namespace"`
-
-	CollectAllAvailableMetrics Boolean `yaml:"collect_all_available_metrics"`
+	Profiles                   profileConfigMap `yaml:"profiles"`
+	GlobalMetrics              []MetricsConfig  `yaml:"global_metrics"`
+	OidBatchSize               Number           `yaml:"oid_batch_size"`
+	BulkMaxRepetitions         Number           `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata      Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology            Boolean          `yaml:"collect_topology"`
+	UseDeviceIDAsHostname      Boolean          `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval      int              `yaml:"min_collection_interval"`
+	Namespace                  string           `yaml:"namespace"`
+	CollectAllAvailableMetrics Boolean          `yaml:"detect_metrics_to_collect"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -125,7 +124,7 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
 
-	CollectAllAvailableMetrics *Boolean `yaml:"collect_all_available_metrics"`
+	DetectMetricsToCollect *Boolean `yaml:"detect_metrics_to_collect"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -303,8 +302,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
 
-	if instance.CollectAllAvailableMetrics != nil {
-		c.CollectAllAvailableMetrics = bool(*instance.CollectAllAvailableMetrics)
+	if instance.DetectMetricsToCollect != nil {
+		c.CollectAllAvailableMetrics = bool(*instance.DetectMetricsToCollect)
 	} else {
 		c.CollectAllAvailableMetrics = bool(initConfig.CollectAllAvailableMetrics)
 	}
