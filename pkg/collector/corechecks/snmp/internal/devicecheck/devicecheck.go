@@ -44,6 +44,7 @@ type DeviceCheck struct {
 	session                session.Session
 	sessionCloseErrorCount *atomic.Uint64
 	savedDynamicTags       []string
+	nextAutodetectMetrics  time.Time
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -59,6 +60,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		config:                 newConfig,
 		session:                sess,
 		sessionCloseErrorCount: atomic.NewUint64(0),
+		nextAutodetectMetrics:  time.Now(),
 	}, nil
 }
 
@@ -200,25 +202,24 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 }
 
 func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	if !d.config.AutodetectMetrics {
-		return nil
-	}
-	if d.config.DetectMetricsEnabled {
+	if d.config.DetectMetricsEnabled && d.nextAutodetectMetrics.Before(time.Now()) {
+		d.nextAutodetectMetrics = time.Now().Add(time.Duration(d.config.DetectMetricRefreshInterval) * time.Second)
+
 		detectedMetrics := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
 		d.config.Metrics = []checkconfig.MetricsConfig{}
 		d.config.AddUptimeMetric()
 		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
-
-		// TODO: Mechanism to invalidate
-		d.config.AutodetectMetrics = false
 	} else {
+		if !d.config.AutodetectProfile {
+			return nil
+		}
 		// detect using profile
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		d.config.AutodetectMetrics = false // do not try to auto detect profile next time
+		d.config.AutodetectProfile = false // do not try to auto detect profile next time
 
 		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {

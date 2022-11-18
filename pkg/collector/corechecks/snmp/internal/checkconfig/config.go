@@ -166,7 +166,7 @@ type CheckConfig struct {
 	DeviceIDTags          []string
 	ResolvedSubnetName    string
 	Namespace             string
-	AutodetectMetrics     bool
+	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
 
 	DetectMetricsEnabled        bool
@@ -463,9 +463,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// profile configs
 	profile := instance.Profile
 	if profile != "" || len(c.Metrics) > 0 {
-		c.AutodetectMetrics = false
+		c.AutodetectProfile = false
 	} else {
-		c.AutodetectMetrics = true
+		c.AutodetectProfile = true
 	}
 
 	// metrics Configs
@@ -624,7 +624,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
-	newConfig.AutodetectMetrics = c.AutodetectMetrics
+	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
