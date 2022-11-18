@@ -51,14 +51,14 @@ func (p *pythonRunner) runModule(module string, args []string) error {
 // Runs a python module with the interpreter, calling a callback on every stdout line
 func (p *pythonRunner) runModuleWithCallback(module string, args []string, callback func(string)) error {
 	args = append([]string{"-m", module}, args...)
-	pipCmd := p.cmdConstructor(p.path, args...)
-	pipCmd.SetEnv(p.env)
+	pythonCmd := p.cmdConstructor(p.path, args...)
+	pythonCmd.SetEnv(p.env)
 
 	// Create a waitgroup for waiting for piping goroutines
 	var wg sync.WaitGroup
 
 	// forward the standard output to stdout
-	pipStdout, err := pipCmd.StdoutPipe()
+	pipStdout, err := pythonCmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (p *pythonRunner) runModuleWithCallback(module string, args []string, callb
 	}()
 
 	// forward the standard error to stderr
-	pipStderr, err := pipCmd.StderrPipe()
+	pipStderr, err := pythonCmd.StderrPipe()
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (p *pythonRunner) runModuleWithCallback(module string, args []string, callb
 		}
 	}()
 
-	if err = pipCmd.Start(); err != nil {
+	if err = pythonCmd.Start(); err != nil {
 		wg.Wait()
 		return fmt.Errorf("error running command: %v", err)
 	}
@@ -95,7 +95,7 @@ func (p *pythonRunner) runModuleWithCallback(module string, args []string, callb
 	// Wait for both piping goroutines to complete to ensure pipes are exhausted
 	wg.Wait()
 
-	err = pipCmd.Wait()
+	err = pythonCmd.Wait()
 	if err != nil {
 		return fmt.Errorf("error running command: %v", err)
 	}
