@@ -1,3 +1,4 @@
+#define _GNU_SOURCE // Needed for the TEMP_FAILURE_RETRY macro.
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -8,6 +9,8 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
+#include <linux/wait.h>
 #include <linux/sched.h>
 #include <seccomp.h>
 
@@ -18,7 +21,7 @@ static void cleanup_fd(int *dirfd) {
 }
 
 static bool test_faccessat2(void) {
-    int dirfd __attribute__((__cleanup__(cleanup_fd))) = open("/", O_CLOEXEC | O_DIRECTORY);
+    int dirfd __attribute__((__cleanup__(cleanup_fd))) = TEMP_FAILURE_RETRY(open("/", O_CLOEXEC | O_DIRECTORY));
     if (dirfd < 0)
         perror("failed to open \"/\"");
 
@@ -37,8 +40,11 @@ static bool test_faccessat2(void) {
 }
 
 static bool test_clone3(void) {
+    int child_pidfd;
     struct clone_args cl_args = {
-        .flags = 0
+        .exit_signal = SIGCHLD,
+        .flags = CLONE_PIDFD,
+        .pidfd = (uint64_t)&child_pidfd
     };
 
     long rc = syscall(SYS_clone3, &cl_args, sizeof(cl_args));
@@ -47,8 +53,16 @@ static bool test_clone3(void) {
     if (rc == 0)
         exit(EXIT_SUCCESS);
 
-    // Success or not implemented
-    else if (rc > 0 || errno == ENOSYS)
+    // Success
+    else if (rc > 0) {
+        siginfo_t infop;
+        if (TEMP_FAILURE_RETRY(waitid(P_PIDFD, child_pidfd, &infop, WEXITED)) < 0)
+            perror("failed to waitid");
+        return true;
+    }
+
+    // Not implemented
+    else if (rc < 0 && errno == ENOSYS)
         return true;
 
     // Blocked by docker seccomp profile

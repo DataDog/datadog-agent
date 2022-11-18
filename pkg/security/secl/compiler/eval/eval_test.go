@@ -87,7 +87,7 @@ func TestStringError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -102,7 +102,7 @@ func TestIntError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -117,7 +117,7 @@ func TestBoolError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
@@ -1339,6 +1339,37 @@ func TestOpOverridePartials(t *testing.T) {
 
 		if !result != test.IsDiscarder {
 			t.Fatalf("expected result `%t` for `%s`, got `%t`\n%s", test.IsDiscarder, test.Field, result, test.Expr)
+		}
+	}
+}
+
+func TestFieldValues(t *testing.T) {
+	tests := []struct {
+		Expr     string
+		Field    string
+		Expected FieldValue
+	}{
+		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
+		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
+		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
+	}
+
+	for _, test := range tests {
+		model := &testModel{}
+
+		replCtx := newReplCtxWithParams(testConstants, nil)
+		rule, err := parseRule(test.Expr, model, replCtx)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		values := rule.GetFieldValues(test.Field)
+		if len(values) != 1 {
+			t.Fatalf("expected field value not found: %+v", test.Expected)
+		}
+		if values[0].Type != test.Expected.Type || values[0].Value != test.Expected.Value {
+			t.Errorf("field values differ %+v != %+v", test.Expected, values[0])
 		}
 	}
 }

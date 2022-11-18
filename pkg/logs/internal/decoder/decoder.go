@@ -82,13 +82,13 @@ type Decoder struct {
 }
 
 // InitializeDecoder returns a properly initialized Decoder
-func InitializeDecoder(source *sources.LogSource, parser parsers.Parser) *Decoder {
+func InitializeDecoder(source *sources.ReplaceableSource, parser parsers.Parser) *Decoder {
 	return NewDecoderWithFraming(source, parser, framer.UTF8Newline, nil)
 }
 
 // Since a single source can have multiple file tailers - each with their own decoder instance:
 // make sure we sync info providers from all of the decoders so the status page displays it correctly.
-func syncSourceInfo(source *sources.LogSource, lh *MultiLineHandler) {
+func syncSourceInfo(source *sources.ReplaceableSource, lh *MultiLineHandler) {
 	if existingInfo, ok := source.GetInfo(lh.countInfo.InfoKey()).(*status.CountInfo); ok {
 		// override the new decoders info to the instance we are already using
 		lh.countInfo = existingInfo
@@ -105,7 +105,7 @@ func syncSourceInfo(source *sources.LogSource, lh *MultiLineHandler) {
 }
 
 // NewDecoderWithFraming initialize a decoder with given endline strategy.
-func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
+func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Parser, framing framer.Framing, multiLinePattern *regexp.Regexp) *Decoder {
 	inputChan := make(chan *Input)
 	outputChan := make(chan *Message)
 	lineLimit := defaultContentLenLimit
@@ -115,7 +115,7 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 
 	// construct the lineHandler
 	var lineHandler LineHandler
-	for _, rule := range source.Config.ProcessingRules {
+	for _, rule := range source.Config().ProcessingRules {
 		if rule.Type == config.MultiLine {
 			lh := NewMultiLineHandler(outputFn, rule.Regex, config.AggregationTimeout(), lineLimit, false)
 			syncSourceInfo(source, lh)
@@ -123,7 +123,7 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 		}
 	}
 	if lineHandler == nil {
-		if source.Config.AutoMultiLineEnabled() {
+		if source.Config().AutoMultiLineEnabled() {
 			log.Infof("Auto multi line log detection enabled")
 
 			if multiLinePattern != nil {
@@ -157,12 +157,12 @@ func NewDecoderWithFraming(source *sources.LogSource, parser parsers.Parser, fra
 	return New(inputChan, outputChan, framer, lineParser, lineHandler, detectedPattern)
 }
 
-func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *sources.LogSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
-	linesToSample := source.Config.AutoMultiLineSampleSize
+func buildAutoMultilineHandlerFromConfig(outputFn func(*Message), lineLimit int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern) *AutoMultilineHandler {
+	linesToSample := source.Config().AutoMultiLineSampleSize
 	if linesToSample <= 0 {
 		linesToSample = dd_conf.Datadog.GetInt("logs_config.auto_multi_line_default_sample_size")
 	}
-	matchThreshold := source.Config.AutoMultiLineMatchThreshold
+	matchThreshold := source.Config().AutoMultiLineMatchThreshold
 	if matchThreshold == 0 {
 		matchThreshold = dd_conf.Datadog.GetFloat64("logs_config.auto_multi_line_default_match_threshold")
 	}

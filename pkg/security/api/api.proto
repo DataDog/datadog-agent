@@ -87,6 +87,13 @@ message EnvironmentStatus {
     bool UseRingBuffer = 5;
 }
 
+/*Discarders*/
+message DumpDiscardersParams{}
+
+message DumpDiscardersMessage{
+    string DumpFilename = 1;
+}
+
 // Activity dump requests
 
 message StorageRequestParams {
@@ -109,15 +116,17 @@ message ActivityDumpMetadataMessage {
     string AgentCommit = 2;
     string KernelVersion = 3;
     string LinuxDistribution = 4;
+    string Arch = 5;
 
-    string Name = 5;
-    string ActivityDumpVersion = 6;
-    bool DifferentiateArgs = 7;
-    string Comm = 8;
-    string ContainerID = 9;
-    string Start = 10;
-    string Timeout = 11;
-    uint64 Size = 12;
+    string Name = 6;
+    string ProtobufVersion = 7;
+    bool DifferentiateArgs = 8;
+    string Comm = 9;
+    string ContainerID = 10;
+    string Start = 11;
+    string Timeout = 12;
+    uint64 Size = 13;
+    string Serialization = 14;
 }
 
 message StorageRequestMessage {
@@ -145,7 +154,9 @@ message ActivityDumpListMessage {
 }
 
 message ActivityDumpStopParams {
-    string Comm = 2;
+    string Name = 1;
+    string ContainerID = 2;
+    string Comm = 3;
 }
 
 message ActivityDumpStopMessage {
@@ -166,7 +177,6 @@ message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
     ActivityDumpMessage Dump = 1;
-    bool IsCompressed = 2;
     bytes Data = 3;
 }
 
@@ -179,6 +189,7 @@ service SecurityModule {
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
+    rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}
 
     // Activity dumps
     rpc DumpActivity(ActivityDumpParams) returns (ActivityDumpMessage) {}

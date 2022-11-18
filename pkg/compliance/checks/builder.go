@@ -15,6 +15,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-policy-agent/opa/metrics"
+	"github.com/open-policy-agent/opa/rego"
+	cache "github.com/patrickmn/go-cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
@@ -22,10 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	cache "github.com/patrickmn/go-cache"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder
@@ -67,6 +71,14 @@ func WithInterval(interval time.Duration) BuilderOption {
 func WithMaxEvents(max int) BuilderOption {
 	return func(b *builder) error {
 		b.maxEventsPerRun = max
+		return nil
+	}
+}
+
+// WithStatsd configures the statsd client
+func WithStatsd(client statsd.ClientInterface) BuilderOption {
+	return func(b *builder) error {
+		b.statsdClient = client
 		return nil
 	}
 }
@@ -288,8 +300,9 @@ type builder struct {
 	checkInterval   time.Duration
 	maxEventsPerRun int
 
-	reporter   event.Reporter
-	valueCache *cache.Cache
+	reporter     event.Reporter
+	valueCache   *cache.Cache
+	statsdClient statsd.ClientInterface
 
 	hostname     string
 	pathMapper   *pathMapper
@@ -589,6 +602,10 @@ func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSel
 		}
 	case compliance.KubernetesNodeScope:
 		if config.IsKubernetes() {
+			ignoreHostSelectors := config.Datadog.GetBool("compliance_config.ignore_host_selectors")
+			if ignoreHostSelectors {
+				return true, nil
+			}
 			return b.isKubernetesNodeEligible(hostSelector)
 		}
 		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
@@ -698,12 +715,27 @@ func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.Rule
 }
 
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
-	regoCheck := &regoCheck{
-		ruleID: rule.ID,
-		inputs: rule.Inputs,
+	var m metrics.Metrics
+
+	m = newRegoTelemetry()
+	if config.Datadog.GetBool("compliance_config.opa.metrics.enabled") {
+		m = newRegoMetrics(m, b.statsdClient)
 	}
 
-	if err := regoCheck.compileRule(rule, ruleScope, meta); err != nil {
+	regoCheck := &regoCheck{
+		ruleID:    rule.ID,
+		inputs:    rule.Inputs,
+		ruleScope: ruleScope,
+		metrics:   m,
+	}
+
+	regoOptions := append([]func(r *rego.Rego){
+		rego.EnablePrintStatements(true),
+		rego.PrintHook(&regoPrintHook{}),
+		rego.Metrics(m),
+	}, regoBuiltins...)
+
+	if err := regoCheck.compileRule(rule, regoOptions, meta); err != nil {
 		return nil, err
 	}
 
@@ -927,10 +959,12 @@ func valueFromProcessFlag(name string, flag string) (interface{}, error) {
 	}
 
 	matchedProcesses := processes.findProcessesByName(name)
-	for _, mp := range matchedProcesses {
-		flagValues := parseProcessCmdLine(mp.Cmdline)
+	if len(matchedProcesses) != 0 {
+		cmdLine := matchedProcesses[0].CmdlineSlice()
+		flagValues := parseProcessCmdLine(cmdLine)
 		return flagValues[flag], nil
 	}
+
 	return "", fmt.Errorf("failed to find process: %s", name)
 }
 

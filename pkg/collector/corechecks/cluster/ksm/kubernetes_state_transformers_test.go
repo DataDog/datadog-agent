@@ -861,6 +861,48 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:ContainerCreating"},
 			},
 		},
+		{
+			name: "CreateContainerError",
+			args: args{
+				name: "kube_pod_container_status_waiting_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "CreateContainerError",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerError"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.waiting",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerError"},
+			},
+		},
+		{
+			name: "InvalidImageName",
+			args: args{
+				name: "kube_pod_container_status_waiting_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "InvalidImageName",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:InvalidImageName"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.waiting",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:InvalidImageName"},
+			},
+		},
 	}
 	for _, tt := range tests {
 		s := mocksender.NewMockSender("ksm")

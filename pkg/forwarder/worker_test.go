@@ -14,9 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewWorker(t *testing.T) {

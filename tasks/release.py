@@ -57,11 +57,11 @@ def add_prelude(ctx, version):
 
 
 @task
-def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
+def add_dca_prelude(ctx, agent7_version, agent6_version=""):
     """
     Release of the Cluster Agent should be pinned to a version of the Agent.
     """
-    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{version}")
+    res = ctx.run(f"reno --rel-notes-dir releasenotes-dca new prelude-release-{agent7_version}")
     new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
 
     if agent6_version != "":
@@ -79,7 +79,7 @@ def add_dca_prelude(ctx, version, agent7_version, agent6_version=""):
 
     ctx.run(f"git add {new_releasenote}")
     print("\nCommit this with:")
-    print(f"git commit -m \"Add prelude for {version} release\"")
+    print(f"git commit -m \"Add prelude for {agent7_version} release\"")
 
 
 @task
@@ -100,94 +100,16 @@ def add_installscript_prelude(ctx, version):
 
 
 @task
-def update_dca_changelog(ctx, new_version, agent_version):
-    """
-    Quick task to generate the new CHANGELOG-DCA using reno when releasing a minor
-    version (linux/macOS only).
-    """
-    new_version_int = list(map(int, new_version.split(".")))
-
-    if len(new_version_int) != 3:
-        print(f"Error: invalid version: {new_version_int}")
-        raise Exit(1)
-
-    agent_version_int = list(map(int, agent_version.split(".")))
-
-    if len(agent_version_int) != 3:
-        print(f"Error: invalid version: {agent_version_int}")
-        raise Exit(1)
-
-    # let's avoid losing uncommitted change with 'git reset --hard'
-    try:
-        ctx.run("git diff --exit-code HEAD", hide="both")
-    except Failure:
-        print("Error: You have uncommitted changes, please commit or stash before using update-dca-changelog")
-        return
-
-    # make sure we are up to date
-    ctx.run("git fetch")
-
-    # let's check that the tag for the new version is present (needed by reno)
-    try:
-        ctx.run(f"git tag --list | grep dca-{new_version}")
-    except Failure:
-        print(f"Missing 'dca-{new_version}' git tag: mandatory to use 'reno'")
-        raise
-
-    # Cluster agent minor releases are in sync with the agent's, bugfixes are not necessarily.
-    # We rely on the agent's devel tag to enforce the sync between both releases.
-    branching_point_agent = f"{agent_version_int[0]}.{agent_version_int[1]}.0-devel"
-    previous_minor_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1] - 1}.X"
-    log_result = ctx.run(
-        f"git log {branching_point_agent}...remotes/origin/{previous_minor_branchoff} --name-only --oneline |             grep releasenotes-dca/notes/ || true"
-    )
-    log_result = log_result.stdout.replace('\n', ' ').strip()
-
-    # Do not include release notes that were added in the previous minor release branch (previous_minor_branchoff)
-    # and the branch-off points for the current release (pined by the agent's devel tag)
-    if len(log_result) > 0:
-        ctx.run(f"git rm --ignore-unmatch {log_result}")
-
-    current_branchoff = f"dca-{new_version_int[0]}.{new_version_int[1]}.X"
-    # generate the new changelog. Specifying branch in case this is run outside the release branch that contains the tag.
-    ctx.run(
-        f"reno --rel-notes-dir releasenotes-dca report             --ignore-cache             --branch {current_branchoff}             --version dca-{new_version}             --no-show-source > /tmp/new_changelog-dca.rst"
-    )
-
-    # reseting git
-    ctx.run("git reset --hard HEAD")
-
-    # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
-        sed_i_arg = "-i ''"
-    # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-DCA.rst")
-
-    if sys.platform != 'darwin':
-        # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-        ctx.run(
-            "sed -z {0} -e 's/dca-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-dca.rst".format(  # noqa: FS002
-                sed_i_arg, new_version, '=' * len(new_version)
-            )
-        )
-
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG-DCA.rst >> /tmp/new_changelog-dca.rst && mv /tmp/new_changelog-dca.rst CHANGELOG-DCA.rst")
-
-    # commit new CHANGELOG
-    ctx.run("git add CHANGELOG-DCA.rst")
-
-    print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
-
-
-@task
-def update_changelog(ctx, new_version):
+def update_changelog(ctx, new_version, target="all"):
     """
     Quick task to generate the new CHANGELOG using reno when releasing a minor
     version (linux/macOS only).
+    By default generates Agent and Cluster Agent changelogs.
+    Use target == "agent" or target == "cluster-agent" to only generate one or the other.
     """
+    generate_agent = target in ["all", "agent"]
+    generate_cluster_agent = target in ["all", "cluster-agent"]
+
     new_version_int = list(map(int, new_version.split(".")))
 
     if len(new_version_int) != 3:
@@ -211,13 +133,22 @@ def update_changelog(ctx, new_version):
         print(f"Missing '{new_version}' git tag: mandatory to use 'reno'")
         raise
 
+    if generate_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes", "CHANGELOG.rst")
+    if generate_cluster_agent:
+        update_changelog_generic(ctx, new_version, "releasenotes-dca", "CHANGELOG-DCA.rst")
+
+
+def update_changelog_generic(ctx, new_version, changelog_dir, changelog_file):
+    new_version_int = list(map(int, new_version.split(".")))
+
     # removing releasenotes from bugfix on the old minor.
     branching_point = f"{new_version_int[0]}.{new_version_int[1]}.0-devel"
     previous_minor = f"{new_version_int[0]}.{new_version_int[1] - 1}"
     if previous_minor == "7.15":
         previous_minor = "6.15"  # 7.15 is the first release in the 7.x series
     log_result = ctx.run(
-        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline |             grep releasenotes/notes/ || true"
+        f"git log {branching_point}...remotes/origin/{previous_minor}.x --name-only --oneline | grep {changelog_dir}/notes/ || true"
     )
     log_result = log_result.stdout.replace('\n', ' ').strip()
     if len(log_result) > 0:
@@ -225,15 +156,17 @@ def update_changelog(ctx, new_version):
 
     # generate the new changelog
     ctx.run(
-        f"reno report             --ignore-cache             --earliest-version {branching_point}             --version {new_version}             --no-show-source > /tmp/new_changelog.rst"
+        f"reno --rel-notes-dir {changelog_dir} report --ignore-cache --earliest-version {branching_point} --version {new_version} --no-show-source > /tmp/new_changelog.rst"
     )
 
-    # reseting git
-    ctx.run("git reset --hard HEAD")
+    ctx.run(f"git checkout HEAD -- {changelog_dir}")
 
     # mac's `sed` has a different syntax for the "-i" paramter
-    sed_i_arg = "-i"
-    if sys.platform == 'darwin':
+    # GNU sed has a `--version` parameter while BSD sed does not, using that to do proper detection.
+    try:
+        ctx.run("sed --version", hide='both')
+        sed_i_arg = "-i"
+    except Failure:
         sed_i_arg = "-i ''"
     # check whether there is a v6 tag on the same v7 tag, if so add the v6 tag to the release title
     v6_tag = ""
@@ -242,16 +175,16 @@ def update_changelog(ctx, new_version):
         if v6_tag:
             ctx.run(f"sed {sed_i_arg} -E 's#^{new_version}#{new_version} / {v6_tag}#' /tmp/new_changelog.rst")
     # remove the old header from the existing changelog
-    ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG.rst")
+    ctx.run(f"sed {sed_i_arg} -e '1,4d' {changelog_file}")
 
-    # merging to CHANGELOG.rst
-    ctx.run("cat CHANGELOG.rst >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst CHANGELOG.rst")
+    # merging to <changelog_file>
+    ctx.run(f"cat {changelog_file} >> /tmp/new_changelog.rst && mv /tmp/new_changelog.rst {changelog_file}")
 
     # commit new CHANGELOG
-    ctx.run("git add CHANGELOG.rst")
+    ctx.run(f"git add {changelog_file}")
 
     print("\nCommit this with:")
-    print(f"git commit -m \"[DCA] Update CHANGELOG for {new_version}\"")
+    print(f"git commit -m \"Update {changelog_file} for {new_version}\"")
 
 
 @task
@@ -785,9 +718,11 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         "jmxfetch", release_json, new_version.major, github_token, "JMXFETCH_VERSION"
     )
 
-    security_agent_policies_version = _fetch_independent_dependency_repo_version(
-        "security-agent-policies", release_json, new_version.major, github_token, "SECURITY_AGENT_POLICIES_VERSION"
+    # security agent policies are updated directly by the CWS team
+    security_agent_policies_version = _get_release_version_from_release_json(
+        release_json, new_version.major, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
     )
+    print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
         release_json, new_version.major, is_first_rc=(new_version.rc == 1)

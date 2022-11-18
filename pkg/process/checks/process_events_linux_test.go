@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package checks
 
@@ -24,11 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/api/mocks"
-	secmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 type eventTestData struct {
-	rawEvent     *model.ProcessMonitoringEvent
+	rawEvent     *model.ProcessEvent
 	payloadEvent *payload.ProcessEvent
 }
 
@@ -36,38 +35,24 @@ func mockedData(t *testing.T) []*eventTestData {
 	t.Helper()
 	return []*eventTestData{
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exec",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exec"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:10Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 42,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/curl",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
-							ExitTime: time.Time{},
-						},
-					},
+				Pid:            42,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/curl",
+				Cmdline: []string{
+					"curl",
+					"localhost:6062/debug/vars",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
+				ExitTime: time.Time{},
 			},
 			payloadEvent: &payload.ProcessEvent{
 				Type:           payload.ProcEventType_exec,
@@ -93,38 +78,25 @@ func mockedData(t *testing.T) []*eventTestData {
 			},
 		},
 		{
-			rawEvent: &model.ProcessMonitoringEvent{
-				EventType:      "exit",
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exit"),
 				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:20Z"),
-				ProcessCacheEntry: &secmodel.ProcessCacheEntry{
-					ProcessContext: secmodel.ProcessContext{
-						Process: secmodel.Process{
-							PIDContext: secmodel.PIDContext{
-								Pid: 42,
-							},
-							ContainerID: "0123456789abcdef",
-							PPid:        1,
-							Credentials: secmodel.Credentials{
-								UID:   100,
-								GID:   100,
-								User:  "user",
-								Group: "mygroup",
-							},
-							FileEvent: secmodel.FileEvent{
-								PathnameStr: "/usr/bin/curl",
-							},
-							ArgsEntry: &secmodel.ArgsEntry{
-								Values: []string{
-									"curl",
-									"localhost:6062/debug/vars",
-								},
-							},
-							ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
-							ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
-							ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
-						},
-					},
+				Pid:            42,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/curl",
+				Cmdline: []string{
+					"curl",
+					"localhost:6062/debug/vars",
 				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:01Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z"),
+				ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
+				ExitCode: 0,
 			},
 			payloadEvent: &payload.ProcessEvent{
 				Type:           payload.ProcEventType_exit,
@@ -145,6 +117,95 @@ func mockedData(t *testing.T) []*eventTestData {
 					Exit: &payload.ProcessExit{
 						ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:02Z").UnixNano(),
 						ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z").UnixNano(),
+						ExitCode: 0,
+					},
+				},
+			},
+		},
+		{
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exec"),
+				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z"),
+				Pid:            1010,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/ls",
+				Cmdline: []string{
+					"ls",
+					"invalid-path",
+				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
+				ExitTime: time.Time{},
+			},
+			payloadEvent: &payload.ProcessEvent{
+				Type:           payload.ProcEventType_exec,
+				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z").UnixNano(),
+				Pid:            1010,
+				ContainerId:    "0123456789abcdef",
+				Command: &payload.Command{
+					Exe:  "/usr/bin/ls",
+					Args: []string{"ls", "invalid-path"},
+					Ppid: 1,
+				},
+				User: &payload.ProcessUser{
+					Name: "user",
+					Uid:  100,
+					Gid:  100,
+				},
+				TypedEvent: &payload.ProcessEvent_Exec{
+					Exec: &payload.ProcessExec{
+						ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z").UnixNano(),
+						ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z").UnixNano(),
+					},
+				},
+			},
+		},
+		{
+			rawEvent: &model.ProcessEvent{
+				EventType:      model.NewEventType("exit"),
+				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z"),
+				Pid:            1010,
+				ContainerID:    "0123456789abcdef",
+				Ppid:           1,
+				UID:            100,
+				GID:            100,
+				Username:       "user",
+				Group:          "mygroup",
+				Exe:            "/usr/bin/ls",
+				Cmdline: []string{
+					"ls",
+					"invalid-path",
+				},
+				ForkTime: parseRFC3339Time(t, "2022-06-12T12:00:11Z"),
+				ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z"),
+				ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:13Z"),
+				ExitCode: 2,
+			},
+			payloadEvent: &payload.ProcessEvent{
+				Type:           payload.ProcEventType_exit,
+				CollectionTime: parseRFC3339Time(t, "2022-06-12T12:00:14Z").UnixNano(),
+				Pid:            1010,
+				ContainerId:    "0123456789abcdef",
+				Command: &payload.Command{
+					Exe:  "/usr/bin/ls",
+					Args: []string{"ls", "invalid-path"},
+					Ppid: 1,
+				},
+				User: &payload.ProcessUser{
+					Name: "user",
+					Uid:  100,
+					Gid:  100,
+				},
+				TypedEvent: &payload.ProcessEvent_Exit{
+					Exit: &payload.ProcessExit{
+						ExecTime: parseRFC3339Time(t, "2022-06-12T12:00:12Z").UnixNano(),
+						ExitTime: parseRFC3339Time(t, "2022-06-12T12:00:13Z").UnixNano(),
+						ExitCode: 2,
 					},
 				},
 			},

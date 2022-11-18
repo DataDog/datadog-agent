@@ -9,7 +9,11 @@
 package procutil
 
 import (
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -83,5 +87,44 @@ func TestWindowsStringConversion(t *testing.T) {
 		},
 	} {
 		assert.Equal(t, tc.expected, winutil.ConvertWindowsString16(tc.input))
+	}
+}
+
+func TestWindowsProbe(t *testing.T) {
+	tests := map[string]Probe{
+		"toolhelp":     NewWindowsToolhelpProbe(),
+		"perfcounters": NewProcessProbe(),
+	}
+
+	for name, probe := range tests {
+		t.Run(name, func(t *testing.T) {
+			now := time.Now()
+			cmd := exec.Command("powershell.exe", "-c", "sleep 10; foo bar baz")
+
+			err := cmd.Start()
+			assert.NoError(t, err)
+
+			defer cmd.Process.Kill()
+
+			procs, err := probe.ProcessesByPID(time.Now(), true)
+
+			assert.NoError(t, err)
+			p, found := procs[int32(cmd.Process.Pid)]
+
+			assert.True(t, found)
+			assert.True(t, strings.HasSuffix(p.Exe, "powershell.exe"))
+			assert.Equal(t, []string{"powershell.exe", "-c", `"sleep 10; foo bar baz"`}, p.Cmdline)
+			assert.Equal(t, int32(os.Getpid()), p.Ppid)
+			assert.Equal(t, int32(cmd.Process.Pid), p.Pid)
+
+			assert.WithinRange(t, time.Unix(0, p.Stats.CreateTime*1000_000), now, now.Add(5*time.Second))
+
+			stats, err := probe.StatsForPIDs([]int32{p.Pid}, time.Now())
+			assert.NoError(t, err)
+
+			// Make no assumption about the values of stats - these are going to change as the process runs and
+			// can vary wildly depending on the env
+			assert.Equal(t, p.Stats.CreateTime, stats[p.Pid].CreateTime)
+		})
 	}
 }

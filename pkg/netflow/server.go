@@ -7,8 +7,9 @@ package netflow
 
 import (
 	"context"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -37,15 +38,16 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 		return nil, err
 	}
 
-	hostname, err := coreutil.GetHostname(context.TODO())
+	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
 		log.Warnf("Error getting the hostname: %v", err)
-		hostname = ""
+		hostnameDetected = ""
 	}
 
-	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostname)
+	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
 	go flowAgg.Start()
 
+	log.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
 	for _, listenerConfig := range mainConfig.Listeners {
 		log.Infof("Starting Netflow listener for flow type %s on %s", listenerConfig.FlowType, listenerConfig.Addr())
 		listener, err := startFlowListener(listenerConfig, flowAgg)

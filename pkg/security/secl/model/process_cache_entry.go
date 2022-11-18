@@ -3,18 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -tests=false
-
 package model
 
 import (
 	"container/list"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
-	maxArgEnvSize = 256
+	// MaxArgEnvSize maximum size of one argument or environment variable
+	MaxArgEnvSize = 256
 )
 
 // SetSpan sets the span
@@ -113,6 +114,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
 	childEntry.Credentials = pc.Credentials
+	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
 	childEntry.SetParent(pc)
@@ -137,18 +139,18 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 }*/
 
 // ArgsEnvs raw value for args and envs
-//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
-	ValuesRaw [maxArgEnvSize]byte
+	ValuesRaw [MaxArgEnvSize]byte
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
-//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte
+
+	TotalSize uint64
 
 	Container *list.Element
 
@@ -183,6 +185,8 @@ func (p *ArgsEnvsCacheEntry) release() {
 
 // Append an entry to the list
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
+	p.TotalSize += uint64(entry.Size)
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -223,7 +227,7 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 	for entry != nil {
 		v, err := UnmarshalStringArray(entry.ValuesRaw[:entry.Size])
-		if err != nil || entry.Size == maxArgEnvSize {
+		if err != nil || entry.Size == MaxArgEnvSize {
 			if len(v) > 0 {
 				v[len(v)-1] = v[len(v)-1] + "..."
 			}
@@ -239,24 +243,12 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
-func stringArraysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed bool
 }
@@ -289,19 +281,19 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
-	parsed bool
-	keys   []string
-	kv     map[string]string
+	parsed       bool
+	filteredEnvs []string
+	kv           map[string]string
 }
 
 // ToArray returns envs as an array
@@ -322,10 +314,10 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 	return p.Values, p.Truncated
 }
 
-// Keys returns only keys
-func (p *EnvsEntry) Keys() ([]string, bool) {
-	if p.keys != nil {
-		return p.keys, p.Truncated
+// FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
+func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
+	if p.filteredEnvs != nil {
+		return p.filteredEnvs, p.Truncated
 	}
 
 	values, _ := p.ToArray()
@@ -333,20 +325,24 @@ func (p *EnvsEntry) Keys() ([]string, bool) {
 		return nil, p.Truncated
 	}
 
-	p.keys = make([]string, len(values))
+	p.filteredEnvs = make([]string, len(values))
 
 	var i int
 	for _, value := range values {
-		kv := strings.SplitN(value, "=", 2)
-		if len(kv) != 2 {
+		k, _, found := strings.Cut(value, "=")
+		if !found {
 			continue
 		}
 
-		p.keys[i] = kv[0]
+		if envsWithValue[k] {
+			p.filteredEnvs[i] = value
+		} else {
+			p.filteredEnvs[i] = k
+		}
 		i++
 	}
 
-	return p.keys, p.Truncated
+	return p.filteredEnvs, p.Truncated
 }
 
 func (p *EnvsEntry) toMap() {
@@ -358,11 +354,9 @@ func (p *EnvsEntry) toMap() {
 	p.kv = make(map[string]string, len(values))
 
 	for _, value := range values {
-		kv := strings.SplitN(value, "=", 2)
-		k := kv[0]
-
-		if len(kv) == 2 {
-			p.kv[k] = kv[1]
+		k, v, found := strings.Cut(value, "=")
+		if found {
+			p.kv[k] = v
 		}
 	}
 }
@@ -384,5 +378,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }

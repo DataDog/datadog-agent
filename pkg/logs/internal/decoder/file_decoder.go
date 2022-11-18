@@ -20,12 +20,12 @@ import (
 )
 
 // NewDecoderFromSource creates a new decoder from a log source
-func NewDecoderFromSource(source *sources.LogSource) *Decoder {
+func NewDecoderFromSource(source *sources.ReplaceableSource) *Decoder {
 	return NewDecoderFromSourceWithPattern(source, nil)
 }
 
 // NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
-func NewDecoderFromSourceWithPattern(source *sources.LogSource, multiLinePattern *regexp.Regexp) *Decoder {
+func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp) *Decoder {
 
 	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
@@ -41,7 +41,7 @@ func NewDecoderFromSourceWithPattern(source *sources.LogSource, multiLinePattern
 			lineParser = dockerfile.New()
 		}
 	default:
-		switch source.Config.Encoding {
+		switch source.Config().Encoding {
 		case config.UTF16BE:
 			lineParser = encodedtext.New(encodedtext.UTF16BE)
 			framing = framer.UTF16BENewline

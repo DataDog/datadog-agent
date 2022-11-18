@@ -55,4 +55,6 @@ tee specification.json << EOF
 }
 EOF
 
+export CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git describe --tags --always --dirty --match 7.\*)}
+
 exec ./02-ec2.sh

@@ -7,6 +7,8 @@ package service
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Services provides new and removed services.
@@ -29,6 +31,7 @@ func NewServices() *Services {
 
 // AddService sends a new service to all the channels that registered.
 func (s *Services) AddService(service *Service) {
+	log.Tracef("Adding %#v\n", service)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -42,14 +45,17 @@ func (s *Services) AddService(service *Service) {
 
 // RemoveService sends a removed service to all the channels that registered.
 func (s *Services) RemoveService(service *Service) {
+	log.Tracef("Removing %#v\n", service)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i, svc := range s.services {
-		if svc.Type == service.Type && svc.Identifier == service.Identifier {
-			s.services = append(s.services[:i], s.services[i+1:]...)
+	remainingServices := s.services[:0]
+	for _, svc := range s.services {
+		if svc.Type != service.Type || svc.Identifier != service.Identifier {
+			remainingServices = append(remainingServices, svc)
 		}
 	}
+	s.services = remainingServices
 
 	removed, _ := s.removedPerType[service.Type]
 	for _, ch := range append(removed, s.allRemoved...) {

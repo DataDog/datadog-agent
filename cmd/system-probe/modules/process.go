@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -23,7 +25,6 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // ErrProcessUnsupported is an error type indicating that the process module is not support in the running environment

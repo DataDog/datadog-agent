@@ -33,7 +33,7 @@ func (m *HistogramBucket) GetHost() string {
 }
 
 // GetTags returns the bucket tags.
-func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer *tagset.HashingTagsAccumulator) {
+func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator) {
 	// Other 'GetTags' methods for metrics support origin detections. Since
 	// HistogramBucket only come, for now, from checks we can simply return
 	// tags.
@@ -43,4 +43,9 @@ func (m *HistogramBucket) GetTags(taggerBuffer, metricBuffer *tagset.HashingTags
 // GetMetricType implements MetricSampleContext#GetMetricType.
 func (m *HistogramBucket) GetMetricType() MetricType {
 	return HistogramType
+}
+
+// IsNoIndex returns if the metric must not be indexed.
+func (m *HistogramBucket) IsNoIndex() bool {
+	return false
 }

@@ -8,10 +8,11 @@ package channel
 import (
 	"testing"
 
-	config "github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	config "github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 )
 
 func setup() (scheduler *Scheduler, spy *schedulers.MockSourceManager) {

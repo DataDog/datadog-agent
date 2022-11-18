@@ -6,8 +6,9 @@
 package ckey
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/twmb/murmur3"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // ContextKey is a non-cryptographic hash that allows to

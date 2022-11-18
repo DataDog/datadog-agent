@@ -5,7 +5,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.0.0
+install_script_version=1.1.0
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -54,9 +54,29 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
         printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file\033[0m\n"
         exit 1;
     fi
+    systemdaemon_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
+    systemdaemon_group="$(echo "$systemdaemon_user_group" | awk -F: '{ print $2 }')"
+    if ! id -u "$systemdaemon_user" >/dev/null 2>&1 ; then
+        printf "\033[31mUser $systemdaemon_user not found, can't proceed with installation\033[0m\n"
+        exit 1;
+    fi
+    # dscacheutil -q group output is in form:
+    #   name: groupname
+    #   password: *
+    #   gid: 1001
+    #   users: user1 user2
+    # so we use `grep` and `awk` to get the group name
+    if ! dscacheutil -q group | grep "name:" | awk '{print $2}' | grep -w "$systemdaemon_group" >/dev/null 2>&1; then
+        printf "\033[31mGroup $systemdaemon_group not found, can't proceed with installation\033[0m\n"
+        exit 1;
+    fi
 fi
 
-agent_major_version=6
+macos_full_version=$(sw_vers -productVersion)
+macos_major_version=$(echo "${macos_full_version}" | cut -d '.' -f 1)
+macos_minor_version=$(echo "${macos_full_version}" | cut -d '.' -f 2)
+
+agent_major_version=7
 if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   if [ "$DD_AGENT_MAJOR_VERSION" != "6" ] && [ "$DD_AGENT_MAJOR_VERSION" != "7" ]; then
     echo "DD_AGENT_MAJOR_VERSION must be either 6 or 7. Current value: $DD_AGENT_MAJOR_VERSION"
@@ -64,14 +84,29 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 6 by default.\033[0m"
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.\033[0m"
 fi
 
-dmg_remote_file="datadogagent.dmg"
-if [ "$agent_major_version" = "7" ]; then
-    dmg_remote_file="datadog-agent-7-latest.dmg"
+dmg_version=
+if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
+    echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
+    exit 1
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
+    dmg_version="${agent_major_version}.34.0-1"
+elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
+    echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
+    dmg_version="${agent_major_version}.38.2-1"
+else
+    if [ "${agent_major_version}" -eq 6 ]; then
+        echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
+        exit 1
+    else
+        dmg_version="7-latest"
+    fi
 fi
-dmg_url="$dmg_base_url/$dmg_remote_file"
+
+dmg_url="$dmg_base_url/datadog-agent-${dmg_version}.dmg"
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
@@ -124,15 +159,26 @@ real_user=`if [ "$SUDO_USER" ]; then
 else
   echo "$USER"
 fi`
+# If this is a systemwide install done over SSH or a similar method, the real_user is now root
+# which will eventually make the installation fail in the postinstall script. In this case, we
+# set real_user to the target user of the systemwide installation.
+if [ "$systemdaemon_install" = true ] && [ "$real_user" = root ]; then
+    real_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
+    # The install will copy plist file to real_user home dir => we add `-H`
+    # as a sudo argument to properly get its home for access to the plist file.
+    cmd_real_user="sudo -EHu $real_user"
+else
+    cmd_real_user="sudo -Eu $real_user"
+fi
 
 TMPDIR=`sudo -u "$real_user" getconf DARWIN_USER_TEMP_DIR`
 export TMPDIR
 
-cmd_real_user="sudo -Eu $real_user"
-
 # shellcheck disable=SC2016
-user_home=$($cmd_real_user bash -c 'echo "$HOME"')
-user_plist_file=${user_home}/Library/LaunchAgents/${service_name}.plist
+install_user_home=$($cmd_real_user bash -c 'echo "$HOME"')
+# shellcheck disable=SC2016
+user_uid=$($cmd_real_user bash -c 'echo "$UID"')
+user_plist_file=${install_user_home}/Library/LaunchAgents/${service_name}.plist
 
 # In order to install with the right user
 rm -f /tmp/datadog-install-user
@@ -175,8 +221,8 @@ function import_config() {
 
 function plist_modify_user_group() {
     plist_file="$1"
-    user_value="$(echo "$2" | awk -F: '{ print $1 }')"
-    group_value="$(echo "$2" | awk -F: '{ print $2 }')"
+    user_value="$2"
+    group_value="$3"
     user_parameter="UserName"
     group_parameter="GroupName"
 
@@ -269,7 +315,7 @@ else
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
     # ssh for user not logged in via GUI).
-    if $cmd_launchctl print gui/$UID/$service_name 1>/dev/null 2>/dev/null; then
+    if $cmd_launchctl print "gui/$user_uid/$service_name" 1>/dev/null 2>/dev/null; then
         $cmd_real_user osascript -e 'tell application "System Events" to if login item "Datadog Agent" exists then delete login item "Datadog Agent"'
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
@@ -278,7 +324,7 @@ else
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
     # make sure the daemon launches under proper user/group and that it has access
     # to all files/dirs it needs; then start it
-    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user_group"
+    plist_modify_user_group "$systemwide_servicefile_name" "$systemdaemon_user" "$systemdaemon_group"
     $sudo_cmd chown "0:0" "$systemwide_servicefile_name"
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"

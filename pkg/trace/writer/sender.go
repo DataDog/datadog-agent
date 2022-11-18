@@ -18,11 +18,11 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -48,6 +48,7 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			url:       url,
 			apiKey:    endpoint.APIKey,
 			recorder:  r,
+			userAgent: fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
 		})
 	}
 	return senders
@@ -125,6 +126,8 @@ type senderConfig struct {
 	// recorder specifies the eventRecorder to use when reporting events occurring
 	// in the sender.
 	recorder eventRecorder
+	// userAgent is the computed user agent we'll use when communicating with Datadog
+	userAgent string
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -134,8 +137,8 @@ type sender struct {
 
 	queue    chan *payload // payload queue
 	climit   chan struct{} // semaphore for limiting concurrent connections
-	inflight int32         // inflight payloads
-	attempt  int32         // active retry attempt
+	inflight *atomic.Int32 // inflight payloads
+	attempt  *atomic.Int32 // active retry attempt
 
 	mu     sync.RWMutex // guards closed
 	closed bool         // closed reports if the loop is stopped
@@ -144,9 +147,11 @@ type sender struct {
 // newSender returns a new sender based on the given config cfg.
 func newSender(cfg *senderConfig) *sender {
 	s := sender{
-		cfg:    cfg,
-		queue:  make(chan *payload, cfg.maxQueued),
-		climit: make(chan struct{}, cfg.maxConns),
+		cfg:      cfg,
+		queue:    make(chan *payload, cfg.maxQueued),
+		climit:   make(chan struct{}, cfg.maxConns),
+		inflight: atomic.NewInt32(0),
+		attempt:  atomic.NewInt32(0),
 	}
 	go s.loop()
 	return &s
@@ -166,7 +171,7 @@ func (s *sender) loop() {
 
 // backoff triggers a sleep period proportional to the retry attempt, if any.
 func (s *sender) backoff() {
-	attempt := atomic.LoadInt32(&s.attempt)
+	attempt := s.attempt.Load()
 	delay := backoffDuration(int(attempt))
 	if delay == 0 {
 		return
@@ -194,7 +199,7 @@ outer:
 		case <-timeout:
 			break outer
 		default:
-			if atomic.LoadInt32(&s.inflight) == 0 {
+			if s.inflight.Load() == 0 {
 				break outer
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -208,7 +213,7 @@ func (s *sender) Push(p *payload) {
 		select {
 		case s.queue <- p:
 			// ok
-			atomic.AddInt32(&s.inflight, 1)
+			s.inflight.Inc()
 			return
 		default:
 			// drop the oldest item in the queue to make room
@@ -251,9 +256,9 @@ func (s *sender) sendPayload(p *payload) {
 			// sender is stopped
 			return
 		}
-		atomic.AddInt32(&s.attempt, 1)
+		s.attempt.Inc()
 
-		if r := atomic.AddInt32(&p.retries, 1); (r&(r-1)) == 0 && r > 3 {
+		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 {
 			// Only log a warning if the retry attempt is a power of 2
 			// and larger than 3, to avoid alerting the user unnecessarily.
 			// e.g. attempts 4, 8, 16, etc.
@@ -272,8 +277,8 @@ func (s *sender) sendPayload(p *payload) {
 		// reduce the backoff gradually to avoid hitting the edge too hard.
 		for {
 			// interlock with other sends to avoid setting the same value
-			attempt := atomic.LoadInt32(&s.attempt)
-			if atomic.CompareAndSwapInt32(&s.attempt, attempt, attempt/2) {
+			attempt := s.attempt.Load()
+			if s.attempt.CAS(attempt, attempt/2) {
 				break
 			}
 		}
@@ -302,7 +307,7 @@ func waitForSenders(senders []*sender) {
 func (s *sender) releasePayload(p *payload, t eventType, data *eventData) {
 	s.recordEvent(t, data)
 	ppool.Put(p)
-	atomic.AddInt32(&s.inflight, -1)
+	s.inflight.Dec()
 }
 
 // recordEvent records the occurrence of the given event type t. It additionally
@@ -317,9 +322,6 @@ func (s *sender) recordEvent(t eventType, data *eventData) {
 	s.cfg.recorder.recordEvent(t, data)
 }
 
-// userAgent is the computed user agent we'll use when communicating with Datadog
-var userAgent = fmt.Sprintf("Datadog Trace Agent/%s/%s", info.Version, info.GitCommit)
-
 // retriableError is an error returned by the server which may be retried at a later time.
 type retriableError struct{ err error }
 
@@ -333,7 +335,7 @@ const (
 
 func (s *sender) do(req *http.Request) error {
 	req.Header.Set(headerAPIKey, s.cfg.apiKey)
-	req.Header.Set(headerUserAgent, userAgent)
+	req.Header.Set(headerUserAgent, s.cfg.userAgent)
 	resp, err := s.cfg.client.Do(req)
 	if err != nil {
 		// request errors include timeouts or name resolution errors and
@@ -374,7 +376,7 @@ func isRetriable(code int) bool {
 type payload struct {
 	body    *bytes.Buffer     // request body
 	headers map[string]string // request headers
-	retries int32             // number of retries sending this payload
+	retries *atomic.Int32     // number of retries sending this payload
 }
 
 // ppool is a pool of payloads.
@@ -383,6 +385,7 @@ var ppool = &sync.Pool{
 		return &payload{
 			body:    &bytes.Buffer{},
 			headers: make(map[string]string),
+			retries: atomic.NewInt32(0),
 		}
 	},
 }
@@ -393,7 +396,7 @@ func newPayload(headers map[string]string) *payload {
 	p := ppool.Get().(*payload)
 	p.body.Reset()
 	p.headers = headers
-	p.retries = 0
+	p.retries.Store(0)
 	return p
 }
 

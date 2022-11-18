@@ -74,6 +74,7 @@ func (ms *MetaScheduler) Schedule(configs []integration.Config) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	for _, config := range configs {
+		log.Tracef("Scheduling %s\n", config.Dump(false))
 		ms.scheduledConfigs[config.Digest()] = config
 	}
 	for _, scheduler := range ms.activeSchedulers {
@@ -86,6 +87,7 @@ func (ms *MetaScheduler) Unschedule(configs []integration.Config) {
 	ms.m.Lock()
 	defer ms.m.Unlock()
 	for _, config := range configs {
+		log.Tracef("Unscheduling %s\n", config.Dump(false))
 		delete(ms.scheduledConfigs, config.Digest())
 	}
 	for _, scheduler := range ms.activeSchedulers {

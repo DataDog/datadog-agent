@@ -30,7 +30,7 @@ type Check struct {
 	core.CheckBase
 	config         *checkconfig.CheckConfig
 	singleDeviceCk *devicecheck.DeviceCheck
-	discovery      discovery.Discovery
+	discovery      *discovery.Discovery
 	sessionFactory session.Factory
 }
 
@@ -135,7 +135,7 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 	// Must be called before c.CommonConfigure
 	c.BuildID(rawInstance, rawInitConfig)
 
-	err = c.CommonConfigure(rawInstance, source)
+	err = c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
@@ -154,7 +154,10 @@ func (c *Check) Configure(rawInstance integration.Data, rawInitConfig integratio
 
 // Cancel is called when check is unscheduled
 func (c *Check) Cancel() {
-	c.discovery.Stop()
+	if c.discovery != nil {
+		c.discovery.Stop()
+		c.discovery = nil
+	}
 }
 
 // Interval returns the scheduling time for the check

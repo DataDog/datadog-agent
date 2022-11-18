@@ -152,3 +152,12 @@ type ErrRuleNotCompiled struct {
 func (e ErrRuleNotCompiled) Error() string {
 	return fmt.Sprintf("rule not compiled `%s`", e.RuleID)
 }
+
+// ErrFieldReadOnly is returned when a filter does not support being set with SetFieldValue
+type ErrFieldReadOnly struct {
+	Field Field
+}
+
+func (e ErrFieldReadOnly) Error() string {
+	return fmt.Sprintf("read-only field `%s`", e.Field)
+}

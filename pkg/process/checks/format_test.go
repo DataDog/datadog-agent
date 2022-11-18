@@ -14,7 +14,7 @@ import (
 )
 
 func TestHumanFormatProcess(t *testing.T) {
-	var msgs []model.MessageBody = []model.MessageBody{
+	var msgs = []model.MessageBody{
 		&model.CollectorProc{
 			HostName: "foo",
 			Info: &model.SystemInfo{
@@ -293,7 +293,7 @@ RealTime Containers
 }
 
 func TestHumanFormatContainer(t *testing.T) {
-	var msgs []model.MessageBody = []model.MessageBody{
+	var msgs = []model.MessageBody{
 		&model.CollectorContainer{
 			HostName: "foo",
 			Info: &model.SystemInfo{
@@ -527,7 +527,7 @@ RealTime Containers
 }
 
 func TestHumanFormatProcessDiscovery(t *testing.T) {
-	var msgs []model.MessageBody = []model.MessageBody{
+	var msgs = []model.MessageBody{
 		&model.CollectorProcDiscovery{
 			HostName: "foo",
 			ProcessDiscoveries: []*model.ProcessDiscovery{

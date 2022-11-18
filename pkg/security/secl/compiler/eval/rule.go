@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -132,7 +130,8 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
+// NewRuleEvaluator returns a new evaluator for a rule
+func NewRuleEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
@@ -179,12 +178,12 @@ func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
 		}
 	}
 
-	evaluator, err := ruleToEvaluator(r.ast, model, replCtx)
+	evaluator, err := NewRuleEvaluator(r.ast, model, replCtx)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrapf(&ErrRuleParse{pos: err.Pos, expr: r.Expression}, "rule syntax error: %s", err)
+			return fmt.Errorf("rule syntax error: %s: %w", err, &ErrRuleParse{pos: err.Pos, expr: r.Expression})
 		}
-		return errors.Wrap(err, "rule compilation error")
+		return fmt.Errorf("rule compilation error: %w", err)
 	}
 	r.evaluator = evaluator
 
@@ -234,7 +233,7 @@ func (r *Rule) GenPartials() error {
 		state := NewState(r.Model, field, macroPartials[field], r.ReplacementCtx)
 		pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, state)
 		if err != nil {
-			return errors.Wrapf(err, "couldn't generate partial for field %s and rule %s", field, r.ID)
+			return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 		}
 
 		pEvalBool, ok := pEval.(*BoolEvaluator)

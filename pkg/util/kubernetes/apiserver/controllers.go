@@ -148,8 +148,8 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	if ctx.WPAInformerFactory != nil {
 		go autoscalersController.RunWPA(ctx.StopCh, ctx.WPAClient, ctx.WPAInformerFactory)
 	}
-	// mutate the Autoscaler controller to embed an informer against the HPAs
-	autoscalersController.EnableHPA(ctx.InformerFactory.Autoscaling().V2beta1().HorizontalPodAutoscalers())
+
+	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
 	go autoscalersController.RunHPA(ctx.StopCh)
 
 	autoscalersController.RunControllerLoop(ctx.StopCh)

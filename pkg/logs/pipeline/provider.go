@@ -8,8 +8,9 @@ package pipeline
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -51,6 +52,11 @@ func NewProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessa
 // NewServerlessProvider returns a new Provider in serverless mode
 func NewServerlessProvider(numberOfPipelines int, auditor auditor.Auditor, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext) Provider {
 	return newProvider(numberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, processingRules, endpoints, destinationsContext, true)
+}
+
+// NewMockProvider creates a new provider that will not provide any pipelines.
+func NewMockProvider() Provider {
+	return &provider{}
 }
 
 func newProvider(numberOfPipelines int, auditor auditor.Auditor, diagnosticMessageReceiver diagnostic.MessageReceiver, processingRules []*config.ProcessingRule, endpoints *config.Endpoints, destinationsContext *client.DestinationsContext, serverless bool) Provider {

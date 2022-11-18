@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -88,12 +87,43 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err, "port is not available, it should be")
 }
 
+// This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
+// It should not fail since `cachedTlmOriginIds` and `cachedOrder` should be
+// properly protected from multiple accesses by `cachedTlmLock`.
+// The main purpose of this test is to detect early if a future code change is
+// introducing a data race.
+func TestNoRaceOriginTagMaps(t *testing.T) {
+	const N = 100
+	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
+	sync := make(chan struct{})
+	done := make(chan struct{}, N)
+	for i := 0; i < N; i++ {
+		id := fmt.Sprintf("%d", i)
+		go func() {
+			defer func() { done <- struct{}{} }()
+			<-sync
+			s.createOriginTagMaps(id)
+		}()
+	}
+	close(sync)
+	for i := 0; i < N; i++ {
+		<-done
+	}
+}
+
 func TestUDPReceive(t *testing.T) {
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
+	config.Datadog.Set("dogstatsd_no_aggregation_pipeline", true) // another test may have turned it off
 
-	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	opts.UseNoopEventPlatformForwarder = true
+	opts.EnableNoAggregationPipeline = true
+
+	demux := aggregator.InitTestAgentDemultiplexerWithOpts(opts)
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
 	require.NoError(t, err, "cannot start DSD")
@@ -106,8 +136,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -117,8 +148,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -128,8 +160,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -139,8 +172,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -150,8 +184,9 @@ func TestUDPReceive(t *testing.T) {
 	demux.Reset()
 
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon_set")
@@ -161,8 +196,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-metric packet
 	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 2, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 2)
+	require.Len(t, timedSamples, 0)
 	sample1 := samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -177,8 +213,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet
 	conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 3, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 3)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -198,8 +235,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// multi-value packet with skip empty
 	conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 3, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 3)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -219,8 +257,9 @@ func TestUDPReceive(t *testing.T) {
 
 	//	// slightly malformed multi-metric packet, should still be parsed in whole
 	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 2, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 2)
+	require.Len(t, timedSamples, 0)
 	sample1 = samples[0]
 	assert.NotNil(t, sample1)
 	assert.Equal(t, sample1.Name, "daemon1")
@@ -235,8 +274,9 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test erroneous metric
 	conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
@@ -244,11 +284,52 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test empty metric
 	conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
-	samples = demux.WaitForSamples(time.Second * 2)
-	require.Equal(t, 1, len(samples))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 0)
 	sample = samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
+
+	// Late gauge
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 0)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
+
+	// Late count
+	conn.Write([]byte("daemon:666|c|#sometag1:somevalue1,sometag2:somevalue2|T1658328888"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 0)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Mtype, metrics.CounterType)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	demux.Reset()
+
+	// Late metric and a normal one
+	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2|T1658328888\ndaemon2:666|c"))
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
+	require.Len(t, samples, 1)
+	require.Len(t, timedSamples, 1)
+	sample = timedSamples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.Equal(t, sample.Timestamp, float64(1658328888))
+	sample = samples[0]
+	require.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon2")
+	demux.Reset()
 
 	// Test Service Check
 	// ------------------
@@ -376,8 +457,9 @@ func TestHistToDist(t *testing.T) {
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
 	time.Sleep(time.Millisecond * 200) // give some time to the socket write/read
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 2, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	histMetric := samples[0]
 	distMetric := samples[1]
 	assert.NotNil(t, histMetric)
@@ -464,8 +546,9 @@ func TestE2EParsing(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	assert.Equal(t, 2, len(samples))
+	assert.Equal(t, 0, len(timedSamples))
 	demux.Reset()
 	demux.Stop(false)
 	s.Stop()
@@ -481,8 +564,9 @@ func TestE2EParsing(t *testing.T) {
 
 	// Test metric expecting an EOL
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	samples = demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples = demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	assert.Equal(t, 0, len(timedSamples))
 	s.Stop()
 	demux.Reset()
 	demux.Stop(false)
@@ -507,8 +591,9 @@ func TestExtraTags(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -524,6 +609,7 @@ func TestStaticTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
 	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
+	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 	defer config.Datadog.SetDefault("eks_fargate", false)
 
@@ -539,8 +625,9 @@ func TestStaticTags(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	samples := demux.WaitForSamples(time.Second * 2)
+	samples, timedSamples := demux.WaitForSamples(time.Second * 2)
 	require.Equal(t, 1, len(samples))
+	require.Equal(t, 0, len(timedSamples))
 	sample := samples[0]
 	assert.NotNil(t, sample)
 	assert.Equal(t, sample.Name, "daemon")
@@ -845,12 +932,8 @@ dogstatsd_mapper_profiles:
 
 func TestNewServerExtraTags(t *testing.T) {
 	// restore env/config after having runned the test
-	e := os.Getenv("DD_TAGS")
-	ed := os.Getenv("DD_DOGSTATSD_TAGS")
 	p := config.Datadog.Get("dogstatsd_port")
 	defer func() {
-		os.Setenv("DD_TAGS", e)
-		os.Setenv("DD_DOGSTATSD_TAGS", ed)
 		config.Datadog.SetDefault("dogstatsd_port", p)
 	}()
 
@@ -867,7 +950,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is not reading this env var
-	os.Setenv("DD_TAGS", "hello:world")
+	t.Setenv("DD_TAGS", "hello:world")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
@@ -876,7 +959,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 
 	// when the extraTags parameter isn't used, the DogStatsD server is automatically reading this env var for extra tags
-	os.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
+	t.Setenv("DD_DOGSTATSD_TAGS", "hello:world extra:tags")
 	demux = mockDemultiplexer()
 	s, err = NewServer(demux, false)
 	require.NoError(err, "starting the DogStatsD server shouldn't fail")
@@ -887,7 +970,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	demux.Stop(false)
 }
 
-func TestProcessedMetricsOrigin(t *testing.T) {
+func testProcessedMetricsOrigin(t *testing.T) {
 	assert := assert.New(t)
 
 	demux := mockDemultiplexer()
@@ -965,7 +1048,16 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "fourth_origin"})
 }
 
-func TestContainerIDParsing(t *testing.T) {
+func TestProcessedMetricsOrigin(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testProcessedMetricsOrigin)
+	}
+}
+
+func testContainerIDParsing(t *testing.T) {
 	assert := assert.New(t)
 
 	s, err := NewServer(mockDemultiplexer(), false)
@@ -992,4 +1084,65 @@ func TestContainerIDParsing(t *testing.T) {
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+}
+
+func TestContainerIDParsing(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), testContainerIDParsing)
+	}
+}
+
+func testOriginOptout(t *testing.T, enabled bool) {
+	assert := assert.New(t)
+
+	s, err := NewServer(mockDemultiplexer(), false)
+	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
+	s.Stop()
+
+	parser := newParser(newFloat64ListPool())
+	parser.dsdOriginEnabled = true
+
+	// Metric
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", false)
+	assert.NoError(err)
+	assert.Len(metrics, 1)
+	if enabled {
+		assert.Equal("", metrics[0].OriginFromClient)
+	} else {
+		assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
+	}
+
+	// Event
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+	assert.NoError(err)
+	assert.NotNil(event)
+	if enabled {
+		assert.Equal("", metrics[0].OriginFromClient)
+	} else {
+		assert.Equal("container_id://event-container", event.OriginFromClient)
+	}
+
+	// Service check
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+	assert.NoError(err)
+	assert.NotNil(serviceCheck)
+	if enabled {
+		assert.Equal("", serviceCheck.OriginFromClient)
+	} else {
+		assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
+	}
+}
+
+func TestOriginOptout(t *testing.T) {
+	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
+	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
+	for _, enabled := range []bool{true, false} {
+		config.Datadog.Set("dogstatsd_origin_optout_enabled", enabled)
+		t.Run(fmt.Sprintf("optout_enabled=%v", enabled), func(t *testing.T) {
+			testOriginOptout(t, enabled)
+		})
+	}
 }

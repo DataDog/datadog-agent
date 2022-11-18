@@ -78,17 +78,26 @@ func (c *CRIUtil) init() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
+
 	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer))
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}
 
-	if err := c.detectAPIVersion(conn); err != nil {
-		return err
+	var v *criv1.VersionResponse
+	err = c.detectAPIVersion(conn)
+	if err == nil {
+		v, err = c.version()
 	}
 
-	v, err := c.version()
 	if err != nil {
+		// if detecting the API version fails, conn needs to be closed,
+		// otherwise it'll leak as init may get retried.
+		connErr := conn.Close()
+		if connErr != nil {
+			log.Debugf("failed to close gRPC connection: %s", connErr)
+		}
+
 		return err
 	}
 

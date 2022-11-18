@@ -6,6 +6,7 @@
 package config
 
 import (
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -207,4 +208,21 @@ func loadProcessTransforms(config Config) {
 			config.Set("process_config.container_collection.enabled", true)
 		}
 	}
+}
+
+// GetProcessAPIAddressPort returns the API endpoint of the process agent
+func GetProcessAPIAddressPort() (string, error) {
+	address, err := GetIPCAddress()
+	if err != nil {
+		return "", err
+	}
+
+	port := Datadog.GetInt("process_config.cmd_port")
+	if port <= 0 {
+		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, DefaultProcessCmdPort)
+		port = DefaultProcessCmdPort
+	}
+
+	addrPort := net.JoinHostPort(address, strconv.Itoa(port))
+	return addrPort, nil
 }

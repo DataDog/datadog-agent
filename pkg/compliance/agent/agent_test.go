@@ -38,10 +38,9 @@ func (e *tempEnv) leave() {
 func enterTempEnv(t *testing.T, k8s bool) *tempEnv {
 	t.Helper()
 	assert := assert.New(t)
-	tempDir, err := os.MkdirTemp("", "compliance-agent-")
-	assert.NoError(err)
+	tempDir := t.TempDir()
 
-	err = util.CopyDir("./testdata/configs", tempDir)
+	err := util.CopyDir("./testdata/configs", tempDir)
 	assert.NoError(err)
 
 	files, err := filepath.Glob(filepath.Join(tempDir, "files/*"))
@@ -95,7 +94,7 @@ func eventMatcher(m eventMatch) interface{} {
 func TestRunK8s(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
@@ -176,7 +175,7 @@ func TestRunK8s(t *testing.T) {
 func TestRunDocker(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 
@@ -269,7 +268,7 @@ func TestRunDocker(t *testing.T) {
 func TestRunChecks(t *testing.T) {
 	assert := assert.New(t)
 
-	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts := aggregator.DefaultAgentDemultiplexerOptions(nil)
 	opts.DontStartForwarders = true
 	aggregator.InitAndStartAgentDemultiplexer(opts, "foo")
 

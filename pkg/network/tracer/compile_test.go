@@ -11,8 +11,9 @@ package tracer
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
 func TestConntrackCompile(t *testing.T) {

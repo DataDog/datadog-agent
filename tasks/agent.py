@@ -129,20 +129,6 @@ def build(
         python_runtimes=python_runtimes,
     )
 
-    if sys.platform == 'darwin' and platform.machine() == 'arm64':
-        if not flavor.is_iot():
-            m1_error_msg = "It seems that you're running a Mac M1. Building the agent on M1 is not supported for now."
-            m1_workaround_msg = "As a workaround you can build the IoT Agent with: inv -e agent.build --flavor=iot"
-            m1_explain_msg = "Note that the IoT Agent doesn't run any Python integration/check."
-            raise Exit(f"{m1_error_msg}\n{m1_workaround_msg}\n{m1_explain_msg}", code=2)
-        print("It seems that you're running a Mac M1. Cross-compiling for amd64 then.")
-        # Compiling the Agent for arm64 isn't possible yet until gopsutil is updated :
-        # https://github.com/kubernetes/minikube/pull/10115
-        # Let's use amd64 for now then.
-        env["GOARCH"] = "amd64"
-        # Important for x-compiling
-        env["CGO_ENABLED"] = "1"
-
     if sys.platform == 'win32':
         py_runtime_var = get_win_py_runtime_var(python_runtimes)
 
@@ -188,7 +174,7 @@ def build(
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent", android=False)),
+        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,

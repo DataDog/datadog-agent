@@ -20,6 +20,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// NewDaemonSetCollectorVersions builds the group of collector versions.
+func NewDaemonSetCollectorVersions() collectors.CollectorVersions {
+	return collectors.NewCollectorVersions(
+		NewDaemonSetCollector(),
+	)
+}
+
 // DaemonSetCollector is a collector for Kubernetes DaemonSets.
 type DaemonSetCollector struct {
 	informer  appsv1Informers.DaemonSetInformer
@@ -33,9 +40,11 @@ type DaemonSetCollector struct {
 func NewDaemonSetCollector() *DaemonSetCollector {
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable: true,
-			Name:     "daemonsets",
-			NodeType: orchestrator.K8sDaemonSet,
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "daemonsets",
+			NodeType:         orchestrator.K8sDaemonSet,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}
@@ -67,22 +76,16 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := &processors.ProcessorContext{
-		APIClient:  rcfg.APIClient,
-		Cfg:        rcfg.Config,
-		ClusterID:  rcfg.ClusterID,
-		MsgGroupID: rcfg.MsgGroupRef.Inc(),
-		NodeType:   c.metadata.NodeType,
-	}
+	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
 
-	messages, processed := c.processor.Process(ctx, list)
+	processResult, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
 	}
 
 	result := &collectors.CollectorRunResult{
-		Messages:           messages,
+		Result:             processResult,
 		ResourcesListed:    len(list),
 		ResourcesProcessed: processed,
 	}

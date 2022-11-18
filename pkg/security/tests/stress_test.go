@@ -220,10 +220,10 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	defer test.RegisterRuleEventHandler(nil)
 
 	kevents := 0
-	test.RegisterEventHandler(func(_ *sprobe.Event) {
+	test.RegisterProbeEventHandler(func(_ *sprobe.Event) {
 		kevents++
 	})
-	defer test.RegisterRuleEventHandler(nil)
+	defer test.RegisterProbeEventHandler(nil)
 
 	report, err := StressIt(t, nil, nil, fnc, opts)
 	if err != nil {

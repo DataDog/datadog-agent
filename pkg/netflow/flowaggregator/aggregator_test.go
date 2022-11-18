@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
@@ -8,25 +13,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestAggregator(t *testing.T) {
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 
 	sender := mocksender.NewMockSender("")
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 	conf := config.NetflowConfig{
-		StopTimeout:             10,
-		AggregatorBufferSize:    20,
-		AggregatorFlushInterval: 1,
-		LogPayloads:             true,
+		StopTimeout:                            10,
+		AggregatorBufferSize:                   20,
+		AggregatorFlushInterval:                1,
+		AggregatorPortRollupThreshold:          10,
+		AggregatorRollupTrackerRefreshInterval: 3600,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -47,8 +56,8 @@ func TestAggregator(t *testing.T) {
 		SrcAddr:        []byte{10, 10, 10, 10},
 		DstAddr:        []byte{10, 10, 10, 20},
 		IPProtocol:     uint32(6),
-		SrcPort:        uint32(2000),
-		DstPort:        uint32(80),
+		SrcPort:        2000,
+		DstPort:        80,
 		TCPFlags:       19,
 		EtherType:      uint32(0x0800),
 	}
@@ -84,13 +93,13 @@ func TestAggregator(t *testing.T) {
   },
   "source": {
     "ip": "10.10.10.10",
-    "port": 2000,
+    "port": "2000",
     "mac": "00:00:00:00:00:00",
     "mask": "0.0.0.0/0"
   },
   "destination": {
     "ip": "10.10.10.20",
-    "port": 80,
+    "port": "80",
     "mac": "00:00:00:00:00:00",
     "mask": "0.0.0.0/0"
   },
@@ -123,8 +132,13 @@ func TestAggregator(t *testing.T) {
 	assert.NoError(t, err)
 
 	sender.AssertEventPlatformEvent(t, compactEvent.String(), "network-devices-netflow")
-	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
+	sender.AssertMetric(t, "Count", "datadog.netflow.aggregator.flows_flushed", 1, "", nil)
 	sender.AssertMetric(t, "MonotonicCount", "datadog.netflow.aggregator.flows_received", 1, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.flows_contexts", 1, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.current_store_size", 2, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.port_rollup.new_store_size", 2, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.capacity", 20, "", nil)
+	sender.AssertMetric(t, "Gauge", "datadog.netflow.aggregator.input_buffer.length", 0, "", nil)
 
 	// Test aggregator Stop
 	assert.False(t, expectStartExisted)

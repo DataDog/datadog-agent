@@ -188,7 +188,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
-			excludedEntity = docker.ContainerIDToEntityName(container)
+			excludedEntity = containers.BuildEntityName(string(workloadmeta.ContainerRuntimeDocker), container)
 			excludedIDs = append(excludedIDs, container)
 			continue
 		}

@@ -71,7 +71,7 @@ func (p *Processor) Process(root *pb.Span, t *pb.TraceChunk) (numEvents, numExtr
 		if !sampled {
 			continue
 		}
-
+		// event analytics tags shouldn't be set on sampled single spans
 		sampler.SetMaxEPSRate(span, epsRate)
 		sampler.SetClientRate(span, clientSampleRate)
 		sampler.SetPreSampleRate(span, preSampleRate)

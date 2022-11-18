@@ -9,16 +9,20 @@
 package probe
 
 import (
+	"errors"
 	"net"
 	"reflect"
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSetFieldValue(t *testing.T) {
 	event := &Event{}
+	var readOnlyError *eval.ErrFieldReadOnly
 
 	for _, field := range event.GetFields() {
 		kind, err := event.GetFieldType(field)
@@ -28,15 +32,15 @@ func TestSetFieldValue(t *testing.T) {
 
 		switch kind {
 		case reflect.String:
-			if err = event.SetFieldValue(field, "aaa"); err != nil {
+			if err = event.SetFieldValue(field, "aaa"); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Int:
-			if err = event.SetFieldValue(field, 123); err != nil {
+			if err = event.SetFieldValue(field, 123); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Bool:
-			if err = event.SetFieldValue(field, true); err != nil {
+			if err = event.SetFieldValue(field, true); err != nil && !errors.As(err, &readOnlyError) {
 				t.Error(err)
 			}
 		case reflect.Struct:
@@ -74,7 +78,7 @@ func TestProcessArgsFlags(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -133,7 +137,7 @@ func TestProcessArgsOptions(t *testing.T) {
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(10000))
+	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -172,5 +176,60 @@ func TestProcessArgsOptions(t *testing.T) {
 
 	if len(options) != 5 {
 		t.Errorf("expected 5 options, got %d", len(options))
+	}
+}
+
+func TestBestGuessServiceValues(t *testing.T) {
+
+	type testEntry struct {
+		name     string
+		values   []string
+		expected string
+	}
+
+	entries := []testEntry{
+		{
+			name: "basic",
+			values: []string{
+				"datadog-agent",
+				"d",
+				"datadog-a",
+			},
+			expected: "datadog-agent",
+		},
+		{
+			name: "single",
+			values: []string{
+				"aa",
+			},
+			expected: "aa",
+		},
+		{
+			name:     "empty",
+			values:   []string{},
+			expected: "",
+		},
+		{
+			name: "divergent",
+			values: []string{
+				"aa",
+				"bb",
+			},
+			expected: "aa",
+		},
+		{
+			name: "divergent-2",
+			values: []string{
+				"bb",
+				"aa",
+			},
+			expected: "bb",
+		},
+	}
+
+	for _, entry := range entries {
+		t.Run(entry.name, func(t *testing.T) {
+			assert.Equal(t, entry.expected, bestGuessServiceTag(entry.values))
+		})
 	}
 }

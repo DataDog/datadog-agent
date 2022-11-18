@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 
@@ -23,11 +22,13 @@ import (
 )
 
 func initMockConf(t *testing.T) string {
-	testDir, err := ioutil.TempDir("", "fake-datadog-etc-")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
+	testDir := t.TempDir()
 
 	f, err := ioutil.TempFile(testDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
+	t.Cleanup(func() {
+		f.Close()
+	})
 
 	mockConfig := config.Mock(t)
 	mockConfig.SetConfigFile(f.Name())
@@ -36,14 +37,8 @@ func initMockConf(t *testing.T) string {
 	return filepath.Join(testDir, "auth_token")
 }
 
-func cleanMockConf(tokenPath string) {
-	testDir := path.Dir(tokenPath)
-	os.RemoveAll(testDir)
-}
-
 func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 	expectTokenPath := initMockConf(t)
-	defer cleanMockConf(expectTokenPath)
 	token, err := CreateOrFetchToken()
 	require.Nil(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))
@@ -53,7 +48,6 @@ func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 
 func TestFetchAuthToken(t *testing.T) {
 	expectTokenPath := initMockConf(t)
-	defer cleanMockConf(expectTokenPath)
 
 	token, err := FetchAuthToken()
 	require.NotNil(t, err)

@@ -82,12 +82,50 @@ func TestRun(t *testing.T) {
 			Version:   1,
 			Namespace: "default",
 		},
+		{
+			// Release with escapable version
+			Name: "foo",
+			Info: &info{
+				Status: "deployed",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "foo",
+					Version:    "2+30+5",
+					AppVersion: "7",
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
+		{
+			// Release with helm values set
+			Name: "with_helm_values",
+			Info: &info{
+				Status: "deployed",
+			},
+			Config: map[string]interface{}{
+				"option": "2",
+			},
+			Chart: &chart{
+				Metadata: &metadata{
+					Name:       "with_helm_values",
+					Version:    "1.0.0",
+					AppVersion: "1",
+				},
+				Values: map[string]interface{}{
+					"option": 1,
+				},
+			},
+			Version:   1,
+			Namespace: "default",
+		},
 	}
 
 	// Same order as "releases" array
 	var secretsForReleases []*v1.Secret
 	for _, rel := range releases {
-		secret, err := secretForRelease(&rel)
+		secret, err := secretForRelease(&rel, time.Now())
 		assert.NoError(t, err)
 		secretsForReleases = append(secretsForReleases, secret)
 	}
@@ -111,6 +149,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:2.30.5",
 			"helm_app_version:7",
+			"helm_chart:datadog-2.30.5",
 		},
 		{
 			"helm_release:my_app",
@@ -121,6 +160,7 @@ func TestRun(t *testing.T) {
 			"helm_status:deployed",
 			"helm_chart_version:1.1.0",
 			"helm_app_version:1",
+			"helm_chart:some_app-1.1.0",
 		},
 		{
 			"helm_release:release_without_chart",
@@ -137,6 +177,30 @@ func TestRun(t *testing.T) {
 			"helm_revision:1",
 			"helm_chart_version:2.0.0",
 			"helm_app_version:1",
+			"helm_chart:example_app-2.0.0",
+		},
+		{
+			"helm_release:foo",
+			"helm_chart_name:foo",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:2+30+5",
+			"helm_app_version:7",
+			"helm_chart:foo-2_30_5",
+		},
+		{
+			"helm_release:with_helm_values",
+			"helm_chart_name:with_helm_values",
+			"kube_namespace:default",
+			"helm_namespace:default",
+			"helm_revision:1",
+			"helm_status:deployed",
+			"helm_chart_version:1.0.0",
+			"helm_app_version:1",
+			"helm_chart:with_helm_values-1.0.0",
+			"option_value:2", // Because "HelmValuesAsTags" is set with "option" => "option_value" in the test check
 		},
 	}
 
@@ -199,17 +263,19 @@ func TestRun(t *testing.T) {
 			check := factory().(*HelmCheck)
 			check.runLeaderElection = false
 
+			check.instance.HelmValuesAsTags = map[string]string{
+				"option": "option_value",
+			}
+
 			check.informerFactory = informers.NewSharedInformerFactory(
 				fake.NewSimpleClientset(kubeObjects...),
 				time.Minute,
 			)
-			err := check.setupInformers()
-			assert.NoError(t, err)
 
 			mockedSender := mocksender.NewMockSender(checkName)
 			mockedSender.SetupAcceptAll()
 
-			err = check.Run()
+			err := check.Run()
 			assert.NoError(t, err)
 
 			for _, tags := range test.expectedTags {
@@ -223,7 +289,7 @@ func TestRun_withCollectEvents(t *testing.T) {
 	check := factory().(*HelmCheck)
 	check.runLeaderElection = false
 	check.instance.CollectEvents = true
-	check.existingReleasesStored = true
+	check.startTS = time.Now()
 
 	rel := release{
 		Name: "my_datadog",
@@ -241,13 +307,11 @@ func TestRun_withCollectEvents(t *testing.T) {
 		Namespace: "default",
 	}
 
-	secret, err := secretForRelease(&rel)
+	secret, err := secretForRelease(&rel, time.Now().Add(10))
 	assert.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
 	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
-	err = check.setupInformers()
-	assert.NoError(t, err)
 
 	mockedSender := mocksender.NewMockSender(checkName)
 	mockedSender.SetupAcceptAll()
@@ -258,9 +322,10 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, true)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", false),
+			eventForRelease(&rel, "New Helm release \"my_datadog\" has been deployed in \"default\" namespace. Its status is \"deployed\".", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -268,16 +333,17 @@ func TestRun_withCollectEvents(t *testing.T) {
 	// Upgrade the release and check that it creates the appropriate event.
 	upgradedRel := rel
 	upgradedRel.Version = 2
-	secretUpgradedRel, err := secretForRelease(&upgradedRel)
+	secretUpgradedRel, err := secretForRelease(&upgradedRel, time.Now().Add(10))
 	assert.NoError(t, err)
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secretUpgradedRel, metav1.CreateOptions{})
 	assert.NoError(t, err)
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, true)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", false),
+			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace upgraded to revision 2. Its status is \"deployed\".", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
@@ -291,12 +357,52 @@ func TestRun_withCollectEvents(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		err = check.Run()
 		assert.NoError(t, err)
+		expectedTags := check.allTags(&rel, k8sSecrets, false)
 		return mockedSender.AssertEvent(
 			t,
-			eventForRelease(&rel, k8sSecrets, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", true),
+			eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),
 			10*time.Second,
 		)
 	}, 5*time.Second, time.Millisecond*100)
+}
+
+func TestRun_skipEventForExistingRelease(t *testing.T) {
+	check := factory().(*HelmCheck)
+	check.runLeaderElection = false
+	check.instance.CollectEvents = true
+	check.startTS = time.Now()
+
+	rel := release{
+		Name: "my_datadog",
+		Info: &info{
+			Status: "deployed",
+		},
+		Chart: &chart{
+			Metadata: &metadata{
+				Name:       "datadog",
+				Version:    "2.30.5",
+				AppVersion: "7",
+			},
+		},
+		Version:   1,
+		Namespace: "default",
+	}
+
+	secret, err := secretForRelease(&rel, time.Now().Add(-10))
+	assert.NoError(t, err)
+
+	k8sClient := fake.NewSimpleClientset()
+	check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
+
+	mockedSender := mocksender.NewMockSender(checkName)
+	mockedSender.SetupAcceptAll()
+
+	// Create a new release and check that we never send an event for it
+	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	err = check.Run()
+	assert.NoError(t, err)
+	mockedSender.AssertNotCalled(t, "Event")
 }
 
 func TestRun_ServiceCheck(t *testing.T) {
@@ -419,11 +525,14 @@ func TestRun_ServiceCheck(t *testing.T) {
 			check.runLeaderElection = false
 
 			for _, rel := range releases {
-				check.store.add(rel, test.storage)
+				check.store.add(rel, test.storage, commonTags(rel, test.storage), check.tagsForMetricsAndEvents(rel, true))
 			}
 
 			mockedSender := mocksender.NewMockSender(checkName)
 			mockedSender.SetupAcceptAll()
+
+			k8sClient := fake.NewSimpleClientset()
+			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
 
 			err := check.Run()
 			assert.NoError(t, err)
@@ -482,7 +591,7 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 // secretForRelease returns a Kubernetes secret that contains the info of the
 // given Helm release.
-func secretForRelease(rls *release) (*v1.Secret, error) {
+func secretForRelease(rls *release, creationTS time.Time) (*v1.Secret, error) {
 	encodedRel, err := encodeRelease(rls)
 	if err != nil {
 		return nil, err
@@ -492,8 +601,9 @@ func secretForRelease(rls *release) (*v1.Secret, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			// The name is not important for this test. We only need to make
 			// sure that there are no collisions.
-			Name:   fmt.Sprintf("%s.%d", rls.Name, rls.Version),
-			Labels: map[string]string{"owner": "helm"},
+			Name:              fmt.Sprintf("%s.%d", rls.Name, rls.Version),
+			Labels:            map[string]string{"owner": "helm"},
+			CreationTimestamp: metav1.NewTime(creationTS),
 		},
 		Data: map[string][]byte{"release": []byte(encodedRel)},
 	}, nil

@@ -36,7 +36,7 @@ func NewTailer(source *sources.LogSource, conn net.Conn, outputChan chan *messag
 		Conn:       conn,
 		outputChan: outputChan,
 		read:       read,
-		decoder:    decoder.InitializeDecoder(source, noop.New()),
+		decoder:    decoder.InitializeDecoder(sources.NewReplaceableSource(source), noop.New()),
 		stop:       make(chan struct{}, 1),
 		done:       make(chan struct{}, 1),
 	}
@@ -91,7 +91,7 @@ func (t *Tailer) readForever() {
 				log.Warnf("Couldn't read message from connection: %v", err)
 				return
 			}
-			t.source.BytesRead.Add(int64(len(data)))
+			t.source.RecordBytes(int64(len(data)))
 			t.decoder.InputChan <- decoder.NewInput(data)
 		}
 	}

@@ -54,18 +54,16 @@ echo "using ARGO_WORKFLOW=${ARGO_WORKFLOW}"
 echo "${DATADOG_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_AGENT_IMAGE#*:}
-if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
-    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
-        echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+        echo "The DATADOG_AGENT_IMAGE=${DATADOG_AGENT_IMAGE} is not available on DockerHub"
         exit 2
 fi
 
 echo "${DATADOG_CLUSTER_AGENT_IMAGE} is hosted on a docker registry, checking if it's available"
 IMAGE_REPOSITORY=${DATADOG_CLUSTER_AGENT_IMAGE%:*}
 IMAGE_TAG=${DATADOG_CLUSTER_AGENT_IMAGE#*:}
-if ! curl -Lfs "https://registry.hub.docker.com/v1/repositories/${IMAGE_REPOSITORY}/tags" | \
-    jq -re ".[] | select(.name==\"${IMAGE_TAG}\")"; then
-        echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} returns a 404 on the registry.hub.docker.com"
+if ! curl -Lfs --head "https://hub.docker.com/v2/repositories/${IMAGE_REPOSITORY}/tags/${IMAGE_TAG}" > /dev/null ; then
+        echo "The DATADOG_CLUSTER_AGENT_IMAGE=${DATADOG_CLUSTER_AGENT_IMAGE} is not available on DockerHub"
         exit 2
 fi
 

@@ -10,9 +10,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/gosnmp/gosnmp"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/gosnmp/gosnmp"
 )
 
 // SnmpPacket is the type of packets yielded by server listeners.

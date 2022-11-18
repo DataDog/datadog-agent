@@ -9,9 +9,10 @@ package mapper
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"regexp"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var (
@@ -52,7 +53,7 @@ type MapResult struct {
 
 // NewMetricMapper creates, validates, prepares a new MetricMapper
 func NewMetricMapper(configProfiles []config.MappingProfile, cacheSize int) (*MetricMapper, error) {
-	var profiles []MappingProfile
+	profiles := make([]MappingProfile, 0, len(configProfiles))
 	for profileIndex, configProfile := range configProfiles {
 		if configProfile.Name == "" {
 			return nil, fmt.Errorf("missing profile name %d", profileIndex)
@@ -60,7 +61,11 @@ func NewMetricMapper(configProfiles []config.MappingProfile, cacheSize int) (*Me
 		if configProfile.Prefix == "" {
 			return nil, fmt.Errorf("missing prefix for profile: %s", configProfile.Name)
 		}
-		profile := MappingProfile{Name: configProfile.Name, Prefix: configProfile.Prefix}
+		profile := MappingProfile{
+			Name:     configProfile.Name,
+			Prefix:   configProfile.Prefix,
+			Mappings: make([]*MetricMapping, 0, len(configProfile.Mappings)),
+		}
 		for i, currentMapping := range configProfile.Mappings {
 			matchType := currentMapping.MatchType
 			if matchType == "" {
@@ -134,7 +139,7 @@ func (m *MetricMapper) Map(metricName string) *MapResult {
 				matches,
 			))
 
-			var tags []string
+			tags := make([]string, 0, len(mapping.tags))
 			for tagKey, tagValueExpr := range mapping.tags {
 				tagValue := string(mapping.regex.ExpandString([]byte{}, tagValueExpr, metricName, matches))
 				tags = append(tags, tagKey+":"+tagValue)

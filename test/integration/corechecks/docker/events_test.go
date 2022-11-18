@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func init() {
@@ -31,7 +31,7 @@ func TestEvents(t *testing.T) {
 		"lowcardenvtag:eventlowenv",
 	}
 
-	localHostname, err := util.GetHostname(ctx)
+	localHostname, err := hostname.Get(ctx)
 	assert.Nil(t, err)
 
 	expectedBusyboxEvent := metrics.Event{

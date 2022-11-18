@@ -21,14 +21,17 @@ import (
 // configPoller keeps track of the configurations loaded by a certain
 // `ConfigProvider` and whether it should be polled or not.
 type configPoller struct {
-	provider     providers.ConfigProvider
-	configs      map[uint64]integration.Config
-	configsMu    sync.Mutex
+	provider providers.ConfigProvider
+
+	isRunning bool
+
 	canPoll      bool
-	isPolling    bool
 	pollInterval time.Duration
-	stopChan     chan struct{}
-	healthHandle *health.Handle
+
+	stopChan chan struct{}
+
+	configsMu sync.Mutex
+	configs   map[uint64]integration.Config
 }
 
 func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval time.Duration) *configPoller {
@@ -37,108 +40,184 @@ func newConfigPoller(provider providers.ConfigProvider, canPoll bool, interval t
 		configs:      make(map[uint64]integration.Config),
 		canPoll:      canPoll,
 		pollInterval: interval,
+		stopChan:     make(chan struct{}),
 	}
 }
 
 // stop stops the provider descriptor if it's polling
-func (pd *configPoller) stop() {
-	if !pd.canPoll || pd.isPolling {
+func (cp *configPoller) stop() {
+	if !cp.canPoll || cp.isRunning {
 		return
 	}
-	pd.stopChan <- struct{}{}
-	pd.isPolling = false
+	cp.stopChan <- struct{}{}
+	cp.isRunning = false
 }
 
-// start starts polling the provider descriptor
-func (pd *configPoller) start(ac *AutoConfig) {
-	if !pd.canPoll {
-		return
+// start starts polling the provider descriptor. It blocks until the provider
+// returns all the known configs.
+func (cp *configPoller) start(ctx context.Context, ac *AutoConfig) {
+	switch provider := cp.provider.(type) {
+	case providers.StreamingConfigProvider:
+		cp.stopChan = make(chan struct{})
+
+		ch := make(chan struct{})
+		go cp.stream(ch, provider, ac)
+		<-ch
+
+	case providers.CollectingConfigProvider:
+		cp.collectOnce(ctx, provider, ac)
+
+		if !cp.canPoll {
+			return
+		}
+
+		go cp.poll(provider, ac)
+	default:
+		panic(fmt.Sprintf("provider %q does not implement StreamingConfigProvider nor CollectingConfigProvider", provider.String()))
 	}
-	pd.stopChan = make(chan struct{})
-	pd.healthHandle = health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", pd.provider.String()))
-	pd.isPolling = true
-	go pd.poll(ac)
 }
 
-// poll polls config of the corresponding config provider
-func (pd *configPoller) poll(ac *AutoConfig) {
+// stream streams config from the corresponding config provider
+func (cp *configPoller) stream(ch chan struct{}, provider providers.StreamingConfigProvider, ac *AutoConfig) {
+	var ranOnce bool
 	ctx, cancel := context.WithCancel(context.Background())
-	ticker := time.NewTicker(pd.pollInterval)
+	changesCh := provider.Stream(ctx)
+	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
+
+	cp.isRunning = true
+
 	for {
 		select {
-		case healthDeadline := <-pd.healthHandle.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
-		case <-pd.stopChan:
-			pd.healthHandle.Deregister() //nolint:errcheck
-			cancel()
-			ticker.Stop()
-			return
-		case <-ticker.C:
-			log.Tracef("Polling %s config provider", pd.provider.String())
-			// Check if the CPupdate cache is up to date. Fill it and trigger a Collect() if outdated.
-			upToDate, err := pd.provider.IsUpToDate(ctx)
+		case <-healthHandle.C:
+
+		case <-cp.stopChan:
+			err := healthHandle.Deregister()
 			if err != nil {
-				log.Errorf("Cache processing of %v configuration provider failed: %v", pd.provider, err)
-			}
-			if upToDate {
-				log.Debugf("No modifications in the templates stored in %v configuration provider", pd.provider)
-				break
+				log.Errorf("error de-registering health check: %s", err)
 			}
 
-			// retrieve the list of newly added configurations as well
-			// as removed configurations
-			newConfigs, removedConfigs := pd.collect(ctx)
-			if len(newConfigs) > 0 || len(removedConfigs) > 0 {
-				log.Infof("%v provider: collected %d new configurations, removed %d", pd.provider, len(newConfigs), len(removedConfigs))
-			} else {
-				log.Debugf("%v provider: no configuration change", pd.provider)
-			}
-			// Process removed configs first to handle the case where a
-			// container churn would result in the same configuration hash.
-			ac.processRemovedConfigs(removedConfigs)
+			cancel()
 
-			for _, config := range newConfigs {
-				config.Provider = pd.provider.String()
-				changes := ac.processNewConfig(config)
-				ac.applyChanges(changes)
+			return
+
+		case changes := <-changesCh:
+			if !changes.IsEmpty() {
+				log.Infof("%v provider: collected %d new configurations, removed %d", provider, len(changes.Schedule), len(changes.Unschedule))
+
+				ac.processRemovedConfigs(changes.Unschedule)
+
+				for _, added := range changes.Schedule {
+					added.Provider = cp.provider.String()
+					resolvedChanges := ac.processNewConfig(added)
+					ac.applyChanges(resolvedChanges)
+				}
+			}
+
+			if !ranOnce {
+				close(ch)
+				ranOnce = true
 			}
 		}
 	}
 }
 
-func (pd *configPoller) overwriteConfigs(configs []integration.Config) {
-	pd.configsMu.Lock()
-	defer pd.configsMu.Unlock()
+// poll polls config of the corresponding config provider
+func (cp *configPoller) poll(provider providers.CollectingConfigProvider, ac *AutoConfig) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ticker := time.NewTicker(cp.pollInterval)
+	healthHandle := health.RegisterLiveness(fmt.Sprintf("ad-config-provider-%s", cp.provider.String()))
 
-	fetchedMap := make(map[uint64]integration.Config, len(configs))
-	for _, c := range configs {
-		cHash := c.FastDigest()
-		fetchedMap[cHash] = c
+	cp.isRunning = true
+
+	for {
+		select {
+		case healthDeadline := <-healthHandle.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+		case <-cp.stopChan:
+			err := healthHandle.Deregister()
+			if err != nil {
+				log.Errorf("error de-registering health check: %s", err)
+			}
+
+			cancel()
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			upToDate, err := provider.IsUpToDate(ctx)
+			if err != nil {
+				log.Errorf("Cache processing of %v configuration provider failed: %v", cp.provider, err)
+				continue
+			}
+
+			if upToDate {
+				log.Debugf("No modifications in the templates stored in %v configuration provider", cp.provider)
+				continue
+			}
+
+			cp.collectOnce(ctx, provider, ac)
+		}
 	}
-	pd.configs = fetchedMap
+}
+
+func (cp *configPoller) collectOnce(ctx context.Context, provider providers.CollectingConfigProvider, ac *AutoConfig) {
+	// retrieve the list of newly added configurations as well
+	// as removed configurations
+	newConfigs, removedConfigs := cp.collect(ctx, provider)
+	if len(newConfigs) > 0 || len(removedConfigs) > 0 {
+		log.Infof("%v provider: collected %d new configurations, removed %d", cp.provider, len(newConfigs), len(removedConfigs))
+	} else {
+		log.Debugf("%v provider: no configuration change", cp.provider)
+	}
+
+	// Process removed configs first to handle the case where a
+	// container churn would result in the same configuration hash.
+	ac.processRemovedConfigs(removedConfigs)
+
+	for _, config := range newConfigs {
+		if _, ok := cp.provider.(*providers.FileConfigProvider); ok {
+			// JMX checks can have 2 YAML files: one containing the
+			// metrics to collect, one containing the instance
+			// configuration. If the file provider finds any of
+			// these metric YAMLs, we store them in a map for
+			// future access
+			if config.MetricConfig != nil {
+				// We don't want to save metric files, it's enough to store them in the map
+				ac.store.setJMXMetricsForConfigName(config.Name, config.MetricConfig)
+				continue
+			}
+
+			// Clear any old errors if a valid config file is found
+			errorStats.removeConfigError(config.Name)
+		}
+
+		config.Provider = cp.provider.String()
+		changes := ac.processNewConfig(config)
+		ac.applyChanges(changes)
+	}
+
 }
 
 // collect is just a convenient wrapper to fetch configurations from a provider and
 // see what changed from the last time we called Collect().
-func (pd *configPoller) collect(ctx context.Context) ([]integration.Config, []integration.Config) {
+func (cp *configPoller) collect(ctx context.Context, provider providers.CollectingConfigProvider) ([]integration.Config, []integration.Config) {
 	start := time.Now()
 	defer func() {
-		telemetry.PollDuration.Observe(time.Since(start).Seconds(), pd.provider.String())
+		telemetry.PollDuration.Observe(time.Since(start).Seconds(), cp.provider.String())
 	}()
 
-	fetched, err := pd.provider.Collect(ctx)
+	fetched, err := provider.Collect(ctx)
 	if err != nil {
-		log.Errorf("Unable to collect configurations from provider %s: %s", pd.provider, err)
+		log.Errorf("Unable to collect configurations from provider %s: %s", cp.provider, err)
 		return nil, nil
 	}
 
-	return pd.storeAndDiffConfigs(fetched)
+	return cp.storeAndDiffConfigs(fetched)
 }
 
-func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]integration.Config, []integration.Config) {
-	pd.configsMu.Lock()
-	defer pd.configsMu.Unlock()
+func (cp *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]integration.Config, []integration.Config) {
+	cp.configsMu.Lock()
+	defer cp.configsMu.Unlock()
 
 	var newConf []integration.Config
 	var removedConf []integration.Config
@@ -149,17 +228,17 @@ func (pd *configPoller) storeAndDiffConfigs(configs []integration.Config) ([]int
 	for _, c := range configs {
 		cHash := c.FastDigest()
 		fetchedMap[cHash] = c
-		if _, found := pd.configs[cHash]; found {
-			delete(pd.configs, cHash)
+		if _, found := cp.configs[cHash]; found {
+			delete(cp.configs, cHash)
 		} else {
 			newConf = append(newConf, c)
 		}
 	}
 
-	for _, c := range pd.configs {
+	for _, c := range cp.configs {
 		removedConf = append(removedConf, c)
 	}
-	pd.configs = fetchedMap
+	cp.configs = fetchedMap
 
 	return newConf, removedConf
 }

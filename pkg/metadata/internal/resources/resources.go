@@ -9,8 +9,9 @@
 package resources
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gohai/processes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetPayload builds a payload of processes metadata collected from gohai.

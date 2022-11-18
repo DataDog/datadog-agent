@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix golang performance counter initialization errors when counters
+    are not available during agent/check init time.
+    Checks now retry the counter initilization on each interval.

@@ -13,12 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	lib "github.com/cilium/ebpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	lib "github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 )
 
 // DiscarderStats is used to collect kernel space metrics about discarders
@@ -89,7 +89,7 @@ func (d *DiscarderMonitor) SendStats() error {
 func NewDiscarderMonitor(p *Probe) (*DiscarderMonitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
-		return nil, errors.Wrapf(err, "couldn't fetch the host CPU count")
+		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
 	d := &DiscarderMonitor{

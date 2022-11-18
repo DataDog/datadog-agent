@@ -110,7 +110,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	}
 
 	if listener.trafficCapture != nil {
-		err = listener.trafficCapture.Writer.RegisterSharedPoolManager(listener.sharedPacketPoolManager)
+		err = listener.trafficCapture.RegisterSharedPoolManager(listener.sharedPacketPoolManager)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +128,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 		listener.oobPoolManager = packets.NewPoolManager(pool)
 		if listener.trafficCapture != nil {
-			err = listener.trafficCapture.Writer.RegisterOOBPoolManager(listener.oobPoolManager)
+			err = listener.trafficCapture.RegisterOOBPoolManager(listener.oobPoolManager)
 			if err != nil {
 				return nil, err
 			}
@@ -245,7 +245,7 @@ func (l *UDSListener) Listen() {
 		}
 
 		if capBuff != nil {
-			l.trafficCapture.Writer.Enqueue(capBuff)
+			l.trafficCapture.Enqueue(capBuff)
 		}
 
 		if err != nil {

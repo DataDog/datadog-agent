@@ -33,23 +33,19 @@ type AuditorTestSuite struct {
 }
 
 func (suite *AuditorTestSuite) SetupTest() {
-	var err error
-
-	suite.testDir, err = ioutil.TempDir("", "tests")
-	suite.NoError(err)
+	suite.testDir = suite.T().TempDir()
 
 	suite.testPath = fmt.Sprintf("%s/auditor.json", suite.testDir)
 
-	_, err = os.Create(suite.testPath)
+	f, err := os.Create(suite.testPath)
 	suite.Nil(err)
+	suite.T().Cleanup(func() {
+		suite.NoError(f.Close())
+	})
 
 	suite.a = New("", DefaultRegistryFilename, time.Hour, health.RegisterLiveness("fake"))
 	suite.a.registryPath = suite.testPath
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Path: testpath})
-}
-
-func (suite *AuditorTestSuite) TearDownTest() {
-	os.Remove(suite.testDir)
 }
 
 func (suite *AuditorTestSuite) TestAuditorStartStop() {

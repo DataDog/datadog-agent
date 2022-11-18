@@ -11,9 +11,10 @@ package otlp
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 )
 
 func TestIsEnabled(t *testing.T) {
@@ -61,9 +62,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -82,9 +81,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -103,9 +100,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -139,9 +134,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 	}
@@ -187,9 +180,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -216,9 +207,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"enabled":         true,
 					"tag_cardinality": "low",
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -253,9 +242,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 						"mode": "counters",
 					},
 				},
-				Debug: map[string]interface{}{
-					"loglevel": "info",
-				},
+				Debug: map[string]interface{}{},
 			},
 		},
 		{
@@ -281,6 +268,32 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				},
 				Debug: map[string]interface{}{
 					"loglevel": "disabled",
+				},
+			},
+		},
+		{
+			name: "only gRPC, verbosity normal",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:9999",
+				"DD_OTLP_CONFIG_DEBUG_VERBOSITY":                  "normal",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{
+					"protocols": map[string]interface{}{
+						"grpc": map[string]interface{}{
+							"endpoint": "0.0.0.0:9999",
+						},
+					},
+				},
+				MetricsEnabled: true,
+				TracesEnabled:  true,
+				TracePort:      5003,
+				Metrics: map[string]interface{}{
+					"enabled":         true,
+					"tag_cardinality": "low",
+				},
+				Debug: map[string]interface{}{
+					"verbosity": "normal",
 				},
 			},
 		},
@@ -343,6 +356,78 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				assert.Equal(t, testInstance.err, err.Error())
 			} else {
 				assert.Equal(t, testInstance.cfg, pcfg)
+			}
+		})
+	}
+}
+
+func TestFromAgentConfigDebug(t *testing.T) {
+	tests := []struct {
+		path      string
+		cfg       PipelineConfig
+		shouldSet bool
+		err       string
+	}{
+		{
+			path:      "debug/empty_but_set_debug.yaml",
+			shouldSet: true,
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Debug:              map[string]interface{}{},
+				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+			},
+		},
+		{
+			path:      "debug/loglevel_debug.yaml",
+			shouldSet: true,
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Debug:              map[string]interface{}{"loglevel": "debug"},
+				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+			},
+		},
+		{
+			path:      "debug/loglevel_disabled.yaml",
+			shouldSet: false,
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Debug:              map[string]interface{}{"loglevel": "disabled"},
+				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+			},
+		},
+		{
+			path:      "debug/verbosity_normal.yaml",
+			shouldSet: true,
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+				TracePort:          5003,
+				MetricsEnabled:     true,
+				TracesEnabled:      true,
+				Debug:              map[string]interface{}{"verbosity": "normal"},
+				Metrics:            map[string]interface{}{"enabled": true, "tag_cardinality": "low"},
+			},
+		},
+	}
+
+	for _, testInstance := range tests {
+		t.Run(testInstance.path, func(t *testing.T) {
+			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			require.NoError(t, err)
+			pcfg, err := FromAgentConfig(cfg)
+			if err != nil || testInstance.err != "" {
+				assert.Equal(t, testInstance.err, err.Error())
+			} else {
+				assert.Equal(t, testInstance.cfg, pcfg)
+				assert.Equal(t, testInstance.shouldSet, pcfg.shouldSetLoggingSection())
 			}
 		})
 	}

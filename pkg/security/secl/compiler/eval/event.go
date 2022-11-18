@@ -15,6 +15,8 @@ type EventType = string
 
 // Event is an interface that an Event has to implement for the evaluation
 type Event interface {
+	// Init initialize the event
+	Init()
 	// GetType returns the Type of the Event
 	GetType() EventType
 	// GetFieldEventType returns the Event Type for the given Field

@@ -7,11 +7,11 @@ package ebpf
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/pkg/errors"
 )
 
 // VerifyKernelFuncs ensures all kernel functions exist in ksyms located at provided path.
@@ -24,7 +24,7 @@ func VerifyKernelFuncs(path string, requiredKernelFuncs []string) (map[string]st
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error reading kallsyms file from: %s", path)
+		return nil, fmt.Errorf("error reading kallsyms file from: %s: %w", path, err)
 	}
 	defer f.Close()
 

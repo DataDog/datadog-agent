@@ -9,14 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 )
 
 func TestQueueDurationCapacityMemOnly(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil)
 
 	addTransaction(r, capacity, "domain", 5, 1)
 	addTransaction(r, capacity, "domain", 15, 2)
@@ -34,7 +35,7 @@ func TestQueueDurationCapacityMemAndDisk(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
 	mock := &diskSpaceAvailabilityMock{space: 50}
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock)
 
 	addTransaction(r, capacity, "domain", 20, 1)
 	stats, err := capacity.ComputeCapacity(time.Unix(2, 0))
@@ -51,7 +52,7 @@ func TestQueueDurationCapacitySeveralDomains(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
 	mock := &diskSpaceAvailabilityMock{space: 50}
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, mock)
 
 	addTransaction(r, capacity, "domain1", 5, 1)
 	addTransaction(r, capacity, "domain2", 3, 1)
@@ -74,7 +75,7 @@ func TestQueueDurationCapacitySeveralDomains(t *testing.T) {
 func TestQueueDurationCapacitEmptyTraffic(t *testing.T) {
 	r := require.New(t)
 	maxMemSize := 20
-	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil, nil)
+	capacity := NewQueueDurationCapacity(time.Second*10, time.Second, maxMemSize, nil)
 
 	addTransaction(r, capacity, "domain1", 20, 1)
 	addTransaction(r, capacity, "domain2", 0, 1)
@@ -101,7 +102,7 @@ func addTransaction(
 	unixTime int64) {
 
 	payload := make([]byte, payloadSize)
-	tr := &transaction.HTTPTransaction{Payload: &payload}
+	tr := &transaction.HTTPTransaction{Payload: transaction.NewBytesPayloadWithoutMetaData(payload)}
 	err := capacity.OnTransaction(tr, domain, time.Unix(unixTime, 0))
 	r.NoError(err)
 }

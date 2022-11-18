@@ -1,5 +1,5 @@
 ---
-title: Cloud Workload Security (CWS) Events
+title: Cloud Workload Security (CWS) Events Formats
 kind: documentation
 description: JSON schema documentation of the CWS backend event
 disable_edit: true
@@ -691,6 +691,10 @@ CWS logs have the following JSON schema:
                     "$ref": "#/$defs/File",
                     "description": "File information of the executable"
                 },
+                "interpreter": {
+                    "$ref": "#/$defs/File",
+                    "description": "File information of the interpreter"
+                },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
                     "description": "Container context"
@@ -724,6 +728,10 @@ CWS logs have the following JSON schema:
                 "is_thread": {
                     "type": "boolean",
                     "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                },
+                "is_kworker": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a kworker"
                 }
             },
             "additionalProperties": false,
@@ -799,6 +807,10 @@ CWS logs have the following JSON schema:
                     "$ref": "#/$defs/File",
                     "description": "File information of the executable"
                 },
+                "interpreter": {
+                    "$ref": "#/$defs/File",
+                    "description": "File information of the interpreter"
+                },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
                     "description": "Container context"
@@ -832,6 +844,10 @@ CWS logs have the following JSON schema:
                 "is_thread": {
                     "type": "boolean",
                     "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+                },
+                "is_kworker": {
+                    "type": "boolean",
+                    "description": "Indicates whether the process is a kworker"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -2152,6 +2168,10 @@ CWS logs have the following JSON schema:
             "$ref": "#/$defs/File",
             "description": "File information of the executable"
         },
+        "interpreter": {
+            "$ref": "#/$defs/File",
+            "description": "File information of the interpreter"
+        },
         "container": {
             "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
@@ -2185,6 +2205,10 @@ CWS logs have the following JSON schema:
         "is_thread": {
             "type": "boolean",
             "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
+        "is_kworker": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a kworker"
         }
     },
     "additionalProperties": false,
@@ -2215,6 +2239,7 @@ CWS logs have the following JSON schema:
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
 | `executable` | File information of the executable |
+| `interpreter` | File information of the interpreter |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -2222,10 +2247,12 @@ CWS logs have the following JSON schema:
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| `is_kworker` | Indicates whether the process is a kworker |
 
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
 
@@ -2298,6 +2325,10 @@ CWS logs have the following JSON schema:
             "$ref": "#/$defs/File",
             "description": "File information of the executable"
         },
+        "interpreter": {
+            "$ref": "#/$defs/File",
+            "description": "File information of the interpreter"
+        },
         "container": {
             "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
@@ -2331,6 +2362,10 @@ CWS logs have the following JSON schema:
         "is_thread": {
             "type": "boolean",
             "description": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)"
+        },
+        "is_kworker": {
+            "type": "boolean",
+            "description": "Indicates whether the process is a kworker"
         },
         "parent": {
             "$ref": "#/$defs/Process",
@@ -2372,6 +2407,7 @@ CWS logs have the following JSON schema:
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
 | `executable` | File information of the executable |
+| `interpreter` | File information of the interpreter |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -2379,12 +2415,14 @@ CWS logs have the following JSON schema:
 | `envs` | Environment variables of the process |
 | `envs_truncated` | Indicator of environments variable truncation |
 | `is_thread` | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
+| `is_kworker` | Indicates whether the process is a kworker |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 
 | References |
 | ---------- |
 | [ProcessCredentials](#processcredentials) |
+| [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
 | [Process](#process) |

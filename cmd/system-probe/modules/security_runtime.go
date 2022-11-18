@@ -8,13 +8,14 @@
 package modules
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -29,7 +30,7 @@ var SecurityRuntime = module.Factory{
 	Fn: func(agentConfig *config.Config) (module.Module, error) {
 		config, err := sconfig.NewConfig(agentConfig)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid security runtime module configuration")
+			return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
 		}
 
 		m, err := secmodule.NewModule(config)

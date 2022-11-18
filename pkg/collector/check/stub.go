@@ -49,3 +49,9 @@ func (c *StubCheck) GetSenderStats() (SenderStats, error) { return NewSenderStat
 
 // IsTelemetryEnabled returns false
 func (c *StubCheck) IsTelemetryEnabled() bool { return false }
+
+// InitConfig returns the init_config configuration of the check
+func (c *StubCheck) InitConfig() string { return "" }
+
+// InstanceConfig returns the instance configuration of the check
+func (c *StubCheck) InstanceConfig() string { return "" }

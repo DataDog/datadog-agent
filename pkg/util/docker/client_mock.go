@@ -12,8 +12,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/docker/docker/api/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // MockClient is a mock implementation of docker.Client interface

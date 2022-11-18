@@ -24,4 +24,10 @@ const (
 	EVPOriginHeader = "DD-EVP-ORIGIN"
 	// EVPOriginVersionHeader is the version of above origin
 	EVPOriginVersionHeader = "DD-EVP-ORIGIN-VERSION"
+	// ContentEncodingHeader contains the encoding type of the payload
+	ContentEncodingHeader = "Content-Encoding"
+	// ZSTDContentEncoding contains that the encoding type is zstd
+	ZSTDContentEncoding = "zstd"
+	// RequestIDHeader contains a unique identifier per payloads being sent to the intake servers
+	RequestIDHeader = "X-DD-Request-ID"
 )

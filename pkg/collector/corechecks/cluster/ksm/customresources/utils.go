@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
@@ -164,4 +165,24 @@ func mergeKeyValues(keyValues ...[]string) (keys, values []string) {
 	}
 
 	return keys, values
+}
+
+var (
+	conditionStatuses = []v1.ConditionStatus{v1.ConditionTrue, v1.ConditionFalse, v1.ConditionUnknown}
+)
+
+// addConditionMetrics generates one metric for each possible condition
+// status. For this function to work properly, the last label in the metric
+// description must be the condition.
+func addConditionMetrics(cs v1.ConditionStatus) []*metric.Metric {
+	ms := make([]*metric.Metric, len(conditionStatuses))
+
+	for i, status := range conditionStatuses {
+		ms[i] = &metric.Metric{
+			LabelValues: []string{strings.ToLower(string(status))},
+			Value:       boolFloat64(cs == status),
+		}
+	}
+
+	return ms
 }

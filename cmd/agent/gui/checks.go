@@ -18,6 +18,10 @@ import (
 	"strings"
 	"time"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/gorilla/mux"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -25,9 +29,6 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/gorilla/mux"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (

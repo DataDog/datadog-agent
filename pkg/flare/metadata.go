@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	v5 "github.com/DataDog/datadog-agent/pkg/metadata/v5"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	host "github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func addMetadata(tempDir, hostname, filename string, data []byte) error {
@@ -31,7 +31,7 @@ func zipMetadataInventories(tempDir, hostname string) error {
 
 func zipMetadataV5(tempDir, hostname string) error {
 	ctx := context.Background()
-	hostnameData, _ := util.GetHostnameData(ctx)
+	hostnameData, _ := host.GetWithProvider(ctx)
 	payload := v5.GetPayload(ctx, hostnameData)
 
 	data, err := json.MarshalIndent(payload, "", "    ")

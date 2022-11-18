@@ -107,8 +107,11 @@ func TestOrderRate(t *testing.T) {
 		event = append(event, record.RawSample[2])
 		lock.Unlock()
 	},
-		func(record *perf.Record) (uint64, uint64, error) {
-			return uint64(record.RawSample[0]), uint64(record.RawSample[1]), nil
+		func(record *perf.Record) (QuickInfo, error) {
+			return QuickInfo{
+				cpu:       uint64(record.RawSample[0]),
+				timestamp: uint64(record.RawSample[1]),
+			}, nil
 		},
 		ReOrdererOpts{
 			QueueSize:  100,

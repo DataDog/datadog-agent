@@ -23,6 +23,16 @@ type RuntimeSecurityClient struct {
 	conn      *grpc.ClientConn
 }
 
+// DumpDiscarders sends a request to dump discarders
+func (c *RuntimeSecurityClient) DumpDiscarders() (string, error) {
+	response, err := c.apiClient.DumpDiscarders(context.Background(), &api.DumpDiscardersParams{})
+	if err != nil {
+		return "", err
+	}
+
+	return response.DumpFilename, nil
+}
+
 // DumpProcessCache sends a process cache dump request
 func (c *RuntimeSecurityClient) DumpProcessCache(withArgs bool) (string, error) {
 	response, err := c.apiClient.DumpProcessCache(context.Background(), &api.DumpProcessCacheParams{WithArgs: withArgs})
@@ -44,9 +54,11 @@ func (c *RuntimeSecurityClient) ListActivityDumps() (*api.ActivityDumpListMessag
 }
 
 // StopActivityDump stops an active dump if it exists
-func (c *RuntimeSecurityClient) StopActivityDump(comm string) (*api.ActivityDumpStopMessage, error) {
+func (c *RuntimeSecurityClient) StopActivityDump(name, containerid, comm string) (*api.ActivityDumpStopMessage, error) {
 	return c.apiClient.StopActivityDump(context.Background(), &api.ActivityDumpStopParams{
-		Comm: comm,
+		Comm:        comm,
+		Name:        name,
+		ContainerID: containerid,
 	})
 }
 

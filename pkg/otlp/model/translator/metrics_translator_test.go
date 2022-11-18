@@ -21,10 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/quantile"
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,6 +30,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -47,10 +48,10 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 		metric.SetName("system.filesystem.usage")
 		metric.SetDescription("Filesystem bytes used.")
 		metric.SetUnit("bytes")
-		metric.SetDataType(pmetric.MetricDataTypeSum)
+		metric.SetEmptySum()
 		sum := metric.Sum()
 		sum.SetIsMonotonic(false)
-		sum.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+		sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 
 		assert.False(t, isCumulativeMonotonic(metric))
 	}
@@ -60,10 +61,10 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 		metric.SetName("system.network.packets")
 		metric.SetDescription("The number of packets transferred.")
 		metric.SetUnit("1")
-		metric.SetDataType(pmetric.MetricDataTypeSum)
+		metric.SetEmptySum()
 		sum := metric.Sum()
 		sum.SetIsMonotonic(true)
-		sum.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+		sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 
 		assert.True(t, isCumulativeMonotonic(metric))
 	}
@@ -71,10 +72,10 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 	{ // DoubleSumL Cumulative and monotonic
 		metric := pmetric.NewMetric()
 		metric.SetName("metric.example")
-		metric.SetDataType(pmetric.MetricDataTypeSum)
+		metric.SetEmptySum()
 		sum := metric.Sum()
 		sum.SetIsMonotonic(true)
-		sum.SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+		sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 
 		assert.True(t, isCumulativeMonotonic(metric))
 	}
@@ -84,7 +85,7 @@ func TestIsCumulativeMonotonic(t *testing.T) {
 		metric.SetName("system.cpu.load_average.1m")
 		metric.SetDescription("Average CPU Load over 1 minute.")
 		metric.SetUnit("1")
-		metric.SetDataType(pmetric.MetricDataTypeGauge)
+		metric.SetEmptyGauge()
 
 		assert.False(t, isCumulativeMonotonic(metric))
 	}
@@ -179,7 +180,7 @@ func TestMapIntMetrics(t *testing.T) {
 	ts := pcommon.NewTimestampFromTime(time.Now())
 	slice := pmetric.NewNumberDataPointSlice()
 	point := slice.AppendEmpty()
-	point.SetIntVal(17)
+	point.SetIntValue(17)
 	point.SetTimestamp(ts)
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -214,7 +215,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	ts := pcommon.NewTimestampFromTime(time.Now())
 	slice := pmetric.NewNumberDataPointSlice()
 	point := slice.AppendEmpty()
-	point.SetDoubleVal(math.Pi)
+	point.SetDoubleValue(math.Pi)
 	point.SetTimestamp(ts)
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -265,7 +266,7 @@ func TestMapIntMonotonicMetrics(t *testing.T) {
 	slice.EnsureCapacity(len(cumulative))
 	for i, val := range cumulative {
 		point := slice.AppendEmpty()
-		point.SetIntVal(val)
+		point.SetIntValue(val)
 		point.SetTimestamp(seconds(i))
 	}
 
@@ -291,28 +292,28 @@ func TestMapIntMonotonicDifferentDimensions(t *testing.T) {
 	point.SetTimestamp(seconds(0))
 
 	point = slice.AppendEmpty()
-	point.SetIntVal(20)
+	point.SetIntValue(20)
 	point.SetTimestamp(seconds(1))
 
 	// One tag: valA
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().InsertString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	point = slice.AppendEmpty()
-	point.SetIntVal(30)
+	point.SetIntValue(30)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().InsertString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	// same tag: valB
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().InsertString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	point = slice.AppendEmpty()
-	point.SetIntVal(40)
+	point.SetIntValue(40)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().InsertString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -337,7 +338,7 @@ func TestMapIntMonotonicWithReboot(t *testing.T) {
 	for i, val := range values {
 		point := slice.AppendEmpty()
 		point.SetTimestamp(seconds(i))
-		point.SetIntVal(val)
+		point.SetIntValue(val)
 	}
 
 	ctx := context.Background()
@@ -363,7 +364,7 @@ func TestMapIntMonotonicOutOfOrder(t *testing.T) {
 	for i, val := range values {
 		point := slice.AppendEmpty()
 		point.SetTimestamp(seconds(stamps[i]))
-		point.SetIntVal(val)
+		point.SetIntValue(val)
 	}
 
 	ctx := context.Background()
@@ -392,7 +393,7 @@ func TestMapDoubleMonotonicMetrics(t *testing.T) {
 	slice.EnsureCapacity(len(cumulative))
 	for i, val := range cumulative {
 		point := slice.AppendEmpty()
-		point.SetDoubleVal(val)
+		point.SetDoubleValue(val)
 		point.SetTimestamp(seconds(i))
 	}
 
@@ -418,28 +419,28 @@ func TestMapDoubleMonotonicDifferentDimensions(t *testing.T) {
 	point.SetTimestamp(seconds(0))
 
 	point = slice.AppendEmpty()
-	point.SetDoubleVal(20)
+	point.SetDoubleValue(20)
 	point.SetTimestamp(seconds(1))
 
 	// One tag: valA
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().InsertString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	point = slice.AppendEmpty()
-	point.SetDoubleVal(30)
+	point.SetDoubleValue(30)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().InsertString("key1", "valA")
+	point.Attributes().PutStr("key1", "valA")
 
 	// one tag: valB
 	point = slice.AppendEmpty()
 	point.SetTimestamp(seconds(0))
-	point.Attributes().InsertString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	point = slice.AppendEmpty()
-	point.SetDoubleVal(40)
+	point.SetDoubleValue(40)
 	point.SetTimestamp(seconds(1))
-	point.Attributes().InsertString("key1", "valB")
+	point.Attributes().PutStr("key1", "valB")
 
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -464,7 +465,7 @@ func TestMapDoubleMonotonicWithReboot(t *testing.T) {
 	for i, val := range values {
 		point := slice.AppendEmpty()
 		point.SetTimestamp(seconds(2 * i))
-		point.SetDoubleVal(val)
+		point.SetDoubleValue(val)
 	}
 
 	ctx := context.Background()
@@ -490,7 +491,7 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	for i, val := range values {
 		point := slice.AppendEmpty()
 		point.SetTimestamp(seconds(stamps[i]))
-		point.SetDoubleVal(val)
+		point.SetDoubleValue(val)
 	}
 
 	ctx := context.Background()
@@ -533,178 +534,20 @@ func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dim
 	)
 }
 
-func TestMapDeltaHistogramMetrics(t *testing.T) {
-	ts := pcommon.NewTimestampFromTime(time.Now())
-	slice := pmetric.NewHistogramDataPointSlice()
-	point := slice.AppendEmpty()
-	point.SetCount(20)
-	point.SetSum(math.Pi)
-	point.SetMBucketCounts([]uint64{2, 18})
-	point.SetMExplicitBounds([]float64{0})
-	point.SetTimestamp(ts)
-
-	dims := newDims("doubleHist.test")
-	dimsTags := dims.AddTags("attribute_tag:attribute_value")
-	counts := []metric{
-		newCount(dims.WithSuffix("count"), uint64(ts), 20),
-		newCount(dims.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	countsAttributeTags := []metric{
-		newCount(dimsTags.WithSuffix("count"), uint64(ts), 20),
-		newCount(dimsTags.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	bucketsCounts := []metric{
-		newCount(dimsWithBucket(dims, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dims, "0", "inf"), uint64(ts), 18),
-	}
-
-	bucketsCountsAttributeTags := []metric{
-		newCount(dimsWithBucket(dimsTags, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dimsTags, "0", "inf"), uint64(ts), 18),
-	}
-
-	sketches := []sketch{
-		newSketch(dims, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: int64(point.Count()),
-		}),
-	}
-
-	sketchesAttributeTags := []sketch{
-		newSketch(dimsTags, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: 20,
-		}),
-	}
-
-	ctx := context.Background()
-	delta := true
-
-	tests := []struct {
-		name             string
-		histogramMode    HistogramMode
-		sendCountSum     bool
-		tags             []string
-		expectedMetrics  []metric
-		expectedSketches []sketch
-	}{
-		{
-			name:             "No buckets: send count & sum metrics, no attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			expectedMetrics:  counts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "No buckets: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  bucketsCounts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  bucketsCountsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  append(counts, bucketsCounts...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  append(countsAttributeTags, bucketsCountsAttributeTags...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketchesAttributeTags,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  counts,
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: sketchesAttributeTags,
-		},
-	}
-
-	for _, testInstance := range tests {
-		t.Run(testInstance.name, func(t *testing.T) {
-			tr := newTranslator(t, zap.NewNop())
-			tr.cfg.HistMode = testInstance.histogramMode
-			tr.cfg.SendCountSum = testInstance.sendCountSum
-			consumer := &mockFullConsumer{}
-			dims := &Dimensions{name: "doubleHist.test", tags: testInstance.tags}
-			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
-			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
-			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-		})
-	}
-}
-
 func TestMapCumulativeHistogramMetrics(t *testing.T) {
 	slice := pmetric.NewHistogramDataPointSlice()
 	point := slice.AppendEmpty()
 	point.SetCount(20)
 	point.SetSum(math.Pi)
-	point.SetMBucketCounts([]uint64{2, 18})
-	point.SetMExplicitBounds([]float64{0})
+	point.BucketCounts().FromRaw([]uint64{2, 18})
+	point.ExplicitBounds().FromRaw([]float64{0})
 	point.SetTimestamp(seconds(0))
 
 	point = slice.AppendEmpty()
 	point.SetCount(20 + 30)
 	point.SetSum(math.Pi + 20)
-	point.SetMBucketCounts([]uint64{2 + 11, 18 + 19})
-	point.SetMExplicitBounds([]float64{0})
+	point.BucketCounts().FromRaw([]uint64{2 + 11, 18 + 19})
+	point.ExplicitBounds().FromRaw([]float64{0})
 	point.SetTimestamp(seconds(2))
 
 	dims := newDims("doubleHist.test")
@@ -797,8 +640,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	tags := make([]string, 0, 10)
 
 	pointOne := pmetric.NewHistogramDataPoint()
-	pointOne.SetMBucketCounts([]uint64{2, 18})
-	pointOne.SetMExplicitBounds([]float64{0})
+	pointOne.BucketCounts().FromRaw([]uint64{2, 18})
+	pointOne.ExplicitBounds().FromRaw([]float64{0})
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
 	dims := &Dimensions{name: "test.histogram.one", tags: tags}
@@ -806,8 +649,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	seriesOne := consumer.metrics
 
 	pointTwo := pmetric.NewHistogramDataPoint()
-	pointTwo.SetMBucketCounts([]uint64{2, 18})
-	pointTwo.SetMExplicitBounds([]float64{1})
+	pointTwo.BucketCounts().FromRaw([]uint64{2, 18})
+	pointTwo.ExplicitBounds().FromRaw([]float64{1})
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "test.histogram.two", tags: tags}
@@ -953,9 +796,9 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -968,148 +811,148 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	// IntGauge
 	met := metricsArray.AppendEmpty()
 	met.SetName("int.gauge")
-	met.SetDataType(pmetric.MetricDataTypeGauge)
+	met.SetEmptyGauge()
 	dpsInt := met.Gauge().DataPoints()
 	dpInt := dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntVal(1)
+	dpInt.SetIntValue(1)
 
 	// DoubleGauge
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.gauge")
-	met.SetDataType(pmetric.MetricDataTypeGauge)
+	met.SetEmptyGauge()
 	dpsDouble := met.Gauge().DataPoints()
 	dpDouble := dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.Pi)
+	dpDouble.SetDoubleValue(math.Pi)
 
 	// aggregation unspecified sum
 	met = metricsArray.AppendEmpty()
 	met.SetName("unspecified.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityUnspecified)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityUnspecified)
 
 	// Int Sum (delta)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.delta.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsInt = met.Sum().DataPoints()
 	dpInt = dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntVal(2)
+	dpInt.SetIntValue(2)
 
 	// Double Sum (delta)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.delta.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDouble = met.Sum().DataPoints()
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.E)
+	dpDouble.SetDoubleValue(math.E)
 
 	// Int Sum (delta monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.delta.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsInt = met.Sum().DataPoints()
 	dpInt = dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntVal(2)
+	dpInt.SetIntValue(2)
 
 	// Double Sum (delta monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.delta.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDouble = met.Sum().DataPoints()
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.E)
+	dpDouble.SetDoubleValue(math.E)
 
 	// aggregation unspecified histogram
 	met = metricsArray.AppendEmpty()
 	met.SetName("unspecified.histogram")
-	met.SetDataType(pmetric.MetricDataTypeHistogram)
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityUnspecified)
+	met.SetEmptyHistogram()
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityUnspecified)
 
 	// Histogram (delta)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.histogram")
-	met.SetDataType(pmetric.MetricDataTypeHistogram)
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptyHistogram()
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDoubleHist := met.Histogram().DataPoints()
 	dpDoubleHist := dpsDoubleHist.AppendEmpty()
 	dpDoubleHist.SetCount(20)
 	dpDoubleHist.SetSum(math.Phi)
-	dpDoubleHist.SetMBucketCounts([]uint64{2, 18})
-	dpDoubleHist.SetMExplicitBounds([]float64{0})
+	dpDoubleHist.BucketCounts().FromRaw([]uint64{2, 18})
+	dpDoubleHist.ExplicitBounds().FromRaw([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
 	// Int Sum (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.cumulative.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	dpsInt = met.Sum().DataPoints()
 	dpsInt.EnsureCapacity(2)
 	dpInt = dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntVal(4)
+	dpInt.SetIntValue(4)
 
 	// Double Sum (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.cumulative.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	dpsDouble = met.Sum().DataPoints()
 	dpsDouble.EnsureCapacity(2)
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(4)
+	dpDouble.SetDoubleValue(4)
 
 	// Int Sum (cumulative monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("int.cumulative.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	met.Sum().SetIsMonotonic(true)
 	dpsInt = met.Sum().DataPoints()
 	dpsInt.EnsureCapacity(2)
 	dpInt = dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntVal(4)
+	dpInt.SetIntValue(4)
 	dpInt = dpsInt.AppendEmpty()
 	dpInt.SetTimestamp(seconds(2))
-	dpInt.SetIntVal(7)
+	dpInt.SetIntValue(7)
 
 	// Double Sum (cumulative monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.cumulative.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	met.Sum().SetIsMonotonic(true)
 	dpsDouble = met.Sum().DataPoints()
 	dpsDouble.EnsureCapacity(2)
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(4)
+	dpDouble.SetDoubleValue(4)
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(2))
-	dpDouble.SetDoubleVal(4 + math.Pi)
+	dpDouble.SetDoubleValue(4 + math.Pi)
 
 	// Summary
 	met = metricsArray.AppendEmpty()
 	met.SetName("summary")
-	met.SetDataType(pmetric.MetricDataTypeSummary)
+	met.SetEmptySummary()
 	slice := exampleSummaryDataPointSlice(seconds(0), 1, 1)
 	slice.CopyTo(met.Summary().DataPoints())
 
 	met = metricsArray.AppendEmpty()
 	met.SetName("summary")
-	met.SetDataType(pmetric.MetricDataTypeSummary)
+	met.SetEmptySummary()
 	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
 	slice.CopyTo(met.Summary().DataPoints())
 	return md
@@ -1504,7 +1347,7 @@ func createNaNMetrics() pmetric.Metrics {
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	ilms := rm.ScopeMetrics()
 
 	metricsArray := ilms.AppendEmpty().Metrics()
@@ -1512,78 +1355,78 @@ func createNaNMetrics() pmetric.Metrics {
 	// DoubleGauge
 	met := metricsArray.AppendEmpty()
 	met.SetName("nan.gauge")
-	met.SetDataType(pmetric.MetricDataTypeGauge)
+	met.SetEmptyGauge()
 	dpsDouble := met.Gauge().DataPoints()
 	dpDouble := dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.NaN())
+	dpDouble.SetDoubleValue(math.NaN())
 
 	// Double Sum (delta)
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.delta.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDouble = met.Sum().DataPoints()
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.NaN())
+	dpDouble.SetDoubleValue(math.NaN())
 
 	// Double Sum (delta monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.delta.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDouble = met.Sum().DataPoints()
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.NaN())
+	dpDouble.SetDoubleValue(math.NaN())
 
 	// Histogram
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.histogram")
-	met.SetDataType(pmetric.MetricDataTypeHistogram)
-	met.Histogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptyHistogram()
+	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	dpsDoubleHist := met.Histogram().DataPoints()
 	dpDoubleHist := dpsDoubleHist.AppendEmpty()
 	dpDoubleHist.SetCount(20)
 	dpDoubleHist.SetSum(math.NaN())
-	dpDoubleHist.SetMBucketCounts([]uint64{2, 18})
-	dpDoubleHist.SetMExplicitBounds([]float64{0})
+	dpDoubleHist.BucketCounts().FromRaw([]uint64{2, 18})
+	dpDoubleHist.ExplicitBounds().FromRaw([]float64{0})
 	dpDoubleHist.SetTimestamp(seconds(0))
 
 	// Double Sum (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.cumulative.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	dpsDouble = met.Sum().DataPoints()
 	dpsDouble.EnsureCapacity(2)
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.NaN())
+	dpDouble.SetDoubleValue(math.NaN())
 
 	// Double Sum (cumulative monotonic)
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.cumulative.monotonic.sum")
-	met.SetDataType(pmetric.MetricDataTypeSum)
-	met.Sum().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	met.Sum().SetIsMonotonic(true)
 	dpsDouble = met.Sum().DataPoints()
 	dpsDouble.EnsureCapacity(2)
 	dpDouble = dpsDouble.AppendEmpty()
 	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleVal(math.NaN())
+	dpDouble.SetDoubleValue(math.NaN())
 
 	// Summary
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.summary")
-	met.SetDataType(pmetric.MetricDataTypeSummary)
+	met.SetEmptySummary()
 	slice := exampleSummaryDataPointSlice(seconds(0), math.NaN(), 1)
 	slice.CopyTo(met.Summary().DataPoints())
 
 	met = metricsArray.AppendEmpty()
 	met.SetName("nan.summary")
-	met.SetDataType(pmetric.MetricDataTypeSummary)
+	met.SetEmptySummary()
 	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
 	slice.CopyTo(met.Summary().DataPoints())
 	return md
@@ -1662,8 +1505,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: math.Pi / float64(30),
 					Cnt: 30,
@@ -1680,8 +1523,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1701,8 +1544,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1719,8 +1562,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1737,8 +1580,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1758,8 +1601,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1775,8 +1618,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			withCountSum:                         false,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1796,8 +1639,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1817,8 +1660,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1884,9 +1727,9 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	rm := rms.AppendEmpty()
 
 	attrs := rm.Resource().Attributes()
-	attrs.InsertString(attributes.AttributeDatadogHostname, testHostname)
+	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
 	for attr, val := range additionalAttributes {
-		attrs.InsertString(attr, val)
+		attrs.PutStr(attr, val)
 	}
 	ilms := rm.ScopeMetrics()
 
@@ -1899,25 +1742,28 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	// Exponential Histogram (delta)
 	met := metricsArray.AppendEmpty()
 	met.SetName("double.exponential.delta.histogram")
-	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityDelta)
+	met.SetEmptyExponentialHistogram()
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
 	expDeltaHistDp := met.ExponentialHistogram().DataPoints()
 	expDeltaHist := expDeltaHistDp.AppendEmpty()
 	expDeltaHist.SetScale(6)
 	expDeltaHist.SetCount(30)
 	expDeltaHist.SetZeroCount(10)
 	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.SetMin(-100_000)
+	expDeltaHist.SetMax(100_000)
 	expDeltaHist.Negative().SetOffset(2)
-	expDeltaHist.Negative().SetMBucketCounts([]uint64{3, 2, 5})
+
+	expDeltaHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})
 	expDeltaHist.Positive().SetOffset(3)
-	expDeltaHist.Positive().SetMBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expDeltaHist.Positive().BucketCounts().FromRaw([]uint64{1, 1, 1, 2, 2, 3})
 	expDeltaHist.SetTimestamp(seconds(0))
 
 	// Exponential Histogram (cumulative)
 	met = metricsArray.AppendEmpty()
 	met.SetName("double.exponential.cumulative.histogram")
-	met.SetDataType(pmetric.MetricDataTypeExponentialHistogram)
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.MetricAggregationTemporalityCumulative)
+	met.SetEmptyExponentialHistogram()
+	met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 	expCumHistDp := met.ExponentialHistogram().DataPoints()
 	expCumHist := expCumHistDp.AppendEmpty()
 	expCumHist.SetScale(6)
@@ -1925,9 +1771,9 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetZeroCount(10)
 	expCumHist.SetSum(math.Pi)
 	expCumHist.Negative().SetOffset(2)
-	expCumHist.Negative().SetMBucketCounts([]uint64{3, 2, 5})
+	expCumHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})
 	expCumHist.Positive().SetOffset(3)
-	expCumHist.Positive().SetMBucketCounts([]uint64{1, 1, 1, 2, 2, 3})
+	expCumHist.Positive().BucketCounts().FromRaw([]uint64{1, 1, 1, 2, 2, 3})
 	expCumHist.SetTimestamp(seconds(0))
 	return md
 }

@@ -7,13 +7,15 @@ package checks
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/DataDog/gohai/cpu"
 	"github.com/DataDog/gohai/platform"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 

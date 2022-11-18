@@ -10,30 +10,30 @@ package probe
 
 import (
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/avast/retry-go"
+	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func testCacheSize(t *testing.T, resolver *ProcessResolver) {
 	err := retry.Do(
 		func() error {
-			if atomic.LoadInt64(&resolver.cacheSize) == 0 {
+			if resolver.cacheSize.Load() == 0 {
 				return nil
 			}
 
-			return fmt.Errorf("cache size error: %d", atomic.LoadInt64(&resolver.cacheSize))
+			return fmt.Errorf("cache size error: %d", resolver.cacheSize.Load())
 		},
 	)
 	assert.Nil(t, err)
 }
 
 func TestFork1st(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestFork1st(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -57,7 +57,7 @@ func TestFork1st(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	resolver.DeleteEntry(child.Pid, time.Now())
@@ -72,7 +72,7 @@ func TestFork1st(t *testing.T) {
 }
 
 func TestFork2nd(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestFork2nd(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -96,7 +96,7 @@ func TestFork2nd(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -113,7 +113,7 @@ func TestFork2nd(t *testing.T) {
 }
 
 func TestForkExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestForkExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -141,7 +141,7 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	//     \ [child] -> exec
@@ -150,7 +150,7 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> exec
@@ -168,7 +168,7 @@ func TestForkExec(t *testing.T) {
 }
 
 func TestOrphanExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestOrphanExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -197,7 +197,7 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -213,7 +213,7 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
@@ -223,7 +223,7 @@ func TestOrphanExec(t *testing.T) {
 }
 
 func TestForkExecExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddForkEntry(parent)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -256,7 +256,7 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -272,7 +272,7 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec1.Ancestor)
 	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> [exec1] -> exec2
@@ -282,7 +282,7 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, exec1, exec2.Ancestor)
 	assert.Equal(t, child, exec2.Ancestor.Ancestor)
 	assert.Equal(t, parent, exec2.Ancestor.Ancestor.Ancestor)
-	assert.EqualValues(t, 4, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec2.Pid, time.Now())
@@ -292,7 +292,7 @@ func TestForkExecExec(t *testing.T) {
 }
 
 func TestForkReuse(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent1)
 	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent1
 	//     \ child1
@@ -327,7 +327,7 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent1, child1.Ancestor)
-	assert.EqualValues(t, 2, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent1]
 	//     \ child1
@@ -343,7 +343,7 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child1, exec1.Ancestor)
 	assert.Equal(t, parent1, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -352,7 +352,7 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent2)
 	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 4, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -363,7 +363,7 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, parent2, child2.Ancestor)
-	assert.EqualValues(t, 5, atomic.LoadInt64(&resolver.cacheSize))
+	assert.EqualValues(t, 5, resolver.cacheSize.Load())
 
 	// parent2:pid1
 	//     \ child2
@@ -386,7 +386,7 @@ func TestForkReuse(t *testing.T) {
 }
 
 func TestForkForkExec(t *testing.T) {
-	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(10000))
+	resolver, err := NewProcessResolver(nil, nil, NewProcessResolverOpts(nil))
 	if err != nil {
 		t.Fatal(err)
 	}

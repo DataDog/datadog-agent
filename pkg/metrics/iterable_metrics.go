@@ -9,9 +9,10 @@ import (
 	"context"
 	"sync"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 // iterableMetrics represents an iterable collection of metrics. A metric can be

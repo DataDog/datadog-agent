@@ -77,7 +77,7 @@ VOID DoStopAllServices();
 DWORD DoStartSvc(std::wstring &svcName);
 int doesServiceExist(std::wstring &svcName);
 int installServices(CustomActionData &data, PSID sid, const wchar_t *password);
-int uninstallServices(CustomActionData &data);
+int uninstallServices();
 int verifyServices(CustomActionData &data);
 
 // delfiles.cpp
@@ -85,7 +85,23 @@ BOOL DeleteFilesInDirectory(const wchar_t *dirname, const wchar_t *ext, bool dir
 BOOL DeleteHomeDirectory(const std::wstring &user, PSID userSID);
 
 // caninstall.cpp
-bool canInstall(BOOL isDC, int ddUserExists, int ddServiceExists, const CustomActionData &data, bool &bResetPassword);
+bool canInstall(
+    const CustomActionData &data,
+    bool &bResetPassword,
+    std::wstring *resultMessage);
+bool canInstall(
+    bool isDC,
+    bool isReadOnlyDC,
+    bool ddUserExists,
+    bool isServiceAccount,
+    bool isNtAuthority,
+    bool isUserDomainUser,
+    bool haveUserPassword,
+    std::wstring userDomain,
+    std::wstring computerDomain,
+    bool ddServiceExists,
+    bool &bResetPassword,
+    std::wstring *resultMessage);
 extern HMODULE hDllModule;
 // rights we might be interested in
 /*

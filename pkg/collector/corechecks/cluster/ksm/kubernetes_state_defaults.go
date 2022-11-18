@@ -82,6 +82,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_minallowed":             "vpa.spec_container_minallowed",
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
+		"kube_job_duration":                                                                        "job.duration",
 		"kube_ingress_path":                                                                        "ingress.path",
 	}
 }
@@ -104,14 +105,16 @@ func defaultLabelsMapper() map[string]string {
 		"container":                           "kube_container_name",
 		"container_id":                        "container_id",
 		"image":                               "image_name",
-		"label_tags_datadoghq_com_env":        "env",
-		"label_tags_datadoghq_com_service":    "service",
-		"label_tags_datadoghq_com_version":    "version",
 		"label_topology_kubernetes_io_region": "kube_region",
 		"label_topology_kubernetes_io_zone":   "kube_zone",
 		"label_failure_domain_beta_kubernetes_io_region": "kube_region",
 		"label_failure_domain_beta_kubernetes_io_zone":   "kube_zone",
 		"ingress": "kube_ingress",
+
+		// Standard Datadog labels
+		"label_tags_datadoghq_com_env":     "env",
+		"label_tags_datadoghq_com_service": "service",
+		"label_tags_datadoghq_com_version": "version",
 
 		// Standard Kubernetes labels
 		"label_app_kubernetes_io_name":       "kube_app_name",
@@ -120,22 +123,45 @@ func defaultLabelsMapper() map[string]string {
 		"label_app_kubernetes_io_component":  "kube_app_component",
 		"label_app_kubernetes_io_part_of":    "kube_app_part_of",
 		"label_app_kubernetes_io_managed_by": "kube_app_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart": "helm_chart",
+	}
+}
+
+// defaultLabelsMapperByResourceKind returns a map that contains the default labels to tag names by resource kind mapping
+func defaultLabelsMapperByResourceKind() map[string]map[string]string {
+	return map[string]map[string]string{
+		"pod": {
+			"phase": "pod_phase",
+		},
+		"ingress": {
+			"host":         "kube_ingress_host",
+			"path":         "kube_ingress_path",
+			"service_name": "kube_service",
+			"service_port": "kube_service_port",
+		},
 	}
 }
 
 // defaultLabelJoins returns a map that contains the default label joins configuration
 func defaultLabelJoins() map[string]*JoinsConfig {
 	defaultStandardLabels := []string{
+		// Standard Datadog labels
 		"label_tags_datadoghq_com_env",
 		"label_tags_datadoghq_com_service",
 		"label_tags_datadoghq_com_version",
 
+		// Standard Kubernetes labels
 		"label_app_kubernetes_io_name",
 		"label_app_kubernetes_io_instance",
 		"label_app_kubernetes_io_version",
 		"label_app_kubernetes_io_component",
 		"label_app_kubernetes_io_part_of",
 		"label_app_kubernetes_io_managed_by",
+
+		// Standard Helm labels
+		"label_helm_sh_chart",
 	}
 
 	return map[string]*JoinsConfig{

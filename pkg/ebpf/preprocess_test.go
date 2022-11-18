@@ -10,7 +10,6 @@ package ebpf
 
 import (
 	"io/ioutil"
-	"os"
 	"path"
 	"testing"
 
@@ -18,11 +17,7 @@ import (
 )
 
 func TestPreprocessFile(t *testing.T) {
-	testBPFDir, err := ioutil.TempDir("", "test-bpfdir")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(testBPFDir)
+	testBPFDir := t.TempDir()
 
 	assetSource := `#include <linux/bpf.h>
 #include <linux/tcp.h>

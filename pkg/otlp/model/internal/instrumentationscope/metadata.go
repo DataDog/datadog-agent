@@ -15,8 +15,9 @@
 package instrumentationscope
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/utils"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/model/internal/utils"
 )
 
 const (

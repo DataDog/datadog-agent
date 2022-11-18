@@ -15,13 +15,18 @@ periodic_kitchen_cleanup_s3:
     - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A6/
     - aws s3 rm --recursive s3://$WIN_S3_BUCKET/pipelines/A7/
 
-# Once a day, before the nightly build, kills any VMs that might have been left over by kitchen
+# Kills any VMs that might have been left over by kitchen
+# The script only deletes VMs that have been there for >= 4 hours, which is more than the time limit
+# for Gitlab jobs (2 hours), so this should never remove a live kitchen test.
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
   rules:
-    !reference [.on_testing_cleanup]
+    !reference [.on_main_or_testing_cleanup]
+  # Note: We're not sure if the cleanup script is safe if run multiple times concurrently, so we limit
+  # the job to be run one at a time.
+  resource_group: azure_cleanup
   script:
     - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text`
     - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text`

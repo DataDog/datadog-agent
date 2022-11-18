@@ -164,7 +164,7 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     // TODO: l3 / l4 firewall
 
     // route l7 protocol
-    if (pkt->translated_ns_flow.flow.dport == htons(53)) {
+    if (pkt->l4_protocol == IPPROTO_UDP && pkt->translated_ns_flow.flow.dport == htons(53)) {
         tail_call_to_classifier(skb, DNS_REQUEST);
     }
 

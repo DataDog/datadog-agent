@@ -16,8 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (

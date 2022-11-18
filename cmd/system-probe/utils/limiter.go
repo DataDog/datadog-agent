@@ -8,8 +8,9 @@ package utils
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DefaultMaxConcurrentRequests determines the maximum number of requests in-flight for a given handler

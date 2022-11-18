@@ -18,12 +18,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/fatih/color"
 )
 
 // RunDatadogConnectivityDiagnose sends requests to all known endpoints for all domains

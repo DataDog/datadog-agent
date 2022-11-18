@@ -1,7 +1,6 @@
 #ifndef _BUFFER_SELECTOR_H
 #define _BUFFER_SELECTOR_H
 
-#define SYSCALL_MONITOR_KEY     0
 #define ERPC_MONITOR_KEY        1
 #define DISCARDER_MONITOR_KEY   2
 

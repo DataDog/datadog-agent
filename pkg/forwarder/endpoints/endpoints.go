@@ -47,11 +47,13 @@ var (
 	// RtContainerEndpoint is a v1 endpoint used to send real time container checks
 	RtContainerEndpoint = transaction.Endpoint{Route: "/api/v1/container", Name: "rtcontainer"}
 	// ConnectionsEndpoint is a v1 endpoint used to send connection checks
-	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "connections"}
+	ConnectionsEndpoint = transaction.Endpoint{Route: "/api/v1/connections", Name: "connections"}
 	// LegacyOrchestratorEndpoint is a v1 endpoint used to send orchestrator checks
 	LegacyOrchestratorEndpoint = transaction.Endpoint{Route: "/api/v1/orchestrator", Name: "orchestrator"}
 	// OrchestratorEndpoint is a v2 endpoint used to send orchestrator checks
 	OrchestratorEndpoint = transaction.Endpoint{Route: "/api/v2/orch", Name: "orchestrator"}
+	// OrchestratorManifestEndpoint is a v2 endpoint used to send orchestrator manifests
+	OrchestratorManifestEndpoint = transaction.Endpoint{Route: "/api/v2/orchmanif", Name: "orchmanifest"}
 	// ContainerLifecycleEndpoint is an event platform endpoint used to send container lifecycle events
 	ContainerLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/contlcycle", Name: "contlcycle"}
 )

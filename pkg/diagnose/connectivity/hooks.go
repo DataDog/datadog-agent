@@ -19,8 +19,9 @@ import (
 	"net/http/httptrace"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/fatih/color"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // createDiagnoseTrace creates a httptrace.ClientTrace containing functions that display

@@ -21,10 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	coreutil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -63,6 +65,7 @@ type InitConfig struct {
 	OidBatchSize          Number           `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
 	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology       Boolean          `yaml:"collect_topology"`
 	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval int              `yaml:"min_collection_interval"`
 	Namespace             string           `yaml:"namespace"`
@@ -88,6 +91,7 @@ type InstanceConfig struct {
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology       *Boolean          `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean          `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
@@ -148,6 +152,7 @@ type CheckConfig struct {
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
+	CollectTopology       bool
 	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
@@ -175,7 +180,7 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	c.ProfileDef = &definition
 	c.Profile = profile
 
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(definition.Metadata)
+	c.Metadata = updateMetadataDefinitionWithDefaults(definition.Metadata, c.CollectTopology)
 	c.Metrics = append(c.Metrics, definition.Metrics...)
 	c.MetricTags = append(c.MetricTags, definition.MetricTags...)
 
@@ -210,11 +215,11 @@ func (c *CheckConfig) GetStaticTags() []string {
 	}
 
 	if c.UseDeviceIDAsHostname {
-		hostname, err := coreutil.GetHostname(context.TODO())
+		hname, err := hostname.Get(context.TODO())
 		if err != nil {
 			log.Warnf("Error getting the hostname: %v", err)
 		} else {
-			tags = append(tags, "agent_host:"+hostname)
+			tags = append(tags, "agent_host:"+hname)
 		}
 	}
 	return tags
@@ -267,6 +272,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
+	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -304,6 +310,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
 	} else {
 		c.CollectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
+	}
+
+	if instance.CollectTopology != nil {
+		c.CollectTopology = bool(*instance.CollectTopology)
+	} else {
+		c.CollectTopology = bool(initConfig.CollectTopology)
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -414,7 +426,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 	}
 
-	c.Namespace, err = common.NormalizeNamespace(c.Namespace)
+	c.Namespace, err = utils.NormalizeNamespace(c.Namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +450,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.addUptimeMetric()
 
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(nil)
+	c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
 	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
 	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 
@@ -576,6 +588,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
+	newConfig.CollectTopology = c.CollectTopology
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 

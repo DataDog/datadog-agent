@@ -190,6 +190,8 @@ type ProcessSerializer struct {
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
 	// File information of the executable
 	Executable *FileSerializer `json:"executable,omitempty"`
+	// File information of the interpreter
+	Interpreter *FileSerializer `json:"interpreter,omitempty"`
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// First command line argument
@@ -204,6 +206,8 @@ type ProcessSerializer struct {
 	EnvsTruncated bool `json:"envs_truncated,omitempty"`
 	// Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
 	IsThread bool `json:"is_thread,omitempty" jsonschema_description:""`
+	// Indicates whether the process is a kworker
+	IsKworker bool `json:"is_kworker,omitempty" jsonschema_description:""`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -609,6 +613,11 @@ func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 		Envs:          envs,
 		EnvsTruncated: EnvsTruncated,
 		IsThread:      ps.IsThread,
+		IsKworker:     ps.IsKworker,
+	}
+
+	if ps.HasInterpreter() {
+		psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
 	}
 
 	credsSerializer := newCredentialsSerializer(&ps.Credentials)
@@ -1038,23 +1047,30 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Utimes.Retval)
 	case model.FileMountEventType:
+		src, srcErr := event.ResolveMountRoot(&event.Mount)
+		dst, dstErr := event.ResolveMountPoint(&event.Mount)
+
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:                event.ResolveMountRoot(&event.Mount),
-				PathResolutionError: event.Mount.GetRootPathResolutionError(),
-				MountID:             &event.Mount.RootMountID,
-				Inode:               &event.Mount.RootInode,
+				Path:    src,
+				MountID: &event.Mount.RootMountID,
+				Inode:   &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:                event.ResolveMountPoint(&event.Mount),
-				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
-				MountID:             &event.Mount.ParentMountID,
-				Inode:               &event.Mount.ParentInode,
+				Path:    dst,
+				MountID: &event.Mount.ParentMountID,
+				Inode:   &event.Mount.ParentInode,
 			},
 			NewMountID: event.Mount.MountID,
 			GroupID:    event.Mount.GroupID,
 			Device:     event.Mount.Device,
 			FSType:     event.Mount.GetFSType(),
+		}
+		if srcErr != nil {
+			s.FileEventSerializer.FileSerializer.PathResolutionError = srcErr.Error()
+		}
+		if dstErr != nil {
+			s.FileEventSerializer.Destination.PathResolutionError = dstErr.Error()
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
 	case model.FileUmountEventType:

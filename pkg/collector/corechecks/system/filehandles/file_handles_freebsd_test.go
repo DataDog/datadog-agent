@@ -8,11 +8,9 @@
 package filehandles
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func GetInt64(name string) (value int64, err error) {

@@ -10,12 +10,11 @@ package probe
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"runtime"
 	"sort"
 	"strings"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -53,7 +52,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := NewMountResolver(probe)
+	mountResolver, err := NewMountResolver(probe.statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +73,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.CookieCacheSize))
+	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
@@ -86,21 +85,22 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 // resolveBasename resolves the inode to a filename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
-	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
 // resolveFileFieldsPath resolves the inode to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields) (string, error) {
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID)
+	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID, ctx.Pid)
 	if mountErr != nil {
 		return pathStr, mountErr
 	}
 
+	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}
@@ -205,7 +205,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
 func (r *Resolvers) Snapshot() error {
 	if err := r.snapshot(); err != nil {
-		return errors.Wrap(err, "unable to snapshot processes")
+		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
 
 	r.ProcessResolver.SetState(snapshotted)
@@ -213,7 +213,7 @@ func (r *Resolvers) Snapshot() error {
 
 	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
 	if err != nil {
-		return errors.Wrap(err, "unable to snapshot SELinux")
+		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
 
 	if err := snapshotSELinux(selinuxStatusMap); err != nil {
@@ -265,7 +265,7 @@ func (r *Resolvers) snapshot() error {
 		}
 
 		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(proc); err != nil {
+		if err = r.MountResolver.SyncCache(uint32(proc.Pid)); err != nil {
 			if !os.IsNotExist(err) {
 				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
 			}

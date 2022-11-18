@@ -98,7 +98,7 @@ func TestDump(t *testing.T) {
 	config.Name = "foo"
 	config.InitConfig = Data("fooBarBaz: test")
 	config.Instances = []Data{Data("justFoo")}
-	dump := config.Dump()
+	dump := config.Dump(true)
 	assert.Contains(t, dump, `[]byte("justFoo")`)
 }
 

@@ -6,8 +6,9 @@
 package orchestrator
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestChunkRange tests the chunking function. Note that the chunkCount is actually not given but calculated by the function GroupSize

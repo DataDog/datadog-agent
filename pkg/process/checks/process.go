@@ -11,6 +11,8 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -18,16 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/cpu"
-	"go.uber.org/atomic"
 )
 
 const emptyCtrID = ""
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{
-	createTimes: &atomic.Value{},
-}
+var Process = &ProcessCheck{}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -58,9 +56,6 @@ type ProcessCheck struct {
 	// will be reused by RT process collection to get stats
 	lastPIDs []int32
 
-	// Create times by PID used in the network check
-	createTimes *atomic.Value
-
 	// SysprobeProcessModuleEnabled tells the process check wheither to use the RemoteSystemProbeUtil to gather privileged process stats
 	SysprobeProcessModuleEnabled bool
 
@@ -71,7 +66,7 @@ type ProcessCheck struct {
 // Init initializes the singleton ProcessCheck.
 func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.sysInfo = info
-	p.probe = getProcessProbe()
+	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
 	p.notInitializedLogLimit = util.NewLogLimit(1, time.Minute*10)
@@ -94,6 +89,9 @@ func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName 
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
+
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ProcessCheck to collect a list of running processes and relevant
 // stats for each. On most POSIX systems this will use a mix of procfs and other
@@ -124,21 +122,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return nil, errEmptyCPUTime
 	}
 
-	// TODO: deduplicate system probe or WithPermission with RT collection
-	var sysProbeUtil *net.RemoteSysProbeUtil
-	// if the Process module is disabled, we allow Probe to collect
-	// fields that require elevated permission to collect with best effort
-	if !p.SysprobeProcessModuleEnabled {
-		procutil.WithPermission(true)(p.probe)
-	} else {
-		procutil.WithPermission(false)(p.probe)
-		if pu, err := net.GetRemoteSystemProbeUtil(); err == nil {
-			sysProbeUtil = pu
-		} else if p.notInitializedLogLimit.ShouldLog() {
-			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
-		}
-	}
-
 	procs, err := p.probe.ProcessesByPID(time.Now(), true)
 	if err != nil {
 		return nil, err
@@ -150,7 +133,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.lastPIDs = append(p.lastPIDs, pid)
 	}
 
-	if sysProbeUtil != nil {
+	if sysProbeUtil := p.getRemoteSysProbeUtil(); sysProbeUtil != nil {
 		mergeProcWithSysprobeStats(p.lastPIDs, procs, sysProbeUtil)
 	}
 
@@ -334,18 +317,6 @@ func fmtProcesses(
 		// Hide blacklisted args if the Scrubber is enabled
 		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
 
-		var ioStat *model.IOStat
-		if fp.Stats.IORateStat != nil {
-			ioStat = &model.IOStat{
-				ReadRate:       float32(fp.Stats.IORateStat.ReadRate),
-				WriteRate:      float32(fp.Stats.IORateStat.WriteRate),
-				ReadBytesRate:  float32(fp.Stats.IORateStat.ReadBytesRate),
-				WriteBytesRate: float32(fp.Stats.IORateStat.WriteBytesRate),
-			}
-		} else {
-			ioStat = formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun)
-		}
-
 		proc := &model.Process{
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
@@ -356,7 +327,7 @@ func fmtProcesses(
 			CreateTime:             fp.Stats.CreateTime,
 			OpenFdCount:            fp.Stats.OpenFdCount,
 			State:                  model.ProcessState(model.ProcessState_value[fp.Stats.Status]),
-			IoStat:                 ioStat,
+			IoStat:                 formatIO(fp.Stats, lastProcs[fp.Pid].Stats.IOStat, lastRun),
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
@@ -386,8 +357,11 @@ func formatCommand(fp *procutil.Process) *model.Command {
 }
 
 func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.Time) *model.IOStat {
-	// This will be nil for Mac
-	if fp.IOStat == nil {
+	if fp.IORateStat != nil {
+		return formatIORates(fp.IORateStat)
+	}
+
+	if fp.IOStat == nil { // This will be nil for Mac
 		return &model.IOStat{}
 	}
 
@@ -395,6 +369,7 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 	if before.IsZero() || diff <= 0 {
 		return &model.IOStat{}
 	}
+
 	// Reading -1 as counter means the file could not be opened due to permissions.
 	// In that case we set the rate as -1 to distinguish from a real 0 in rates.
 	readRate := float32(-1)
@@ -418,6 +393,15 @@ func formatIO(fp *procutil.Stats, lastIO *procutil.IOCountersStat, before time.T
 		WriteRate:      writeRate,
 		ReadBytesRate:  readBytesRate,
 		WriteBytesRate: writeBytesRate,
+	}
+}
+
+func formatIORates(ioRateStat *procutil.IOCountersRateStat) *model.IOStat {
+	return &model.IOStat{
+		ReadRate:       float32(ioRateStat.ReadRate),
+		WriteRate:      float32(ioRateStat.WriteRate),
+		ReadBytesRate:  float32(ioRateStat.ReadBytesRate),
+		WriteBytesRate: float32(ioRateStat.WriteBytesRate),
 	}
 }
 
@@ -454,7 +438,7 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 			LastCpu:   "cpu",
 			TotalPct:  float32(statsNow.CPUPercent.UserPct + statsNow.CPUPercent.SystemPct),
 			UserPct:   float32(statsNow.CPUPercent.UserPct),
-			SystemPct: float32(statsNow.CPUPercent.UserPct),
+			SystemPct: float32(statsNow.CPUPercent.SystemPct),
 		}
 	}
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
@@ -486,25 +470,28 @@ func (p *ProcessCheck) storeCreateTimes() {
 	for pid, proc := range p.lastProcs {
 		createTimes[pid] = proc.Stats.CreateTime
 	}
-	p.createTimes.Store(createTimes)
+	ProcessNotify.UpdateCreateTimes(createTimes)
 }
 
-func (p *ProcessCheck) createTimesforPIDs(pids []int32) map[int32]int64 {
-	createTimeForPID := make(map[int32]int64)
-	if result := p.createTimes.Load(); result != nil {
-		createTimesAllPIDs := result.(map[int32]int64)
-		for _, pid := range pids {
-			if ctime, ok := createTimesAllPIDs[pid]; ok {
-				createTimeForPID[pid] = ctime
-			}
-		}
-		return createTimeForPID
+func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
+	// if the Process module is disabled, we allow Probe to collect
+	// fields that require elevated permission to collect with best effort
+	if !p.SysprobeProcessModuleEnabled {
+		return nil
 	}
-	return createTimeForPID
+
+	pu, err := net.GetRemoteSystemProbeUtil()
+	if err != nil {
+		if p.notInitializedLogLimit.ShouldLog() {
+			log.Warnf("could not initialize system-probe connection in process check: %v (will only log every 10 minutes)", err)
+		}
+		return nil
+	}
+	return pu
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu net.SysProbeUtil) {
 	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, proc := range procs {

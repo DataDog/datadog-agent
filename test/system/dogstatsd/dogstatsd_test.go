@@ -63,14 +63,12 @@ func (d *dogstatsdTest) setup(t *testing.T) {
 	}))
 
 	// create temp dir
-	dir, err := ioutil.TempDir("", "test_system_dogstatsd")
-	require.NoError(t, err, "Could not create temp dir")
-	d.tmpDir = dir
+	d.tmpDir = t.TempDir()
 
 	// write temp conf
 	content := []byte("dd_url: " + d.ts.URL + "\napi_key: dummy\n")
 	tmpConf := filepath.Join(dir, "datadog.yaml")
-	err = ioutil.WriteFile(tmpConf, content, 0666)
+	err := ioutil.WriteFile(tmpConf, content, 0666)
 	require.NoError(t, err, "Could not write temp conf")
 
 	// start dogstatsd
@@ -108,9 +106,6 @@ func (d *dogstatsdTest) teardown() {
 
 	// stop fake backend
 	d.ts.Close()
-
-	// clean up temp dir
-	os.RemoveAll(d.tmpDir)
 }
 
 func (d *dogstatsdTest) getRequests() []string {

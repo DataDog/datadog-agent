@@ -1,4 +1,5 @@
 ---
+default_branch: main
 collapse_pre_releases: true
 no_show_source: true
 release_tag_re: '^7\.([\d.-]|rc|devel)+$'

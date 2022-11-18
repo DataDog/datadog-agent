@@ -10,8 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 )
 
 func TestComputeRateLimiterRate(t *testing.T) {

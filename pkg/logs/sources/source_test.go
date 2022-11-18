@@ -31,7 +31,7 @@ func (s *LogSourceSuite) TestInputs() {
 
 func (s *LogSourceSuite) TestDump() {
 	s.source = NewLogSource("mysource", nil)
-	dump := s.source.Dump()
+	dump := s.source.Dump(true)
 	assert.Contains(s.T(), dump, "mysource")
 }
 

@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
-// Copyright 2016-present Datadog, Inc.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 
 //go:build linux
 // +build linux
@@ -25,20 +25,20 @@ import (
 
 // TestProcessEventFiltering asserts that sysProbeListener collects only expected events and drops everything else
 func TestProcessEventFiltering(t *testing.T) {
-	rawEvents := make([]*model.ProcessMonitoringEvent, 0)
+	rawEvents := make([]*model.ProcessEvent, 0)
 	handlers := make([]EventHandler, 0)
 
 	// The listener should drop unexpected events and not call the EventHandler for it
-	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Fork, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedForkEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 
 	// Verify that expected events are correctly consumed
-	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exec, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedExecEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exec, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
 	})
 
-	rawEvents = append(rawEvents, model.NewMockedProcessMonitoringEvent(model.Exit, time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}))
+	rawEvents = append(rawEvents, model.NewMockedExitEvent(time.Now(), 23, "/usr/bin/ls", []string{"ls", "-lah"}, 0))
 	handlers = append(handlers, func(e *model.ProcessEvent) {
 		require.Equal(t, model.Exit, e.EventType)
 		require.Equal(t, uint32(23), e.Pid)
@@ -70,32 +70,14 @@ func TestProcessEventHandling(t *testing.T) {
 	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
 	client.On("GetProcessEvents", ctx, &api.GetProcessEventParams{}).Return(stream, nil)
 
-	now := time.Now()
 	events := make([]*model.ProcessEvent, 0)
-	e1 := model.ProcessEvent{
-		EventType:      model.Exec,
-		CollectionTime: now,
-		Pid:            32,
-		ContainerID:    "01234567890abcdef",
-		Ppid:           1,
-		UID:            124,
-		GID:            2,
-		Username:       "agent",
-		Group:          "dd-agent",
-		Exe:            "/usr/bin/ls",
-		Cmdline:        []string{"ls", "-lah"},
-		ExecTime:       time.Now().Add(-10 * time.Second),
-	}
-	events = append(events, &e1)
-
-	e2 := e1
-	e2.EventType = model.Exit
-	e2.ExitTime = time.Now().Add(-2 * time.Second)
-	events = append(events, &e2)
+	events = append(events, model.NewMockedExecEvent(time.Now().Add(-10*time.Second), 32, "/usr/bin/ls", []string{"ls", "-lah"}))
+	events = append(events, model.NewMockedExitEvent(time.Now().Add(-9*time.Second), 32, "/usr/bin/ls", []string{"ls", "-lah"}, 0))
+	events = append(events, model.NewMockedExecEvent(time.Now().Add(-5*time.Second), 32, "/usr/bin/ls", []string{"ls", "invalid-path"}))
+	events = append(events, model.NewMockedExitEvent(time.Now().Add(-5*time.Second), 32, "/usr/bin/ls", []string{"ls", "invalid-path"}, 2))
 
 	for _, e := range events {
-		sysEvent := model.ProcessEventToProcessMonitoringEvent(e)
-		data, err := sysEvent.MarshalMsg(nil)
+		data, err := e.MarshalMsg(nil)
 		require.NoError(t, err)
 
 		stream.On("Recv").Once().Return(&api.SecurityProcessEventMessage{Data: data}, nil)
@@ -109,7 +91,7 @@ func TestProcessEventHandling(t *testing.T) {
 			t.Error("should not have received more process events")
 		}
 
-		model.AssertProcessEvents(t, events[i], e)
+		AssertProcessEvents(t, events[i], e)
 		// all message have been consumed
 		if i == len(events)-1 {
 			close(rcvMessage)
@@ -135,7 +117,7 @@ func TestSecurityModuleClientReconnect(t *testing.T) {
 	client := mocks.NewSecurityModuleClient(t)
 	stream := mocks.NewSecurityModule_GetProcessEventsClient(t)
 
-	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) { return })
+	l, err := NewSysProbeListener(nil, client, func(e *model.ProcessEvent) {})
 	require.NoError(t, err)
 
 	l.retryInterval = 10 * time.Millisecond // force a fast retry for tests

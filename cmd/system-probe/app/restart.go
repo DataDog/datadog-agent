@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
 )
 
 func init() {

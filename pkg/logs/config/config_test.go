@@ -6,12 +6,13 @@
 package config
 
 import (
-	"os"
+	"runtime"
 	"testing"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/suite"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 type ConfigTestSuite struct {
@@ -32,7 +33,11 @@ func (suite *ConfigTestSuite) TestDefaultDatadogConfig() {
 	suite.Equal("agent-443-intake.logs.datadoghq.com", suite.config.GetString("logs_config.dd_url_443"))
 	suite.Equal(false, suite.config.GetBool("logs_config.use_port_443"))
 	suite.Equal(true, suite.config.GetBool("logs_config.dev_mode_use_proto"))
-	suite.Equal(100, suite.config.GetInt("logs_config.open_files_limit"))
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		suite.Equal(200, suite.config.GetInt("logs_config.open_files_limit"))
+	} else {
+		suite.Equal(500, suite.config.GetInt("logs_config.open_files_limit"))
+	}
 	suite.Equal(9000, suite.config.GetInt("logs_config.frame_size"))
 	suite.Equal("", suite.config.GetString("logs_config.socks5_proxy_address"))
 	suite.Equal("", suite.config.GetString("logs_config.logs_dd_url"))
@@ -143,10 +148,9 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.Set("logs_config.sender_recovery_reset", true)
 	suite.config.Set("logs_config.use_v2_api", false)
 
-	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
+	suite.T().Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[
 	{"api_key": "456", "host": "additional.endpoint.1", "port": 1234, "use_compression": true, "compression_level": 2},
 	{"api_key": "789", "host": "additional.endpoint.2", "port": 1234, "use_compression": true, "compression_level": 2}]`)
-	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -191,8 +195,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		Version:          EPIntakeVersion1,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -206,8 +209,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.Set("logs_config.socks5_proxy_address", "proxy.test:3128")
 	suite.config.Set("logs_config.dev_mode_use_proto", true)
 
-	os.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
-	defer os.Unsetenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS")
+	suite.T().Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", `[{"api_key": "456      \n", "host": "additional.endpoint", "port": 1234}]`)
 
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
@@ -300,8 +302,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		Version:          EPIntakeVersion1,
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -379,8 +380,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		Origin:           "test-source",
 	}
 
-	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true,
-		1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize)
+	expectedEndpoints := NewEndpointsWithBatchSettings(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint1, expectedAdditionalEndpoint2}, false, true, 1*time.Second, coreConfig.DefaultBatchMaxConcurrentSend, coreConfig.DefaultBatchMaxSize, coreConfig.DefaultBatchMaxContentSize, coreConfig.DefaultInputChanSize)
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
@@ -462,6 +462,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
 	}
 
 	suite.Nil(err)
@@ -471,11 +472,9 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.config.Set("api_key", "123")
 
-	os.Setenv("DD_SITE", "mydomain.com")
-	defer os.Unsetenv("DD_SITE")
+	suite.T().Setenv("DD_SITE", "mydomain.com")
 
-	os.Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
-	defer os.Unsetenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT")
+	suite.T().Setenv("DD_COMPLIANCE_CONFIG_ENDPOINTS_BATCH_WAIT", "10")
 
 	logsConfig := NewLogsConfigKeys("compliance_config.endpoints.", suite.config)
 	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "default-intake.logs.", "test-track", "test-proto", "test-source")
@@ -507,6 +506,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
 	}
 
 	suite.Nil(err)
@@ -542,6 +542,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
 	}
 
 	endpoints, err := BuildServerlessEndpoints("test-track", "test-proto")
@@ -578,6 +579,7 @@ func getTestEndpoints(e Endpoint) *Endpoints {
 		BatchMaxSize:           coreConfig.DefaultBatchMaxSize,
 		BatchMaxContentSize:    coreConfig.DefaultBatchMaxContentSize,
 		BatchMaxConcurrentSend: coreConfig.DefaultBatchMaxConcurrentSend,
+		InputChanSize:          coreConfig.DefaultInputChanSize,
 	}
 }
 func (suite *ConfigTestSuite) TestBuildEndpointsWithVectorHttpOverride() {
@@ -633,6 +635,64 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	endpoints, err := BuildHTTPEndpoints("test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	suite.Nil(err)
+	suite.Equal(expectedEndpoints, endpoints)
+}
+
+func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
+	suite.config.Set("api_key", "123")
+
+	suite.config.Set("network_devices.netflow.forwarder.use_compression", false)
+	suite.config.Set("network_devices.netflow.forwarder.compression_level", 10)
+	suite.config.Set("network_devices.netflow.forwarder.batch_wait", 10)
+	suite.config.Set("network_devices.netflow.forwarder.connection_reset_interval", 3)
+	suite.config.Set("network_devices.netflow.forwarder.logs_no_ssl", true)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_concurrent_send", 15)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_content_size", 6000000)
+	suite.config.Set("network_devices.netflow.forwarder.batch_max_size", 2000)
+	suite.config.Set("network_devices.netflow.forwarder.input_chan_size", 5000)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_factor", 4.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_base", 2.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_backoff_max", 150.0)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_interval", 5)
+	suite.config.Set("network_devices.netflow.forwarder.sender_recovery_reset", true)
+	suite.config.Set("network_devices.netflow.forwarder.use_v2_api", true)
+
+	logsConfig := NewLogsConfigKeys("network_devices.netflow.forwarder.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(logsConfig, "ndmflow-intake.", "ndmflow", "test-proto", "test-origin")
+
+	suite.Nil(err)
+
+	main := Endpoint{
+		APIKey:                  "123",
+		Host:                    "ndmflow-intake.datadoghq.com",
+		Port:                    0,
+		UseSSL:                  true,
+		UseCompression:          false,
+		CompressionLevel:        10,
+		BackoffFactor:           4,
+		BackoffBase:             2,
+		BackoffMax:              150,
+		RecoveryInterval:        5,
+		Version:                 EPIntakeVersion2,
+		TrackType:               "ndmflow",
+		ConnectionResetInterval: 3000000000,
+		RecoveryReset:           true,
+		Protocol:                "test-proto",
+		Origin:                  "test-origin",
+	}
+
+	expectedEndpoints := &Endpoints{
+		UseHTTP:                true,
+		BatchWait:              10 * time.Second,
+		Main:                   main,
+		Endpoints:              []Endpoint{main},
+		BatchMaxSize:           2000,
+		BatchMaxContentSize:    6000000,
+		BatchMaxConcurrentSend: 15,
+		InputChanSize:          5000,
+	}
+
 	suite.Nil(err)
 	suite.Equal(expectedEndpoints, endpoints)
 }

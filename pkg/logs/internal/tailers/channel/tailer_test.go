@@ -6,11 +6,13 @@
 package channel
 
 import (
-	"os"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestComputeServiceName(t *testing.T) {
@@ -22,34 +24,72 @@ func TestComputeServiceName(t *testing.T) {
 }
 
 func TestComputeServiceNameFromCloudRunRevision(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("K_SERVICE", "superService")
+	t.Setenv("K_REVISION", "version-abc")
+	t.Setenv("K_SERVICE", "superService")
 	assert.Equal(t, "service-value", computeServiceName(nil, "service-value"))
 	assert.Equal(t, "superservice", computeServiceName(nil, ""))
 }
 
 func TestNotServerlessModeKVersionUndefined(t *testing.T) {
-	os.Setenv("K_SERVICE", "superService")
-	defer os.Unsetenv("K_SERVICE")
+	t.Setenv("K_SERVICE", "superService")
 	assert.False(t, isServerlessOrigin(nil))
 }
 
 func TestNotServerlessModeKServiceUndefined(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
+	t.Setenv("K_REVISION", "version-abc")
 	assert.False(t, isServerlessOrigin(nil))
 }
 
 func TestServerlessModeCloudRun(t *testing.T) {
-	os.Setenv("K_REVISION", "version-abc")
-	defer os.Unsetenv("K_REVISION")
-	os.Setenv("K_SERVICE", "superService")
-	defer os.Unsetenv("K_SERVICE")
+	t.Setenv("K_REVISION", "version-abc")
+	t.Setenv("K_SERVICE", "superService")
 	assert.True(t, isServerlessOrigin(nil))
 }
 
 func TestServerlessModeLambda(t *testing.T) {
 	lambdaConfig := &config.Lambda{}
 	assert.True(t, isServerlessOrigin(lambdaConfig))
+}
+
+func TestBuildMessageNoLambda(t *testing.T) {
+	logline := &config.ChannelMessage{
+		Content:   []byte("bababang"),
+		Timestamp: time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC),
+		IsError:   false,
+	}
+	origin := &message.Origin{}
+	builtMessage := buildMessage(logline, origin)
+	assert.Equal(t, "bababang", string(builtMessage.Content))
+	assert.Nil(t, builtMessage.Lambda)
+	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
+}
+
+func TestBuildMessageLambda(t *testing.T) {
+	logline := &config.ChannelMessage{
+		Content:   []byte("bababang"),
+		Timestamp: time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC),
+		IsError:   false,
+		Lambda: &config.Lambda{
+			ARN:       "myTestARN",
+			RequestID: "myTestRequestId",
+		},
+	}
+	origin := &message.Origin{}
+	builtMessage := buildMessage(logline, origin)
+	assert.Equal(t, "bababang", string(builtMessage.Content))
+	assert.Equal(t, "myTestARN", builtMessage.Lambda.ARN)
+	assert.Equal(t, "myTestRequestId", builtMessage.Lambda.RequestID)
+	assert.Equal(t, message.StatusInfo, builtMessage.GetStatus())
+}
+
+func TestBuildErrorMessage(t *testing.T) {
+	logline := &config.ChannelMessage{
+		Content:   []byte("bababang"),
+		Timestamp: time.Date(2010, 01, 01, 01, 01, 01, 00, time.UTC),
+		IsError:   true,
+	}
+	origin := &message.Origin{}
+	builtMessage := buildMessage(logline, origin)
+	assert.Equal(t, "bababang", string(builtMessage.Content))
+	assert.Equal(t, message.StatusError, builtMessage.GetStatus())
 }

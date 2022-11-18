@@ -7,10 +7,10 @@ This tool dumps the transactions stored in a `.retry` file into a JSON file.
 
 Copy the protobuf file:
 ```
-cp ../../pkg/forwarder/HttpTransactionProto.pb.go .
+cp ../../pkg/forwarder/internal/retry/HttpTransactionProto.pb.go .
 ```
 
-In `HttpTransactionProto.pb.go` replace `package forwarder` to `package main`
+In `HttpTransactionProto.pb.go` replace `package retry` to `package main`
 
 Build with `go build`.
 

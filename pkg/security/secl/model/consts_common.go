@@ -25,7 +25,7 @@ const (
 
 	// MaxPathDepth defines the maximum depth of a path
 	// see pkg/security/ebpf/c/dentry_resolver.h: DR_MAX_TAIL_CALL * DR_MAX_ITERATION_DEPTH
-	MaxPathDepth = 1350
+	MaxPathDepth = 1363
 
 	// MaxBpfObjName defines the maximum length of a Bpf object name
 	MaxBpfObjName = 16
@@ -41,6 +41,9 @@ const (
 
 	// MaxSymlinks maximum symlinks captured
 	MaxSymlinks = 2
+
+	// MaxTracedCgroupsCount hard limit for the count of traced cgroups
+	MaxTracedCgroupsCount = 128
 )
 
 var (

@@ -22,9 +22,9 @@ const DefaultDelta = 0.001
 var (
 	dummyPollingFuncToggle = true
 
-	pollingFuncInvocationCount     *atomic.Int64   = atomic.NewInt64(0)
-	statsUpdateFuncInvocationCount *atomic.Int64   = atomic.NewInt64(0)
-	statsUpdateFuncValue           *atomic.Float64 = atomic.NewFloat64(0)
+	pollingFuncInvocationCount     = atomic.NewInt64(0)
+	statsUpdateFuncInvocationCount = atomic.NewInt64(0)
+	statsUpdateFuncValue           = atomic.NewFloat64(0)
 )
 
 // This function on average should return 0.5 value

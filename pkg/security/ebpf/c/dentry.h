@@ -160,9 +160,9 @@ void __attribute__((always_inline)) write_dentry_inode(struct dentry *dentry, st
 }
 
 struct dentry* __attribute__((always_inline)) get_file_dentry(struct file *file) {
-    struct dentry *f_dentry;
-    bpf_probe_read(&f_dentry, sizeof(f_dentry), &file->f_path.dentry);
-    return f_dentry;
+    struct dentry *file_dentry;
+    bpf_probe_read(&file_dentry, sizeof(file_dentry), &file->f_path.dentry);
+    return file_dentry;
 }
 
 struct dentry* __attribute__((always_inline)) get_path_dentry(struct path *path) {

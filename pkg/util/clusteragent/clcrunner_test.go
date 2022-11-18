@@ -189,20 +189,19 @@ func (suite *clcRunnerSuite) TestGetCLCRunnerVersion() {
 func TestCLCRunnerSuite(t *testing.T) {
 	clcRunnerAuthTokenFilename := "cluster_agent.auth_token"
 
-	fakeDir, err := ioutil.TempDir("", "fake-datadog-etc")
-	require.Nil(t, err, fmt.Sprintf("%v", err))
-	defer os.RemoveAll(fakeDir)
+	fakeDir := t.TempDir()
 
 	f, err := ioutil.TempFile(fakeDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
-	defer os.Remove(f.Name())
+	t.Cleanup(func() {
+		require.NoError(t, f.Close())
+	})
 
 	s := &clcRunnerSuite{}
 	config.Datadog.SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clcRunnerAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))
-	defer os.Remove(s.authTokenPath)
 
 	suite.Run(t, s)
 }

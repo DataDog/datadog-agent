@@ -10,11 +10,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/elastic/go-libaudit/rule"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/elastic/go-libaudit/rule"
 )
 
 var auditReportedFields = []string{

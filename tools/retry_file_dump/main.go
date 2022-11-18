@@ -75,14 +75,14 @@ func dumpRetryFile(file string) ([]byte, error) {
 		return nil, err
 	}
 	buffer := bytes.NewBuffer([]byte{})
-	var jsonTrs []JsonHttpTransaction
+	var jsonTrs []JSONHTTPTransaction
 	for _, v := range collection.Values {
 		payload, err := decodePayload(v.Payload, buffer)
 		if err != nil {
 			return nil, err
 		}
 		v.Payload = nil // This field is not used as we want a type string to dump in JSON.
-		jsonTrs = append(jsonTrs, JsonHttpTransaction{
+		jsonTrs = append(jsonTrs, JSONHTTPTransaction{
 			HttpTransactionProto: v,
 			Payload:              payload,
 		})
@@ -90,8 +90,9 @@ func dumpRetryFile(file string) ([]byte, error) {
 	return json.MarshalIndent(jsonTrs, "", "  ")
 }
 
-// JsonHttpTransaction TODO (<agent-core>): AC-1784
-type JsonHttpTransaction struct {
+// JSONHTTPTransaction is a transaction object with a string-type Payload associated
+// with it
+type JSONHTTPTransaction struct {
 	*HttpTransactionProto
 	Payload string // Same as HttpTransactionProto.Payload but the type is string instead of []byte
 }

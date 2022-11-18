@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -28,6 +27,9 @@ const (
 	validPathSymbols            = "/_-+"
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
+
+// allowedHeaders contains the headers that the proxy will forward. All others will be cleared.
+var allowedHeaders = [...]string{"Content-Type", "User-Agent", "DD-CI-PROVIDER-NAME"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -51,12 +53,12 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-func (r *HTTPReceiver) evpProxyHandler() http.Handler {
+func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
 	handler := evpProxyForwarder(r.conf)
-	return http.StripPrefix("/evp_proxy/v1", handler)
+	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
@@ -117,8 +119,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
 	containerID := req.Header.Get(headerContainerID)
-	contentType := req.Header.Get("Content-Type")
-	userAgent := req.Header.Get("User-Agent")
+	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
 	if len(subdomain) == 0 {
@@ -135,23 +136,39 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: invalid query string: %s", req.URL.RawQuery)
 	}
 
-	// We don't want to forward arbitrary headers, clear them
+	if needsAppKey && t.conf.EVPProxy.ApplicationKey == "" {
+		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
+	}
+
+	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
+	inputHeaders := req.Header
 	req.Header = http.Header{}
 
 	// Set standard headers
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
+	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default
+	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
+
+	// Copy allowed headers from the input request
+	for _, header := range allowedHeaders {
+		val := inputHeaders.Get(header)
+		if val != "" {
+			req.Header.Set(header, val)
+		}
 	}
-	req.Header.Set("User-Agent", userAgent) // Set even if an empty string so Go doesn't set its default
 
 	// Set Datadog headers, except API key which is set per-endpoint
-	if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
-		req.Header.Set("X-Datadog-Container-Tags", ctags)
+	if containerID != "" {
+		req.Header.Set(headerContainerID, containerID)
+		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
+			req.Header.Set("X-Datadog-Container-Tags", ctags)
+		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 	req.Header.Set(headerContainerID, containerID)
+	if needsAppKey {
+		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
+	}
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"

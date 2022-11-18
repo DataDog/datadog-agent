@@ -20,5 +20,14 @@ func getBindProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "bind",
 	}, EntryAndExit)...)
+
+	bindProbes = append(bindProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/security_socket_bind",
+			EBPFFuncName: "kprobe_security_socket_bind",
+		},
+	})
+
 	return bindProbes
 }

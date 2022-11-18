@@ -8,18 +8,21 @@ package logs
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
-	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
-	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
@@ -40,19 +43,19 @@ func TestUnmarshalExtensionLog(t *testing.T) {
 
 func TestShouldProcessLog(t *testing.T) {
 
-	validLog := logMessage{
+	validLog := &logMessage{
 		logType: logTypePlatformReport,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
 	}
 
-	invalidLog0 := logMessage{
-		logType: logTypePlatformLogsSubscription,
+	invalidLog0 := &logMessage{
+		logType: "platform.logsSubscription",
 	}
 
-	invalidLog1 := logMessage{
-		logType: logTypePlatformExtension,
+	invalidLog1 := &logMessage{
+		logType: "platform.extension",
 	}
 
 	nonEmptyARN := "arn:aws:lambda:us-east-1:123456789012:function:my-function"
@@ -83,7 +86,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "aaa",
 			objectRecord: platformObjectRecord{
 				requestID: "",
@@ -95,7 +98,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "",
 			objectRecord: platformObjectRecord{
 				requestID: "aaa",
@@ -107,7 +110,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 			ARN:           "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 			LastRequestID: "8286a188-ba32-4475-8077-530cd35c09a9",
 		},
-		logMessage{
+		&logMessage{
 			stringRecord: "",
 			objectRecord: platformObjectRecord{
 				requestID: "",
@@ -116,7 +119,7 @@ func TestShouldNotProcessEmptyLog(t *testing.T) {
 	)
 }
 func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -128,13 +131,20 @@ func TestCreateStringRecordForReportLogWithInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB\tInit Duration: 50.00 ms"
 	assert.Equal(t, expectedOutput, output)
 }
 
 func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
-	var sampleLogMessage = logMessage{
+	var sampleLogMessage = &logMessage{
 		objectRecord: platformObjectRecord{
 			requestID: "cf84ebaf-606a-4b0f-b99b-3685bfe973d7",
 			reportLogItem: reportLogMetrics{
@@ -146,8 +156,15 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 			},
 		},
 	}
-	output := createStringRecordForReportLog(&sampleLogMessage)
-	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
+
+	now := time.Now()
+	ecs := executioncontext.State{
+		StartTime: now,
+		EndTime:   now.Add(10 * time.Millisecond),
+	}
+
+	output := createStringRecordForReportLog(sampleLogMessage, ecs)
+	expectedOutput := "REPORT RequestId: cf84ebaf-606a-4b0f-b99b-3685bfe973d7\tDuration: 100.00 ms\tRuntime Duration: 10.00 ms\tPost Runtime Duration: 90.00 ms\tBilled Duration: 100 ms\tMemory Size: 128 MB\tMax Memory Used: 128 MB"
 	assert.Equal(t, expectedOutput, output)
 }
 
@@ -217,24 +234,26 @@ func TestProcessMessageValid(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 6)
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 7)
+	assert.Len(t, timed, 0)
 	demux.Reset()
 
 	computeEnhancedMetrics = false
-	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received = demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "we should NOT have received metrics")
+	received, timed = demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "we should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageStartValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
 
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformStart,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -263,15 +282,13 @@ func TestProcessMessageStartValid(t *testing.T) {
 
 func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	messageTime := time.Now()
 	defer demux.Stop(false)
 	message := logMessage{
 		logType: logTypePlatformRuntimeDone,
-		time:    time.Now(),
+		time:    messageTime,
 		objectRecord: platformObjectRecord{
 			requestID: "8286a188-ba32-4475-8077-530cd35c09a9",
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -287,8 +304,10 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 		runtimeDoneCallbackWasCalled = true
 	}
 
-	processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	processMessage(&message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, mockRuntimeDone)
+	ecs := mockExecutionContext.GetCurrentState()
 	assert.Equal(t, runtimeDoneCallbackWasCalled, true)
+	assert.WithinDuration(t, messageTime, ecs.EndTime, time.Millisecond)
 }
 
 func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
@@ -297,14 +316,11 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 
 	previousRequestID := "9397b299-cb43-5586-9188-641de46d10b0"
 	currentRequestID := "8286a188-ba32-4475-8077-530cd35c09a9"
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformRuntimeDone,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
 			requestID: previousRequestID,
-			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
-			},
 		},
 	}
 	arn := "arn:aws:lambda:us-east-1:123456789012:function:test-function"
@@ -328,7 +344,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType: logTypePlatformReport,
 		time:    time.Now(),
 		objectRecord: platformObjectRecord{
@@ -349,14 +365,15 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	computeEnhancedMetrics := true
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType:      logTypePlatformLogsDropped,
 		time:         time.Now(),
 		stringRecord: "bla bla bla",
@@ -372,14 +389,15 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 0, "We should NOT have received metrics")
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 0, "We should NOT have received metrics")
+	assert.Len(t, timed, 0)
 }
 
 func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
 	defer demux.Stop(false)
-	message := logMessage{
+	message := &logMessage{
 		logType:      logTypeFunction,
 		time:         time.Now(),
 		stringRecord: "fatal error: runtime: out of memory",
@@ -395,8 +413,9 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 
 	go processMessage(message, mockExecutionContext, computeEnhancedMetrics, metricTags, demux, func() {})
 
-	received := demux.WaitForSamples(100 * time.Millisecond)
-	assert.Equal(t, len(received), 2)
+	received, timed := demux.WaitForSamples(100 * time.Millisecond)
+	assert.Len(t, received, 2)
+	assert.Len(t, timed, 0)
 	assert.Equal(t, serverlessMetrics.OutOfMemoryMetric, received[0].Name)
 	assert.Equal(t, serverlessMetrics.ErrorsMetric, received[1].Name)
 }
@@ -437,6 +456,53 @@ func TestProcessLogMessageLogsEnabled(t *testing.T) {
 		assert.Equal(t, "myRequestID", received.Lambda.RequestID)
 	case <-time.After(100 * time.Millisecond):
 		assert.Fail(t, "We should have received logs")
+	}
+}
+
+// Verify sorting result, and request ID overwrite
+func TestProcessLogMessageLogsEnabledForMixedUnorderedMessages(t *testing.T) {
+
+	logChannel := make(chan *config.ChannelMessage)
+
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("my-arn", "myRequestID")
+
+	logCollection := &LambdaLogsCollector{
+		LogsEnabled: true,
+		LogChannel:  logChannel,
+		ExtraTags: &Tags{
+			Tags: []string{"tag0:value0,tag1:value1"},
+		},
+		ExecutionContext: mockExecutionContext,
+	}
+
+	logMessages := []logMessage{
+		{
+			stringRecord: "hi, log 3", time: time.UnixMilli(12345678), objectRecord: platformObjectRecord{requestID: "3th ID"},
+		},
+		{
+			stringRecord: "hi, log 1", time: time.UnixMilli(123456), logType: logTypePlatformStart, objectRecord: platformObjectRecord{requestID: "2nd ID"},
+		},
+		{
+			stringRecord: "hi, log 2", time: time.UnixMilli(1234567),
+		},
+		{
+			stringRecord: "hi, log 0", time: time.UnixMilli(12345), objectRecord: platformObjectRecord{requestID: "1st ID"},
+		},
+	}
+	go processLogMessages(logCollection, logMessages)
+
+	expectedRequestIDs := [4]string{"1st ID", "2nd ID", "myRequestID", "3th ID"}
+
+	for i := 0; i < 4; i++ {
+		select {
+		case received := <-logChannel:
+			assert.NotNil(t, received)
+			assert.Equal(t, "my-arn", received.Lambda.ARN)
+			assert.Equal(t, expectedRequestIDs[i], received.Lambda.RequestID)
+		case <-time.After(100 * time.Millisecond):
+			assert.Fail(t, "We should have received logs")
+		}
 	}
 }
 
@@ -608,6 +674,7 @@ func TestUnmarshalJSONMalformed(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
+	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
 	if errReadFile != nil {
@@ -615,7 +682,43 @@ func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.logsSubscription", logMessage.logType)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
+	// platform.fault events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_fault.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
+	// with the telemetry api, these events should not exist
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_telemetry.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
+}
+
+func TestUnmarshalJSONLogTypePlatformExtension(t *testing.T) {
+	// platform.extension events are not processed by the extension
+	logMessage := &logMessage{}
+	raw, errReadFile := ioutil.ReadFile("./testdata/platform_extension.json")
+	if errReadFile != nil {
+		assert.Fail(t, "should be able to read the file")
+	}
+	err := logMessage.UnmarshalJSON(raw)
+	assert.Nil(t, err)
+	assert.Equal(t, "", logMessage.logType)
 }
 
 func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
@@ -631,6 +734,7 @@ func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
 }
 
 func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
+	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
 	raw, errReadFile := ioutil.ReadFile("./testdata/platform_end.json")
 	if errReadFile != nil {
@@ -638,8 +742,8 @@ func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
-	assert.Equal(t, "platform.end", logMessage.logType)
-	assert.Equal(t, "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9", logMessage.stringRecord)
+	assert.Equal(t, "", logMessage.logType)
+	assert.Equal(t, "", logMessage.stringRecord)
 }
 
 func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
@@ -672,12 +776,35 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
 
 	expectedLogMessage := logMessage{
-		logType: logTypePlatformRuntimeDone,
-		time:    expectedTime,
+		logType:      logTypePlatformRuntimeDone,
+		time:         expectedTime,
+		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
+		objectRecord: platformObjectRecord{
+			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
+		},
+	}
+	assert.Equal(t, expectedLogMessage, message)
+}
+
+func TestUnmarshalPlatformRuntimeDoneLogWithTelemetry(t *testing.T) {
+	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid_with_telemetry.json")
+	require.NoError(t, err)
+	var message logMessage
+	err = json.Unmarshal(raw, &message)
+	require.NoError(t, err)
+
+	expectedTime := time.Date(2021, 05, 19, 18, 11, 22, 478000000, time.UTC)
+
+	expectedLogMessage := logMessage{
+		logType:      logTypePlatformRuntimeDone,
+		time:         expectedTime,
+		stringRecord: "END RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9",
 		objectRecord: platformObjectRecord{
 			requestID: "13dee504-0d50-4c86-8d82-efd20693afc9",
 			runtimeDoneItem: runtimeDoneItem{
-				status: "success",
+				responseDuration: 0.1,
+				responseLatency:  6.0,
+				producedBytes:    53,
 			},
 		},
 	}
@@ -692,4 +819,77 @@ func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	}
 	err := logMessage.UnmarshalJSON(raw)
 	assert.Nil(t, err)
+}
+
+func TestRuntimeMetricsMatchLogs(t *testing.T) {
+	// The test ensures that the values listed in the report log statement
+	// matches the values of the metrics being reported.
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(time.Hour)
+	defer demux.Stop(false)
+
+	runtimeDurationMs := 10.0
+	postRuntimeDurationMs := 90.0
+	durationMs := runtimeDurationMs + postRuntimeDurationMs
+
+	startTime := time.Now()
+	endTime := startTime.Add(time.Duration(runtimeDurationMs) * time.Millisecond)
+	reportLogTime := endTime.Add(time.Duration(postRuntimeDurationMs) * time.Millisecond)
+
+	requestID := "13dee504-0d50-4c86-8d82-efd20693afc9"
+	mockExecutionContext := &executioncontext.ExecutionContext{}
+	mockExecutionContext.SetFromInvocation("arn not used", requestID)
+	mockExecutionContext.UpdateFromStartLog(requestID, startTime)
+	computeEnhancedMetrics := true
+
+	doneMessage := &logMessage{
+		time:    endTime,
+		logType: logTypePlatformRuntimeDone,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+		},
+	}
+	reportMessage := &logMessage{
+		time:    reportLogTime,
+		logType: logTypePlatformReport,
+		objectRecord: platformObjectRecord{
+			requestID: requestID,
+			reportLogItem: reportLogMetrics{
+				durationMs: durationMs,
+			},
+		},
+	}
+
+	processMessage(doneMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+	processMessage(reportMessage, mockExecutionContext, computeEnhancedMetrics, []string{}, demux, func() {})
+
+	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	postRuntimeMetricTimestamp := float64(reportLogTime.UnixNano()) / float64(time.Second)
+	runtimeMetricTimestamp := float64(endTime.UnixNano()) / float64(time.Second)
+	assert.Equal(t, generatedMetrics[0], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      runtimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  runtimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.duration",
+		Value:      durationMs / 1000, // in seconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
+		Name:       "aws.lambda.enhanced.post_runtime_duration",
+		Value:      postRuntimeDurationMs, // in milliseconds
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"cold_start:true"},
+		SampleRate: 1,
+		Timestamp:  postRuntimeMetricTimestamp,
+	})
+	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
+	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
+	assert.Len(t, timedMetrics, 0)
 }

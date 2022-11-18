@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSpanSeenTTLExpiration(t *testing.T) {
@@ -24,6 +25,7 @@ func TestSpanSeenTTLExpiration(t *testing.T) {
 		priority SamplingPriority
 	}
 	c := config.New()
+	c.RareSamplerEnabled = true
 	testTime := time.Unix(13829192398, 0)
 	testCases := []testCase{
 		{"blocked-p1", false, testTime, map[string]float64{"_top_level": 1}, PriorityAutoKeep},
@@ -63,7 +65,9 @@ func TestConsideredSpans(t *testing.T) {
 		{"p0-non-top-non-measured-blocked", false, "s4", nil, PriorityNone},
 	}
 
-	e := NewRareSampler(config.New())
+	c := config.New()
+	c.RareSamplerEnabled = true
+	e := NewRareSampler(c)
 	e.Stop()
 
 	for _, tc := range testCases {
@@ -91,6 +95,7 @@ func TestRareSamplerRace(t *testing.T) {
 func TestCardinalityLimit(t *testing.T) {
 	assert := assert.New(t)
 	c := config.New()
+	c.RareSamplerEnabled = true
 	e := NewRareSampler(c)
 	e.Stop()
 	for j := 1; j <= c.RareSamplerCardinality; j++ {
@@ -111,7 +116,9 @@ func TestCardinalityLimit(t *testing.T) {
 
 func TestMultipleTopeLevels(t *testing.T) {
 	assert := assert.New(t)
-	e := NewRareSampler(config.New())
+	c := config.New()
+	c.RareSamplerEnabled = true
+	e := NewRareSampler(c)
 	e.Stop()
 	now := time.Unix(13829192398, 0)
 	trace1 := getTraceChunkWithSpansAndPriority(

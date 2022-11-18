@@ -128,11 +128,15 @@ func TestLoadModule(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_load_module_from_memory",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.loaded_from_memory == true`, testModuleName),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.loaded_from_memory == true && !process.is_kworker`, testModuleName),
 		},
 		{
 			ID:         "test_load_module",
-			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false`, testModuleName, modulePath),
+			Expression: fmt.Sprintf(`load_module.name == "%s" && load_module.file.path == "%s" && load_module.loaded_from_memory == false && !process.is_kworker`, testModuleName, modulePath),
+		},
+		{
+			ID:         "test_load_module_kworker",
+			Expression: `load_module.name == "xt_LED" && process.is_kworker`,
 		},
 	}
 
@@ -193,6 +197,34 @@ func TestLoadModule(t *testing.T) {
 			if !validateLoadModuleSchema(t, event) {
 				t.Error(event.String())
 			}
+		})
+	})
+
+	t.Run("kworker", func(t *testing.T) {
+		_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+
+		cmd := exec.Command("modprobe", "xt_LED")
+		if err := cmd.Run(); err != nil {
+			t.Skip("required kernel module not available")
+		}
+
+		defer func() {
+			cmd := exec.Command("iptables", "-D", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+			_ = cmd.Run()
+			_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+		}()
+
+		test.WaitSignal(t, func() error {
+			_ = unix.DeleteModule("xt_LED", unix.O_NONBLOCK)
+
+			cmd := exec.Command("iptables", "-A", "INPUT", "-p", "tcp", "--dport", "2222", "-j", "LED", "--led-trigger-id", "123")
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+
+			return nil
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
 		})
 	})
 }

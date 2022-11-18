@@ -8,8 +8,9 @@ package compliance
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
 // KubeUnstructuredResource describes a Kubernetes Unstructured

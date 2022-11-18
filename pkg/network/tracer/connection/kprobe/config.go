@@ -42,11 +42,20 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 	}
 
 	if c.CollectTCPConns {
+		if ClassificationSupported(c) {
+			enableProbe(enabled, probes.ProtocolClassifierSocketFilter)
+			enableProbe(enabled, probes.NetDevQueue)
+		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
 		enableProbe(enabled, probes.TCPSendMsgReturn)
-		enableProbe(enabled, probes.TCPCleanupRBuf)
+		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPRecvMsg, probes.TCPRecvMsgPre410, kv410))
+		enableProbe(enabled, probes.TCPRecvMsgReturn)
+		enableProbe(enabled, probes.TCPReadSock)
+		enableProbe(enabled, probes.TCPReadSockReturn)
 		enableProbe(enabled, probes.TCPClose)
 		enableProbe(enabled, probes.TCPCloseReturn)
+		enableProbe(enabled, probes.TCPConnect)
+		enableProbe(enabled, probes.TCPFinishConnect)
 		enableProbe(enabled, probes.InetCskAcceptReturn)
 		enableProbe(enabled, probes.InetCskListenStop)
 		enableProbe(enabled, probes.TCPSetState)
@@ -65,11 +74,13 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 		enableProbe(enabled, probes.UDPDestroySock)
 		enableProbe(enabled, probes.UDPDestroySockReturn)
 		enableProbe(enabled, probes.IPMakeSkb)
+		enableProbe(enabled, probes.IPMakeSkbReturn)
 		enableProbe(enabled, probes.InetBind)
 		enableProbe(enabled, probes.InetBindRet)
 
 		if c.CollectIPv6Conns {
 			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.IP6MakeSkb, probes.IP6MakeSkbPre470, kv470))
+			enableProbe(enabled, probes.IP6MakeSkbReturn)
 			enableProbe(enabled, probes.Inet6Bind)
 			enableProbe(enabled, probes.Inet6BindRet)
 		}
@@ -90,7 +101,7 @@ func enabledProbes(c *config.Config, runtimeTracer bool) (map[probes.ProbeName]s
 			if _, miss := missing["skb_consume_udp"]; !miss {
 				enableProbe(enabled, probes.SKBConsumeUDP)
 			} else if _, miss := missing["__skb_free_datagram_locked"]; !miss {
-				enableProbe(enabled, probes.SKB__FreeDatagramLocked)
+				enableProbe(enabled, probes.UnderscoredSKBFreeDatagramLocked)
 			} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 				enableProbe(enabled, probes.SKBFreeDatagramLocked)
 			} else {

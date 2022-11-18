@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/internal/resources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // ResourcesCollector sends the old metadata payload used in the
@@ -21,9 +21,9 @@ type ResourcesCollector struct{}
 
 // Send collects the data needed and submits the payload
 func (rp *ResourcesCollector) Send(ctx context.Context, s serializer.MetricSerializer) error {
-	hostname, _ := util.GetHostname(ctx)
+	hname, _ := hostname.Get(ctx)
 
-	res := resources.GetPayload(hostname)
+	res := resources.GetPayload(hname)
 	if res == nil {
 		return errors.New("empty processes metadata")
 	}

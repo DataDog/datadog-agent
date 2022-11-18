@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 )
 
 func TestCircuitBreakerDefaultState(t *testing.T) {
@@ -135,7 +136,13 @@ func TestCircuitBreakerRateCalculation(t *testing.T) {
 }
 
 func newTestBreaker(maxEventRate int) *CircuitBreaker {
-	c := &CircuitBreaker{maxEventsPerSec: int64(maxEventRate)}
+	c := &CircuitBreaker{
+		eventCount:      atomic.NewInt64(0),
+		eventRate:       atomic.NewInt64(0),
+		isOpen:          atomic.NewBool(false),
+		lastUpdate:      atomic.NewInt64(0),
+		maxEventsPerSec: int64(maxEventRate),
+	}
 	c.Reset()
 	return c
 }

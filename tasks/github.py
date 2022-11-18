@@ -24,6 +24,10 @@ def trigger_macos_build(
         release_version=release_version,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        # Send pipeline id and bucket branch so that the package version
+        # can be constructed properly for nightlies.
+        gitlab_pipeline_id=env.get("CI_PIPELINE_ID", None),
+        bucket_branch=env.get("BUCKET_BRANCH", None),
     )
 
     follow_workflow_run(run_id)
@@ -37,6 +41,7 @@ def trigger_macos_test(
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     python_runtimes="3",
+    destination=".",
 ):
 
     env = load_release_versions(ctx, release_version)
@@ -50,3 +55,5 @@ def trigger_macos_test(
     )
 
     follow_workflow_run(run_id)
+
+    download_artifacts(run_id, destination)

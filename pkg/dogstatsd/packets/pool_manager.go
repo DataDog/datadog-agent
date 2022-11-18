@@ -9,8 +9,9 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type genericPool interface {

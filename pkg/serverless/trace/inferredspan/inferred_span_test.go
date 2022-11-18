@@ -6,15 +6,15 @@
 package inferredspan
 
 import (
-	"os"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestInferredSpanCheck(t *testing.T) {
@@ -95,7 +95,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -115,7 +115,7 @@ func TestCompleteInferredSpanWithNoError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -132,7 +132,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 	var inferredSpan InferredSpan
 	startTime := time.Now()
 
-	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.generateInferredSpan(time.Now())
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
 	inferredSpan.Span.Start = startTime.UnixNano()
@@ -152,7 +152,7 @@ func TestCompleteInferredSpanWithError(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), endTime, isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -172,7 +172,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	duration := 2 * time.Second
 	// mock invocation end time
 	lambdaInvocationStartTime := startTime.Add(duration)
-	inferredSpan.GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.generateInferredSpan(lambdaInvocationStartTime)
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.TraceID = 2350923428932752492
 	inferredSpan.Span.SpanID = 1304592378509342580
@@ -190,7 +190,7 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 		tracePayload = payload
 	}
 
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, make(map[string]string), time.Now(), isError, 1234, sampler.PriorityAutoKeep)
+	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError, 1234, sampler.PriorityAutoKeep)
 	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.mock", span.Name)
 	assert.Equal(t, "aws.mock", span.Service)
@@ -204,32 +204,24 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 }
 
 func TestIsInferredSpansEnabledWhileTrue(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "True")
+	setEnvVars(t, "true", "True")
 	isEnabled := IsInferredSpansEnabled()
 	assert.True(t, isEnabled)
 }
 func TestIsInferredSpansEnabledWhileFalse(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "false")
+	setEnvVars(t, "true", "false")
 	isEnabled := IsInferredSpansEnabled()
 	assert.False(t, isEnabled)
 }
 
 func TestIsInferredSpansEnabledWhileInvalid(t *testing.T) {
-	defer unsetEnvVars()
-	setEnvVars("true", "42")
+	setEnvVars(t, "true", "42")
 	isEnabled := IsInferredSpansEnabled()
 	assert.False(t, isEnabled)
 
 }
 
-func unsetEnvVars() {
-	os.Unsetenv("DD_TRACE_ENABLED")
-	os.Unsetenv("DD_TRACE_MANAGED_SERVICES")
-}
-
-func setEnvVars(trace string, managedServices string) {
-	os.Setenv("DD_TRACE_ENABLED", trace)
-	os.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
+func setEnvVars(t *testing.T, trace string, managedServices string) {
+	t.Setenv("DD_TRACE_ENABLED", trace)
+	t.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
 }

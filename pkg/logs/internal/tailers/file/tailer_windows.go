@@ -79,7 +79,11 @@ func (t *Tailer) readAvailable() (int, error) {
 				return bytes, io.EOF
 			}
 
-			f.Seek(offset, io.SeekStart)
+			_, err = f.Seek(offset, io.SeekStart)
+			if err != nil {
+				log.Debugf("Error seek()ing file %v", err)
+				return bytes, err
+			}
 		}
 
 		inBuf := make([]byte, 4096)
@@ -124,7 +128,7 @@ func (t *Tailer) read() (int, error) {
 	if err == io.EOF || os.IsNotExist(err) {
 		return n, nil
 	} else if err != nil {
-		t.file.Source.Status.Error(err)
+		t.file.Source.Status().Error(err)
 		return n, log.Error("Err: ", err)
 	}
 	return n, nil

@@ -10,8 +10,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestIsZero(t *testing.T) {

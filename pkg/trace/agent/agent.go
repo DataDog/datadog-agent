@@ -8,8 +8,9 @@ package agent
 import (
 	"context"
 	"runtime"
-	"sync/atomic"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -32,6 +33,12 @@ const (
 	// tagHostname specifies the hostname of the tracer.
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
+
+	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
+	manualSampling = "-4"
+
+	// tagDecisionMaker specifies the sampling decision maker
+	tagDecisionMaker = "_dd.p.dm"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -49,6 +56,7 @@ type Agent struct {
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
 	StatsWriter           *writer.StatsWriter
+	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type.
@@ -102,6 +110,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	return agnt
 }
 
@@ -116,6 +125,7 @@ func (a *Agent) Run() {
 		a.NoPrioritySampler,
 		a.EventProcessor,
 		a.OTLPReceiver,
+		a.RemoteConfigHandler,
 	} {
 		starter.Start()
 	}
@@ -191,6 +201,25 @@ func (a *Agent) loop() {
 	}
 }
 
+// setRootSpanTags sets up any necessary tags on the root span.
+func (a *Agent) setRootSpanTags(root *pb.Span) {
+	clientSampleRate := sampler.GetGlobalRate(root)
+	sampler.SetClientRate(root, clientSampleRate)
+
+	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
+		rate := ratelimiter.RealRate()
+		sampler.SetPreSampleRate(root, rate)
+	}
+
+	// TODO: add azure specific tags here (at least for now, so chill out and
+	// just do it) "it doesn't have to be pretty it just has to work"
+	if a.conf.InAzureAppServices {
+		for k, v := range traceutil.GetAppServicesTags() {
+			traceutil.SetMeta(root, k, v)
+		}
+	}
+}
+
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
@@ -217,11 +246,11 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 
 		tracen := int64(len(chunk.Spans))
-		atomic.AddInt64(&ts.SpansReceived, tracen)
+		ts.SpansReceived.Add(tracen)
 		err := normalizeTrace(p.Source, chunk.Spans)
 		if err != nil {
 			log.Debugf("Dropping invalid trace: %s", err)
-			atomic.AddInt64(&ts.SpansDropped, tracen)
+			ts.SpansDropped.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -231,16 +260,16 @@ func (a *Agent) Process(p *api.Payload) {
 		normalizeChunk(chunk, root)
 		if !a.Blacklister.Allows(root) {
 			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
 
 		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			atomic.AddInt64(&ts.TracesFiltered, 1)
-			atomic.AddInt64(&ts.SpansFiltered, tracen)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
 			p.RemoveChunk(i)
 			continue
 		}
@@ -265,16 +294,7 @@ func (a *Agent) Process(p *api.Payload) {
 		}
 		a.Replacer.Replace(chunk.Spans)
 
-		{
-			// this section sets up any necessary tags on the root:
-			clientSampleRate := sampler.GetGlobalRate(root)
-			sampler.SetClientRate(root, clientSampleRate)
-
-			if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
-				rate := ratelimiter.RealRate()
-				sampler.SetPreSampleRate(root, rate)
-			}
-		}
+		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
 			// which is not thread-safe while samplers and Concentrator might modify it too.
@@ -306,14 +326,18 @@ func (a *Agent) Process(p *api.Payload) {
 
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
+			keep = sampler.ApplySpanSampling(chunk)
+		}
+		if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
 				p.RemoveChunk(i)
 				continue
 			}
-			// The sampler step filtered a subset of spans in the chunk. The new filtered chunk
-			// is added to the TracerPayload to be sent to TraceWriter.
-			// The complete chunk is still sent to the stats concentrator.
+			// The sampler step filtered a subset of spans in the chunk. The new
+			// filtered chunk is added to the TracerPayload to be sent to
+			// TraceWriter. The complete chunk is still sent to the stats
+			// concentrator.
 			p.ReplaceChunk(i, filteredChunk)
 		}
 
@@ -431,6 +455,17 @@ func (a *Agent) ProcessStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	a.ClientStatsAggregator.In <- a.processStats(in, lang, tracerVersion)
 }
 
+func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedTrace) bool {
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
+	if !hasDm {
+		return false
+	}
+	return dm == manualSampling
+}
+
 // sample reports the number of events found in pt and whether the chunk should be kept as a trace.
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTrace) (numEvents int64, keep bool, filteredChunk *pb.TraceChunk) {
 	priority, hasPriority := sampler.GetSamplingPriority(pt.TraceChunk)
@@ -438,11 +473,17 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	if hasPriority {
 		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
 	} else {
-		atomic.AddInt64(&ts.TracesPriorityNone, 1)
+		ts.TracesPriorityNone.Inc()
 	}
 
-	if priority < 0 {
-		return 0, false, nil
+	if features.Has("error_rare_sample_tracer_drop") {
+		if isManualUserDrop(priority, pt) {
+			return 0, false, nil
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return 0, false, nil
+		}
 	}
 
 	sampled := a.runSamplers(now, pt, hasPriority)
@@ -455,8 +496,8 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt traceutil.ProcessedT
 	}
 	numEvents, numExtracted := a.EventProcessor.Process(pt.Root, filteredChunk)
 
-	atomic.AddInt64(&ts.EventsExtracted, numExtracted)
-	atomic.AddInt64(&ts.EventsSampled, numEvents)
+	ts.EventsExtracted.Add(numExtracted)
+	ts.EventsSampled.Add(numEvents)
 
 	return numEvents, sampled, filteredChunk
 }
@@ -474,13 +515,8 @@ func (a *Agent) runSamplers(now time.Time, pt traceutil.ProcessedTrace, hasPrior
 // ErrorSampler are run in parallel. The RareSampler catches traces with rare top-level
 // or measured spans that are not caught by PrioritySampler and ErrorSampler.
 func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	var rare bool
-	if a.conf.RareSamplerDisabled {
-		rare = false
-	} else {
-		// run this early to make sure the signature gets counted by the RareSampler.
-		rare = a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
-	}
+	// run this early to make sure the signature gets counted by the RareSampler.
+	rare := a.RareSampler.Sample(now, pt.TraceChunk, pt.TracerEnv)
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}
@@ -524,9 +560,7 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag) bool {
 }
 
 func newEventProcessor(conf *config.AgentConfig) *event.Processor {
-	extractors := []event.Extractor{
-		event.NewMetricBasedExtractor(),
-	}
+	extractors := []event.Extractor{event.NewMetricBasedExtractor()}
 	if len(conf.AnalyzedSpansByService) > 0 {
 		extractors = append(extractors, event.NewFixedRateExtractor(conf.AnalyzedSpansByService))
 	} else if len(conf.AnalyzedRateByServiceLegacy) > 0 {

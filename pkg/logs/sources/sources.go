@@ -7,6 +7,8 @@ package sources
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogSources serves as the interface between Schedulers and Launchers, distributing
@@ -42,6 +44,7 @@ func NewLogSources() *LogSources {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified.
 func (s *LogSources) AddSource(source *LogSource) {
+	log.Tracef("Adding %s", source.Dump(false))
 	s.mu.Lock()
 	s.sources = append(s.sources, source)
 	if source.Config == nil || source.Config.Validate() != nil {
@@ -66,6 +69,7 @@ func (s *LogSources) AddSource(source *LogSource) {
 // All of the subscribers registered for this source's type (src.Config.Type) will be
 // notified of its removal.
 func (s *LogSources) RemoveSource(source *LogSource) {
+	log.Tracef("Removing %s", source.Dump(false))
 	s.mu.Lock()
 	var sourceFound bool
 	for i, src := range s.sources {

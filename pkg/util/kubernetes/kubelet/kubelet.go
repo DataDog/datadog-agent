@@ -215,10 +215,10 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 		if pod != nil {
 			// Validate allocation size.
 			// Limits hardcoded here are huge enough to never be hit.
-			if len(pod.Spec.Containers) > 10000 ||
-				len(pod.Spec.InitContainers) > 10000 {
-				log.Errorf("pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
-					pod.Metadata.UID, len(pod.Spec.Containers), len(pod.Spec.InitContainers))
+			if len(pod.Status.Containers) > 10000 ||
+				len(pod.Status.InitContainers) > 10000 {
+				log.Errorf("Pod %s has a crazy number of containers: %d or init containers: %d. Skipping it!",
+					pod.Metadata.UID, len(pod.Status.Containers), len(pod.Status.InitContainers))
 				continue
 			}
 			allContainers := make([]ContainerStatus, 0, len(pod.Status.InitContainers)+len(pod.Status.Containers))
@@ -378,20 +378,6 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	}
 
 	return data, nil
-}
-
-// IsAgentHostNetwork returns whether the agent is running inside a container with `hostNetwork` or not
-func (ku *KubeUtil) IsAgentHostNetwork(ctx context.Context, agentContainerID string) (bool, error) {
-	if agentContainerID == "" {
-		return false, fmt.Errorf("unable to determine self container id")
-	}
-
-	pod, err := ku.GetPodForContainerID(ctx, agentContainerID)
-	if err != nil {
-		return false, err
-	}
-
-	return pod.Spec.HostNetwork, nil
 }
 
 // IsPodReady return a bool if the Pod is ready

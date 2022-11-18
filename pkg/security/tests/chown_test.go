@@ -9,7 +9,9 @@
 package tests
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 	"testing"
 
@@ -21,10 +23,11 @@ import (
 )
 
 func TestChown(t *testing.T) {
-	ruleDefs := []*rules.RuleDefinition{{
-		ID:         "test_rule",
-		Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
-	},
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
+		},
 		{
 			ID:         "test_rule2",
 			Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103] && chown.file.destination.gid in [200, 201, 202, 203]`,
@@ -36,7 +39,12 @@ func TestChown(t *testing.T) {
 		{
 			ID:         "test_rule4",
 			Expression: `chown.file.path == "{{.Root}}/test-chown" && chown.file.destination.uid == -1 && chown.file.destination.gid == 204`,
-		}}
+		},
+		{
+			ID:         "test_rule5",
+			Expression: `chown.file.destination.uid == 100 && chown.file.destination.gid == 200 && process.file.name == "syscall_tester"`,
+		},
+	}
 
 	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
 	if err != nil {
@@ -225,4 +233,22 @@ func TestChown(t *testing.T) {
 			}
 		})
 	}))
+
+	test.Run(t, "pipe-chown-discarded", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		_ = test.GetSignal(t, func() error {
+			syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+			if err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"pipe-chown"}
+			cmd := cmdFunc(syscallTester, args, []string{})
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *sprobe.Event, r *rules.Rule) {
+			t.Error("Event received")
+		})
+	})
+
 }

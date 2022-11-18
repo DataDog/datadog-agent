@@ -1,14 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package netflow
 
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+
+	"github.com/netsampler/goflow2/utils"
+	"github.com/sirupsen/logrus"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/pkg/netflow/payload"
-	"github.com/netsampler/goflow2/utils"
-	"github.com/sirupsen/logrus"
-	"net"
 )
 
 // NetFlow5 example data from goflow repo:

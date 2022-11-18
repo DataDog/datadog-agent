@@ -8,11 +8,9 @@ package rules
 import (
 	"fmt"
 	"io"
-	"strings"
 
-	"github.com/Masterminds/semver"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
 )
 
@@ -43,7 +41,7 @@ func (p *Policy) AddRule(def *RuleDefinition) {
 	p.Rules = append(p.Rules, def)
 }
 
-func parsePolicyDef(name string, source string, def *PolicyDef, agentVersion *semver.Version) (*Policy, *multierror.Error) {
+func parsePolicyDef(name string, source string, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var errs *multierror.Error
 
 	policy := &Policy{
@@ -52,52 +50,96 @@ func parsePolicyDef(name string, source string, def *PolicyDef, agentVersion *se
 		Version: def.Version,
 	}
 
+MACROS:
 	for _, macroDef := range def.Macros {
+		for _, filter := range macroFilters {
+			isMacroAccepted, err := filter.IsMacroAccepted(macroDef)
+			if err != nil {
+				errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("error when evaluating one of the macro filters: %w", err)})
+			}
+			if !isMacroAccepted {
+				continue MACROS
+			}
+		}
+
 		if macroDef.ID == "" {
 			errs = multierror.Append(errs, &ErrMacroLoad{Err: fmt.Errorf("no ID defined for macro with expression `%s`", macroDef.Expression)})
 			continue
 		}
-		if !checkRuleID(macroDef.ID) {
-			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(macroDef.ID) {
+			errs = multierror.Append(errs, &ErrMacroLoad{Definition: macroDef, Err: fmt.Errorf("ID does not match pattern `%s`", validators.RuleIDPattern)})
 			continue
 		}
 
 		policy.AddMacro(macroDef)
 	}
 
-	for _, ruleDef := range def.Rules {
-		constraintSatisfied, err := checkAgentVersionConstraint(ruleDef.AgentVersionConstraint, agentVersion)
-		if err != nil {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("failed to parse agent version constraint `%s`", ruleDef.AgentVersionConstraint)})
-			continue
-		}
+	var skipped []struct {
+		ruleDefinition *RuleDefinition
+		err            error
+	}
 
-		if !constraintSatisfied {
-			continue
+RULES:
+	for _, ruleDef := range def.Rules {
+		// set the policy so that when we parse the errors we can get the policy associated
+		ruleDef.Policy = policy
+
+		for _, filter := range ruleFilters {
+			isRuleAccepted, err := filter.IsRuleAccepted(ruleDef)
+			if err != nil {
+				errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: err})
+			}
+			if !isRuleAccepted {
+				// we do not fail directly because one of the rules with the same id can load properly
+				if _, ok := filter.(*AgentVersionFilter); ok {
+					skipped = append(skipped, struct {
+						ruleDefinition *RuleDefinition
+						err            error
+					}{ruleDefinition: ruleDef, err: ErrRuleAgentVersion})
+				} else if _, ok := filter.(*SECLRuleFilter); ok {
+					skipped = append(skipped, struct {
+						ruleDefinition *RuleDefinition
+						err            error
+					}{ruleDefinition: ruleDef, err: ErrRuleAgentFilter})
+				}
+
+				continue RULES
+			}
 		}
 
 		if ruleDef.ID == "" {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("no ID defined for rule with expression `%s`", ruleDef.Expression)})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutID})
 			continue
 		}
-		if !checkRuleID(ruleDef.ID) {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("ID does not match pattern `%s`", ruleIDPattern)})
+		if !validators.CheckRuleID(ruleDef.ID) {
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleIDPattern})
 			continue
 		}
 
 		if ruleDef.Expression == "" && !ruleDef.Disabled {
-			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: errors.New("no expression defined")})
+			errs = multierror.Append(errs, &ErrRuleLoad{Definition: ruleDef, Err: ErrRuleWithoutExpression})
 			continue
 		}
 
 		policy.AddRule(ruleDef)
 	}
 
-	return policy, errs
+LOOP:
+	for _, s := range skipped {
+		for _, r := range policy.Rules {
+			if s.ruleDefinition.ID == r.ID {
+				continue LOOP
+			}
+		}
+
+		errs = multierror.Append(errs, &ErrRuleLoad{Definition: s.ruleDefinition, Err: s.err})
+	}
+
+	return policy, errs.ErrorOrNil()
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, reader io.Reader, agentVersion *semver.Version) (*Policy, error) {
+func LoadPolicy(name string, source string, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	var def PolicyDef
 
 	decoder := yaml.NewDecoder(reader)
@@ -105,37 +147,5 @@ func LoadPolicy(name string, source string, reader io.Reader, agentVersion *semv
 		return nil, &ErrPolicyLoad{Name: name, Err: err}
 	}
 
-	policy, errs := parsePolicyDef(name, source, &def, agentVersion)
-	if errs.ErrorOrNil() != nil {
-		return nil, errs.ErrorOrNil()
-	}
-
-	return policy, nil
-}
-
-func checkAgentVersionConstraint(constraint string, agentVersion *semver.Version) (bool, error) {
-	if agentVersion == nil {
-		return true, nil
-	}
-
-	withoutPreAgentVersion, err := agentVersion.SetPrerelease("")
-	if err != nil {
-		return true, nil
-	}
-	cleanAgentVersion, err := withoutPreAgentVersion.SetMetadata("")
-	if err != nil {
-		return true, nil
-	}
-
-	constraint = strings.TrimSpace(constraint)
-	if constraint == "" {
-		return true, nil
-	}
-
-	semverConstraint, err := semver.NewConstraint(constraint)
-	if err != nil {
-		return false, err
-	}
-
-	return semverConstraint.Check(&cleanAgentVersion), nil
+	return parsePolicyDef(name, source, &def, macroFilters, ruleFilters)
 }

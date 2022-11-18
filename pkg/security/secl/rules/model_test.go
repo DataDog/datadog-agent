@@ -6,11 +6,10 @@
 package rules
 
 import (
+	"fmt"
 	"reflect"
 	"syscall"
 	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -63,18 +62,15 @@ func (m *testModel) NewEvent() eval.Event {
 
 func (m *testModel) ValidateField(key string, value eval.FieldValue) error {
 	switch key {
-
 	case "process.uid":
-
 		uid, ok := value.Value.(int)
 		if !ok {
-			return errors.New("invalid type for process.ui")
+			return fmt.Errorf("invalid type for process.ui: %v", reflect.TypeOf(value.Value))
 		}
 
 		if uid < 0 {
-			return errors.New("process.uid cannot be negative")
+			return fmt.Errorf("process.uid cannot be negative: %d", uid)
 		}
-
 	}
 
 	return nil
@@ -118,8 +114,9 @@ func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evalua
 	case "open.filename":
 
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*testEvent)(ctx.Object).open.filename },
-			Field:   key,
+			EvalFnc:     func(ctx *eval.Context) string { return (*testEvent)(ctx.Object).open.filename },
+			Field:       key,
+			OpOverrides: eval.GlobCmp,
 		}, nil
 
 	case "open.flags":
@@ -154,6 +151,8 @@ func (m *testModel) GetEvaluator(key string, regID eval.RegisterID) (eval.Evalua
 
 	return nil, &eval.ErrFieldNotFound{Field: key}
 }
+
+func (e *testEvent) Init() {}
 
 func (e *testEvent) GetFieldValue(key string) (interface{}, error) {
 	switch key {

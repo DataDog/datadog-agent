@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 )
@@ -61,14 +60,23 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		return http.NotFoundHandler()
 	}
 
+	underlyingTransport := r.conf.NewHTTPTransport()
+	// Fix and documentation taken from pkg/trace/api/profiles.go
+	// The intake's connection timeout is 60 seconds, which is similar to the default heartbeat periodicity of
+	// telemetry clients. When a new heartbeat is simultaneous to the intake closing the connection, Go's ReverseProxy
+	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
+	// race condition. A value of 47 was chosen as it's a prime number which doesn't divide 60, reducing the risk of
+	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
+	// allowing connection reuse.
+	underlyingTransport.IdleConnTimeout = 47 * time.Second
 	transport := telemetryMultiTransport{
-		Transport: r.conf.NewHTTPTransport(),
+		Transport: underlyingTransport,
 		Endpoints: endpoints,
 	}
 	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
+		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", r.conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1

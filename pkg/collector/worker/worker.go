@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -160,7 +160,7 @@ func (w *Worker) Run() {
 		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String())}
 		serviceCheckStatus := metrics.ServiceCheckOK
 
-		hostname, _ := util.GetHostname(context.TODO())
+		hname, _ := hostname.Get(context.TODO())
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
@@ -174,7 +174,7 @@ func (w *Worker) Run() {
 		}
 
 		if sender != nil && !longRunning {
-			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hostname, serviceCheckTags, "")
+			sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
 			sender.Commit()
 		}
 

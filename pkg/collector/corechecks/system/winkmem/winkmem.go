@@ -90,7 +90,7 @@ func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data
 		return err
 	}
 
-	if err := w.CommonConfigure(data, source); err != nil {
+	if err := w.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{
@@ -174,7 +174,7 @@ type systemPooltag struct {
 }
 type systemPooltagInformation struct {
 	count    uint32
-	padding  uint32
+	_        uint32 // padding
 	poolTags []systemPooltag
 }
 

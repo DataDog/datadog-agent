@@ -10,10 +10,8 @@ package cgroups
 
 import (
 	"fmt"
-	"path/filepath"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/containerd/cgroups"
 )
@@ -63,11 +61,6 @@ type hostSubsystem struct {
 	cgroups.Subsystem
 }
 
-func (h *hostSubsystem) Path(path string) string {
-	cgroupRoot := config.Datadog.GetString("container_cgroup_root")
-	return filepath.Join(cgroupRoot, string(h.Name()), path)
-}
-
 func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
 	return func() ([]cgroups.Subsystem, error) {
 		subsystems, err := hierarchy()
@@ -86,7 +79,7 @@ func hostHierarchy(hierarchy cgroups.Hierarchy) cgroups.Hierarchy {
 }
 
 // NewMemoryController creates a new systemd cgroup based memory controller
-func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryController, error) {
+func NewMemoryController(kind string, containerized bool, monitors ...MemoryMonitor) (*MemoryController, error) {
 	path := cgroups.NestedPath("")
 
 	var cgroupHierarchy cgroups.Hierarchy
@@ -99,7 +92,7 @@ func NewMemoryController(kind string, monitors ...MemoryMonitor) (*MemoryControl
 		return nil, fmt.Errorf("unsupported cgroup hierarchy '%s'", kind)
 	}
 
-	if config.IsContainerized() {
+	if containerized {
 		cgroupHierarchy = hostHierarchy(cgroupHierarchy)
 	}
 

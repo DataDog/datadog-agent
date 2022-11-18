@@ -13,8 +13,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,7 +36,7 @@ func getHTTPClient() *http.Client {
 // GetProcessAgentStatus fetches the process-agent status from the process-agent API server
 func GetProcessAgentStatus() map[string]interface{} {
 	s := make(map[string]interface{})
-	addressPort, err := api.GetAPIAddressPort()
+	addressPort, err := config.GetProcessAPIAddressPort()
 	if err != nil {
 		s["error"] = fmt.Sprintf("%v", err.Error())
 		return s

@@ -11,10 +11,11 @@ package metrics
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
-	"github.com/stretchr/testify/require"
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
@@ -46,7 +47,7 @@ func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
 		require.NoError(b, err)
 		var pb int
 		for _, p := range payloads {
-			pb += len(*p)
+			pb += p.Len()
 		}
 		b.ReportMetric(float64(pb), "payload-bytes")
 		b.ReportMetric(float64(len(payloads)), "payloads")

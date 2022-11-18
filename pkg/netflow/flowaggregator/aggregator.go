@@ -1,13 +1,19 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package flowaggregator
 
 import (
 	"encoding/json"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
@@ -17,29 +23,32 @@ const flowAggregatorFlushInterval = 10 * time.Second
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
-	flowIn            chan *common.Flow
-	flushInterval     time.Duration
-	flowAcc           *flowAccumulator
-	sender            aggregator.Sender
-	stopChan          chan struct{}
-	logPayload        bool
-	receivedFlowCount *atomic.Uint64
-	flushedFlowCount  *atomic.Uint64
-	hostname          string
+	flowIn                       chan *common.Flow
+	flushInterval                time.Duration
+	rollupTrackerRefreshInterval time.Duration
+	flowAcc                      *flowAccumulator
+	sender                       aggregator.Sender
+	stopChan                     chan struct{}
+	receivedFlowCount            *atomic.Uint64
+	flushedFlowCount             *atomic.Uint64
+	hostname                     string
 }
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender aggregator.Sender, config *config.NetflowConfig, hostname string) *FlowAggregator {
+	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
+	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
+	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
-		flowIn:            make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:           newFlowAccumulator(time.Duration(config.AggregatorFlushInterval) * time.Second),
-		flushInterval:     flowAggregatorFlushInterval,
-		sender:            sender,
-		stopChan:          make(chan struct{}),
-		logPayload:        config.LogPayloads,
-		receivedFlowCount: atomic.NewUint64(0),
-		flushedFlowCount:  atomic.NewUint64(0),
-		hostname:          hostname,
+		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
+		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled),
+		flushInterval:                flowAggregatorFlushInterval,
+		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
+		sender:                       sender,
+		stopChan:                     make(chan struct{}),
+		receivedFlowCount:            atomic.NewUint64(0),
+		flushedFlowCount:             atomic.NewUint64(0),
+		hostname:                     hostname,
 	}
 }
 
@@ -81,12 +90,10 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow) {
 			log.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
-		agg.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesNetFlow)
 
-		// For debug purposes print out all flows
-		if agg.logPayload {
-			log.Debugf("flushed flow: %s", string(payloadBytes))
-		}
+		payloadStr := string(payloadBytes)
+		log.Tracef("flushed flow: %s", payloadStr)
+		agg.sender.EventPlatformEvent(payloadStr, epforwarder.EventTypeNetworkDevicesNetFlow)
 	}
 }
 
@@ -99,6 +106,8 @@ func (agg *FlowAggregator) flushLoop() {
 		log.Debug("flushInterval set to 0: will never flush automatically")
 	}
 
+	rollupTrackersRefresh := time.NewTicker(agg.rollupTrackerRefreshInterval).C
+
 	for {
 		select {
 		// stop sequence
@@ -107,24 +116,44 @@ func (agg *FlowAggregator) flushLoop() {
 		// automatic flush sequence
 		case <-flushTicker:
 			agg.flush()
+		// refresh rollup trackers
+		case <-rollupTrackersRefresh:
+			agg.rollupTrackersRefresh()
 		}
 	}
 }
 
 // Flush flushes the aggregator
 func (agg *FlowAggregator) flush() int {
+	flowsContexts := agg.flowAcc.getFlowContextCount()
+	now := time.Now()
 	flowsToFlush := agg.flowAcc.flush()
-	log.Debugf("Flushing %d flows to the forwarder", len(flowsToFlush))
-	if len(flowsToFlush) == 0 {
-		return 0
-	}
+	log.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(now).Milliseconds(), flowsContexts)
+
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	if len(flowsToFlush) > 0 {
+		agg.sendFlows(flowsToFlush)
+	}
 
-	agg.sendFlows(flowsToFlush)
+	flushCount := len(flowsToFlush)
 
-	agg.flushedFlowCount.Add(uint64(len(flowsToFlush)))
+	agg.sender.MonotonicCount("datadog.netflow.aggregator.hash_collisions", float64(agg.flowAcc.hashCollisionFlowCount.Load()), "", nil)
 	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_received", float64(agg.receivedFlowCount.Load()), "", nil)
-	agg.sender.MonotonicCount("datadog.netflow.aggregator.flows_flushed", float64(agg.flushedFlowCount.Load()), "", nil)
+	agg.sender.Count("datadog.netflow.aggregator.flows_flushed", float64(flushCount), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.flows_contexts", float64(flowsContexts), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
+	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
+
+	// We increase `flushedFlowCount` at the end to be sure that the metrics are submitted before hand.
+	// Tests will wait for `flushedFlowCount` to be increased before asserting the metrics.
+	agg.flushedFlowCount.Add(uint64(flushCount))
 
 	return len(flowsToFlush)
+}
+
+func (agg *FlowAggregator) rollupTrackersRefresh() {
+	log.Debugf("Rollup tracker refresh: use new store as current store")
+	agg.flowAcc.portRollup.UseNewStoreAsCurrentStore()
 }

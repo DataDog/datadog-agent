@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -34,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -74,12 +74,6 @@ type SearchPaths map[string]string
 // The key is the filepath of the file.
 type permissionsInfos map[string]filePermsInfo
 
-type filePermsInfo struct {
-	mode  os.FileMode
-	owner string
-	group string
-}
-
 // ProfileData maps (pprof) profile names to the profile data.
 type ProfileData map[string][]byte
 
@@ -92,13 +86,16 @@ func init() {
 	// We add a replacer to scrub even those credentials.
 	//
 	// It is a best effort to match the api key field without matching our
-	// own already scrubbed (we don't want to match: **************************abcde)
-	// Basically we allow many special chars while forbidding *
-	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]+`)
+	// own already scrubbed (we don't want to match: "**************************abcde")
+	// Basically we allow many special chars while forbidding *.
+	//
+	// We want the value to be at least 2 characters which will avoid matching the first '"' from the regular
+	// replacer for api_key.
+	otherAPIKeysRx := regexp.MustCompile(`api_key\s*:\s*[a-zA-Z0-9\\\/\^\]\[\(\){}!|%:;"~><=#@$_\-\+]{2,}`)
 	flareScrubber.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: otherAPIKeysRx,
 		ReplFunc: func(b []byte) []byte {
-			return []byte("api_key: ********")
+			return []byte("api_key: \"********\"")
 		},
 	})
 }
@@ -161,7 +158,6 @@ func CreateArchive(local bool, distPath, pyChecksPath string, logFilePaths []str
 }
 
 func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, logFilePaths []string, pdata ProfileData, ipcError error) (string, error) {
-
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze the what is being added
@@ -179,7 +175,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 
 	// Get hostname, if there's an error in getting the hostname,
 	// set the hostname to unknown
-	hostname, err := util.GetHostname(context.TODO())
+	hostname, err := hostnameUtil.Get(context.TODO())
 	if err != nil {
 		hostname = "unknown"
 	}
@@ -228,7 +224,7 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 			log.Errorf("Could not zip config check: %s", err)
 		}
 
-		err = zipTaggerList(tempDir, hostname)
+		err = zipAgentTaggerList(tempDir, hostname)
 		if err != nil {
 			log.Errorf("Could not zip tagger list: %s", err)
 		}
@@ -238,7 +234,12 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 			log.Errorf("Could not zip workload list: %s", err)
 		}
 
-		err = zipProcessChecks(tempDir, hostname, api.GetAPIAddressPort)
+		err = zipProcessAgentTaggerList(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not zip process-agent tagger list: %s", err)
+		}
+
+		err = zipProcessChecks(tempDir, hostname, config.GetProcessAPIAddressPort)
 		if err != nil {
 			log.Errorf("Could not zip process agent checks: %s", err)
 		}
@@ -362,6 +363,13 @@ func createArchive(confSearchPaths SearchPaths, local bool, zipFilePath string, 
 		log.Errorf("Could not export Windows Datadog Registry: %s", err)
 	}
 
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		err = zipRemoteConfigDB(tempDir, hostname)
+		if err != nil {
+			log.Errorf("Could not export remote-config database: %s", err)
+		}
+	}
+
 	// force a log flush before zipping them
 	log.Flush()
 	for _, logFilePath := range logFilePaths {
@@ -479,9 +487,9 @@ func zipLogFiles(tempDir, hostname, logFilePath string, permsInfos permissionsIn
 }
 
 func zipExpVar(tempDir, hostname string) error {
-	var variables = make(map[string]interface{})
+	variables := make(map[string]interface{})
 	expvar.Do(func(kv expvar.KeyValue) {
-		var variable = make(map[string]interface{})
+		variable := make(map[string]interface{})
 		json.Unmarshal([]byte(kv.Value.String()), &variable) //nolint:errcheck
 		variables[kv.Key] = variable
 	})
@@ -544,7 +552,7 @@ func zipSystemProbeStats(tempDir, hostname string) error {
 func zipProcessAgentFullConfig(tempDir, hostname string) error {
 	// procStatusURL can be manually set for test purposes
 	if procStatusURL == "" {
-		addressPort, err := api.GetAPIAddressPort()
+		addressPort, err := config.GetProcessAPIAddressPort()
 		if err != nil {
 			return fmt.Errorf("wrong configuration to connect to process-agent")
 		}
@@ -603,7 +611,6 @@ func zipConfigFiles(tempDir, hostname string, confSearchPaths SearchPaths, perms
 }
 
 func zipSecrets(tempDir, hostname string) error {
-
 	fct := func(writer io.Writer) error {
 		info, err := secrets.GetDebugInfo()
 		if err != nil {
@@ -664,7 +671,6 @@ func zipDiagnose(tempDir, hostname string) error {
 }
 
 func zipDatadogConnectivity(tempDir, hostname string) error {
-
 	fct := func(w io.Writer) error {
 		return connectivity.RunDatadogConnectivityDiagnose(w, false)
 	}
@@ -745,7 +751,7 @@ func writeConfigCheck(tempDir, hostname string, data []byte) error {
 // Used for testing mock HTTP server
 var taggerListURL string
 
-func zipTaggerList(tempDir, hostname string) error {
+func zipAgentTaggerList(tempDir, hostname string) error {
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
 		return err
@@ -755,9 +761,24 @@ func zipTaggerList(tempDir, hostname string) error {
 		taggerListURL = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.Datadog.GetInt("cmd_port"))
 	}
 
+	return zipTaggerList(tempDir, hostname, taggerListURL, "tagger-list.json")
+}
+
+func zipProcessAgentTaggerList(tempDir, hostname string) error {
+	addressPort, err := config.GetProcessAPIAddressPort()
+	if err != nil {
+		return fmt.Errorf("wrong configuration to connect to process-agent")
+	}
+
+	taggerListURL := fmt.Sprintf("http://%s/agent/tagger-list", addressPort)
+
+	return zipTaggerList(tempDir, hostname, taggerListURL, "process-agent_tagger-list.json")
+}
+
+func zipTaggerList(tempDir, hostname, remoteURL, outputFile string) error {
 	c := apiutil.GetClient(false) // FIX: get certificates right then make this true
 
-	r, err := apiutil.DoGet(c, taggerListURL, apiutil.LeaveConnectionOpen)
+	r, err := apiutil.DoGet(c, remoteURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return err
 	}
@@ -767,11 +788,11 @@ func zipTaggerList(tempDir, hostname string) error {
 	writer := bufio.NewWriter(&b)
 	err = json.Indent(&b, r, "", "\t")
 	if err != nil {
-		return joinPathAndWriteScrubbedFile(r, tempDir, hostname, "tagger-list.json")
+		return joinPathAndWriteScrubbedFile(r, tempDir, hostname, outputFile)
 	}
 	writer.Flush()
 
-	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, "tagger-list.json")
+	return joinPathAndWriteScrubbedFile(b.Bytes(), tempDir, hostname, outputFile)
 }
 
 // workloadListURL allows mocking the agent HTTP server
@@ -923,7 +944,6 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 
 			return nil
 		})
-
 		if err != nil {
 			return err
 		}

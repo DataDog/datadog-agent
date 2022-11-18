@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	corev1 "k8s.io/api/core/v1"

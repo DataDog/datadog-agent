@@ -14,15 +14,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/vishvananda/netns"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
 )
 
 const (
@@ -85,7 +86,7 @@ func TestConntrackers(t *testing.T) {
 func setupEBPFConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.EnableRuntimeCompiler = true
 	cfg.AllowPrecompiledFallback = false
-	return NewEBPFConntracker(cfg)
+	return NewEBPFConntracker(cfg, nil)
 }
 
 func setupNetlinkConntracker(cfg *config.Config) (netlink.Conntracker, error) {

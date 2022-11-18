@@ -10,13 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/internal/middleware"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -35,25 +37,16 @@ type Collector struct {
 
 	scheduler *scheduler.Scheduler
 	runner    *runner.Runner
-	checks    map[check.ID]check.Check
+	checks    map[check.ID]*middleware.CheckWrapper
 
 	m sync.RWMutex
 }
 
 // NewCollector create a Collector instance and sets up the Python Environment
 func NewCollector(paths ...string) *Collector {
-	run := runner.NewRunner()
-	sched := scheduler.NewScheduler(run.GetChan())
-
-	// let the runner some visibility into the scheduler
-	run.SetScheduler(sched)
-	sched.Run()
-
 	c := &Collector{
-		scheduler:      sched,
-		runner:         run,
-		checks:         make(map[check.ID]check.Check),
-		state:          atomic.NewUint32(started),
+		checks:         make(map[check.ID]*middleware.CheckWrapper),
+		state:          atomic.NewUint32(stopped),
 		checkInstances: int64(0),
 	}
 	pyVer, pyHome, pyPath := pySetup(paths...)
@@ -74,6 +67,28 @@ func NewCollector(paths ...string) *Collector {
 	return c
 }
 
+// Start begins the collector's operation.  The scheduler will not run any
+// checks until this has been called.
+func (c *Collector) Start() {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	if c.state.Load() == started {
+		return
+	}
+
+	run := runner.NewRunner()
+	sched := scheduler.NewScheduler(run.GetChan())
+
+	// let the runner some visibility into the scheduler
+	run.SetScheduler(sched)
+	sched.Run()
+
+	c.scheduler = sched
+	c.runner = run
+	c.state.Store(started)
+}
+
 // Stop halts any component involved in running a Check
 func (c *Collector) Stop() {
 	c.m.Lock()
@@ -83,17 +98,23 @@ func (c *Collector) Stop() {
 		return
 	}
 
-	c.scheduler.Stop() //nolint:errcheck
-	c.scheduler = nil
-	c.runner.Stop()
-	c.runner = nil
+	if c.scheduler != nil {
+		c.scheduler.Stop() //nolint:errcheck
+		c.scheduler = nil
+	}
+	if c.runner != nil {
+		c.runner.Stop()
+		c.runner = nil
+	}
 	c.state.Store(stopped)
 }
 
 // RunCheck sends a Check in the execution queue
-func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
+func (c *Collector) RunCheck(inner check.Check) (check.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
+
+	ch := middleware.NewCheckWrapper(inner)
 
 	var emptyID check.ID
 
@@ -123,6 +144,7 @@ func (c *Collector) RunCheck(ch check.Check) (check.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
+	inventories.Refresh()
 	return ch.ID(), nil
 }
 
@@ -201,6 +223,18 @@ func (c *Collector) delete(id check.ID) {
 // lightweight shortcut to see if the collector has started
 func (c *Collector) started() bool {
 	return c.state.Load() == started
+}
+
+// MapOverChecks call the callback with the list of checks locked.
+func (c *Collector) MapOverChecks(cb func([]check.Info)) {
+	c.m.RLock()
+	defer c.m.RUnlock()
+
+	cInfo := []check.Info{}
+	for _, c := range c.checks {
+		cInfo = append(cInfo, c)
+	}
+	cb(cInfo)
 }
 
 // GetAllInstanceIDs returns the ID's of all instances of a check

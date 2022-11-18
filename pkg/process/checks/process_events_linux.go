@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package checks
 
@@ -85,6 +85,9 @@ func (e *ProcessEventsCheck) Name() string { return config.ProcessEventsCheckNam
 // RealTime returns a value that says whether this check should be run in real time.
 func (e *ProcessEventsCheck) RealTime() bool { return false }
 
+// ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
+func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
+
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
 func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payload.MessageBody, error) {
 	if !e.isCheckCorrectlySetup() {
@@ -97,7 +100,7 @@ func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payl
 		return nil, fmt.Errorf("can't pull events from the Event Store: %v", err)
 	}
 
-	payloadEvents := fmtProcessEvents(events)
+	payloadEvents := FmtProcessEvents(events)
 	chunks := chunkProcessEvents(payloadEvents, e.maxBatchSize)
 
 	messages := make([]payload.MessageBody, len(chunks))
@@ -149,52 +152,4 @@ func chunkProcessEvents(events []*payload.ProcessEvent, size int) [][]*payload.P
 	}
 
 	return chunks
-}
-
-// fmtProcessEvents formats process lifecyle events to be sent in an agent payload
-func fmtProcessEvents(events []*model.ProcessEvent) []*payload.ProcessEvent {
-	payloadEvents := make([]*payload.ProcessEvent, 0, len(events))
-
-	for _, e := range events {
-		pE := &payload.ProcessEvent{
-			CollectionTime: e.CollectionTime.UnixNano(),
-			Pid:            e.Pid,
-			ContainerId:    e.ContainerID,
-			Command: &payload.Command{
-				Exe:  e.Exe,
-				Args: e.Cmdline,
-				Ppid: int32(e.Ppid),
-			},
-			User: &payload.ProcessUser{
-				Name: e.Username,
-				Uid:  int32(e.UID),
-				Gid:  int32(e.GID),
-			},
-		}
-
-		switch e.EventType {
-		case model.Exec:
-			pE.Type = payload.ProcEventType_exec
-			exec := &payload.ProcessExec{
-				ForkTime: e.ForkTime.UnixNano(),
-				ExecTime: e.ExecTime.UnixNano(),
-			}
-			pE.TypedEvent = &payload.ProcessEvent_Exec{Exec: exec}
-		case model.Exit:
-			pE.Type = payload.ProcEventType_exit
-			exit := &payload.ProcessExit{
-				ExecTime: e.ExecTime.UnixNano(),
-				ExitTime: e.ExitTime.UnixNano(),
-				ExitCode: 0,
-			}
-			pE.TypedEvent = &payload.ProcessEvent_Exit{Exit: exit}
-		default:
-			log.Error("Unexpected event type, dropping it")
-			continue
-		}
-
-		payloadEvents = append(payloadEvents, pE)
-	}
-
-	return payloadEvents
 }

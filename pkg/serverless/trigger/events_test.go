@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package trigger
 
 import (
@@ -22,10 +27,12 @@ func TestEventPayloadParsing(t *testing.T) {
 		"cloudwatch-logs.json":           isCloudwatchLogsEvent,
 		"cloudfront.json":                isCloudFrontRequestEvent,
 		"dynamodb.json":                  isDynamoDBStreamEvent,
+		"eventbridge-custom.json":        isEventBridgeEvent,
 		"kinesis.json":                   isKinesisStreamEvent,
 		"s3.json":                        isS3Event,
 		"sns.json":                       isSNSEvent,
 		"sqs.json":                       isSQSEvent,
+		"lambdaurl.json":                 isLambdaFunctionURLEvent,
 	}
 	for testFile, testFunc := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
@@ -52,10 +59,12 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 		"cloudwatch-logs.json":           isCloudwatchLogsEvent,
 		"cloudfront.json":                isCloudFrontRequestEvent,
 		"dynamodb.json":                  isDynamoDBStreamEvent,
+		"eventbridge-custom.json":        isEventBridgeEvent,
 		"kinesis.json":                   isKinesisStreamEvent,
 		"s3.json":                        isS3Event,
 		"sns.json":                       isSNSEvent,
 		"sqs.json":                       isSQSEvent,
+		"lambdaurl.json":                 isLambdaFunctionURLEvent,
 	}
 	for correctTestFile, testFunc := range testCases {
 		wrongTestFiles, err := os.ReadDir(testDir)
@@ -91,10 +100,12 @@ func TestGetEventType(t *testing.T) {
 		"cloudwatch-logs.json":           CloudWatchLogsEvent,
 		"cloudfront.json":                CloudFrontRequestEvent,
 		"dynamodb.json":                  DynamoDBStreamEvent,
+		"eventbridge-custom.json":        EventBridgeEvent,
 		"kinesis.json":                   KinesisStreamEvent,
 		"s3.json":                        S3Event,
 		"sns.json":                       SNSEvent,
 		"sqs.json":                       SQSEvent,
+		"lambdaurl.json":                 LambdaFunctionURLEvent,
 	}
 
 	for testFile, expectedEventType := range testCases {

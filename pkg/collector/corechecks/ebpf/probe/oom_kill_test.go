@@ -17,11 +17,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const oomKilledPython = `
@@ -31,8 +34,7 @@ while True:
 `
 
 const oomKilledBashScript = `
-sysctl -w vm.overcommit_memory=1 # always overcommit
-exec python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
+exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
@@ -58,9 +60,9 @@ func TestOOMKillCompile(t *testing.T) {
 		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 	}
 
-	cfg := ebpf.NewConfig()
+	cfg := testConfig()
 	cfg.BPFDebug = true
-	_, err = runtime.OomKill.Compile(cfg, nil)
+	_, err = runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
 	require.NoError(t, err)
 }
 
@@ -73,7 +75,13 @@ func TestOOMKillProbe(t *testing.T) {
 		t.Skipf("Kernel version %v is not supported by the OOM probe", kv)
 	}
 
-	cfg := ebpf.NewConfig()
+	cfg := testConfig()
+
+	fullKV := host.GetStatusInformation().KernelVersion
+	if cfg.EnableCORE && (fullKV == "4.18.0-1018-azure" || fullKV == "4.18.0-147.43.1.el8_1.x86_64") {
+		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
+	}
+
 	oomKillProbe, err := NewOOMKillProbe(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -124,4 +132,9 @@ func TestOOMKillProbe(t *testing.T) {
 	if !found {
 		t.Errorf("failed to find an OOM killed process with pid %d in %+v", cmd.Process.Pid, results)
 	}
+}
+
+func testConfig() *ebpf.Config {
+	cfg := ebpf.NewConfig()
+	return cfg
 }

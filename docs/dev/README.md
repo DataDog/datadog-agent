@@ -16,6 +16,9 @@ This guide will help you to develop and contribute code to the project.
 * [Contributing][contributing]
 * [Legal][legal]
 * [Tools](tools.md) to troubleshoot a running Agent
+* Advice / Style Guide
+*   * [Using Atomics](atomics.md)
+*   * [Go Imports](imports.md)
 
 ## How to contribute
 

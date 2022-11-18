@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/service"
 	"go.uber.org/multierr"
+
+	"github.com/DataDog/datadog-agent/pkg/otlp/internal/configutils"
 )
 
 // buildKey creates a key for referencing a nested field.
@@ -121,12 +122,10 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 		err = retMap.Merge(metricsMap)
 		errs = append(errs, err)
 	}
-	if cfg.DebugLogEnabled() {
+	if cfg.shouldSetLoggingSection() {
 		m := map[string]interface{}{
 			"exporters": map[string]interface{}{
-				"logging": map[string]interface{}{
-					"loglevel": cfg.Debug["loglevel"],
-				},
+				"logging": cfg.Debug,
 			},
 		}
 		if cfg.MetricsEnabled {

@@ -158,7 +158,7 @@ func StartSystemProbe() error {
 		memoryPressureLevels := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.pressure_levels")
 		memoryThresholds := ddconfig.Datadog.GetStringMapString("system_probe_config.memory_controller.thresholds")
 		hierarchy := ddconfig.Datadog.GetString("system_probe_config.memory_controller.hierarchy")
-		memoryMonitor, err = utils.NewMemoryMonitor(hierarchy, memoryPressureLevels, memoryThresholds)
+		memoryMonitor, err = utils.NewMemoryMonitor(hierarchy, ddconfig.IsContainerized(), memoryPressureLevels, memoryThresholds)
 		if err != nil {
 			log.Warnf("Can't set up memory controller: %v", err)
 		} else {

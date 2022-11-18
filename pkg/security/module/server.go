@@ -11,6 +11,7 @@ package module
 import (
 	"context"
 	json "encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,18 +19,17 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -45,6 +45,7 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
+	api.UnimplementedSecurityModuleServer
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
 	activityDumps        chan *api.ActivityDumpStreamMessage
@@ -157,16 +158,21 @@ LOOP:
 	return nil
 }
 
-// Event is the interface that an event must implement to be sent to the backend
-type Event interface {
-	GetTags() []string
-	GetType() string
-}
-
 // RuleEvent is a wrapper used to send an event to the backend
 type RuleEvent struct {
 	RuleID string `json:"rule_id"`
 	Event  Event  `json:"event"`
+}
+
+// DumpDiscarders handles discarder dump requests
+func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
+	filePath, err := a.probe.DumpDiscarders()
+	if err != nil {
+		return nil, err
+	}
+	seclog.Infof("Discarder dump file path: %s", filePath)
+
+	return &api.DumpDiscardersMessage{DumpFilename: filePath}, nil
 }
 
 // DumpProcessCache handles process cache dump requests
@@ -402,7 +408,7 @@ func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestPara
 		}, nil
 	}
 
-	if err := a.module.RunSelfTest(false, true); err != nil {
+	if err := a.module.RunSelfTest(false); err != nil {
 		return &api.SecuritySelfTestResultMessage{
 			Ok:    false,
 			Error: err.Error(),
@@ -435,13 +441,13 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 
 	probeJSON, err := json.Marshal(event)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event"))
+		seclog.Errorf("failed to marshal event: %v", err)
 		return
 	}
 
 	ruleEventJSON, err := easyjson.Marshal(ruleEvent)
 	if err != nil {
-		log.Error(errors.Wrap(err, "failed to marshal event context"))
+		seclog.Errorf("failed to marshal event context: %v", err)
 		return
 	}
 
@@ -557,7 +563,7 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 		break
 	default:
 		// The channel is full, expire the oldest event
-		_ = <-a.processMsgs
+		<-a.processMsgs
 		a.expiredProcessEvents.Inc()
 		// Try to send the event again
 		select {
@@ -574,14 +580,10 @@ func (a *APIServer) SendProcessEvent(data []byte) {
 
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientInterface) *APIServer {
-	cgroupsCount := cfg.ActivityDumpTracedCgroupsCount
-	if cgroupsCount < 0 {
-		cgroupsCount = 1
-	}
 	es := &APIServer{
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage, cgroupsCount*2),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),

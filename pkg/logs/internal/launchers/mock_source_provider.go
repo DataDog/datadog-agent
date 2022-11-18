@@ -25,6 +25,11 @@ func NewMockSourceProvider() *MockSourceProvider {
 	}
 }
 
+// SubscribeAll implements SourceProvider#SubscribeAll.
+func (sp *MockSourceProvider) SubscribeAll() (chan *sources.LogSource, chan *sources.LogSource) {
+	return sp.SourceChan, sp.SourceChan
+}
+
 // SubscribeForType implements SourceProvider#SubscribeForType.
 func (sp *MockSourceProvider) SubscribeForType(sourceType string) (chan *sources.LogSource, chan *sources.LogSource) {
 	return sp.SourceChan, sp.SourceChan

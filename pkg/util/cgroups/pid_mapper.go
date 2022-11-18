@@ -16,8 +16,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
-
 	"github.com/karrick/godirwalk"
 )
 
@@ -94,9 +92,9 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	// In cgroupv2, checking if we run in host cgroup namespace.
 	// If not we cannot fill PIDs for containers and do PID<>CID mapping.
 	if baseController == "" {
-		cgroupInode, err := system.GetProcessNamespaceInode("/proc", "self", "cgroup")
+		cgroupInode, err := getProcessNamespaceInode("/proc", "self", "cgroup")
 		if err == nil {
-			if isHostNs := system.IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
+			if isHostNs := IsProcessHostCgroupNamespace(procPath, cgroupInode); isHostNs != nil && !*isHostNs {
 				log.Warnf("Usage of cgroupv2 detected but the Agent does not seem to run in host cgroup namespace. Make sure to run with --cgroupns=host, some feature may not work otherwise")
 			}
 		} else {

@@ -11,7 +11,6 @@
 package listeners
 
 import (
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -58,9 +57,7 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string) {
 }
 
 func TestNewUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
@@ -77,9 +74,7 @@ func TestNewUDSListener(t *testing.T) {
 }
 
 func TestStartStopUDSListener(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
 	mockConfig := config.Mock(t)
@@ -100,9 +95,7 @@ func TestStartStopUDSListener(t *testing.T) {
 }
 
 func TestUDSReceive(t *testing.T) {
-	dir, err := ioutil.TempDir("", "dd-test-")
-	assert.Nil(t, err)
-	defer os.RemoveAll(dir) // clean up
+	dir := t.TempDir()
 	socketPath := filepath.Join(dir, "dsd.socket")
 
 	mockConfig := config.Mock(t)

@@ -8,8 +8,6 @@ package eval
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
@@ -135,9 +133,9 @@ func (m *Macro) GenEvaluator(expression string, model Model, replCtx Replacement
 	evaluator, err := macroToEvaluator(m.ast, model, replCtx, "")
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
-			return errors.Wrap(&ErrRuleParse{pos: err.Pos, expr: expression}, "macro syntax error")
+			return fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos, expr: expression})
 		}
-		return errors.Wrap(err, "macro compilation error")
+		return fmt.Errorf("macro compilation error: %w", err)
 	}
 	m.evaluator = evaluator
 

@@ -14,3 +14,9 @@ tests_macos:
     - export GITHUB_INSTALLATION_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.macos_github_installation_id --with-decryption --query "Parameter.Value" --out text)
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - inv -e github.trigger-macos-test --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES"
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - test_output.json
+      - junit-*.tgz

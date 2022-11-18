@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -71,7 +70,7 @@ func TestNotRunning(t *testing.T) {
 	cfg := config.Mock(t)
 	cfg.Set("process_config.cmd_port", 8082)
 
-	addressPort, err := api.GetAPIAddressPort()
+	addressPort, err := config.GetProcessAPIAddressPort()
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("http://%s/agent/status", addressPort)
 

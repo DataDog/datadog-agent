@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2022-present Datadog, Inc.
+
 package state
 
 import (
@@ -203,4 +208,27 @@ func unsafeUnmarshalRoot(raw []byte) (*data.Root, error) {
 		return nil, err
 	}
 	return &root, err
+}
+
+func unsafeUnmarshalTargets(raw []byte) (*data.Targets, error) {
+	var signedTargets data.Signed
+	err := json.Unmarshal(raw, &signedTargets)
+	if err != nil {
+		return nil, err
+	}
+	var targets data.Targets
+	err = json.Unmarshal(signedTargets.Signed, &targets)
+	if err != nil {
+		return nil, err
+	}
+	return &targets, err
+}
+
+func extractRootVersion(raw []byte) (int64, error) {
+	root, err := unsafeUnmarshalRoot(raw)
+	if err != nil {
+		return 0, err
+	}
+
+	return root.Version, nil
 }

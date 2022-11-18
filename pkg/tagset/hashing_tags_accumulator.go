@@ -14,7 +14,7 @@ import (
 // HashingTagsAccumulator allows to build a slice of tags, including the hashes
 // of each tag.
 //
-// This type implements TagAccumulator.
+// This type implements TagsAccumulator.
 type HashingTagsAccumulator struct {
 	hashedTags
 }

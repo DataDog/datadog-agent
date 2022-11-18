@@ -14,8 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	assert "github.com/stretchr/testify/require"
 

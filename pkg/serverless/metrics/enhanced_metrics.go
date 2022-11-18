@@ -24,13 +24,17 @@ const (
 	msToSec                   = 0.001
 
 	// Enhanced metrics
-	maxMemoryUsedMetric   = "aws.lambda.enhanced.max_memory_used"
-	memorySizeMetric      = "aws.lambda.enhanced.memorysize"
-	runtimeDurationMetric = "aws.lambda.enhanced.runtime_duration"
-	billedDurationMetric  = "aws.lambda.enhanced.billed_duration"
-	durationMetric        = "aws.lambda.enhanced.duration"
-	estimatedCostMetric   = "aws.lambda.enhanced.estimated_cost"
-	initDurationMetric    = "aws.lambda.enhanced.init_duration"
+	maxMemoryUsedMetric       = "aws.lambda.enhanced.max_memory_used"
+	memorySizeMetric          = "aws.lambda.enhanced.memorysize"
+	runtimeDurationMetric     = "aws.lambda.enhanced.runtime_duration"
+	billedDurationMetric      = "aws.lambda.enhanced.billed_duration"
+	durationMetric            = "aws.lambda.enhanced.duration"
+	postRuntimeDurationMetric = "aws.lambda.enhanced.post_runtime_duration"
+	estimatedCostMetric       = "aws.lambda.enhanced.estimated_cost"
+	initDurationMetric        = "aws.lambda.enhanced.init_duration"
+	responseLatencyMetric     = "aws.lambda.enhanced.response_latency"
+	responseDurationMetric    = "aws.lambda.enhanced.response_duration"
+	producedBytesMetric       = "aws.lambda.enhanced.produced_bytes"
 	// OutOfMemoryMetric is the name of the out of memory enhanced Lambda metric
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
@@ -51,22 +55,58 @@ func getOutOfMemorySubstrings() []string {
 	}
 }
 
-// GenerateRuntimeDurationMetric generates the runtime duration metric
-func GenerateRuntimeDurationMetric(start time.Time, end time.Time, status string, tags []string, demux aggregator.Demultiplexer) {
+// GenerateEnhancedMetricsFromRuntimeDoneLogArgs are the arguments required for
+// the GenerateEnhancedMetricsFromRuntimeDoneLog func
+type GenerateEnhancedMetricsFromRuntimeDoneLogArgs struct {
+	Start            time.Time
+	End              time.Time
+	ResponseLatency  float64
+	ResponseDuration float64
+	ProducedBytes    float64
+	Tags             []string
+	Demux            aggregator.Demultiplexer
+}
+
+// GenerateEnhancedMetricsFromRuntimeDoneLog generates the runtime duration metric
+func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromRuntimeDoneLogArgs) {
 	// first check if both date are set
-	if start.IsZero() || end.IsZero() {
+	if args.Start.IsZero() || args.End.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.runtime_duration due to an invalid interval")
 	} else {
-		duration := end.Sub(start).Milliseconds()
-		demux.AddTimeSample(metrics.MetricSample{
+		duration := args.End.Sub(args.Start).Milliseconds()
+		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       runtimeDurationMetric,
 			Value:      float64(duration),
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       args.Tags,
 			SampleRate: 1,
-			Timestamp:  float64(end.UnixNano()) / float64(time.Second),
+			Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
 		})
 	}
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       responseLatencyMetric,
+		Value:      args.ResponseLatency,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       responseDurationMetric,
+		Value:      args.ResponseDuration,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       producedBytesMetric,
+		Value:      args.ProducedBytes,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+	})
 }
 
 // GenerateEnhancedMetricsFromFunctionLog generates enhanced metrics from a LogTypeFunction message
@@ -80,61 +120,84 @@ func GenerateEnhancedMetricsFromFunctionLog(logString string, time time.Time, ta
 	}
 }
 
+// GenerateEnhancedMetricsFromReportLogArgs provides the arguments required for
+// the GenerateEnhancedMetricsFromReportLog func
+type GenerateEnhancedMetricsFromReportLogArgs struct {
+	InitDurationMs   float64
+	DurationMs       float64
+	BilledDurationMs int
+	MemorySizeMb     int
+	MaxMemoryUsedMb  int
+	RuntimeStart     time.Time
+	RuntimeEnd       time.Time
+	T                time.Time
+	Tags             []string
+	Demux            aggregator.Demultiplexer
+}
+
 // GenerateEnhancedMetricsFromReportLog generates enhanced metrics from a LogTypePlatformReport log message
-func GenerateEnhancedMetricsFromReportLog(initDurationMs float64, durationMs float64, billedDurationMs int, memorySizeMb int, maxMemoryUsedMb int, t time.Time, tags []string, demux aggregator.Demultiplexer) {
-	timestamp := float64(t.UnixNano()) / float64(time.Second)
-	billedDuration := float64(billedDurationMs)
-	memorySize := float64(memorySizeMb)
-	enhancedMetrics := []metrics.MetricSample{{
+func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReportLogArgs) {
+	timestamp := float64(args.T.UnixNano()) / float64(time.Second)
+	billedDuration := float64(args.BilledDurationMs)
+	memorySize := float64(args.MemorySizeMb)
+	postRuntimeDuration := args.DurationMs - float64(args.RuntimeEnd.Sub(args.RuntimeStart).Milliseconds())
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       maxMemoryUsedMetric,
-		Value:      float64(maxMemoryUsedMb),
+		Value:      float64(args.MaxMemoryUsedMb),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       memorySizeMetric,
 		Value:      memorySize,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       billedDurationMetric,
 		Value:      billedDuration * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       durationMetric,
-		Value:      durationMs * msToSec,
+		Value:      args.DurationMs * msToSec,
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}, {
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(billedDuration, memorySize, serverlessTags.ResolveRuntimeArch()),
 		Mtype:      metrics.DistributionType,
-		Tags:       tags,
+		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
-	}}
-	if initDurationMs > 0 {
-		initDurationMetric := metrics.MetricSample{
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       postRuntimeDurationMetric,
+		Value:      postRuntimeDuration,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  timestamp,
+	})
+	if args.InitDurationMs > 0 {
+		args.Demux.AggregateSample(metrics.MetricSample{
 			Name:       initDurationMetric,
-			Value:      initDurationMs * msToSec,
+			Value:      args.InitDurationMs * msToSec,
 			Mtype:      metrics.DistributionType,
-			Tags:       tags,
+			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
-		}
-		enhancedMetrics = append(enhancedMetrics, initDurationMetric)
-	}
-
-	for _, metric := range enhancedMetrics {
-		demux.AddTimeSample(metric)
+		})
 	}
 }
 
@@ -160,7 +223,7 @@ func SendInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplexer)
 
 // incrementEnhancedMetric sends an enhanced metric with a value of 1 to the metrics channel
 func incrementEnhancedMetric(name string, tags []string, timestamp float64, demux aggregator.Demultiplexer) {
-	demux.AddTimeSample(metrics.MetricSample{
+	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
 		Mtype:      metrics.DistributionType,

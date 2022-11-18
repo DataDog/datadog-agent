@@ -286,11 +286,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "chmod.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Chmod.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "chmod.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chmod.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chmod.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Chmod.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -440,11 +458,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "chown.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Chown.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "chown.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Chown.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chown.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Chown.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -497,6 +533,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 9999 * eval.HandlerWeight,
 		}, nil
+	case "dns.id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).DNS.ID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "dns.question.class":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -513,6 +557,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "dns.question.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).DNS.Size)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "dns.question.name":
 		return &eval.StringEvaluator{
 			OpOverrides: eval.DNSNameCmp,
@@ -522,10 +574,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "dns.question.size":
+	case "dns.question.name.length":
 		return &eval.IntEvaluator{
+			OpOverrides: eval.DNSNameCmp,
 			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).DNS.Size)
+				return len((*Event)(ctx.Object).DNS.Name)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -771,11 +824,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exec.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exec.Process.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exec.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exec.Process.FileEvent.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -848,6 +919,146 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exec.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.PathnameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exec.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1157,11 +1368,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exit.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exit.Process.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exit.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exit.Process.FileEvent.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1234,6 +1463,146 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Exit.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.PathnameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "exit.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Exit.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -1383,11 +1752,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "link.file.destination.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Link.Target.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "link.file.destination.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Target.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "link.file.destination.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Link.Target.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1489,11 +1876,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "link.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Link.Source.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "link.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Link.Source.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "link.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Link.Source.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1611,11 +2016,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "load_module.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).LoadModule.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "load_module.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).LoadModule.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "load_module.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).LoadModule.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1765,11 +2188,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mkdir.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Mkdir.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "mkdir.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Mkdir.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "mkdir.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Mkdir.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1887,11 +2328,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "mmap.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).MMap.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "mmap.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).MMap.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "mmap.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).MMap.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2129,11 +2588,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "open.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Open.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "open.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Open.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "open.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Open.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2643,6 +3120,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
@@ -2653,6 +3147,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -2797,6 +3308,282 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.name":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.path":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.interpreter.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.is_kworker":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3149,11 +3936,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).ProcessContext.Process.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).ProcessContext.Process.FileEvent.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3226,6 +4031,146 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).ProcessContext.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).ProcessContext.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3767,6 +4712,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
@@ -3777,6 +4739,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -3921,6 +4900,282 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.is_kworker":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -4273,11 +5528,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "ptrace.tracee.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4350,6 +5623,146 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).PTrace.Tracee.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -4507,11 +5920,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "removexattr.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).RemoveXAttr.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "removexattr.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).RemoveXAttr.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "removexattr.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).RemoveXAttr.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4637,11 +6068,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "rename.file.destination.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rename.New.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "rename.file.destination.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.New.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.destination.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rename.New.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4743,11 +6192,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "rename.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rename.Old.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "rename.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rename.Old.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rename.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rename.Old.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4865,11 +6332,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "rmdir.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rmdir.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "rmdir.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Rmdir.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "rmdir.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Rmdir.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5131,11 +6616,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "setxattr.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).SetXAttr.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "setxattr.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).SetXAttr.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "setxattr.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).SetXAttr.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5653,6 +7156,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.ancestors.file.path":
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
@@ -5663,6 +7183,23 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -5807,6 +7344,282 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
 					result := element.ProcessContext.Process.Credentials.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.name":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.path":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				var results []int
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.is_kworker":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := element.ProcessContext.Process.PIDContext.IsKworker
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -6159,11 +7972,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "signal.target.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Signal.Target.Process.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Signal.Target.Process.FileEvent.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6236,6 +8067,146 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Signal.Target.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "signal.target.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				return (*Event)(ctx.Object).Signal.Target.Process.PIDContext.IsKworker
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -6385,11 +8356,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "splice.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Splice.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "splice.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Splice.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "splice.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Splice.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6523,11 +8512,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "unlink.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Unlink.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "unlink.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Unlink.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "unlink.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Unlink.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6669,11 +8676,29 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "utimes.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Utimes.File.BasenameStr)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "utimes.file.path":
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
 				return (*Event)(ctx.Object).Utimes.File.PathnameStr
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "utimes.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				return len((*Event)(ctx.Object).Utimes.File.PathnameStr)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6743,7 +8768,9 @@ func (e *Event) GetFields() []eval.Field {
 		"chmod.file.modification_time",
 		"chmod.file.mount_id",
 		"chmod.file.name",
+		"chmod.file.name.length",
 		"chmod.file.path",
+		"chmod.file.path.length",
 		"chmod.file.rights",
 		"chmod.file.uid",
 		"chmod.file.user",
@@ -6762,17 +8789,21 @@ func (e *Event) GetFields() []eval.Field {
 		"chown.file.modification_time",
 		"chown.file.mount_id",
 		"chown.file.name",
+		"chown.file.name.length",
 		"chown.file.path",
+		"chown.file.path.length",
 		"chown.file.rights",
 		"chown.file.uid",
 		"chown.file.user",
 		"chown.retval",
 		"container.id",
 		"container.tags",
+		"dns.id",
 		"dns.question.class",
 		"dns.question.count",
+		"dns.question.length",
 		"dns.question.name",
-		"dns.question.size",
+		"dns.question.name.length",
 		"dns.question.type",
 		"exec.args",
 		"exec.args_flags",
@@ -6803,7 +8834,9 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.file.modification_time",
 		"exec.file.mount_id",
 		"exec.file.name",
+		"exec.file.name.length",
 		"exec.file.path",
+		"exec.file.path.length",
 		"exec.file.rights",
 		"exec.file.uid",
 		"exec.file.user",
@@ -6813,6 +8846,23 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.fsuser",
 		"exec.gid",
 		"exec.group",
+		"exec.interpreter.file.change_time",
+		"exec.interpreter.file.filesystem",
+		"exec.interpreter.file.gid",
+		"exec.interpreter.file.group",
+		"exec.interpreter.file.in_upper_layer",
+		"exec.interpreter.file.inode",
+		"exec.interpreter.file.mode",
+		"exec.interpreter.file.modification_time",
+		"exec.interpreter.file.mount_id",
+		"exec.interpreter.file.name",
+		"exec.interpreter.file.name.length",
+		"exec.interpreter.file.path",
+		"exec.interpreter.file.path.length",
+		"exec.interpreter.file.rights",
+		"exec.interpreter.file.uid",
+		"exec.interpreter.file.user",
+		"exec.is_kworker",
 		"exec.is_thread",
 		"exec.pid",
 		"exec.ppid",
@@ -6851,7 +8901,9 @@ func (e *Event) GetFields() []eval.Field {
 		"exit.file.modification_time",
 		"exit.file.mount_id",
 		"exit.file.name",
+		"exit.file.name.length",
 		"exit.file.path",
+		"exit.file.path.length",
 		"exit.file.rights",
 		"exit.file.uid",
 		"exit.file.user",
@@ -6861,6 +8913,23 @@ func (e *Event) GetFields() []eval.Field {
 		"exit.fsuser",
 		"exit.gid",
 		"exit.group",
+		"exit.interpreter.file.change_time",
+		"exit.interpreter.file.filesystem",
+		"exit.interpreter.file.gid",
+		"exit.interpreter.file.group",
+		"exit.interpreter.file.in_upper_layer",
+		"exit.interpreter.file.inode",
+		"exit.interpreter.file.mode",
+		"exit.interpreter.file.modification_time",
+		"exit.interpreter.file.mount_id",
+		"exit.interpreter.file.name",
+		"exit.interpreter.file.name.length",
+		"exit.interpreter.file.path",
+		"exit.interpreter.file.path.length",
+		"exit.interpreter.file.rights",
+		"exit.interpreter.file.uid",
+		"exit.interpreter.file.user",
+		"exit.is_kworker",
 		"exit.is_thread",
 		"exit.pid",
 		"exit.ppid",
@@ -6879,7 +8948,9 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.destination.modification_time",
 		"link.file.destination.mount_id",
 		"link.file.destination.name",
+		"link.file.destination.name.length",
 		"link.file.destination.path",
+		"link.file.destination.path.length",
 		"link.file.destination.rights",
 		"link.file.destination.uid",
 		"link.file.destination.user",
@@ -6892,7 +8963,9 @@ func (e *Event) GetFields() []eval.Field {
 		"link.file.modification_time",
 		"link.file.mount_id",
 		"link.file.name",
+		"link.file.name.length",
 		"link.file.path",
+		"link.file.path.length",
 		"link.file.rights",
 		"link.file.uid",
 		"link.file.user",
@@ -6907,7 +8980,9 @@ func (e *Event) GetFields() []eval.Field {
 		"load_module.file.modification_time",
 		"load_module.file.mount_id",
 		"load_module.file.name",
+		"load_module.file.name.length",
 		"load_module.file.path",
+		"load_module.file.path.length",
 		"load_module.file.rights",
 		"load_module.file.uid",
 		"load_module.file.user",
@@ -6926,7 +9001,9 @@ func (e *Event) GetFields() []eval.Field {
 		"mkdir.file.modification_time",
 		"mkdir.file.mount_id",
 		"mkdir.file.name",
+		"mkdir.file.name.length",
 		"mkdir.file.path",
+		"mkdir.file.path.length",
 		"mkdir.file.rights",
 		"mkdir.file.uid",
 		"mkdir.file.user",
@@ -6941,7 +9018,9 @@ func (e *Event) GetFields() []eval.Field {
 		"mmap.file.modification_time",
 		"mmap.file.mount_id",
 		"mmap.file.name",
+		"mmap.file.name.length",
 		"mmap.file.path",
+		"mmap.file.path.length",
 		"mmap.file.rights",
 		"mmap.file.uid",
 		"mmap.file.user",
@@ -6971,7 +9050,9 @@ func (e *Event) GetFields() []eval.Field {
 		"open.file.modification_time",
 		"open.file.mount_id",
 		"open.file.name",
+		"open.file.name.length",
 		"open.file.path",
+		"open.file.path.length",
 		"open.file.rights",
 		"open.file.uid",
 		"open.file.user",
@@ -7006,7 +9087,9 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.file.modification_time",
 		"process.ancestors.file.mount_id",
 		"process.ancestors.file.name",
+		"process.ancestors.file.name.length",
 		"process.ancestors.file.path",
+		"process.ancestors.file.path.length",
 		"process.ancestors.file.rights",
 		"process.ancestors.file.uid",
 		"process.ancestors.file.user",
@@ -7016,6 +9099,23 @@ func (e *Event) GetFields() []eval.Field {
 		"process.ancestors.fsuser",
 		"process.ancestors.gid",
 		"process.ancestors.group",
+		"process.ancestors.interpreter.file.change_time",
+		"process.ancestors.interpreter.file.filesystem",
+		"process.ancestors.interpreter.file.gid",
+		"process.ancestors.interpreter.file.group",
+		"process.ancestors.interpreter.file.in_upper_layer",
+		"process.ancestors.interpreter.file.inode",
+		"process.ancestors.interpreter.file.mode",
+		"process.ancestors.interpreter.file.modification_time",
+		"process.ancestors.interpreter.file.mount_id",
+		"process.ancestors.interpreter.file.name",
+		"process.ancestors.interpreter.file.name.length",
+		"process.ancestors.interpreter.file.path",
+		"process.ancestors.interpreter.file.path.length",
+		"process.ancestors.interpreter.file.rights",
+		"process.ancestors.interpreter.file.uid",
+		"process.ancestors.interpreter.file.user",
+		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
@@ -7052,7 +9152,9 @@ func (e *Event) GetFields() []eval.Field {
 		"process.file.modification_time",
 		"process.file.mount_id",
 		"process.file.name",
+		"process.file.name.length",
 		"process.file.path",
+		"process.file.path.length",
 		"process.file.rights",
 		"process.file.uid",
 		"process.file.user",
@@ -7062,6 +9164,23 @@ func (e *Event) GetFields() []eval.Field {
 		"process.fsuser",
 		"process.gid",
 		"process.group",
+		"process.interpreter.file.change_time",
+		"process.interpreter.file.filesystem",
+		"process.interpreter.file.gid",
+		"process.interpreter.file.group",
+		"process.interpreter.file.in_upper_layer",
+		"process.interpreter.file.inode",
+		"process.interpreter.file.mode",
+		"process.interpreter.file.modification_time",
+		"process.interpreter.file.mount_id",
+		"process.interpreter.file.name",
+		"process.interpreter.file.name.length",
+		"process.interpreter.file.path",
+		"process.interpreter.file.path.length",
+		"process.interpreter.file.rights",
+		"process.interpreter.file.uid",
+		"process.interpreter.file.user",
+		"process.is_kworker",
 		"process.is_thread",
 		"process.pid",
 		"process.ppid",
@@ -7100,7 +9219,9 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.modification_time",
 		"ptrace.tracee.ancestors.file.mount_id",
 		"ptrace.tracee.ancestors.file.name",
+		"ptrace.tracee.ancestors.file.name.length",
 		"ptrace.tracee.ancestors.file.path",
+		"ptrace.tracee.ancestors.file.path.length",
 		"ptrace.tracee.ancestors.file.rights",
 		"ptrace.tracee.ancestors.file.uid",
 		"ptrace.tracee.ancestors.file.user",
@@ -7110,6 +9231,23 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.fsuser",
 		"ptrace.tracee.ancestors.gid",
 		"ptrace.tracee.ancestors.group",
+		"ptrace.tracee.ancestors.interpreter.file.change_time",
+		"ptrace.tracee.ancestors.interpreter.file.filesystem",
+		"ptrace.tracee.ancestors.interpreter.file.gid",
+		"ptrace.tracee.ancestors.interpreter.file.group",
+		"ptrace.tracee.ancestors.interpreter.file.in_upper_layer",
+		"ptrace.tracee.ancestors.interpreter.file.inode",
+		"ptrace.tracee.ancestors.interpreter.file.mode",
+		"ptrace.tracee.ancestors.interpreter.file.modification_time",
+		"ptrace.tracee.ancestors.interpreter.file.mount_id",
+		"ptrace.tracee.ancestors.interpreter.file.name",
+		"ptrace.tracee.ancestors.interpreter.file.name.length",
+		"ptrace.tracee.ancestors.interpreter.file.path",
+		"ptrace.tracee.ancestors.interpreter.file.path.length",
+		"ptrace.tracee.ancestors.interpreter.file.rights",
+		"ptrace.tracee.ancestors.interpreter.file.uid",
+		"ptrace.tracee.ancestors.interpreter.file.user",
+		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
@@ -7146,7 +9284,9 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.modification_time",
 		"ptrace.tracee.file.mount_id",
 		"ptrace.tracee.file.name",
+		"ptrace.tracee.file.name.length",
 		"ptrace.tracee.file.path",
+		"ptrace.tracee.file.path.length",
 		"ptrace.tracee.file.rights",
 		"ptrace.tracee.file.uid",
 		"ptrace.tracee.file.user",
@@ -7156,6 +9296,23 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.fsuser",
 		"ptrace.tracee.gid",
 		"ptrace.tracee.group",
+		"ptrace.tracee.interpreter.file.change_time",
+		"ptrace.tracee.interpreter.file.filesystem",
+		"ptrace.tracee.interpreter.file.gid",
+		"ptrace.tracee.interpreter.file.group",
+		"ptrace.tracee.interpreter.file.in_upper_layer",
+		"ptrace.tracee.interpreter.file.inode",
+		"ptrace.tracee.interpreter.file.mode",
+		"ptrace.tracee.interpreter.file.modification_time",
+		"ptrace.tracee.interpreter.file.mount_id",
+		"ptrace.tracee.interpreter.file.name",
+		"ptrace.tracee.interpreter.file.name.length",
+		"ptrace.tracee.interpreter.file.path",
+		"ptrace.tracee.interpreter.file.path.length",
+		"ptrace.tracee.interpreter.file.rights",
+		"ptrace.tracee.interpreter.file.uid",
+		"ptrace.tracee.interpreter.file.user",
+		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
@@ -7175,7 +9332,9 @@ func (e *Event) GetFields() []eval.Field {
 		"removexattr.file.modification_time",
 		"removexattr.file.mount_id",
 		"removexattr.file.name",
+		"removexattr.file.name.length",
 		"removexattr.file.path",
+		"removexattr.file.path.length",
 		"removexattr.file.rights",
 		"removexattr.file.uid",
 		"removexattr.file.user",
@@ -7191,7 +9350,9 @@ func (e *Event) GetFields() []eval.Field {
 		"rename.file.destination.modification_time",
 		"rename.file.destination.mount_id",
 		"rename.file.destination.name",
+		"rename.file.destination.name.length",
 		"rename.file.destination.path",
+		"rename.file.destination.path.length",
 		"rename.file.destination.rights",
 		"rename.file.destination.uid",
 		"rename.file.destination.user",
@@ -7204,7 +9365,9 @@ func (e *Event) GetFields() []eval.Field {
 		"rename.file.modification_time",
 		"rename.file.mount_id",
 		"rename.file.name",
+		"rename.file.name.length",
 		"rename.file.path",
+		"rename.file.path.length",
 		"rename.file.rights",
 		"rename.file.uid",
 		"rename.file.user",
@@ -7219,7 +9382,9 @@ func (e *Event) GetFields() []eval.Field {
 		"rmdir.file.modification_time",
 		"rmdir.file.mount_id",
 		"rmdir.file.name",
+		"rmdir.file.name.length",
 		"rmdir.file.path",
+		"rmdir.file.path.length",
 		"rmdir.file.rights",
 		"rmdir.file.uid",
 		"rmdir.file.user",
@@ -7252,7 +9417,9 @@ func (e *Event) GetFields() []eval.Field {
 		"setxattr.file.modification_time",
 		"setxattr.file.mount_id",
 		"setxattr.file.name",
+		"setxattr.file.name.length",
 		"setxattr.file.path",
+		"setxattr.file.path.length",
 		"setxattr.file.rights",
 		"setxattr.file.uid",
 		"setxattr.file.user",
@@ -7288,7 +9455,9 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.modification_time",
 		"signal.target.ancestors.file.mount_id",
 		"signal.target.ancestors.file.name",
+		"signal.target.ancestors.file.name.length",
 		"signal.target.ancestors.file.path",
+		"signal.target.ancestors.file.path.length",
 		"signal.target.ancestors.file.rights",
 		"signal.target.ancestors.file.uid",
 		"signal.target.ancestors.file.user",
@@ -7298,6 +9467,23 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.fsuser",
 		"signal.target.ancestors.gid",
 		"signal.target.ancestors.group",
+		"signal.target.ancestors.interpreter.file.change_time",
+		"signal.target.ancestors.interpreter.file.filesystem",
+		"signal.target.ancestors.interpreter.file.gid",
+		"signal.target.ancestors.interpreter.file.group",
+		"signal.target.ancestors.interpreter.file.in_upper_layer",
+		"signal.target.ancestors.interpreter.file.inode",
+		"signal.target.ancestors.interpreter.file.mode",
+		"signal.target.ancestors.interpreter.file.modification_time",
+		"signal.target.ancestors.interpreter.file.mount_id",
+		"signal.target.ancestors.interpreter.file.name",
+		"signal.target.ancestors.interpreter.file.name.length",
+		"signal.target.ancestors.interpreter.file.path",
+		"signal.target.ancestors.interpreter.file.path.length",
+		"signal.target.ancestors.interpreter.file.rights",
+		"signal.target.ancestors.interpreter.file.uid",
+		"signal.target.ancestors.interpreter.file.user",
+		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
@@ -7334,7 +9520,9 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.file.modification_time",
 		"signal.target.file.mount_id",
 		"signal.target.file.name",
+		"signal.target.file.name.length",
 		"signal.target.file.path",
+		"signal.target.file.path.length",
 		"signal.target.file.rights",
 		"signal.target.file.uid",
 		"signal.target.file.user",
@@ -7344,6 +9532,23 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.fsuser",
 		"signal.target.gid",
 		"signal.target.group",
+		"signal.target.interpreter.file.change_time",
+		"signal.target.interpreter.file.filesystem",
+		"signal.target.interpreter.file.gid",
+		"signal.target.interpreter.file.group",
+		"signal.target.interpreter.file.in_upper_layer",
+		"signal.target.interpreter.file.inode",
+		"signal.target.interpreter.file.mode",
+		"signal.target.interpreter.file.modification_time",
+		"signal.target.interpreter.file.mount_id",
+		"signal.target.interpreter.file.name",
+		"signal.target.interpreter.file.name.length",
+		"signal.target.interpreter.file.path",
+		"signal.target.interpreter.file.path.length",
+		"signal.target.interpreter.file.rights",
+		"signal.target.interpreter.file.uid",
+		"signal.target.interpreter.file.user",
+		"signal.target.is_kworker",
 		"signal.target.is_thread",
 		"signal.target.pid",
 		"signal.target.ppid",
@@ -7362,7 +9567,9 @@ func (e *Event) GetFields() []eval.Field {
 		"splice.file.modification_time",
 		"splice.file.mount_id",
 		"splice.file.name",
+		"splice.file.name.length",
 		"splice.file.path",
+		"splice.file.path.length",
 		"splice.file.rights",
 		"splice.file.uid",
 		"splice.file.user",
@@ -7379,7 +9586,9 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.file.modification_time",
 		"unlink.file.mount_id",
 		"unlink.file.name",
+		"unlink.file.name.length",
 		"unlink.file.path",
+		"unlink.file.path.length",
 		"unlink.file.rights",
 		"unlink.file.uid",
 		"unlink.file.user",
@@ -7397,7 +9606,9 @@ func (e *Event) GetFields() []eval.Field {
 		"utimes.file.modification_time",
 		"utimes.file.mount_id",
 		"utimes.file.name",
+		"utimes.file.name.length",
 		"utimes.file.path",
+		"utimes.file.path.length",
 		"utimes.file.rights",
 		"utimes.file.uid",
 		"utimes.file.user",
@@ -7466,8 +9677,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chmod.File.FileFields.MountID), nil
 	case "chmod.file.name":
 		return e.Chmod.File.BasenameStr, nil
+	case "chmod.file.name.length":
+		return len(e.Chmod.File.BasenameStr), nil
 	case "chmod.file.path":
 		return e.Chmod.File.PathnameStr, nil
+	case "chmod.file.path.length":
+		return len(e.Chmod.File.PathnameStr), nil
 	case "chmod.file.rights":
 		return int(e.Chmod.File.FileFields.Mode), nil
 	case "chmod.file.uid":
@@ -7504,8 +9719,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Chown.File.FileFields.MountID), nil
 	case "chown.file.name":
 		return e.Chown.File.BasenameStr, nil
+	case "chown.file.name.length":
+		return len(e.Chown.File.BasenameStr), nil
 	case "chown.file.path":
 		return e.Chown.File.PathnameStr, nil
+	case "chown.file.path.length":
+		return len(e.Chown.File.PathnameStr), nil
 	case "chown.file.rights":
 		return int(e.Chown.File.FileFields.Mode), nil
 	case "chown.file.uid":
@@ -7518,14 +9737,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ContainerContext.ID, nil
 	case "container.tags":
 		return e.ContainerContext.Tags, nil
+	case "dns.id":
+		return int(e.DNS.ID), nil
 	case "dns.question.class":
 		return int(e.DNS.Class), nil
 	case "dns.question.count":
 		return int(e.DNS.Count), nil
+	case "dns.question.length":
+		return int(e.DNS.Size), nil
 	case "dns.question.name":
 		return e.DNS.Name, nil
-	case "dns.question.size":
-		return int(e.DNS.Size), nil
+	case "dns.question.name.length":
+		return len(e.DNS.Name), nil
 	case "dns.question.type":
 		return int(e.DNS.Type), nil
 	case "exec.args":
@@ -7586,8 +9809,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.FileEvent.FileFields.MountID), nil
 	case "exec.file.name":
 		return e.Exec.Process.FileEvent.BasenameStr, nil
+	case "exec.file.name.length":
+		return len(e.Exec.Process.FileEvent.BasenameStr), nil
 	case "exec.file.path":
 		return e.Exec.Process.FileEvent.PathnameStr, nil
+	case "exec.file.path.length":
+		return len(e.Exec.Process.FileEvent.PathnameStr), nil
 	case "exec.file.rights":
 		return int(e.Exec.Process.FileEvent.FileFields.Mode), nil
 	case "exec.file.uid":
@@ -7606,6 +9833,40 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.Credentials.GID), nil
 	case "exec.group":
 		return e.Exec.Process.Credentials.Group, nil
+	case "exec.interpreter.file.change_time":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+	case "exec.interpreter.file.filesystem":
+		return e.Exec.Process.LinuxBinprm.FileEvent.Filesystem, nil
+	case "exec.interpreter.file.gid":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+	case "exec.interpreter.file.group":
+		return e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Group, nil
+	case "exec.interpreter.file.in_upper_layer":
+		return e.Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
+	case "exec.interpreter.file.inode":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Inode), nil
+	case "exec.interpreter.file.mode":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "exec.interpreter.file.modification_time":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+	case "exec.interpreter.file.mount_id":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.MountID), nil
+	case "exec.interpreter.file.name":
+		return e.Exec.Process.LinuxBinprm.FileEvent.BasenameStr, nil
+	case "exec.interpreter.file.name.length":
+		return len(e.Exec.Process.LinuxBinprm.FileEvent.BasenameStr), nil
+	case "exec.interpreter.file.path":
+		return e.Exec.Process.LinuxBinprm.FileEvent.PathnameStr, nil
+	case "exec.interpreter.file.path.length":
+		return len(e.Exec.Process.LinuxBinprm.FileEvent.PathnameStr), nil
+	case "exec.interpreter.file.rights":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "exec.interpreter.file.uid":
+		return int(e.Exec.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+	case "exec.interpreter.file.user":
+		return e.Exec.Process.LinuxBinprm.FileEvent.FileFields.User, nil
+	case "exec.is_kworker":
+		return e.Exec.Process.PIDContext.IsKworker, nil
 	case "exec.is_thread":
 		return e.Exec.Process.IsThread, nil
 	case "exec.pid":
@@ -7682,8 +9943,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.FileEvent.FileFields.MountID), nil
 	case "exit.file.name":
 		return e.Exit.Process.FileEvent.BasenameStr, nil
+	case "exit.file.name.length":
+		return len(e.Exit.Process.FileEvent.BasenameStr), nil
 	case "exit.file.path":
 		return e.Exit.Process.FileEvent.PathnameStr, nil
+	case "exit.file.path.length":
+		return len(e.Exit.Process.FileEvent.PathnameStr), nil
 	case "exit.file.rights":
 		return int(e.Exit.Process.FileEvent.FileFields.Mode), nil
 	case "exit.file.uid":
@@ -7702,6 +9967,40 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exit.Process.Credentials.GID), nil
 	case "exit.group":
 		return e.Exit.Process.Credentials.Group, nil
+	case "exit.interpreter.file.change_time":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+	case "exit.interpreter.file.filesystem":
+		return e.Exit.Process.LinuxBinprm.FileEvent.Filesystem, nil
+	case "exit.interpreter.file.gid":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+	case "exit.interpreter.file.group":
+		return e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group, nil
+	case "exit.interpreter.file.in_upper_layer":
+		return e.Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
+	case "exit.interpreter.file.inode":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Inode), nil
+	case "exit.interpreter.file.mode":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "exit.interpreter.file.modification_time":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+	case "exit.interpreter.file.mount_id":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.MountID), nil
+	case "exit.interpreter.file.name":
+		return e.Exit.Process.LinuxBinprm.FileEvent.BasenameStr, nil
+	case "exit.interpreter.file.name.length":
+		return len(e.Exit.Process.LinuxBinprm.FileEvent.BasenameStr), nil
+	case "exit.interpreter.file.path":
+		return e.Exit.Process.LinuxBinprm.FileEvent.PathnameStr, nil
+	case "exit.interpreter.file.path.length":
+		return len(e.Exit.Process.LinuxBinprm.FileEvent.PathnameStr), nil
+	case "exit.interpreter.file.rights":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "exit.interpreter.file.uid":
+		return int(e.Exit.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+	case "exit.interpreter.file.user":
+		return e.Exit.Process.LinuxBinprm.FileEvent.FileFields.User, nil
+	case "exit.is_kworker":
+		return e.Exit.Process.PIDContext.IsKworker, nil
 	case "exit.is_thread":
 		return e.Exit.Process.IsThread, nil
 	case "exit.pid":
@@ -7738,8 +10037,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Link.Target.FileFields.MountID), nil
 	case "link.file.destination.name":
 		return e.Link.Target.BasenameStr, nil
+	case "link.file.destination.name.length":
+		return len(e.Link.Target.BasenameStr), nil
 	case "link.file.destination.path":
 		return e.Link.Target.PathnameStr, nil
+	case "link.file.destination.path.length":
+		return len(e.Link.Target.PathnameStr), nil
 	case "link.file.destination.rights":
 		return int(e.Link.Target.FileFields.Mode), nil
 	case "link.file.destination.uid":
@@ -7764,8 +10067,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Link.Source.FileFields.MountID), nil
 	case "link.file.name":
 		return e.Link.Source.BasenameStr, nil
+	case "link.file.name.length":
+		return len(e.Link.Source.BasenameStr), nil
 	case "link.file.path":
 		return e.Link.Source.PathnameStr, nil
+	case "link.file.path.length":
+		return len(e.Link.Source.PathnameStr), nil
 	case "link.file.rights":
 		return int(e.Link.Source.FileFields.Mode), nil
 	case "link.file.uid":
@@ -7794,8 +10101,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.LoadModule.File.FileFields.MountID), nil
 	case "load_module.file.name":
 		return e.LoadModule.File.BasenameStr, nil
+	case "load_module.file.name.length":
+		return len(e.LoadModule.File.BasenameStr), nil
 	case "load_module.file.path":
 		return e.LoadModule.File.PathnameStr, nil
+	case "load_module.file.path.length":
+		return len(e.LoadModule.File.PathnameStr), nil
 	case "load_module.file.rights":
 		return int(e.LoadModule.File.FileFields.Mode), nil
 	case "load_module.file.uid":
@@ -7832,8 +10143,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Mkdir.File.FileFields.MountID), nil
 	case "mkdir.file.name":
 		return e.Mkdir.File.BasenameStr, nil
+	case "mkdir.file.name.length":
+		return len(e.Mkdir.File.BasenameStr), nil
 	case "mkdir.file.path":
 		return e.Mkdir.File.PathnameStr, nil
+	case "mkdir.file.path.length":
+		return len(e.Mkdir.File.PathnameStr), nil
 	case "mkdir.file.rights":
 		return int(e.Mkdir.File.FileFields.Mode), nil
 	case "mkdir.file.uid":
@@ -7862,8 +10177,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.MMap.File.FileFields.MountID), nil
 	case "mmap.file.name":
 		return e.MMap.File.BasenameStr, nil
+	case "mmap.file.name.length":
+		return len(e.MMap.File.BasenameStr), nil
 	case "mmap.file.path":
 		return e.MMap.File.PathnameStr, nil
+	case "mmap.file.path.length":
+		return len(e.MMap.File.PathnameStr), nil
 	case "mmap.file.rights":
 		return int(e.MMap.File.FileFields.Mode), nil
 	case "mmap.file.uid":
@@ -7922,8 +10241,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Open.File.FileFields.MountID), nil
 	case "open.file.name":
 		return e.Open.File.BasenameStr, nil
+	case "open.file.name.length":
+		return len(e.Open.File.BasenameStr), nil
 	case "open.file.path":
 		return e.Open.File.PathnameStr, nil
+	case "open.file.path.length":
+		return len(e.Open.File.PathnameStr), nil
 	case "open.file.rights":
 		return int(e.Open.File.FileFields.Mode), nil
 	case "open.file.uid":
@@ -8282,6 +10605,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.ancestors.file.path":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8290,6 +10625,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -8398,6 +10745,210 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.change_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.filesystem":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.gid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.group":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.in_upper_layer":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.inode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.mode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.modification_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.name":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.path":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.rights":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.uid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.interpreter.file.user":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.is_kworker":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -8544,8 +11095,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.FileEvent.FileFields.MountID), nil
 	case "process.file.name":
 		return e.ProcessContext.Process.FileEvent.BasenameStr, nil
+	case "process.file.name.length":
+		return len(e.ProcessContext.Process.FileEvent.BasenameStr), nil
 	case "process.file.path":
 		return e.ProcessContext.Process.FileEvent.PathnameStr, nil
+	case "process.file.path.length":
+		return len(e.ProcessContext.Process.FileEvent.PathnameStr), nil
 	case "process.file.rights":
 		return int(e.ProcessContext.Process.FileEvent.FileFields.Mode), nil
 	case "process.file.uid":
@@ -8564,6 +11119,40 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.ProcessContext.Process.Credentials.GID), nil
 	case "process.group":
 		return e.ProcessContext.Process.Credentials.Group, nil
+	case "process.interpreter.file.change_time":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+	case "process.interpreter.file.filesystem":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem, nil
+	case "process.interpreter.file.gid":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+	case "process.interpreter.file.group":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group, nil
+	case "process.interpreter.file.in_upper_layer":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
+	case "process.interpreter.file.inode":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode), nil
+	case "process.interpreter.file.mode":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "process.interpreter.file.modification_time":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+	case "process.interpreter.file.mount_id":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID), nil
+	case "process.interpreter.file.name":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr, nil
+	case "process.interpreter.file.name.length":
+		return len(e.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr), nil
+	case "process.interpreter.file.path":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr, nil
+	case "process.interpreter.file.path.length":
+		return len(e.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr), nil
+	case "process.interpreter.file.rights":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "process.interpreter.file.uid":
+		return int(e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+	case "process.interpreter.file.user":
+		return e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User, nil
+	case "process.is_kworker":
+		return e.ProcessContext.Process.PIDContext.IsKworker, nil
 	case "process.is_thread":
 		return e.ProcessContext.Process.IsThread, nil
 	case "process.pid":
@@ -8930,6 +11519,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.ancestors.file.path":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -8938,6 +11539,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9046,6 +11659,210 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.change_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.gid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.group":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.inode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.rights":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.uid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.interpreter.file.user":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.is_kworker":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9192,8 +12009,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.FileEvent.FileFields.MountID), nil
 	case "ptrace.tracee.file.name":
 		return e.PTrace.Tracee.Process.FileEvent.BasenameStr, nil
+	case "ptrace.tracee.file.name.length":
+		return len(e.PTrace.Tracee.Process.FileEvent.BasenameStr), nil
 	case "ptrace.tracee.file.path":
 		return e.PTrace.Tracee.Process.FileEvent.PathnameStr, nil
+	case "ptrace.tracee.file.path.length":
+		return len(e.PTrace.Tracee.Process.FileEvent.PathnameStr), nil
 	case "ptrace.tracee.file.rights":
 		return int(e.PTrace.Tracee.Process.FileEvent.FileFields.Mode), nil
 	case "ptrace.tracee.file.uid":
@@ -9212,6 +12033,40 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.PTrace.Tracee.Process.Credentials.GID), nil
 	case "ptrace.tracee.group":
 		return e.PTrace.Tracee.Process.Credentials.Group, nil
+	case "ptrace.tracee.interpreter.file.change_time":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+	case "ptrace.tracee.interpreter.file.filesystem":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem, nil
+	case "ptrace.tracee.interpreter.file.gid":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+	case "ptrace.tracee.interpreter.file.group":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group, nil
+	case "ptrace.tracee.interpreter.file.in_upper_layer":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
+	case "ptrace.tracee.interpreter.file.inode":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Inode), nil
+	case "ptrace.tracee.interpreter.file.mode":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "ptrace.tracee.interpreter.file.modification_time":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+	case "ptrace.tracee.interpreter.file.mount_id":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MountID), nil
+	case "ptrace.tracee.interpreter.file.name":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr, nil
+	case "ptrace.tracee.interpreter.file.name.length":
+		return len(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr), nil
+	case "ptrace.tracee.interpreter.file.path":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr, nil
+	case "ptrace.tracee.interpreter.file.path.length":
+		return len(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr), nil
+	case "ptrace.tracee.interpreter.file.rights":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "ptrace.tracee.interpreter.file.uid":
+		return int(e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+	case "ptrace.tracee.interpreter.file.user":
+		return e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User, nil
+	case "ptrace.tracee.is_kworker":
+		return e.PTrace.Tracee.Process.PIDContext.IsKworker, nil
 	case "ptrace.tracee.is_thread":
 		return e.PTrace.Tracee.Process.IsThread, nil
 	case "ptrace.tracee.pid":
@@ -9250,8 +12105,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.RemoveXAttr.File.FileFields.MountID), nil
 	case "removexattr.file.name":
 		return e.RemoveXAttr.File.BasenameStr, nil
+	case "removexattr.file.name.length":
+		return len(e.RemoveXAttr.File.BasenameStr), nil
 	case "removexattr.file.path":
 		return e.RemoveXAttr.File.PathnameStr, nil
+	case "removexattr.file.path.length":
+		return len(e.RemoveXAttr.File.PathnameStr), nil
 	case "removexattr.file.rights":
 		return int(e.RemoveXAttr.File.FileFields.Mode), nil
 	case "removexattr.file.uid":
@@ -9282,8 +12141,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rename.New.FileFields.MountID), nil
 	case "rename.file.destination.name":
 		return e.Rename.New.BasenameStr, nil
+	case "rename.file.destination.name.length":
+		return len(e.Rename.New.BasenameStr), nil
 	case "rename.file.destination.path":
 		return e.Rename.New.PathnameStr, nil
+	case "rename.file.destination.path.length":
+		return len(e.Rename.New.PathnameStr), nil
 	case "rename.file.destination.rights":
 		return int(e.Rename.New.FileFields.Mode), nil
 	case "rename.file.destination.uid":
@@ -9308,8 +12171,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rename.Old.FileFields.MountID), nil
 	case "rename.file.name":
 		return e.Rename.Old.BasenameStr, nil
+	case "rename.file.name.length":
+		return len(e.Rename.Old.BasenameStr), nil
 	case "rename.file.path":
 		return e.Rename.Old.PathnameStr, nil
+	case "rename.file.path.length":
+		return len(e.Rename.Old.PathnameStr), nil
 	case "rename.file.rights":
 		return int(e.Rename.Old.FileFields.Mode), nil
 	case "rename.file.uid":
@@ -9338,8 +12205,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Rmdir.File.FileFields.MountID), nil
 	case "rmdir.file.name":
 		return e.Rmdir.File.BasenameStr, nil
+	case "rmdir.file.name.length":
+		return len(e.Rmdir.File.BasenameStr), nil
 	case "rmdir.file.path":
 		return e.Rmdir.File.PathnameStr, nil
+	case "rmdir.file.path.length":
+		return len(e.Rmdir.File.PathnameStr), nil
 	case "rmdir.file.rights":
 		return int(e.Rmdir.File.FileFields.Mode), nil
 	case "rmdir.file.uid":
@@ -9404,8 +12275,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.SetXAttr.File.FileFields.MountID), nil
 	case "setxattr.file.name":
 		return e.SetXAttr.File.BasenameStr, nil
+	case "setxattr.file.name.length":
+		return len(e.SetXAttr.File.BasenameStr), nil
 	case "setxattr.file.path":
 		return e.SetXAttr.File.PathnameStr, nil
+	case "setxattr.file.path.length":
+		return len(e.SetXAttr.File.PathnameStr), nil
 	case "setxattr.file.rights":
 		return int(e.SetXAttr.File.FileFields.Mode), nil
 	case "setxattr.file.uid":
@@ -9766,6 +12641,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.ancestors.file.path":
 		var values []string
 		ctx := eval.NewContext(unsafe.Pointer(e))
@@ -9774,6 +12661,18 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.FileEvent.PathnameStr)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -9882,6 +12781,210 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
 			result := element.ProcessContext.Process.Credentials.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.change_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.filesystem":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.gid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.group":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.in_upper_layer":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.inode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.mode":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.modification_time":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.mount_id":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.name":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.name.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.path":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.path.length":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := len(element.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.rights":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.uid":
+		var values []int
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.interpreter.file.user":
+		var values []string
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.is_kworker":
+		var values []bool
+		ctx := eval.NewContext(unsafe.Pointer(e))
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := element.ProcessContext.Process.PIDContext.IsKworker
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -10028,8 +13131,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.FileEvent.FileFields.MountID), nil
 	case "signal.target.file.name":
 		return e.Signal.Target.Process.FileEvent.BasenameStr, nil
+	case "signal.target.file.name.length":
+		return len(e.Signal.Target.Process.FileEvent.BasenameStr), nil
 	case "signal.target.file.path":
 		return e.Signal.Target.Process.FileEvent.PathnameStr, nil
+	case "signal.target.file.path.length":
+		return len(e.Signal.Target.Process.FileEvent.PathnameStr), nil
 	case "signal.target.file.rights":
 		return int(e.Signal.Target.Process.FileEvent.FileFields.Mode), nil
 	case "signal.target.file.uid":
@@ -10048,6 +13155,40 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Signal.Target.Process.Credentials.GID), nil
 	case "signal.target.group":
 		return e.Signal.Target.Process.Credentials.Group, nil
+	case "signal.target.interpreter.file.change_time":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime), nil
+	case "signal.target.interpreter.file.filesystem":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem, nil
+	case "signal.target.interpreter.file.gid":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID), nil
+	case "signal.target.interpreter.file.group":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group, nil
+	case "signal.target.interpreter.file.in_upper_layer":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
+	case "signal.target.interpreter.file.inode":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Inode), nil
+	case "signal.target.interpreter.file.mode":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "signal.target.interpreter.file.modification_time":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime), nil
+	case "signal.target.interpreter.file.mount_id":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MountID), nil
+	case "signal.target.interpreter.file.name":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr, nil
+	case "signal.target.interpreter.file.name.length":
+		return len(e.Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr), nil
+	case "signal.target.interpreter.file.path":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr, nil
+	case "signal.target.interpreter.file.path.length":
+		return len(e.Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr), nil
+	case "signal.target.interpreter.file.rights":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode), nil
+	case "signal.target.interpreter.file.uid":
+		return int(e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID), nil
+	case "signal.target.interpreter.file.user":
+		return e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User, nil
+	case "signal.target.is_kworker":
+		return e.Signal.Target.Process.PIDContext.IsKworker, nil
 	case "signal.target.is_thread":
 		return e.Signal.Target.Process.IsThread, nil
 	case "signal.target.pid":
@@ -10084,8 +13225,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Splice.File.FileFields.MountID), nil
 	case "splice.file.name":
 		return e.Splice.File.BasenameStr, nil
+	case "splice.file.name.length":
+		return len(e.Splice.File.BasenameStr), nil
 	case "splice.file.path":
 		return e.Splice.File.PathnameStr, nil
+	case "splice.file.path.length":
+		return len(e.Splice.File.PathnameStr), nil
 	case "splice.file.rights":
 		return int(e.Splice.File.FileFields.Mode), nil
 	case "splice.file.uid":
@@ -10118,8 +13263,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Unlink.File.FileFields.MountID), nil
 	case "unlink.file.name":
 		return e.Unlink.File.BasenameStr, nil
+	case "unlink.file.name.length":
+		return len(e.Unlink.File.BasenameStr), nil
 	case "unlink.file.path":
 		return e.Unlink.File.PathnameStr, nil
+	case "unlink.file.path.length":
+		return len(e.Unlink.File.PathnameStr), nil
 	case "unlink.file.rights":
 		return int(e.Unlink.File.FileFields.Mode), nil
 	case "unlink.file.uid":
@@ -10154,8 +13303,12 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Utimes.File.FileFields.MountID), nil
 	case "utimes.file.name":
 		return e.Utimes.File.BasenameStr, nil
+	case "utimes.file.name.length":
+		return len(e.Utimes.File.BasenameStr), nil
 	case "utimes.file.path":
 		return e.Utimes.File.PathnameStr, nil
+	case "utimes.file.path.length":
+		return len(e.Utimes.File.PathnameStr), nil
 	case "utimes.file.rights":
 		return int(e.Utimes.File.FileFields.Mode), nil
 	case "utimes.file.uid":
@@ -10225,7 +13378,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.file.name":
 		return "chmod", nil
+	case "chmod.file.name.length":
+		return "chmod", nil
 	case "chmod.file.path":
+		return "chmod", nil
+	case "chmod.file.path.length":
 		return "chmod", nil
 	case "chmod.file.rights":
 		return "chmod", nil
@@ -10263,7 +13420,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chown", nil
 	case "chown.file.name":
 		return "chown", nil
+	case "chown.file.name.length":
+		return "chown", nil
 	case "chown.file.path":
+		return "chown", nil
+	case "chown.file.path.length":
 		return "chown", nil
 	case "chown.file.rights":
 		return "chown", nil
@@ -10277,13 +13438,17 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "container.tags":
 		return "*", nil
+	case "dns.id":
+		return "dns", nil
 	case "dns.question.class":
 		return "dns", nil
 	case "dns.question.count":
 		return "dns", nil
+	case "dns.question.length":
+		return "dns", nil
 	case "dns.question.name":
 		return "dns", nil
-	case "dns.question.size":
+	case "dns.question.name.length":
 		return "dns", nil
 	case "dns.question.type":
 		return "dns", nil
@@ -10345,7 +13510,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.file.name":
 		return "exec", nil
+	case "exec.file.name.length":
+		return "exec", nil
 	case "exec.file.path":
+		return "exec", nil
+	case "exec.file.path.length":
 		return "exec", nil
 	case "exec.file.rights":
 		return "exec", nil
@@ -10364,6 +13533,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.gid":
 		return "exec", nil
 	case "exec.group":
+		return "exec", nil
+	case "exec.interpreter.file.change_time":
+		return "exec", nil
+	case "exec.interpreter.file.filesystem":
+		return "exec", nil
+	case "exec.interpreter.file.gid":
+		return "exec", nil
+	case "exec.interpreter.file.group":
+		return "exec", nil
+	case "exec.interpreter.file.in_upper_layer":
+		return "exec", nil
+	case "exec.interpreter.file.inode":
+		return "exec", nil
+	case "exec.interpreter.file.mode":
+		return "exec", nil
+	case "exec.interpreter.file.modification_time":
+		return "exec", nil
+	case "exec.interpreter.file.mount_id":
+		return "exec", nil
+	case "exec.interpreter.file.name":
+		return "exec", nil
+	case "exec.interpreter.file.name.length":
+		return "exec", nil
+	case "exec.interpreter.file.path":
+		return "exec", nil
+	case "exec.interpreter.file.path.length":
+		return "exec", nil
+	case "exec.interpreter.file.rights":
+		return "exec", nil
+	case "exec.interpreter.file.uid":
+		return "exec", nil
+	case "exec.interpreter.file.user":
+		return "exec", nil
+	case "exec.is_kworker":
 		return "exec", nil
 	case "exec.is_thread":
 		return "exec", nil
@@ -10441,7 +13644,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.file.name":
 		return "exit", nil
+	case "exit.file.name.length":
+		return "exit", nil
 	case "exit.file.path":
+		return "exit", nil
+	case "exit.file.path.length":
 		return "exit", nil
 	case "exit.file.rights":
 		return "exit", nil
@@ -10460,6 +13667,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.gid":
 		return "exit", nil
 	case "exit.group":
+		return "exit", nil
+	case "exit.interpreter.file.change_time":
+		return "exit", nil
+	case "exit.interpreter.file.filesystem":
+		return "exit", nil
+	case "exit.interpreter.file.gid":
+		return "exit", nil
+	case "exit.interpreter.file.group":
+		return "exit", nil
+	case "exit.interpreter.file.in_upper_layer":
+		return "exit", nil
+	case "exit.interpreter.file.inode":
+		return "exit", nil
+	case "exit.interpreter.file.mode":
+		return "exit", nil
+	case "exit.interpreter.file.modification_time":
+		return "exit", nil
+	case "exit.interpreter.file.mount_id":
+		return "exit", nil
+	case "exit.interpreter.file.name":
+		return "exit", nil
+	case "exit.interpreter.file.name.length":
+		return "exit", nil
+	case "exit.interpreter.file.path":
+		return "exit", nil
+	case "exit.interpreter.file.path.length":
+		return "exit", nil
+	case "exit.interpreter.file.rights":
+		return "exit", nil
+	case "exit.interpreter.file.uid":
+		return "exit", nil
+	case "exit.interpreter.file.user":
+		return "exit", nil
+	case "exit.is_kworker":
 		return "exit", nil
 	case "exit.is_thread":
 		return "exit", nil
@@ -10497,7 +13738,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.destination.name":
 		return "link", nil
+	case "link.file.destination.name.length":
+		return "link", nil
 	case "link.file.destination.path":
+		return "link", nil
+	case "link.file.destination.path.length":
 		return "link", nil
 	case "link.file.destination.rights":
 		return "link", nil
@@ -10523,7 +13768,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "link", nil
 	case "link.file.name":
 		return "link", nil
+	case "link.file.name.length":
+		return "link", nil
 	case "link.file.path":
+		return "link", nil
+	case "link.file.path.length":
 		return "link", nil
 	case "link.file.rights":
 		return "link", nil
@@ -10553,7 +13802,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "load_module", nil
 	case "load_module.file.name":
 		return "load_module", nil
+	case "load_module.file.name.length":
+		return "load_module", nil
 	case "load_module.file.path":
+		return "load_module", nil
+	case "load_module.file.path.length":
 		return "load_module", nil
 	case "load_module.file.rights":
 		return "load_module", nil
@@ -10591,7 +13844,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mkdir", nil
 	case "mkdir.file.name":
 		return "mkdir", nil
+	case "mkdir.file.name.length":
+		return "mkdir", nil
 	case "mkdir.file.path":
+		return "mkdir", nil
+	case "mkdir.file.path.length":
 		return "mkdir", nil
 	case "mkdir.file.rights":
 		return "mkdir", nil
@@ -10621,7 +13878,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mmap", nil
 	case "mmap.file.name":
 		return "mmap", nil
+	case "mmap.file.name.length":
+		return "mmap", nil
 	case "mmap.file.path":
+		return "mmap", nil
+	case "mmap.file.path.length":
 		return "mmap", nil
 	case "mmap.file.rights":
 		return "mmap", nil
@@ -10681,7 +13942,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.file.name":
 		return "open", nil
+	case "open.file.name.length":
+		return "open", nil
 	case "open.file.path":
+		return "open", nil
+	case "open.file.path.length":
 		return "open", nil
 	case "open.file.rights":
 		return "open", nil
@@ -10751,7 +14016,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.file.name":
 		return "*", nil
+	case "process.ancestors.file.name.length":
+		return "*", nil
 	case "process.ancestors.file.path":
+		return "*", nil
+	case "process.ancestors.file.path.length":
 		return "*", nil
 	case "process.ancestors.file.rights":
 		return "*", nil
@@ -10770,6 +14039,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.gid":
 		return "*", nil
 	case "process.ancestors.group":
+		return "*", nil
+	case "process.ancestors.interpreter.file.change_time":
+		return "*", nil
+	case "process.ancestors.interpreter.file.filesystem":
+		return "*", nil
+	case "process.ancestors.interpreter.file.gid":
+		return "*", nil
+	case "process.ancestors.interpreter.file.group":
+		return "*", nil
+	case "process.ancestors.interpreter.file.in_upper_layer":
+		return "*", nil
+	case "process.ancestors.interpreter.file.inode":
+		return "*", nil
+	case "process.ancestors.interpreter.file.mode":
+		return "*", nil
+	case "process.ancestors.interpreter.file.modification_time":
+		return "*", nil
+	case "process.ancestors.interpreter.file.mount_id":
+		return "*", nil
+	case "process.ancestors.interpreter.file.name":
+		return "*", nil
+	case "process.ancestors.interpreter.file.name.length":
+		return "*", nil
+	case "process.ancestors.interpreter.file.path":
+		return "*", nil
+	case "process.ancestors.interpreter.file.path.length":
+		return "*", nil
+	case "process.ancestors.interpreter.file.rights":
+		return "*", nil
+	case "process.ancestors.interpreter.file.uid":
+		return "*", nil
+	case "process.ancestors.interpreter.file.user":
+		return "*", nil
+	case "process.ancestors.is_kworker":
 		return "*", nil
 	case "process.ancestors.is_thread":
 		return "*", nil
@@ -10843,7 +14146,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.file.name":
 		return "*", nil
+	case "process.file.name.length":
+		return "*", nil
 	case "process.file.path":
+		return "*", nil
+	case "process.file.path.length":
 		return "*", nil
 	case "process.file.rights":
 		return "*", nil
@@ -10862,6 +14169,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.gid":
 		return "*", nil
 	case "process.group":
+		return "*", nil
+	case "process.interpreter.file.change_time":
+		return "*", nil
+	case "process.interpreter.file.filesystem":
+		return "*", nil
+	case "process.interpreter.file.gid":
+		return "*", nil
+	case "process.interpreter.file.group":
+		return "*", nil
+	case "process.interpreter.file.in_upper_layer":
+		return "*", nil
+	case "process.interpreter.file.inode":
+		return "*", nil
+	case "process.interpreter.file.mode":
+		return "*", nil
+	case "process.interpreter.file.modification_time":
+		return "*", nil
+	case "process.interpreter.file.mount_id":
+		return "*", nil
+	case "process.interpreter.file.name":
+		return "*", nil
+	case "process.interpreter.file.name.length":
+		return "*", nil
+	case "process.interpreter.file.path":
+		return "*", nil
+	case "process.interpreter.file.path.length":
+		return "*", nil
+	case "process.interpreter.file.rights":
+		return "*", nil
+	case "process.interpreter.file.uid":
+		return "*", nil
+	case "process.interpreter.file.user":
+		return "*", nil
+	case "process.is_kworker":
 		return "*", nil
 	case "process.is_thread":
 		return "*", nil
@@ -10939,7 +14280,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.name":
 		return "ptrace", nil
+	case "ptrace.tracee.ancestors.file.name.length":
+		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.path":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.file.path.length":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.file.rights":
 		return "ptrace", nil
@@ -10958,6 +14303,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.group":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.change_time":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.gid":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.group":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.inode":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.mode":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.name":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.name.length":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.path":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.path.length":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.rights":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.uid":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.interpreter.file.user":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.is_kworker":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.is_thread":
 		return "ptrace", nil
@@ -11031,7 +14410,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.file.name":
 		return "ptrace", nil
+	case "ptrace.tracee.file.name.length":
+		return "ptrace", nil
 	case "ptrace.tracee.file.path":
+		return "ptrace", nil
+	case "ptrace.tracee.file.path.length":
 		return "ptrace", nil
 	case "ptrace.tracee.file.rights":
 		return "ptrace", nil
@@ -11050,6 +14433,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.gid":
 		return "ptrace", nil
 	case "ptrace.tracee.group":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.change_time":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.filesystem":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.gid":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.group":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.in_upper_layer":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.inode":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.mode":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.modification_time":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.mount_id":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.name":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.name.length":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.path":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.path.length":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.rights":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.uid":
+		return "ptrace", nil
+	case "ptrace.tracee.interpreter.file.user":
+		return "ptrace", nil
+	case "ptrace.tracee.is_kworker":
 		return "ptrace", nil
 	case "ptrace.tracee.is_thread":
 		return "ptrace", nil
@@ -11089,7 +14506,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "removexattr", nil
 	case "removexattr.file.name":
 		return "removexattr", nil
+	case "removexattr.file.name.length":
+		return "removexattr", nil
 	case "removexattr.file.path":
+		return "removexattr", nil
+	case "removexattr.file.path.length":
 		return "removexattr", nil
 	case "removexattr.file.rights":
 		return "removexattr", nil
@@ -11121,7 +14542,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.destination.name":
 		return "rename", nil
+	case "rename.file.destination.name.length":
+		return "rename", nil
 	case "rename.file.destination.path":
+		return "rename", nil
+	case "rename.file.destination.path.length":
 		return "rename", nil
 	case "rename.file.destination.rights":
 		return "rename", nil
@@ -11147,7 +14572,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rename", nil
 	case "rename.file.name":
 		return "rename", nil
+	case "rename.file.name.length":
+		return "rename", nil
 	case "rename.file.path":
+		return "rename", nil
+	case "rename.file.path.length":
 		return "rename", nil
 	case "rename.file.rights":
 		return "rename", nil
@@ -11177,7 +14606,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "rmdir", nil
 	case "rmdir.file.name":
 		return "rmdir", nil
+	case "rmdir.file.name.length":
+		return "rmdir", nil
 	case "rmdir.file.path":
+		return "rmdir", nil
+	case "rmdir.file.path.length":
 		return "rmdir", nil
 	case "rmdir.file.rights":
 		return "rmdir", nil
@@ -11243,7 +14676,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "setxattr", nil
 	case "setxattr.file.name":
 		return "setxattr", nil
+	case "setxattr.file.name.length":
+		return "setxattr", nil
 	case "setxattr.file.path":
+		return "setxattr", nil
+	case "setxattr.file.path.length":
 		return "setxattr", nil
 	case "setxattr.file.rights":
 		return "setxattr", nil
@@ -11315,7 +14752,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.file.name":
 		return "signal", nil
+	case "signal.target.ancestors.file.name.length":
+		return "signal", nil
 	case "signal.target.ancestors.file.path":
+		return "signal", nil
+	case "signal.target.ancestors.file.path.length":
 		return "signal", nil
 	case "signal.target.ancestors.file.rights":
 		return "signal", nil
@@ -11334,6 +14775,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.ancestors.gid":
 		return "signal", nil
 	case "signal.target.ancestors.group":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.change_time":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.filesystem":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.gid":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.group":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.in_upper_layer":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.inode":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.mode":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.modification_time":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.mount_id":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.name":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.name.length":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.path":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.path.length":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.rights":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.uid":
+		return "signal", nil
+	case "signal.target.ancestors.interpreter.file.user":
+		return "signal", nil
+	case "signal.target.ancestors.is_kworker":
 		return "signal", nil
 	case "signal.target.ancestors.is_thread":
 		return "signal", nil
@@ -11407,7 +14882,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.file.name":
 		return "signal", nil
+	case "signal.target.file.name.length":
+		return "signal", nil
 	case "signal.target.file.path":
+		return "signal", nil
+	case "signal.target.file.path.length":
 		return "signal", nil
 	case "signal.target.file.rights":
 		return "signal", nil
@@ -11426,6 +14905,40 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.gid":
 		return "signal", nil
 	case "signal.target.group":
+		return "signal", nil
+	case "signal.target.interpreter.file.change_time":
+		return "signal", nil
+	case "signal.target.interpreter.file.filesystem":
+		return "signal", nil
+	case "signal.target.interpreter.file.gid":
+		return "signal", nil
+	case "signal.target.interpreter.file.group":
+		return "signal", nil
+	case "signal.target.interpreter.file.in_upper_layer":
+		return "signal", nil
+	case "signal.target.interpreter.file.inode":
+		return "signal", nil
+	case "signal.target.interpreter.file.mode":
+		return "signal", nil
+	case "signal.target.interpreter.file.modification_time":
+		return "signal", nil
+	case "signal.target.interpreter.file.mount_id":
+		return "signal", nil
+	case "signal.target.interpreter.file.name":
+		return "signal", nil
+	case "signal.target.interpreter.file.name.length":
+		return "signal", nil
+	case "signal.target.interpreter.file.path":
+		return "signal", nil
+	case "signal.target.interpreter.file.path.length":
+		return "signal", nil
+	case "signal.target.interpreter.file.rights":
+		return "signal", nil
+	case "signal.target.interpreter.file.uid":
+		return "signal", nil
+	case "signal.target.interpreter.file.user":
+		return "signal", nil
+	case "signal.target.is_kworker":
 		return "signal", nil
 	case "signal.target.is_thread":
 		return "signal", nil
@@ -11463,7 +14976,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "splice", nil
 	case "splice.file.name":
 		return "splice", nil
+	case "splice.file.name.length":
+		return "splice", nil
 	case "splice.file.path":
+		return "splice", nil
+	case "splice.file.path.length":
 		return "splice", nil
 	case "splice.file.rights":
 		return "splice", nil
@@ -11497,7 +15014,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unlink", nil
 	case "unlink.file.name":
 		return "unlink", nil
+	case "unlink.file.name.length":
+		return "unlink", nil
 	case "unlink.file.path":
+		return "unlink", nil
+	case "unlink.file.path.length":
 		return "unlink", nil
 	case "unlink.file.rights":
 		return "unlink", nil
@@ -11533,7 +15054,11 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "utimes", nil
 	case "utimes.file.name":
 		return "utimes", nil
+	case "utimes.file.name.length":
+		return "utimes", nil
 	case "utimes.file.path":
+		return "utimes", nil
+	case "utimes.file.path.length":
 		return "utimes", nil
 	case "utimes.file.rights":
 		return "utimes", nil
@@ -11604,8 +15129,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chmod.file.name":
 		return reflect.String, nil
+	case "chmod.file.name.length":
+		return reflect.Int, nil
 	case "chmod.file.path":
 		return reflect.String, nil
+	case "chmod.file.path.length":
+		return reflect.Int, nil
 	case "chmod.file.rights":
 		return reflect.Int, nil
 	case "chmod.file.uid":
@@ -11642,8 +15171,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chown.file.name":
 		return reflect.String, nil
+	case "chown.file.name.length":
+		return reflect.Int, nil
 	case "chown.file.path":
 		return reflect.String, nil
+	case "chown.file.path.length":
+		return reflect.Int, nil
 	case "chown.file.rights":
 		return reflect.Int, nil
 	case "chown.file.uid":
@@ -11656,13 +15189,17 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "container.tags":
 		return reflect.String, nil
+	case "dns.id":
+		return reflect.Int, nil
 	case "dns.question.class":
 		return reflect.Int, nil
 	case "dns.question.count":
 		return reflect.Int, nil
+	case "dns.question.length":
+		return reflect.Int, nil
 	case "dns.question.name":
 		return reflect.String, nil
-	case "dns.question.size":
+	case "dns.question.name.length":
 		return reflect.Int, nil
 	case "dns.question.type":
 		return reflect.Int, nil
@@ -11724,8 +15261,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.file.name":
 		return reflect.String, nil
+	case "exec.file.name.length":
+		return reflect.Int, nil
 	case "exec.file.path":
 		return reflect.String, nil
+	case "exec.file.path.length":
+		return reflect.Int, nil
 	case "exec.file.rights":
 		return reflect.Int, nil
 	case "exec.file.uid":
@@ -11744,6 +15285,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.group":
 		return reflect.String, nil
+	case "exec.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "exec.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "exec.interpreter.file.gid":
+		return reflect.Int, nil
+	case "exec.interpreter.file.group":
+		return reflect.String, nil
+	case "exec.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "exec.interpreter.file.inode":
+		return reflect.Int, nil
+	case "exec.interpreter.file.mode":
+		return reflect.Int, nil
+	case "exec.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "exec.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "exec.interpreter.file.name":
+		return reflect.String, nil
+	case "exec.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "exec.interpreter.file.path":
+		return reflect.String, nil
+	case "exec.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "exec.interpreter.file.rights":
+		return reflect.Int, nil
+	case "exec.interpreter.file.uid":
+		return reflect.Int, nil
+	case "exec.interpreter.file.user":
+		return reflect.String, nil
+	case "exec.is_kworker":
+		return reflect.Bool, nil
 	case "exec.is_thread":
 		return reflect.Bool, nil
 	case "exec.pid":
@@ -11820,8 +15395,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.file.name":
 		return reflect.String, nil
+	case "exit.file.name.length":
+		return reflect.Int, nil
 	case "exit.file.path":
 		return reflect.String, nil
+	case "exit.file.path.length":
+		return reflect.Int, nil
 	case "exit.file.rights":
 		return reflect.Int, nil
 	case "exit.file.uid":
@@ -11840,6 +15419,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exit.group":
 		return reflect.String, nil
+	case "exit.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "exit.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "exit.interpreter.file.gid":
+		return reflect.Int, nil
+	case "exit.interpreter.file.group":
+		return reflect.String, nil
+	case "exit.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "exit.interpreter.file.inode":
+		return reflect.Int, nil
+	case "exit.interpreter.file.mode":
+		return reflect.Int, nil
+	case "exit.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "exit.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "exit.interpreter.file.name":
+		return reflect.String, nil
+	case "exit.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "exit.interpreter.file.path":
+		return reflect.String, nil
+	case "exit.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "exit.interpreter.file.rights":
+		return reflect.Int, nil
+	case "exit.interpreter.file.uid":
+		return reflect.Int, nil
+	case "exit.interpreter.file.user":
+		return reflect.String, nil
+	case "exit.is_kworker":
+		return reflect.Bool, nil
 	case "exit.is_thread":
 		return reflect.Bool, nil
 	case "exit.pid":
@@ -11876,8 +15489,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "link.file.destination.name":
 		return reflect.String, nil
+	case "link.file.destination.name.length":
+		return reflect.Int, nil
 	case "link.file.destination.path":
 		return reflect.String, nil
+	case "link.file.destination.path.length":
+		return reflect.Int, nil
 	case "link.file.destination.rights":
 		return reflect.Int, nil
 	case "link.file.destination.uid":
@@ -11902,8 +15519,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "link.file.name":
 		return reflect.String, nil
+	case "link.file.name.length":
+		return reflect.Int, nil
 	case "link.file.path":
 		return reflect.String, nil
+	case "link.file.path.length":
+		return reflect.Int, nil
 	case "link.file.rights":
 		return reflect.Int, nil
 	case "link.file.uid":
@@ -11932,8 +15553,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "load_module.file.name":
 		return reflect.String, nil
+	case "load_module.file.name.length":
+		return reflect.Int, nil
 	case "load_module.file.path":
 		return reflect.String, nil
+	case "load_module.file.path.length":
+		return reflect.Int, nil
 	case "load_module.file.rights":
 		return reflect.Int, nil
 	case "load_module.file.uid":
@@ -11970,8 +15595,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mkdir.file.name":
 		return reflect.String, nil
+	case "mkdir.file.name.length":
+		return reflect.Int, nil
 	case "mkdir.file.path":
 		return reflect.String, nil
+	case "mkdir.file.path.length":
+		return reflect.Int, nil
 	case "mkdir.file.rights":
 		return reflect.Int, nil
 	case "mkdir.file.uid":
@@ -12000,8 +15629,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mmap.file.name":
 		return reflect.String, nil
+	case "mmap.file.name.length":
+		return reflect.Int, nil
 	case "mmap.file.path":
 		return reflect.String, nil
+	case "mmap.file.path.length":
+		return reflect.Int, nil
 	case "mmap.file.rights":
 		return reflect.Int, nil
 	case "mmap.file.uid":
@@ -12060,8 +15693,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.file.name":
 		return reflect.String, nil
+	case "open.file.name.length":
+		return reflect.Int, nil
 	case "open.file.path":
 		return reflect.String, nil
+	case "open.file.path.length":
+		return reflect.Int, nil
 	case "open.file.rights":
 		return reflect.Int, nil
 	case "open.file.uid":
@@ -12130,8 +15767,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.file.name":
 		return reflect.String, nil
+	case "process.ancestors.file.name.length":
+		return reflect.Int, nil
 	case "process.ancestors.file.path":
 		return reflect.String, nil
+	case "process.ancestors.file.path.length":
+		return reflect.Int, nil
 	case "process.ancestors.file.rights":
 		return reflect.Int, nil
 	case "process.ancestors.file.uid":
@@ -12150,6 +15791,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.group":
 		return reflect.String, nil
+	case "process.ancestors.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "process.ancestors.interpreter.file.gid":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "process.ancestors.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "process.ancestors.interpreter.file.inode":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.mode":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.name":
+		return reflect.String, nil
+	case "process.ancestors.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.path":
+		return reflect.String, nil
+	case "process.ancestors.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.rights":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.uid":
+		return reflect.Int, nil
+	case "process.ancestors.interpreter.file.user":
+		return reflect.String, nil
+	case "process.ancestors.is_kworker":
+		return reflect.Bool, nil
 	case "process.ancestors.is_thread":
 		return reflect.Bool, nil
 	case "process.ancestors.pid":
@@ -12222,8 +15897,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.file.name":
 		return reflect.String, nil
+	case "process.file.name.length":
+		return reflect.Int, nil
 	case "process.file.path":
 		return reflect.String, nil
+	case "process.file.path.length":
+		return reflect.Int, nil
 	case "process.file.rights":
 		return reflect.Int, nil
 	case "process.file.uid":
@@ -12242,6 +15921,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.group":
 		return reflect.String, nil
+	case "process.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "process.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "process.interpreter.file.gid":
+		return reflect.Int, nil
+	case "process.interpreter.file.group":
+		return reflect.String, nil
+	case "process.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "process.interpreter.file.inode":
+		return reflect.Int, nil
+	case "process.interpreter.file.mode":
+		return reflect.Int, nil
+	case "process.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "process.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "process.interpreter.file.name":
+		return reflect.String, nil
+	case "process.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "process.interpreter.file.path":
+		return reflect.String, nil
+	case "process.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "process.interpreter.file.rights":
+		return reflect.Int, nil
+	case "process.interpreter.file.uid":
+		return reflect.Int, nil
+	case "process.interpreter.file.user":
+		return reflect.String, nil
+	case "process.is_kworker":
+		return reflect.Bool, nil
 	case "process.is_thread":
 		return reflect.Bool, nil
 	case "process.pid":
@@ -12318,8 +16031,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.name":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.file.name.length":
+		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.path":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.file.path.length":
+		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.rights":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.file.uid":
@@ -12338,6 +16055,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.group":
 		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.gid":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "ptrace.tracee.ancestors.interpreter.file.inode":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mode":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.rights":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.uid":
+		return reflect.Int, nil
+	case "ptrace.tracee.ancestors.interpreter.file.user":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.is_kworker":
+		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.is_thread":
 		return reflect.Bool, nil
 	case "ptrace.tracee.ancestors.pid":
@@ -12410,8 +16161,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.file.name":
 		return reflect.String, nil
+	case "ptrace.tracee.file.name.length":
+		return reflect.Int, nil
 	case "ptrace.tracee.file.path":
 		return reflect.String, nil
+	case "ptrace.tracee.file.path.length":
+		return reflect.Int, nil
 	case "ptrace.tracee.file.rights":
 		return reflect.Int, nil
 	case "ptrace.tracee.file.uid":
@@ -12430,6 +16185,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.group":
 		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.gid":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.group":
+		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "ptrace.tracee.interpreter.file.inode":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.mode":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.name":
+		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.path":
+		return reflect.String, nil
+	case "ptrace.tracee.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.rights":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.uid":
+		return reflect.Int, nil
+	case "ptrace.tracee.interpreter.file.user":
+		return reflect.String, nil
+	case "ptrace.tracee.is_kworker":
+		return reflect.Bool, nil
 	case "ptrace.tracee.is_thread":
 		return reflect.Bool, nil
 	case "ptrace.tracee.pid":
@@ -12468,8 +16257,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "removexattr.file.name":
 		return reflect.String, nil
+	case "removexattr.file.name.length":
+		return reflect.Int, nil
 	case "removexattr.file.path":
 		return reflect.String, nil
+	case "removexattr.file.path.length":
+		return reflect.Int, nil
 	case "removexattr.file.rights":
 		return reflect.Int, nil
 	case "removexattr.file.uid":
@@ -12500,8 +16293,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.destination.name":
 		return reflect.String, nil
+	case "rename.file.destination.name.length":
+		return reflect.Int, nil
 	case "rename.file.destination.path":
 		return reflect.String, nil
+	case "rename.file.destination.path.length":
+		return reflect.Int, nil
 	case "rename.file.destination.rights":
 		return reflect.Int, nil
 	case "rename.file.destination.uid":
@@ -12526,8 +16323,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rename.file.name":
 		return reflect.String, nil
+	case "rename.file.name.length":
+		return reflect.Int, nil
 	case "rename.file.path":
 		return reflect.String, nil
+	case "rename.file.path.length":
+		return reflect.Int, nil
 	case "rename.file.rights":
 		return reflect.Int, nil
 	case "rename.file.uid":
@@ -12556,8 +16357,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "rmdir.file.name":
 		return reflect.String, nil
+	case "rmdir.file.name.length":
+		return reflect.Int, nil
 	case "rmdir.file.path":
 		return reflect.String, nil
+	case "rmdir.file.path.length":
+		return reflect.Int, nil
 	case "rmdir.file.rights":
 		return reflect.Int, nil
 	case "rmdir.file.uid":
@@ -12622,8 +16427,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "setxattr.file.name":
 		return reflect.String, nil
+	case "setxattr.file.name.length":
+		return reflect.Int, nil
 	case "setxattr.file.path":
 		return reflect.String, nil
+	case "setxattr.file.path.length":
+		return reflect.Int, nil
 	case "setxattr.file.rights":
 		return reflect.Int, nil
 	case "setxattr.file.uid":
@@ -12694,8 +16503,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.name":
 		return reflect.String, nil
+	case "signal.target.ancestors.file.name.length":
+		return reflect.Int, nil
 	case "signal.target.ancestors.file.path":
 		return reflect.String, nil
+	case "signal.target.ancestors.file.path.length":
+		return reflect.Int, nil
 	case "signal.target.ancestors.file.rights":
 		return reflect.Int, nil
 	case "signal.target.ancestors.file.uid":
@@ -12714,6 +16527,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.group":
 		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.gid":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.group":
+		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "signal.target.ancestors.interpreter.file.inode":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.mode":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.name":
+		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.path":
+		return reflect.String, nil
+	case "signal.target.ancestors.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.rights":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.uid":
+		return reflect.Int, nil
+	case "signal.target.ancestors.interpreter.file.user":
+		return reflect.String, nil
+	case "signal.target.ancestors.is_kworker":
+		return reflect.Bool, nil
 	case "signal.target.ancestors.is_thread":
 		return reflect.Bool, nil
 	case "signal.target.ancestors.pid":
@@ -12786,8 +16633,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.file.name":
 		return reflect.String, nil
+	case "signal.target.file.name.length":
+		return reflect.Int, nil
 	case "signal.target.file.path":
 		return reflect.String, nil
+	case "signal.target.file.path.length":
+		return reflect.Int, nil
 	case "signal.target.file.rights":
 		return reflect.Int, nil
 	case "signal.target.file.uid":
@@ -12806,6 +16657,40 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.group":
 		return reflect.String, nil
+	case "signal.target.interpreter.file.change_time":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.filesystem":
+		return reflect.String, nil
+	case "signal.target.interpreter.file.gid":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.group":
+		return reflect.String, nil
+	case "signal.target.interpreter.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "signal.target.interpreter.file.inode":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.mode":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.modification_time":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.mount_id":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.name":
+		return reflect.String, nil
+	case "signal.target.interpreter.file.name.length":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.path":
+		return reflect.String, nil
+	case "signal.target.interpreter.file.path.length":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.rights":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.uid":
+		return reflect.Int, nil
+	case "signal.target.interpreter.file.user":
+		return reflect.String, nil
+	case "signal.target.is_kworker":
+		return reflect.Bool, nil
 	case "signal.target.is_thread":
 		return reflect.Bool, nil
 	case "signal.target.pid":
@@ -12842,8 +16727,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "splice.file.name":
 		return reflect.String, nil
+	case "splice.file.name.length":
+		return reflect.Int, nil
 	case "splice.file.path":
 		return reflect.String, nil
+	case "splice.file.path.length":
+		return reflect.Int, nil
 	case "splice.file.rights":
 		return reflect.Int, nil
 	case "splice.file.uid":
@@ -12876,8 +16765,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "unlink.file.name":
 		return reflect.String, nil
+	case "unlink.file.name.length":
+		return reflect.Int, nil
 	case "unlink.file.path":
 		return reflect.String, nil
+	case "unlink.file.path.length":
+		return reflect.Int, nil
 	case "unlink.file.rights":
 		return reflect.Int, nil
 	case "unlink.file.uid":
@@ -12912,8 +16805,12 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "utimes.file.name":
 		return reflect.String, nil
+	case "utimes.file.name.length":
+		return reflect.Int, nil
 	case "utimes.file.path":
 		return reflect.String, nil
+	case "utimes.file.path.length":
+		return reflect.Int, nil
 	case "utimes.file.rights":
 		return reflect.Int, nil
 	case "utimes.file.uid":
@@ -13121,6 +17018,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chmod.File.BasenameStr = str
 		return nil
+	case "chmod.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "chmod.file.name.length"}
 	case "chmod.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -13128,6 +17027,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chmod.File.PathnameStr = str
 		return nil
+	case "chmod.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "chmod.file.path.length"}
 	case "chmod.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -13253,6 +17154,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.File.BasenameStr = str
 		return nil
+	case "chown.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "chown.file.name.length"}
 	case "chown.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -13260,6 +17163,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Chown.File.PathnameStr = str
 		return nil
+	case "chown.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "chown.file.path.length"}
 	case "chown.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -13302,6 +17207,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
 		return nil
+	case "dns.id":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.ID"}
+		}
+		e.DNS.ID = uint16(v)
+		return nil
 	case "dns.question.class":
 		v, ok := value.(int)
 		if !ok {
@@ -13316,6 +17228,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.DNS.Count = uint16(v)
 		return nil
+	case "dns.question.length":
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
+		}
+		e.DNS.Size = uint16(v)
+		return nil
 	case "dns.question.name":
 		str, ok := value.(string)
 		if !ok {
@@ -13323,13 +17242,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.DNS.Name = str
 		return nil
-	case "dns.question.size":
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "DNS.Size"}
-		}
-		e.DNS.Size = uint16(v)
-		return nil
+	case "dns.question.name.length":
+		return &eval.ErrFieldReadOnly{Field: "dns.question.name.length"}
 	case "dns.question.type":
 		v, ok := value.(int)
 		if !ok {
@@ -13624,6 +17538,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileEvent.BasenameStr = str
 		return nil
+	case "exec.file.name.length":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exec.file.name.length"}
 	case "exec.file.path":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &Process{}
@@ -13634,6 +17553,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exec.Process.FileEvent.PathnameStr = str
 		return nil
+	case "exec.file.path.length":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exec.file.path.length"}
 	case "exec.file.rights":
 		if e.Exec.Process == nil {
 			e.Exec.Process = &Process{}
@@ -13723,6 +17647,164 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Credentials.Group"}
 		}
 		e.Exec.Process.Credentials.Group = str
+		return nil
+	case "exec.interpreter.file.change_time":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "exec.interpreter.file.filesystem":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "exec.interpreter.file.gid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "exec.interpreter.file.group":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "exec.interpreter.file.in_upper_layer":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		var ok bool
+		if e.Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "exec.interpreter.file.inode":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "exec.interpreter.file.mode":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exec.interpreter.file.modification_time":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "exec.interpreter.file.mount_id":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "exec.interpreter.file.name":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "exec.interpreter.file.name.length":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exec.interpreter.file.name.length"}
+	case "exec.interpreter.file.path":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "exec.interpreter.file.path.length":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exec.interpreter.file.path.length"}
+	case "exec.interpreter.file.rights":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exec.interpreter.file.uid":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "exec.interpreter.file.user":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.Exec.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "exec.is_kworker":
+		if e.Exec.Process == nil {
+			e.Exec.Process = &Process{}
+		}
+		var ok bool
+		if e.Exec.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "exec.is_thread":
 		if e.Exec.Process == nil {
@@ -14094,6 +18176,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.FileEvent.BasenameStr = str
 		return nil
+	case "exit.file.name.length":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
 	case "exit.file.path":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &Process{}
@@ -14104,6 +18191,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Exit.Process.FileEvent.PathnameStr = str
 		return nil
+	case "exit.file.path.length":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.file.rights":
 		if e.Exit.Process == nil {
 			e.Exit.Process = &Process{}
@@ -14193,6 +18285,164 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.Group"}
 		}
 		e.Exit.Process.Credentials.Group = str
+		return nil
+	case "exit.interpreter.file.change_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "exit.interpreter.file.filesystem":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "exit.interpreter.file.gid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "exit.interpreter.file.group":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "exit.interpreter.file.in_upper_layer":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "exit.interpreter.file.inode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "exit.interpreter.file.mode":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.interpreter.file.modification_time":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "exit.interpreter.file.mount_id":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "exit.interpreter.file.name":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "exit.interpreter.file.name.length":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.name.length"}
+	case "exit.interpreter.file.path":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "exit.interpreter.file.path.length":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.path.length"}
+	case "exit.interpreter.file.rights":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "exit.interpreter.file.uid":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "exit.interpreter.file.user":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.Exit.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "exit.is_kworker":
+		if e.Exit.Process == nil {
+			e.Exit.Process = &Process{}
+		}
+		var ok bool
+		if e.Exit.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "exit.is_thread":
 		if e.Exit.Process == nil {
@@ -14339,6 +18589,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Target.BasenameStr = str
 		return nil
+	case "link.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.destination.name.length"}
 	case "link.file.destination.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14346,6 +18598,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Target.PathnameStr = str
 		return nil
+	case "link.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.destination.path.length"}
 	case "link.file.destination.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -14429,6 +18683,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Source.BasenameStr = str
 		return nil
+	case "link.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.name.length"}
 	case "link.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14436,6 +18692,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Link.Source.PathnameStr = str
 		return nil
+	case "link.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "link.file.path.length"}
 	case "link.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -14533,6 +18791,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.File.BasenameStr = str
 		return nil
+	case "load_module.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "load_module.file.name.length"}
 	case "load_module.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14540,6 +18800,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.LoadModule.File.PathnameStr = str
 		return nil
+	case "load_module.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "load_module.file.path.length"}
 	case "load_module.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -14664,6 +18926,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mkdir.File.BasenameStr = str
 		return nil
+	case "mkdir.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "mkdir.file.name.length"}
 	case "mkdir.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14671,6 +18935,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mkdir.File.PathnameStr = str
 		return nil
+	case "mkdir.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "mkdir.file.path.length"}
 	case "mkdir.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -14768,6 +19034,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.MMap.File.BasenameStr = str
 		return nil
+	case "mmap.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "mmap.file.name.length"}
 	case "mmap.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14775,6 +19043,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.MMap.File.PathnameStr = str
 		return nil
+	case "mmap.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "mmap.file.path.length"}
 	case "mmap.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -14977,6 +19247,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Open.File.BasenameStr = str
 		return nil
+	case "open.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
 	case "open.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -14984,6 +19256,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Open.File.PathnameStr = str
 		return nil
+	case "open.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "open.file.path.length"}
 	case "open.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -15393,6 +19667,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
+	case "process.ancestors.file.name.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
 	case "process.ancestors.file.path":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &ProcessContext{}
@@ -15406,6 +19688,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
+	case "process.ancestors.file.path.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.path.length"}
 	case "process.ancestors.file.rights":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &ProcessContext{}
@@ -15522,6 +19812,215 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
 		e.ProcessContext.Ancestor.ProcessContext.Process.Credentials.Group = str
+		return nil
+	case "process.ancestors.interpreter.file.change_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "process.ancestors.interpreter.file.filesystem":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "process.ancestors.interpreter.file.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "process.ancestors.interpreter.file.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "process.ancestors.interpreter.file.in_upper_layer":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "process.ancestors.interpreter.file.inode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "process.ancestors.interpreter.file.mode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "process.ancestors.interpreter.file.modification_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "process.ancestors.interpreter.file.mount_id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "process.ancestors.interpreter.file.name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "process.ancestors.interpreter.file.name.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.name.length"}
+	case "process.ancestors.interpreter.file.path":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "process.ancestors.interpreter.file.path.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.path.length"}
+	case "process.ancestors.interpreter.file.rights":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "process.ancestors.interpreter.file.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "process.ancestors.interpreter.file.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "process.ancestors.is_kworker":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		if e.ProcessContext.Ancestor == nil {
+			e.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "process.ancestors.is_thread":
 		if e.ProcessContext == nil {
@@ -15900,6 +20399,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
+	case "process.file.name.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
 	case "process.file.path":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &ProcessContext{}
@@ -15910,6 +20414,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
+	case "process.file.path.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.file.path.length"}
 	case "process.file.rights":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &ProcessContext{}
@@ -15999,6 +20508,164 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.Credentials.Group"}
 		}
 		e.ProcessContext.Process.Credentials.Group = str
+		return nil
+	case "process.interpreter.file.change_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "process.interpreter.file.filesystem":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "process.interpreter.file.gid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "process.interpreter.file.group":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "process.interpreter.file.in_upper_layer":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		var ok bool
+		if e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "process.interpreter.file.inode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "process.interpreter.file.mode":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "process.interpreter.file.modification_time":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "process.interpreter.file.mount_id":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "process.interpreter.file.name":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "process.interpreter.file.name.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.name.length"}
+	case "process.interpreter.file.path":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "process.interpreter.file.path.length":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.path.length"}
+	case "process.interpreter.file.rights":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "process.interpreter.file.uid":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "process.interpreter.file.user":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "process.is_kworker":
+		if e.ProcessContext == nil {
+			e.ProcessContext = &ProcessContext{}
+		}
+		var ok bool
+		if e.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "process.is_thread":
 		if e.ProcessContext == nil {
@@ -16457,6 +21124,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
+	case "ptrace.tracee.ancestors.file.name.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.name.length"}
 	case "ptrace.tracee.ancestors.file.path":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &ProcessContext{}
@@ -16470,6 +21145,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
+	case "ptrace.tracee.ancestors.file.path.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.path.length"}
 	case "ptrace.tracee.ancestors.file.rights":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &ProcessContext{}
@@ -16586,6 +21269,215 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
 		e.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.Group = str
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.change_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.inode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.mode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.name.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.name.length"}
+	case "ptrace.tracee.ancestors.interpreter.file.path":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.path.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.path.length"}
+	case "ptrace.tracee.ancestors.interpreter.file.rights":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "ptrace.tracee.ancestors.interpreter.file.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "ptrace.tracee.ancestors.is_kworker":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		if e.PTrace.Tracee.Ancestor == nil {
+			e.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "ptrace.tracee.ancestors.is_thread":
 		if e.PTrace.Tracee == nil {
@@ -16964,6 +21856,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.FileEvent.BasenameStr = str
 		return nil
+	case "ptrace.tracee.file.name.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.name.length"}
 	case "ptrace.tracee.file.path":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &ProcessContext{}
@@ -16974,6 +21871,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.PTrace.Tracee.Process.FileEvent.PathnameStr = str
 		return nil
+	case "ptrace.tracee.file.path.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.path.length"}
 	case "ptrace.tracee.file.rights":
 		if e.PTrace.Tracee == nil {
 			e.PTrace.Tracee = &ProcessContext{}
@@ -17063,6 +21965,164 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.Group"}
 		}
 		e.PTrace.Tracee.Process.Credentials.Group = str
+		return nil
+	case "ptrace.tracee.interpreter.file.change_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.filesystem":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "ptrace.tracee.interpreter.file.gid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.group":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "ptrace.tracee.interpreter.file.in_upper_layer":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "ptrace.tracee.interpreter.file.inode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.mode":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.modification_time":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.mount_id":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.name":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "ptrace.tracee.interpreter.file.name.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.interpreter.file.name.length"}
+	case "ptrace.tracee.interpreter.file.path":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "ptrace.tracee.interpreter.file.path.length":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.interpreter.file.path.length"}
+	case "ptrace.tracee.interpreter.file.rights":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.uid":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "ptrace.tracee.interpreter.file.user":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "ptrace.tracee.is_kworker":
+		if e.PTrace.Tracee == nil {
+			e.PTrace.Tracee = &ProcessContext{}
+		}
+		var ok bool
+		if e.PTrace.Tracee.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "ptrace.tracee.is_thread":
 		if e.PTrace.Tracee == nil {
@@ -17216,6 +22276,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.File.BasenameStr = str
 		return nil
+	case "removexattr.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "removexattr.file.name.length"}
 	case "removexattr.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -17223,6 +22285,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.RemoveXAttr.File.PathnameStr = str
 		return nil
+	case "removexattr.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "removexattr.file.path.length"}
 	case "removexattr.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -17327,6 +22391,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.New.BasenameStr = str
 		return nil
+	case "rename.file.destination.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
 	case "rename.file.destination.path":
 		str, ok := value.(string)
 		if !ok {
@@ -17334,6 +22400,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.New.PathnameStr = str
 		return nil
+	case "rename.file.destination.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.path.length"}
 	case "rename.file.destination.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -17417,6 +22485,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.Old.BasenameStr = str
 		return nil
+	case "rename.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
 	case "rename.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -17424,6 +22494,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rename.Old.PathnameStr = str
 		return nil
+	case "rename.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rename.file.path.length"}
 	case "rename.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -17521,6 +22593,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rmdir.File.BasenameStr = str
 		return nil
+	case "rmdir.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "rmdir.file.name.length"}
 	case "rmdir.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -17528,6 +22602,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Rmdir.File.PathnameStr = str
 		return nil
+	case "rmdir.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "rmdir.file.path.length"}
 	case "rmdir.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -17750,6 +22826,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.File.BasenameStr = str
 		return nil
+	case "setxattr.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "setxattr.file.name.length"}
 	case "setxattr.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -17757,6 +22835,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.SetXAttr.File.PathnameStr = str
 		return nil
+	case "setxattr.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "setxattr.file.path.length"}
 	case "setxattr.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -18173,6 +23253,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = str
 		return nil
+	case "signal.target.ancestors.file.name.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.name.length"}
 	case "signal.target.ancestors.file.path":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &ProcessContext{}
@@ -18186,6 +23274,14 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = str
 		return nil
+	case "signal.target.ancestors.file.path.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.path.length"}
 	case "signal.target.ancestors.file.rights":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &ProcessContext{}
@@ -18302,6 +23398,215 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group"}
 		}
 		e.Signal.Target.Ancestor.ProcessContext.Process.Credentials.Group = str
+		return nil
+	case "signal.target.ancestors.interpreter.file.change_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.filesystem":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "signal.target.ancestors.interpreter.file.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "signal.target.ancestors.interpreter.file.in_upper_layer":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "signal.target.ancestors.interpreter.file.inode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.mode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.modification_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.mount_id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "signal.target.ancestors.interpreter.file.name.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.name.length"}
+	case "signal.target.ancestors.interpreter.file.path":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "signal.target.ancestors.interpreter.file.path.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.path.length"}
+	case "signal.target.ancestors.interpreter.file.rights":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "signal.target.ancestors.interpreter.file.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "signal.target.ancestors.is_kworker":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		if e.Signal.Target.Ancestor == nil {
+			e.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		var ok bool
+		if e.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "signal.target.ancestors.is_thread":
 		if e.Signal.Target == nil {
@@ -18680,6 +23985,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.FileEvent.BasenameStr = str
 		return nil
+	case "signal.target.file.name.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.file.name.length"}
 	case "signal.target.file.path":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &ProcessContext{}
@@ -18690,6 +24000,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Signal.Target.Process.FileEvent.PathnameStr = str
 		return nil
+	case "signal.target.file.path.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.file.path.length"}
 	case "signal.target.file.rights":
 		if e.Signal.Target == nil {
 			e.Signal.Target = &ProcessContext{}
@@ -18779,6 +24094,164 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.Group"}
 		}
 		e.Signal.Target.Process.Credentials.Group = str
+		return nil
+	case "signal.target.interpreter.file.change_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
+		return nil
+	case "signal.target.interpreter.file.filesystem":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem = str
+		return nil
+	case "signal.target.interpreter.file.gid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
+		return nil
+	case "signal.target.interpreter.file.group":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group = str
+		return nil
+	case "signal.target.interpreter.file.in_upper_layer":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		var ok bool
+		if e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
+		}
+		return nil
+	case "signal.target.interpreter.file.inode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Inode"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
+		return nil
+	case "signal.target.interpreter.file.mode":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "signal.target.interpreter.file.modification_time":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
+		return nil
+	case "signal.target.interpreter.file.mount_id":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MountID"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
+		return nil
+	case "signal.target.interpreter.file.name":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr = str
+		return nil
+	case "signal.target.interpreter.file.name.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.interpreter.file.name.length"}
+	case "signal.target.interpreter.file.path":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr = str
+		return nil
+	case "signal.target.interpreter.file.path.length":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "signal.target.interpreter.file.path.length"}
+	case "signal.target.interpreter.file.rights":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
+		return nil
+	case "signal.target.interpreter.file.uid":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
+		return nil
+	case "signal.target.interpreter.file.user":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User"}
+		}
+		e.Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User = str
+		return nil
+	case "signal.target.is_kworker":
+		if e.Signal.Target == nil {
+			e.Signal.Target = &ProcessContext{}
+		}
+		var ok bool
+		if e.Signal.Target.Process.PIDContext.IsKworker, ok = value.(bool); !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.PIDContext.IsKworker"}
+		}
 		return nil
 	case "signal.target.is_thread":
 		if e.Signal.Target == nil {
@@ -18925,6 +24398,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Splice.File.BasenameStr = str
 		return nil
+	case "splice.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "splice.file.name.length"}
 	case "splice.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -18932,6 +24407,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Splice.File.PathnameStr = str
 		return nil
+	case "splice.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "splice.file.path.length"}
 	case "splice.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19043,6 +24520,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Unlink.File.BasenameStr = str
 		return nil
+	case "unlink.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "unlink.file.name.length"}
 	case "unlink.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19050,6 +24529,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Unlink.File.PathnameStr = str
 		return nil
+	case "unlink.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "unlink.file.path.length"}
 	case "unlink.file.rights":
 		v, ok := value.(int)
 		if !ok {
@@ -19168,6 +24649,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Utimes.File.BasenameStr = str
 		return nil
+	case "utimes.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "utimes.file.name.length"}
 	case "utimes.file.path":
 		str, ok := value.(string)
 		if !ok {
@@ -19175,6 +24658,8 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Utimes.File.PathnameStr = str
 		return nil
+	case "utimes.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "utimes.file.path.length"}
 	case "utimes.file.rights":
 		v, ok := value.(int)
 		if !ok {

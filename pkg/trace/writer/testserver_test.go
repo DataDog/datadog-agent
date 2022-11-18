@@ -47,6 +47,7 @@ func TestTestServer(t *testing.T) {
 		assert.NoError(err)
 
 		assert.Equal(http.StatusOK, resp.StatusCode)
+		resp.Body.Close()
 		assert.Equal(1, ts.Total())
 		assert.Equal(1, ts.Accepted())
 		assert.Equal(0, ts.Failed())
@@ -67,6 +68,7 @@ func TestTestServer(t *testing.T) {
 			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("3|200"))
 			assert.NoError(err)
 			assert.Equal(code, resp.StatusCode)
+			resp.Body.Close()
 		}
 
 		assert.Equal(4, ts.Total())
@@ -94,6 +96,7 @@ func TestTestServer(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
 		assert.NoError(err)
 		assert.Equal(200, resp.StatusCode)
+		resp.Body.Close()
 		assert.True(d > 50*time.Millisecond)
 	})
 
@@ -109,6 +112,7 @@ func TestTestServer(t *testing.T) {
 		resp, err := http.DefaultClient.Do(req)
 		assert.NoError(err)
 		assert.Equal(200, resp.StatusCode)
+		resp.Body.Close()
 
 		assert.Len(ts.Payloads(), 1)
 		assert.Equal("ABC", ts.Payloads()[0].body.String())
@@ -132,6 +136,7 @@ func TestTestServer(t *testing.T) {
 			resp, err := http.Post(ts.URL, "text/plain", strings.NewReader("1|200,508,429"))
 			assert.NoError(err)
 			assert.Equal(code, resp.StatusCode)
+			resp.Body.Close()
 		}
 
 		assert.Equal(6, ts.Total())

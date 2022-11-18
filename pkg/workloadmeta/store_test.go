@@ -9,8 +9,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 const (
@@ -147,6 +148,22 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
+			// if the filter has type "EventTypeUnset", it does not receive
+			// events for entities that are currently in the store.
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: NewFilter(nil, fooSource, EventTypeUnset),
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
+				},
+			},
+			expected: []EventBundle{
+				{},
+			},
+		},
+		{
 			// will receive events for entities that are currently
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
@@ -226,6 +243,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -291,6 +309,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -339,6 +358,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -387,6 +407,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -426,7 +447,9 @@ func TestSubscribe(t *testing.T) {
 					},
 				},
 			},
-			expected: []EventBundle{},
+			expected: []EventBundle{
+				{},
+			},
 		},
 		{
 			// unsetting an entity with a non-empty state (as in,
@@ -450,6 +473,7 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
@@ -472,21 +496,6 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			// unsetting an unknown entity should generate no events
-			name:   "unsets unknown entity",
-			filter: nil,
-			postEvents: [][]CollectorEvent{
-				{
-					{
-						Type:   EventTypeUnset,
-						Source: fooSource,
-						Entity: fooContainer,
-					},
-				},
-			},
-			expected: []EventBundle{},
-		},
-		{
 			name:   "filters by event type",
 			filter: NewFilter(nil, SourceAll, EventTypeUnset),
 			postEvents: [][]CollectorEvent{
@@ -506,10 +515,45 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			expected: []EventBundle{
+				{},
 				{
 					Events: []Event{
 						{
 							Type:   EventTypeUnset,
+							Entity: fooContainer,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:      "sets unchanged entity twice",
+			preEvents: []CollectorEvent{},
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						// DeepCopy to ensure we're not
+						// just comparing pointers, as
+						// collectors return a freshly
+						// built object every time
+						Entity: fooContainer.DeepCopy(),
+					},
+				},
+			},
+			filter: nil,
+			expected: []EventBundle{
+				{},
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeSet,
 							Entity: fooContainer,
 						},
 					},

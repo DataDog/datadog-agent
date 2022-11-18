@@ -33,7 +33,7 @@ type ChunkAllocator interface {
 // - keep track of size and weight available for allocation (`TakenSize` and `TakenWeight`)
 // - create a new chunk once we exceed these limits
 // - consider case when the current item exceeds the max allowed weight and create a new chunk at the end (`Append`)
-// this implementation allows for multiple pases through the chunks, which can be useful in cases with different payload types
+// this implementation allows for multiple passes through the chunks, which can be useful in cases with different payload types
 // being allocated within chunks
 func ChunkPayloadsBySizeAndWeight(l PayloadList, a ChunkAllocator, maxChunkSize int, maxChunkWeight int) {
 	start := 0

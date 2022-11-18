@@ -14,9 +14,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {

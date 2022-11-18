@@ -6,9 +6,10 @@
 package discovery
 
 import (
-	"github.com/stretchr/testify/assert"
 	"net"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_incrementIP(t *testing.T) {

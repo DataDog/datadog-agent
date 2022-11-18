@@ -52,12 +52,17 @@ message LatestConfigsRequest {
   bytes backend_client_state = 10;
   bool has_error = 11;
   string error = 12;
+  string trace_agent_env = 13;
 }
 
 message LatestConfigsResponse {
   ConfigMetas config_metas = 1;
   DirectorMetas director_metas = 2;
   repeated File target_files = 3;
+}
+
+message OrgDataResponse {
+  string uuid = 1;
 }
 
 // Client definitions
@@ -72,6 +77,7 @@ message Client {
   bool is_agent = 8;
   ClientAgent client_agent = 9;
   uint64 last_seen = 10;
+  bytes capabilities = 11;
 }
 
 message ClientTracer {
@@ -93,6 +99,8 @@ message ConfigState {
   string id = 1;
   uint64 version = 2;
   string product = 3;
+  uint64 apply_state = 4;
+  string apply_error = 5;
 }
 
 message ClientState {
@@ -108,7 +116,8 @@ message ClientState {
 
 message TargetFileHash {
   string algorithm = 1;
-  bytes hash = 2;
+  reserved 2; // old hash format
+  string hash = 3;
 }
 
 message TargetFileMeta {
@@ -144,12 +153,13 @@ message GetStateConfigResponse {
 
 
 message TracerPredicateV1 {
-	string runtimeID = 1;
-	string service = 2;
-	string environment = 3;
-	string appVersion = 4;
-	string tracerVersion = 5;
-	string language = 6;
+  string clientID = 1;
+  string service = 2;
+  string environment = 3;
+  string appVersion = 4;
+  string tracerVersion = 5;
+  string language = 6;
+  string runtimeID = 7;
 }
 
 message TracerPredicates {

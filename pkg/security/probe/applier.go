@@ -9,9 +9,8 @@
 package probe
 
 import (
+	"fmt"
 	"math"
-
-	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -93,23 +92,25 @@ func (rsa *RuleSetApplier) setupFilters(rs *rules.RuleSet, eventType eval.EventT
 
 // Apply setup the filters for the provided set of rules and returns the policy report.
 func (rsa *RuleSetApplier) Apply(rs *rules.RuleSet, approvers map[eval.EventType]rules.Approvers) (*Report, error) {
-	if rsa.probe != nil {
-		// based on the ruleset and the requested rules, select the probes that need to be activated
-		if err := rsa.probe.SelectProbes(rs); err != nil {
-			return nil, errors.Wrap(err, "failed to select probes")
-		}
-
-		if err := rsa.probe.FlushDiscarders(); err != nil {
-			return nil, errors.Wrap(err, "failed to flush discarders")
-		}
-	}
-
 	// apply deny filter by default
 	rsa.applyDefaultFilterPolicies()
 
-	for _, eventType := range rs.GetEventTypes() {
+	eventTypes := rs.GetEventTypes()
+
+	for _, eventType := range eventTypes {
 		if err := rsa.setupFilters(rs, eventType, approvers[eventType]); err != nil {
 			return nil, err
+		}
+	}
+
+	if rsa.probe != nil {
+		// based on the ruleset and the requested rules, select the probes that need to be activated
+		if err := rsa.probe.SelectProbes(eventTypes); err != nil {
+			return nil, fmt.Errorf("failed to select probes: %w", err)
+		}
+
+		if err := rsa.probe.FlushDiscarders(); err != nil {
+			return nil, fmt.Errorf("failed to flush discarders: %w", err)
 		}
 	}
 

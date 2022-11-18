@@ -38,12 +38,6 @@ func LoadComponents(ctx context.Context, confdPath string) {
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(GetPythonPaths()...)
 
-	// creating the meta scheduler
-	metaScheduler := scheduler.NewMetaScheduler()
-
-	// registering the check scheduler
-	metaScheduler.Register("check", collector.InitCheckScheduler(Coll), false)
-
 	// setup autodiscovery
 	confSearchPaths := []string{
 		confdPath,
@@ -53,5 +47,5 @@ func LoadComponents(ctx context.Context, confdPath string) {
 
 	// setup autodiscovery. must be done after the tagger is initialized
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, metaScheduler)
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
 }

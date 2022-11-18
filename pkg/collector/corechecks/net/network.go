@@ -17,13 +17,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/shirou/gopsutil/v3/net"
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/shirou/gopsutil/v3/net"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -280,7 +281,7 @@ func netstatTCPExtCounters() (map[string]int64, error) {
 
 // Configure configures the network checks
 func (c *NetworkCheck) Configure(rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
-	err := c.CommonConfigure(rawInstance, source)
+	err := c.CommonConfigure(rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

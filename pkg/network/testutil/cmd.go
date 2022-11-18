@@ -16,8 +16,8 @@ import (
 // as a []string, with each element corresponding to the respective command.
 // If ignoreErrors is true, it will fail the test via t.Fatal immediately upon error.
 // Otherwise, the output on errors will be logged via t.Log.
-func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
-	t.Helper()
+func RunCommands(tb testing.TB, cmds []string, ignoreErrors bool) []string {
+	tb.Helper()
 	var output []string
 
 	for _, c := range cmds {
@@ -25,10 +25,10 @@ func RunCommands(t *testing.T, cmds []string, ignoreErrors bool) []string {
 		output = append(output, out)
 		if err != nil {
 			if !ignoreErrors {
-				t.Fatal(err)
+				tb.Fatal(err)
 				return nil
 			}
-			t.Log(err)
+			tb.Log(err)
 		}
 	}
 	return output

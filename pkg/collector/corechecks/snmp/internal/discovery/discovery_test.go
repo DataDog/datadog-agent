@@ -7,15 +7,17 @@ package discovery
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
 	"net"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
@@ -59,7 +61,7 @@ func TestDiscovery(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery, 7, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -109,7 +111,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory)
 	discovery.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
 	discovery.Stop()
 
 	deviceConfigs := discovery.GetDiscoveredDeviceConfigs()
@@ -141,7 +143,7 @@ func TestDiscoveryCache(t *testing.T) {
 	}
 	discovery2 := NewDiscovery(checkConfig, sessionFactory)
 	discovery2.Start()
-	assert.NoError(t, waitForDiscoveredDevices(&discovery2, 4, 2*time.Second))
+	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
 	discovery2.Stop()
 
 	deviceConfigsFromCache := discovery2.GetDiscoveredDeviceConfigs()

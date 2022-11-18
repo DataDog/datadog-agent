@@ -86,7 +86,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
+							{{if $Field.IsLength}}
+							result := len({{".length" | TrimSuffix $Return}})
+							{{else}}
 							result := int({{$Return}})
+							{{end}}
 						{{else}}
 							result := {{$Return}}
 						{{end}}
@@ -130,6 +134,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 							{{- if ne $Field.OrigType "int"}}
 								return int({{$Return}})
 							{{- else}}
+								{{- if $Field.IsLength }}
+									{{$Return = ".length" | TrimSuffix $Return | printf "len(%s)"}}
+								{{end}}
 								return {{$Return}}
 							{{end -}}
 						{{end -}}
@@ -198,10 +205,17 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
 				{{end}}
 
+				{{if $Field.IsLength}}
+				{{$Return = ".length" | TrimSuffix $Return}}
+				{{end}}
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
 					result := int({{$Return}})
 				{{else}}
-					result := {{$Return}}
+					{{if $Field.IsLength}}
+						result := len({{$Return}})
+					{{else}}
+						result := {{$Return}}
+					{{end}}
 				{{end}}
 
 				{{if eq $Field.GetArrayPrefix ""}}
@@ -216,6 +230,9 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return values, nil
 		{{else}}
 			{{$Return := $Field.Name | printf "e.%s"}}
+			{{if $Field.IsLength}}
+			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(e.%s)"}}
+			{{end}}
 			{{if and (ne $Field.Handler "") (not $Mock)}}
 				{{$Ptr := "&"}}
 				{{$Parent := index $.AllFields $Field.Prefix}}
@@ -292,6 +309,9 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		case "{{$Name}}":
 			{{- $Field | NewField $.AllFields}}
 		{{- if eq $Field.OrigType "string"}}
+			{{if $Field.IsLength}}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
+			{{else}}
 			str, ok := value.(string)
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
@@ -302,7 +322,11 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				{{$FieldName}} = str
 			{{end}}
 			return nil
+			{{end}}
 		{{else if eq $Field.BasicType "int"}}
+			{{if $Field.IsLength}}
+				return &eval.ErrFieldReadOnly{Field: "{{$Name}}"}
+			{{else}}
 			v, ok := value.(int)
 			if !ok {
 				return &eval.ErrValueTypeMismatch{Field: "{{$Field.Name}}"}
@@ -313,6 +337,7 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 				{{$FieldName}} = {{$Field.OrigType}}(v)
 			{{end}}
 			return nil
+			{{end}}
 		{{else if eq $Field.BasicType "bool"}}
 			var ok bool
 			if {{$FieldName}}, ok = value.(bool); !ok {

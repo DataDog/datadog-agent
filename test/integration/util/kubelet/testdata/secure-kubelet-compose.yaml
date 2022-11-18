@@ -2,19 +2,17 @@ version: '2.3'
 services:
   kubelet:
     build: ./
-    command: "/hyperkube
-        kubelet
-        --cloud-provider=''
+    command: "--cloud-provider=''
         --hostname-override=localhost
         --fail-swap-on=false
         --make-iptables-util-chains=false
         --hairpin-mode=none
+        --container-runtime-endpoint=unix:///run/cri-dockerd.sock
         --read-only-port 0
         --anonymous-auth=true
         --tls-cert-file=/etc/secrets/cert.pem
         --tls-private-key-file=/etc/secrets/key.pem
-        --pod-manifest-path=/opt
-        "
+        --pod-manifest-path=/opt"
         # Removed --client-ca-file=/etc/secrets/cert.pem as it
         # depends on an apiserver running to verify the username
     network_mode: ${network_mode}
@@ -24,7 +22,11 @@ services:
       timeout: 1s
       retries: 10
     volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys:/sys
+      - vardata:/var
+    tty: true
+    privileged: true
 
   pause:
     #
@@ -36,3 +38,5 @@ services:
       kubelet:
         condition: service_healthy
     network_mode: none
+volumes:
+  vardata:

@@ -19,11 +19,10 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
+	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -37,9 +36,7 @@ const (
 	streamRecvTimeout = 10 * time.Minute
 )
 
-var (
-	errTaggerStreamNotStarted = errors.New("tagger stream not started")
-)
+var errTaggerStreamNotStarted = errors.New("tagger stream not started")
 
 // Tagger holds a connection to a remote tagger, processes incoming events from
 // it, and manages the storage of entities to allow querying.
@@ -57,7 +54,6 @@ type Tagger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	health          *health.Handle
 	telemetryTicker *time.Ticker
 }
 
@@ -72,7 +68,6 @@ func NewTagger() *Tagger {
 // Init initializes the connection to the remote tagger and starts watching for
 // events.
 func (t *Tagger) Init(ctx context.Context) error {
-	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
 	t.ctx, t.cancel = context.WithCancel(ctx)
@@ -128,10 +123,6 @@ func (t *Tagger) Stop() error {
 	}
 
 	t.telemetryTicker.Stop()
-	err = t.health.Deregister()
-	if err != nil {
-		return err
-	}
 
 	log.Info("remote tagger stopped successfully")
 
@@ -152,7 +143,7 @@ func (t *Tagger) Tag(entityID string, cardinality collectors.TagCardinality) ([]
 }
 
 // AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagAccumulator) error {
+func (t *Tagger) AccumulateTagsFor(entityID string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -182,14 +173,14 @@ func (t *Tagger) GetEntity(entityID string) (*types.Entity, error) {
 }
 
 // List returns all the entities currently stored by the tagger.
-func (t *Tagger) List(cardinality collectors.TagCardinality) response.TaggerListResponse {
+func (t *Tagger) List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	entities := t.store.listEntities()
-	resp := response.TaggerListResponse{
-		Entities: make(map[string]response.TaggerListEntity),
+	resp := tagger_api.TaggerListResponse{
+		Entities: make(map[string]tagger_api.TaggerListEntity),
 	}
 
 	for _, e := range entities {
-		resp.Entities[e.ID] = response.TaggerListEntity{
+		resp.Entities[e.ID] = tagger_api.TaggerListEntity{
 			Tags: map[string][]string{
 				remoteSource: e.GetTags(collectors.HighCardinality),
 			},
@@ -214,24 +205,27 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 func (t *Tagger) run() {
 	for {
 		select {
-		case <-t.health.C:
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
+			continue
 		case <-t.ctx.Done():
 			return
 		default:
 		}
 
+		if t.stream == nil {
+			if err := t.startTaggerStream(noTimeout); err != nil {
+				log.Warnf("error received trying to start stream: %s", err)
+				continue
+			}
+		}
+
 		var response *pb.StreamTagsResponse
 		err := grpcutil.DoWithTimeout(func() error {
 			var err error
-			if t.stream == nil {
-				return errors.New("stream not initialized")
-			}
 			response, err = t.stream.Recv()
 			return err
 		}, streamRecvTimeout)
-
 		if err != nil {
 			t.streamCancel()
 
@@ -240,18 +234,13 @@ func (t *Tagger) run() {
 			// when Recv() returns an error, the stream is aborted
 			// and the contents of our store are considered out of
 			// sync and therefore no longer valid, so the tagger
-			// can no longer be considered ready
+			// can no longer be considered ready, and the stream
+			// must be re-established.
 			t.ready = false
+			t.stream = nil
 
 			log.Warnf("error received from remote tagger: %s", err)
 
-			// startTaggerStream(noTimeout) will never return
-			// unless a stream can be established, or the tagger
-			// has been stopped, which means the error handling
-			// here is just a sanity check.
-			if err := t.startTaggerStream(noTimeout); err != nil {
-				log.Warnf("error received trying to start stream: %s", err)
-			}
 			continue
 		}
 
@@ -266,6 +255,13 @@ func (t *Tagger) run() {
 }
 
 func (t *Tagger) processResponse(response *pb.StreamTagsResponse) error {
+	// returning early when there are no events prevents a keep-alive sent
+	// from the core agent from wiping the store clean in case the remote
+	// tagger was previously in an unready (but filled) state.
+	if len(response.Events) == 0 {
+		return nil
+	}
+
 	events := make([]types.EntityEvent, 0, len(response.Events))
 	for _, ev := range response.Events {
 		eventType, err := convertEventType(ev.Type)

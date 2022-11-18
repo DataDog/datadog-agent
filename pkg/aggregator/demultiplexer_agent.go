@@ -21,9 +21,13 @@ import (
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
+// This flavor uses a AgentDemultiplexerOptions struct for startup configuration.
 type DemultiplexerWithAggregator interface {
 	Demultiplexer
 	Aggregator() *BufferedAggregator
+	// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+	AggregateCheckSample(sample metrics.MetricSample)
+	Options() AgentDemultiplexerOptions
 }
 
 // AgentDemultiplexer is the demultiplexer implementation for the main Agent.
@@ -39,13 +43,49 @@ type AgentDemultiplexer struct {
 	flushChan chan trigger
 
 	// options are the options with which the demultiplexer has been created
-	options    DemultiplexerOptions
+	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
 	dataOutputs
 	*senders
 
 	// sharded statsd time samplers
 	statsd
+}
+
+// AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
+type AgentDemultiplexerOptions struct {
+	SharedForwarderOptions         *forwarder.Options
+	UseNoopForwarder               bool
+	UseNoopEventPlatformForwarder  bool
+	UseNoopOrchestratorForwarder   bool
+	UseEventPlatformForwarder      bool
+	UseOrchestratorForwarder       bool
+	UseContainerLifecycleForwarder bool
+	FlushInterval                  time.Duration
+
+	EnableNoAggregationPipeline bool
+
+	DontStartForwarders bool // unit tests don't need the forwarders to be instanciated
+}
+
+// DefaultAgentDemultiplexerOptions returns the default options to initialize an AgentDemultiplexer.
+func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultiplexerOptions {
+	if options == nil {
+		options = forwarder.NewOptions(nil)
+	}
+
+	return AgentDemultiplexerOptions{
+		SharedForwarderOptions:         options,
+		FlushInterval:                  DefaultFlushInterval,
+		UseEventPlatformForwarder:      true,
+		UseOrchestratorForwarder:       true,
+		UseNoopForwarder:               false,
+		UseNoopEventPlatformForwarder:  false,
+		UseNoopOrchestratorForwarder:   false,
+		UseContainerLifecycleForwarder: false,
+		// the different agents/binaries enable it on a per-need basis
+		EnableNoAggregationPipeline: false,
+	}
 }
 
 type statsd struct {
@@ -57,6 +97,10 @@ type statsd struct {
 	workers        []*timeSamplerWorker
 	// shared metric sample pool between the dogstatsd server & the time sampler
 	metricSamplePool *metrics.MetricSamplePool
+
+	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
+	// be aggregated/sampled.
+	noAggStreamWorker *noAggregationStreamWorker
 }
 
 type forwarders struct {
@@ -69,12 +113,13 @@ type forwarders struct {
 type dataOutputs struct {
 	forwarders       forwarders
 	sharedSerializer serializer.MetricSerializer
+	noAggSerializer  serializer.MetricSerializer
 }
 
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	demultiplexerInstanceMu.Lock()
 	defer demultiplexerInstanceMu.Unlock()
 
@@ -89,7 +134,7 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 	return demux
 }
 
-func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -132,7 +177,7 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 	// prepare the embedded aggregator
 	// --
 
-	agg := InitAggregatorWithFlushInterval(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
 
 	// statsd samplers
 	// ---------------
@@ -156,6 +201,17 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
 	}
 
+	var noAggWorker *noAggregationStreamWorker
+	var noAggSerializer serializer.MetricSerializer
+	if options.EnableNoAggregationPipeline {
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
+		noAggWorker = newNoAggregationStreamWorker(
+			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			noAggSerializer,
+			agg.flushAndSerializeInParallel,
+		)
+	}
+
 	// --
 
 	demux := &AgentDemultiplexer{
@@ -177,26 +233,33 @@ func initAgentDemultiplexer(options DemultiplexerOptions, hostname string) *Agen
 			},
 
 			sharedSerializer: sharedSerializer,
+			noAggSerializer:  noAggSerializer,
 		},
 
 		senders: newSenders(agg),
 
 		// statsd time samplers
 		statsd: statsd{
-			pipelinesCount:   statsdPipelinesCount,
-			workers:          statsdWorkers,
-			metricSamplePool: metricSamplePool,
+			pipelinesCount:    statsdPipelinesCount,
+			workers:           statsdWorkers,
+			metricSamplePool:  metricSamplePool,
+			noAggStreamWorker: noAggWorker,
 		},
 	}
 
 	return demux
 }
 
-// AddAgentStartupTelemetry adds a startup event and count (in a time sampler)
+// Options returns options used during the demux initialization.
+func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
+	return d.options
+}
+
+// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	if agentVersion != "" {
-		d.AddTimeSample(metrics.MetricSample{
+		d.AggregateSample(metrics.MetricSample{
 			Name:       fmt.Sprintf("datadog.%s.started", d.aggregator.agentName),
 			Value:      1,
 			Tags:       d.aggregator.tags(true),
@@ -264,6 +327,11 @@ func (d *AgentDemultiplexer) Run() {
 	}
 
 	go d.aggregator.run()
+
+	if d.noAggStreamWorker != nil {
+		go d.noAggStreamWorker.run()
+	}
+
 	d.flushLoop() // this is the blocking call
 }
 
@@ -297,6 +365,10 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
 	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+
+	if d.noAggStreamWorker != nil {
+		d.noAggStreamWorker.stop(flush)
+	}
 
 	// do a manual complete flush then stop
 	// stop all automatic flush & the mainloop,
@@ -457,9 +529,24 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*metric
 	return d.aggregator.GetBufferedChannels()
 }
 
-// AddTimeSampleBatch adds a batch of MetricSample into the given time sampler shard.
-// If you have to submit a single metric sample see `AddTimeSample`.
-func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
+// SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly
+// transmitted "as-is" (i.e. no aggregation, no sampling) to the serializer.
+func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
+	// safe-guard: if for some reasons we are receiving some metrics here despite
+	// having the no-aggregation pipeline disabled, they are redirected to the first
+	// time sampler.
+	if !d.options.EnableNoAggregationPipeline {
+		d.AggregateSamples(TimeSamplerID(0), samples)
+		return
+	}
+
+	tlmProcessed.Add(float64(len(samples)), "late_metrics")
+	d.statsd.noAggStreamWorker.addSamples(samples)
+}
+
+// AggregateSamples adds a batch of MetricSample into the given DogStatsD time sampler shard.
+// If you have to submit a single metric sample see `AggregateSample`.
+func (d *AgentDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	// distribute the samples on the different statsd samplers using a channel
 	// (in the time sampler implementation) for latency reasons:
 	// its buffering + the fact that it is another goroutine processing the samples,
@@ -468,15 +555,15 @@ func (d *AgentDemultiplexer) AddTimeSampleBatch(shard TimeSamplerID, samples met
 	d.statsd.workers[shard].samplesChan <- samples
 }
 
-// AddTimeSample adds a MetricSample in the first time sampler.
-func (d *AgentDemultiplexer) AddTimeSample(sample metrics.MetricSample) {
+// AggregateSample adds a MetricSample in the first DogStatsD time sampler.
+func (d *AgentDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 	batch := d.GetMetricSamplePool().GetBatch()
 	batch[0] = sample
 	d.statsd.workers[0].samplesChan <- batch[:1]
 }
 
-// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
-func (d *AgentDemultiplexer) AddCheckSample(sample metrics.MetricSample) {
+// AggregateCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
+func (d *AgentDemultiplexer) AggregateCheckSample(sample metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 

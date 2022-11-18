@@ -12,8 +12,9 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/shirou/gopsutil/v3/mem"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )

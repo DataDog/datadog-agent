@@ -10,15 +10,17 @@ package probe
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
-	seclog "github.com/DataDog/datadog-agent/pkg/security/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
-	"github.com/pkg/errors"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 const eventStreamMap = "events"
@@ -102,7 +104,7 @@ func NewOrderedPerfMap(ctx context.Context, handler func(int, []byte), statsdCli
 
 	monitor, err := NewReOrderMonitor(ctx, statsdClient, reOrderer)
 	if err != nil {
-		return nil, errors.Wrap(err, "couldn't create the reorder monitor")
+		return nil, fmt.Errorf("couldn't create the reorder monitor: %w", err)
 	}
 
 	return &OrderedPerfMap{

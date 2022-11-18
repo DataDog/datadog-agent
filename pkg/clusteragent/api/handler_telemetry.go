@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (

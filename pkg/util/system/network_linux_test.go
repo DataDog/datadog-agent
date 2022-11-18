@@ -13,8 +13,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestParseProcessRoutes(t *testing.T) {

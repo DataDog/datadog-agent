@@ -6,8 +6,9 @@
 package utils
 
 import (
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/Masterminds/semver"
 )
 
 // GetAgentSemverVersion returns the agent version as a semver version
@@ -18,4 +19,12 @@ func GetAgentSemverVersion() (*semver.Version, error) {
 	}
 
 	return semver.NewVersion(av.GetNumberAndPre())
+}
+
+// BoolTouint64 converts a boolean value to an uint64
+func BoolTouint64(value bool) uint64 {
+	if value {
+		return 1
+	}
+	return 0
 }

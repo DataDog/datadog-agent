@@ -12,8 +12,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestValidateShouldSucceedWithValidConfigs(t *testing.T) {
@@ -82,6 +83,6 @@ func TestAutoMultilineEnabled(t *testing.T) {
 
 func TestConfigDump(t *testing.T) {
 	config := LogsConfig{Type: FileType, Path: "/var/log/foo.log"}
-	dump := config.Dump()
+	dump := config.Dump(true)
 	assert.Contains(t, dump, `Path: "/var/log/foo.log",`)
 }

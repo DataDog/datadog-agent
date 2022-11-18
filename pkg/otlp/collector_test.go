@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/service"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/otlp/internal/testutil"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -58,10 +59,13 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	assert.EqualError(t, p.Run(ctx), expected)
+	assert.ErrorContains(t, p.Run(ctx), expected)
 }
 
 func TestStartPipeline(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	pcfg := PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5003,
@@ -73,6 +77,9 @@ func TestStartPipeline(t *testing.T) {
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
+	config.Datadog.Set("hostname", "otlp-testhostname")
+	defer config.Datadog.Set("hostname", "")
+
 	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {
 		t.Skip("Skip on Windows, see AP-1723 for details")
@@ -89,13 +96,13 @@ func TestStartPipelineFromConfig(t *testing.T) {
 	}{
 		{
 			path: "receiver/noprotocols.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": empty config for OTLP receiver",
+			err:  "receiver \"otlp\" has invalid configuration: must specify at least one protocol when using the OTLP receiver",
 		},
 		{path: "receiver/simple.yaml"},
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "failed to get config: cannot unmarshal the configuration: error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+			err:  "error decoding 'receivers': error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}
 

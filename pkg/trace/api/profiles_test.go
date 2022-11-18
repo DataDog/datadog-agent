@@ -15,8 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func makeURLs(t *testing.T, ss ...string) []*url.URL {
@@ -63,7 +64,9 @@ func TestProfileProxy(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{}
 	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val").ServeHTTP(rec, req)
-	slurp, err := ioutil.ReadAll(rec.Result().Body)
+	result := rec.Result()
+	slurp, err := ioutil.ReadAll(result.Body)
+	result.Body.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,6 +193,7 @@ func TestProfileProxyHandler(t *testing.T) {
 		rec := httptest.NewRecorder()
 		receiver.profileProxyHandler().ServeHTTP(rec, req)
 		resp := rec.Result()
+		resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 
@@ -232,6 +236,7 @@ func TestProfileProxyHandler(t *testing.T) {
 			t.Fatalf("invalid response: %s", res.Status)
 		}
 		slurp, err := ioutil.ReadAll(res.Body)
+		res.Body.Close()
 		if err != nil {
 			t.Fatal(err)
 		}

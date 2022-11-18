@@ -81,7 +81,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			ProfilingURL:         site,
 			Env:                  config.Datadog.GetString("env"),
 			Service:              service,
-			Period:               profiling.DefaultProfilingPeriod,
+			Period:               config.Datadog.GetDuration("internal_profiling.period"),
 			MutexProfileFraction: profiling.GetMutexProfileFraction(),
 			BlockProfileRate:     profiling.GetBlockProfileRate(),
 			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),

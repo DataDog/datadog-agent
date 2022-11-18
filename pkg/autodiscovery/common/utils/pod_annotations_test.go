@@ -9,8 +9,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func TestExtractCheckNamesFromPodAnnotations(t *testing.T) {
@@ -74,7 +75,6 @@ func TestExtractCheckNamesFromPodAnnotations(t *testing.T) {
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, tt.checkNames, checkNames, "check names do not match")
 		})
-
 	}
 }
 
@@ -300,6 +300,26 @@ func TestExtractTemplatesFromPodAnnotations(t *testing.T) {
 					Name:          "apache",
 					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto2"}`)},
 					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+		},
+		{
+			name: "v2 annotations with init_config",
+			annotations: map[string]string{
+				"ad.datadoghq.com/foobar.checks": `{
+					"jmx": {
+						"init_config": {"is_jmx": true, "collect_default_metrics": false},
+						"instances": [{"host":"%%host%%","port":"9012"}]
+					}
+				}`,
+			},
+			adIdentifier: "foobar",
+			output: []integration.Config{
+				{
+					Name:          "jmx",
+					Instances:     []integration.Data{integration.Data(`{"host":"%%host%%","port":"9012"}`)},
+					InitConfig:    integration.Data(`{"is_jmx": true, "collect_default_metrics": false}`),
 					ADIdentifiers: []string{adID},
 				},
 			},

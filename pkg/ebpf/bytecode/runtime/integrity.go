@@ -21,7 +21,7 @@ import (
 )
 
 // This program is intended to be called from go generate.
-// It generates a RuntimeAsset object that can be used to verify the contents
+// It generates a Asset object that can be used to verify the contents
 // of a file match to when go:generate was called.
 func main() {
 	if len(os.Args[1:]) < 3 {
@@ -125,5 +125,5 @@ package {{ .Package }}
 
 {{ .Imports -}}
 
-var {{ .AssetName }} = {{ .PackagePrefix }}NewRuntimeAsset("{{ .Filename }}", "{{ .Hash }}")
+var {{ .AssetName }} = {{ .PackagePrefix }}newAsset("{{ .Filename }}", "{{ .Hash }}")
 `))
