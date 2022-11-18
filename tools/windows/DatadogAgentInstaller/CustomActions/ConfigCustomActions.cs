@@ -28,14 +28,20 @@ namespace Datadog.CustomActions
         private static ActionResult ReadConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+            var configFilePath = Path.Combine(configFolder, "datadog.yaml");
+            if (!File.Exists(configFilePath))
+            {
+                session.Log("No user config found, continuing.");
+                return ActionResult.Success;
+            }
             try
             {
-                using (var input = new StreamReader(Path.Combine(configFolder, "datadog.yaml")))
+                using (var input = new StreamReader(configFilePath))
                 {
                     var deserializer = new DeserializerBuilder()
-                        .IgnoreUnmatchedProperties()
-                        .WithNamingConvention(UnderscoredNamingConvention.Instance)
-                        .Build();
+                    .IgnoreUnmatchedProperties()
+                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                    .Build();
 
                     var datadogConfig = deserializer.Deserialize<DatadogConfig>(input);
                     if (string.IsNullOrEmpty(session["APIKEY"]))
