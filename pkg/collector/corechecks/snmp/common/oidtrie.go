@@ -75,11 +75,17 @@ func (o *OidTrie) LeafExist(oid string) bool {
 }
 
 // DebugPrint is used to print the whole Trie for debugging purpose
-func (o *OidTrie) DebugPrint(prefix string) {
+func (o *OidTrie) DebugPrint() {
+	o.debugPrintRecursive("")
+}
+
+// debugPrintRecursive is used to print the whole Trie for debugging purpose
+func (o *OidTrie) debugPrintRecursive(prefix string) {
+	log.Infof("Print OidTrie")
 	if len(o.Children) == 0 {
 		log.Infof("OID: %s", prefix)
 	}
 	for oid, child := range o.Children {
-		child.DebugPrint(fmt.Sprintf("%s.%d", prefix, oid))
+		child.debugPrintRecursive(fmt.Sprintf("%s.%d", prefix, oid))
 	}
 }

@@ -207,7 +207,7 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	}
 	if d.config.CollectAllAvailableMetrics {
 		// TODO: TEST ME
-		detectedMetrics, err := d.detectAvailableMetrics(sess)
+		detectedMetrics, err := d.detectAvailableMetrics()
 		if err != nil {
 			return err
 		}
@@ -237,36 +237,30 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfig.MetricsConfig, error) {
-	allOids, err := session.FetchAllOidsUsingGetNext(d.session)
+func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, error) {
+	fetchedOIDs, err := session.FetchAllOidsUsingGetNext(d.session)
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
-	root := common.BuildTries(allOids)
+	root := common.BuildTries(fetchedOIDs)
+	if log.ShouldLog(seelog.DebugLvl) {
+		root.DebugPrint()
+	}
 
-	log.Warnf("root tries: %v", root)
+	var metricConfigs []checkconfig.MetricsConfig
 
-	root.DebugPrint("")
-
-	log.Warnf("fetch all oids: %v", allOids)
-
-	log.Warnf("d.config.Profiles: %v", len(d.config.Profiles))
-
-	var metrics []checkconfig.MetricsConfig
-
-	for profile, profileDef := range d.config.Profiles {
-		log.Warnf("loop profile: %s", profile)
+	for _, profileDef := range d.config.Profiles {
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			newMetricConfig.MetricTags = checkconfig.MetricTagConfigList{}
 			newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
 			if metricConfig.Symbol.OID != "" && root.NodeExist(metricConfig.Symbol.OID) {
-				metrics = append(metrics, newMetricConfig)
+				metricConfigs = append(metricConfigs, newMetricConfig)
 				continue
 			}
 			for _, symbol := range metricConfig.Symbols {
-				log.Infof("colum symbol: %s, NodeExist: %t", symbol.OID, root.NodeExist(symbol.OID))
 				if symbol.OID != "" && root.NodeExist(symbol.OID) {
 					newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 				}
@@ -276,11 +270,11 @@ func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfi
 				newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
 			}
 			if len(newMetricConfig.Symbols) > 0 {
-				metrics = append(metrics, newMetricConfig)
+				metricConfigs = append(metricConfigs, newMetricConfig)
 			}
 		}
 	}
-	return metrics, nil
+	return metricConfigs, nil
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
