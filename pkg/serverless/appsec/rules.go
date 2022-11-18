@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:deadcode
 package appsec
 
 // Static recommended AppSec rules 1.4.2
