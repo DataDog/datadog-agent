@@ -9,9 +9,7 @@ using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
 {
-    /// <summary>
-    /// Fetch and process registry value(s) and return a string to be assigned to a WIX property.
-    /// </summary>
+    // Fetch and process registry value(s) and return a string to be assigned to a WIX property.
     using GetRegistryPropertyHandler = Func<ISession, string>;
 
     public class UserCustomActions
