@@ -46,6 +46,7 @@ try:
 except pkg_resources.DistributionNotFound:
 	pass
 `
+	sitePackagesPathScript = "import site; print(site.getsitepackages()[0])"
 )
 
 var (
@@ -705,6 +706,15 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 	return version, true, nil
 }
 
+func getRelChecksPath(cliParams *cliParams) (string, error) {
+	sitePackagesPath, err := cliParams.python().runCommand(sitePackagesPathScript)
+	if err != nil {
+		return "", err
+	}
+	sitePackagesPath = strings.TrimSpace(string(sitePackagesPath))
+	return filepath.Join(sitePackagesPath, "datadog_checks"), nil
+}
+
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 	confFolder := pkgconfig.Datadog.GetString("confd_path")
 	check := getIntegrationName(integration)
@@ -717,7 +727,7 @@ func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 	if err != nil {
 		return err
 	}
-	confFileSrc := filepath.Join(rootDir, relChecksPath, check, "data")
+	confFileSrc := filepath.Join(relChecksPath, check, "data")
 
 	return moveConfigurationFiles(confFileSrc, confFileDest)
 }

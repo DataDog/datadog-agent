@@ -23,10 +23,6 @@ func getRelPyPath(version string) string {
 	return filepath.Join(fmt.Sprintf("embedded%s", version), pythonBin)
 }
 
-func getRelChecksPath(cliParams *cliParams) (string, error) {
-	return filepath.Join(fmt.Sprintf("embedded%s", cliParams.pythonMajorVersion), "Lib", "site-packages", "datadog_checks"), nil
-}
-
 func validateUser(allowRoot bool) error {
 	elevated, _ := winutil.IsProcessElevated()
 	if !elevated {
