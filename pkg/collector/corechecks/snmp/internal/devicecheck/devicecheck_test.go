@@ -560,6 +560,7 @@ profiles:
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
+	savedAutodetectMetricsTime := deviceCk.nextAutodetectMetrics
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
@@ -579,6 +580,9 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
+
+	expectedNextAutodetectMetricsTime := savedAutodetectMetricsTime.Add(time.Duration(deviceCk.config.DetectMetricRefreshInterval) * time.Second)
+	assert.WithinDuration(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics, 3*time.Second)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
 	firstRunMetrics := deviceCk.config.Metrics
