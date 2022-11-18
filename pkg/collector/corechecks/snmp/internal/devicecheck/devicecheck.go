@@ -209,6 +209,7 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 	if d.config.AutodetectProfile {
 		log.Warn("do AutodetectProfile")
 		if d.config.CollectAllAvailableMetrics {
+			// TODO: TEST ME
 			log.Warn("DetectMetricsToCollect")
 			t := time.Now()
 			metrics, err := d.detectAvailableMetrics(sess)
