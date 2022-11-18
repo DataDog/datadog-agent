@@ -263,7 +263,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -307,7 +307,7 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
