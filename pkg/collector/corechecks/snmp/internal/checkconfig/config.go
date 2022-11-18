@@ -71,7 +71,6 @@ type InitConfig struct {
 	Namespace             string           `yaml:"namespace"`
 
 	CollectAllAvailableMetrics Boolean `yaml:"collect_all_available_metrics"`
-	CollectProfileMetrics      Boolean `yaml:"collect_profile_metrics"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -127,7 +126,6 @@ type InstanceConfig struct {
 	Namespace                string   `yaml:"namespace"`
 
 	CollectAllAvailableMetrics *Boolean `yaml:"collect_all_available_metrics"`
-	CollectProfileMetrics      *Boolean `yaml:"collect_profile_metrics"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -168,7 +166,6 @@ type CheckConfig struct {
 	MinCollectionInterval time.Duration
 
 	CollectAllAvailableMetrics bool
-	CollectProfileMetrics      bool
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -206,11 +203,11 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	c.ProfileDef = &definition
 	c.Profile = profile
 
-	metadata := definition.Metadata
-	metrics := definition.Metrics
-	metricTags := definition.MetricTags
-
-	c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags, c.CollectTopology)
+	//metadata := definition.Metadata
+	//metrics := definition.Metrics
+	//metricTags := definition.MetricTags
+	//
+	//c.UpdateConfigMetadataMetricsAndTags(metadata, metrics, metricTags, c.CollectTopology)
 	return nil
 }
 
@@ -300,7 +297,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
-	initConfig.CollectProfileMetrics = true
 	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
@@ -320,12 +316,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
-
-	if instance.CollectProfileMetrics != nil {
-		c.CollectProfileMetrics = bool(*instance.CollectProfileMetrics)
-	} else {
-		c.CollectProfileMetrics = bool(initConfig.CollectProfileMetrics)
-	}
 
 	if instance.CollectAllAvailableMetrics != nil {
 		c.CollectAllAvailableMetrics = bool(*instance.CollectAllAvailableMetrics)
@@ -640,7 +630,6 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.CollectAllAvailableMetrics = c.CollectAllAvailableMetrics
-	newConfig.CollectProfileMetrics = c.CollectProfileMetrics
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig
