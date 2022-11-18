@@ -53,12 +53,6 @@ func (s *MockSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err err
 	return args.Get(0).(*gosnmp.SnmpPacket), args.Error(1)
 }
 
-// Walk retrieves a subtree of values using GETNEXT.
-func (s *MockSession) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
-	args := s.Mock.Called(rootOid, walkFn)
-	return args.Error(0)
-}
-
 // GetVersion returns the snmp version used
 func (s *MockSession) GetVersion() gosnmp.SnmpVersion {
 	return s.Version
