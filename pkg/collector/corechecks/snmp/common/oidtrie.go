@@ -20,9 +20,9 @@ func BuildTries(allOids []string) *OidTrie {
 	for _, oid := range allOids {
 		current := root
 		oid = strings.TrimLeft(oid, ".")
-		segs := strings.Split(oid, ".")
-		for _, seg := range segs {
-			num, err := strconv.Atoi(seg)
+		digits := strings.Split(oid, ".")
+		for _, digit := range digits {
+			num, err := strconv.Atoi(digit)
 			if err != nil {
 				break
 			}
@@ -41,9 +41,9 @@ func BuildTries(allOids []string) *OidTrie {
 func (o *OidTrie) exist(oid string, isLeaf bool) bool {
 	current := o
 	oid = strings.TrimLeft(oid, ".")
-	segs := strings.Split(oid, ".")
-	for _, seg := range segs {
-		num, err := strconv.Atoi(seg)
+	digits := strings.Split(oid, ".")
+	for _, digit := range digits {
+		num, err := strconv.Atoi(digit)
 		if err != nil {
 			return false
 		}
