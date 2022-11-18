@@ -11,7 +11,6 @@ package netlink
 import (
 	"encoding/binary"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -80,7 +79,7 @@ func TestMessageDump(t *testing.T) {
 
 	testutil.SetupDNAT(t)
 
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -93,7 +92,7 @@ func TestMessageDump6(t *testing.T) {
 
 	testutil.SetupDNAT6(t)
 
-	f, err := ioutil.TempFile("", "message_dump6")
+	f, err := os.CreateTemp("", "message_dump6")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()

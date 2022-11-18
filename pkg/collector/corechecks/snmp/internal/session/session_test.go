@@ -9,7 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	stdlog "log"
 	"testing"
 	"time"
@@ -282,7 +282,7 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	gosnmpSess := s.(*GosnmpSession)
 	require.NoError(t, err)
 
-	logger := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "abc", 0))
+	logger := gosnmp.NewLogger(stdlog.New(io.Discard, "abc", 0))
 	gosnmpSess.gosnmpInst.Logger = logger
 	s.Connect()
 	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
@@ -290,7 +290,7 @@ func Test_snmpSession_Connect_Logger(t *testing.T) {
 	s.Connect()
 	assert.Equal(t, logger, gosnmpSess.gosnmpInst.Logger)
 
-	logger2 := gosnmp.NewLogger(stdlog.New(ioutil.Discard, "123", 0))
+	logger2 := gosnmp.NewLogger(stdlog.New(io.Discard, "123", 0))
 	gosnmpSess.gosnmpInst.Logger = logger2
 	s.Connect()
 	assert.NotEqual(t, logger, gosnmpSess.gosnmpInst.Logger)

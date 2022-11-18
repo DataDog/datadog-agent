@@ -11,7 +11,7 @@ package kubernetesapiserver
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	osq "github.com/openshift/api/quota/v1"
@@ -22,7 +22,7 @@ import (
 )
 
 func TestReportClusterQuotas(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/oshift_crq_list.json")
+	raw, err := os.ReadFile("./testdata/oshift_crq_list.json")
 	require.NoError(t, err)
 	list := osq.ClusterResourceQuotaList{}
 	json.Unmarshal(raw, &list)

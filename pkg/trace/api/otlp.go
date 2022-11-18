@@ -11,7 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -144,7 +144,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r = gzipr
 	}
 	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
-	slurp, err := ioutil.ReadAll(rd)
+	slurp, err := io.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)

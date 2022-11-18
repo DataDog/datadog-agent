@@ -17,7 +17,7 @@ import "C"
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -52,7 +52,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		output, _ = ioutil.ReadAll(stdout)
+		output, _ = io.ReadAll(stdout)
 	}()
 
 	stderr, err := cmd.StderrPipe()
@@ -65,7 +65,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		outputErr, _ = ioutil.ReadAll(stderr)
+		outputErr, _ = io.ReadAll(stderr)
 	}()
 
 	cmd.Start() //nolint:errcheck

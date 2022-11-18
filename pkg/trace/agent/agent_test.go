@@ -8,7 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1419,7 +1419,7 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	bts, err := ioutil.ReadAll(in)
+	bts, err := io.ReadAll(in)
 	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
