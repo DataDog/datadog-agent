@@ -123,6 +123,15 @@ func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetA
 	return stream, nil
 }
 
+// GetSBOMStream returns a stream of SBOMs
+func (c *RuntimeSecurityClient) GetSBOMStream() (api.SecurityModule_GetSBOMStreamClient, error) {
+	stream, err := c.apiClient.GetSBOMStream(context.Background(), &api.GetSBOMStreamParams{})
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
 // Close closes the connection
 func (c *RuntimeSecurityClient) Close() {
 	c.conn.Close()

@@ -807,6 +807,41 @@ func (m *FileInfo) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.PackagePatch != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.PackagePatch))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x90
+	}
+	if m.PackageMinor != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.PackageMinor))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x88
+	}
+	if m.PackageMajor != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.PackageMajor))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x80
+	}
+	if len(m.PackageVersion) > 0 {
+		i -= len(m.PackageVersion)
+		copy(dAtA[i:], m.PackageVersion)
+		i = encodeVarint(dAtA, i, uint64(len(m.PackageVersion)))
+		i--
+		dAtA[i] = 0x7a
+	}
+	if len(m.PackageName) > 0 {
+		i -= len(m.PackageName)
+		copy(dAtA[i:], m.PackageName)
+		i = encodeVarint(dAtA, i, uint64(len(m.PackageName)))
+		i--
+		dAtA[i] = 0x72
+	}
 	if len(m.Filesystem) > 0 {
 		i -= len(m.Filesystem)
 		copy(dAtA[i:], m.Filesystem)
@@ -1624,6 +1659,23 @@ func (m *FileInfo) SizeVT() (n int) {
 	l = len(m.Filesystem)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.PackageName)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.PackageVersion)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.PackageMajor != 0 {
+		n += 2 + sov(uint64(m.PackageMajor))
+	}
+	if m.PackageMinor != 0 {
+		n += 2 + sov(uint64(m.PackageMinor))
+	}
+	if m.PackagePatch != 0 {
+		n += 2 + sov(uint64(m.PackagePatch))
 	}
 	if m.unknownFields != nil {
 		n += len(m.unknownFields)
@@ -4284,6 +4336,127 @@ func (m *FileInfo) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Filesystem = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PackageName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PackageName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PackageVersion", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PackageVersion = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 16:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PackageMajor", wireType)
+			}
+			m.PackageMajor = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PackageMajor |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 17:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PackageMinor", wireType)
+			}
+			m.PackageMinor = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PackageMinor |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 18:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PackagePatch", wireType)
+			}
+			m.PackagePatch = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PackagePatch |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

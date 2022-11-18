@@ -193,6 +193,15 @@ var (
 	// Tags: format, compression
 	MetricActivityDumpEntityTooLarge = newAgentMetric(".activity_dump.entity_too_large")
 
+	// SBOM resolver metrics
+
+	// MetricSBOMResolverActiveSBOMs is the name of the metric used to report the count of SBOMs kept in memory
+	// Tags: -
+	MetricSBOMResolverActiveSBOMs = newRuntimeMetric(".sbom_resolver.active_sboms")
+	// MetricSBOMResolverSBOMGenerations is the name of the metric used to report when a SBOM is being generated at runtime
+	// Tags: -
+	MetricSBOMResolverSBOMGenerations = newRuntimeMetric(".sbom_resolver.sbom_generations")
+
 	// Namespace resolver metrics
 
 	// MetricNamespaceResolverNetNSHandle is the name of the metric used to report the count of netns handles

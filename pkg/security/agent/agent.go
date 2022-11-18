@@ -20,6 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -37,12 +38,16 @@ type RuntimeSecurityAgent struct {
 	connected            *atomic.Bool
 	eventReceived        *atomic.Uint64
 	activityDumpReceived *atomic.Uint64
+	sbomReceived         *atomic.Uint64
 	telemetry            *telemetry
 	endpoints            *config.Endpoints
 	cancel               context.CancelFunc
 
 	// activity dump
 	storage *probe.ActivityDumpStorageManager
+
+	// sbom
+	sbomRemoteStorage *probe.SBOMRemoteStorage
 }
 
 // NewRuntimeSecurityAgent instantiates a new RuntimeSecurityAgent
@@ -62,6 +67,11 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		return nil, err
 	}
 
+	sbomRemoteStorage, err := probe.NewSBOMRemoteStorage(coreconfig.Datadog.GetBool("runtime_security_config.sbom.remote_storage.compression"))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't instantiate SBOM remote storage: %w", err)
+	}
+
 	return &RuntimeSecurityAgent{
 		client:               client,
 		hostname:             hostname,
@@ -71,6 +81,8 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		connected:            atomic.NewBool(false),
 		eventReceived:        atomic.NewUint64(0),
 		activityDumpReceived: atomic.NewUint64(0),
+		sbomReceived:         atomic.NewUint64(0),
+		sbomRemoteStorage:    sbomRemoteStorage,
 	}, nil
 }
 
@@ -82,10 +94,13 @@ func (rsa *RuntimeSecurityAgent) Start(reporter event.Reporter, endpoints *confi
 	ctx, cancel := context.WithCancel(context.Background())
 	rsa.cancel = cancel
 
+	rsa.running.Store(true)
 	// Start the system-probe events listener
 	go rsa.StartEventListener()
 	// Start activity dumps listener
 	go rsa.StartActivityDumpListener()
+	// Start sbom listener
+	go rsa.StartSBOMListener()
 	// Send Runtime Security Agent telemetry
 	go rsa.telemetry.run(ctx, rsa)
 }
@@ -107,7 +122,6 @@ func (rsa *RuntimeSecurityAgent) StartEventListener() {
 
 	logTicker := newLogBackoffTicker()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetEvents()
 		if err != nil {
@@ -160,7 +174,6 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 	rsa.wg.Add(1)
 	defer rsa.wg.Done()
 
-	rsa.running.Store(true)
 	for rsa.running.Load() {
 		stream, err := rsa.client.GetActivityDumpStream()
 		if err != nil {
@@ -181,6 +194,35 @@ func (rsa *RuntimeSecurityAgent) StartActivityDumpListener() {
 
 			// Dispatch activity dump
 			rsa.DispatchActivityDump(msg)
+		}
+	}
+}
+
+// StartSBOMListener starts listening for new SBOM from system-probe
+func (rsa *RuntimeSecurityAgent) StartSBOMListener() {
+	rsa.wg.Add(1)
+	defer rsa.wg.Done()
+
+	for rsa.running.Load() {
+		stream, err := rsa.client.GetSBOMStream()
+		if err != nil {
+			// retry in 2 seconds
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		for {
+			// Get new activity dump from stream
+			msg, err := stream.Recv()
+			if err == io.EOF || msg == nil {
+				break
+			}
+			log.Infof("Got SBOM for '%s'", msg.GetContainerID())
+
+			rsa.sbomReceived.Inc()
+
+			// Dispatch SBOM
+			rsa.DispatchSBOM(msg)
 		}
 	}
 }
@@ -211,12 +253,20 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	}
 }
 
+// DispatchSBOM forwards an SBOM message to the backend
+func (rsa *RuntimeSecurityAgent) DispatchSBOM(msg *api.SBOMMessage) {
+	if err := rsa.sbomRemoteStorage.SendSBOM(msg); err != nil {
+		log.Errorf("couldn't sent SBOM: %v", err)
+	}
+}
+
 // GetStatus returns the current status on the agent
 func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 	base := map[string]interface{}{
 		"connected":            rsa.connected.Load(),
 		"eventReceived":        rsa.eventReceived.Load(),
 		"activityDumpReceived": rsa.activityDumpReceived.Load(),
+		"sbomReceived":         rsa.sbomReceived.Load(),
 	}
 
 	if rsa.endpoints != nil {

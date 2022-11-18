@@ -50,11 +50,14 @@ type APIServer struct {
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
 	activityDumps        chan *api.ActivityDumpStreamMessage
+	sbomMsgs             chan *api.SBOMMessage
 	expiredEventsLock    sync.RWMutex
 	expiredEvents        map[rules.RuleID]*atomic.Int64
 	expiredProcessEvents *atomic.Int64
 	expiredDumpsLock     sync.RWMutex
 	expiredDumps         *atomic.Int64
+	expiredSBOMsLock     sync.RWMutex
+	expiredSBOMs         *atomic.Int64
 	rate                 *Limiter
 	statsdClient         statsd.ClientInterface
 	probe                *sprobe.Probe
@@ -63,6 +66,42 @@ type APIServer struct {
 	retention            time.Duration
 	cfg                  *config.Config
 	module               *Module
+}
+
+// GetSBOMStream waits for SBOM messages and forwards them to the stream
+func (a *APIServer) GetSBOMStream(params *api.GetSBOMStreamParams, stream api.SecurityModule_GetSBOMStreamServer) error {
+	select {
+	case sbom := <-a.sbomMsgs:
+		if err := stream.Send(sbom); err != nil {
+			return err
+		}
+	case <-time.After(time.Second):
+		break
+	}
+	return nil
+}
+
+// SendSBOMMessage queues an activity dump to the chan of activity dumps
+func (a *APIServer) SendSBOMMessage(sbom *api.SBOMMessage) {
+	// send the dump to the channel
+	select {
+	case a.sbomMsgs <- sbom:
+		break
+	default:
+		// The channel is full, consume the oldest sbom
+		oldestSBOM := <-a.sbomMsgs
+		// Try to send the event again
+		select {
+		case a.sbomMsgs <- sbom:
+			break
+		default:
+			// Looks like the channel is full again, expire the current message too
+			a.expireSBOM(sbom)
+			break
+		}
+		a.expireSBOM(oldestSBOM)
+		break
+	}
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
@@ -517,6 +556,16 @@ func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
 }
 
+// expireSBOM updates the count of expired SBOMs
+func (a *APIServer) expireSBOM(sbom *api.SBOMMessage) {
+	a.expiredSBOMsLock.Lock()
+	defer a.expiredSBOMsLock.Unlock()
+
+	// update metric
+	_ = a.expiredSBOMs.Inc()
+	seclog.Tracef("the SBOM server channel is full, a SBOM was dropped\n")
+}
+
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
 // that were expired or rate limited before reaching
 func (a *APIServer) GetStats() map[string]int64 {
@@ -601,6 +650,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientI
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
 		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
+		sbomMsgs:             make(chan *api.SBOMMessage, 10),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),

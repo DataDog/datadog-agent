@@ -613,6 +613,11 @@ def generate_cws_proto(ctx):
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
 
+            # CycloneDX
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. pkg/security/api/cyclonedx/bom-1.4.proto"
+            )
+
             # API
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"

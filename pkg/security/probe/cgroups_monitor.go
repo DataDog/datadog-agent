@@ -9,15 +9,16 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // CgroupsMonitor defines a cgroup monitor
 type CgroupsMonitor struct {
 	statsdClient    statsd.ClientInterface
-	cgroupsResolver *resolvers.CgroupsResolver
+	cgroupsResolver *resolvers.CGroupsResolver
 }
 
 // SendStats send stats
@@ -28,7 +29,7 @@ func (cm *CgroupsMonitor) SendStats() error {
 }
 
 // NewCgroupsMonitor returns a new cgroups monitor
-func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *resolvers.CgroupsResolver) *CgroupsMonitor {
+func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *resolvers.CGroupsResolver) *CgroupsMonitor {
 	return &CgroupsMonitor{
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgrouspResolver,

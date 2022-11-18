@@ -210,6 +210,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.file.mount_id` | int | Mount ID of the file |  |
 | `process.ancestors.file.name` | string | File's basename |  |
 | `process.ancestors.file.name.length` | int | Length of 'process.ancestors.file.name' string |  |
+| `process.ancestors.file.package.major` | int | Major version of the package provided this file |  |
+| `process.ancestors.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.ancestors.file.package.name` | string | Name of the package provided this file |  |
+| `process.ancestors.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.ancestors.file.package.version` | string | Full version of the package provided this file |  |
 | `process.ancestors.file.path` | string | File's path |  |
 | `process.ancestors.file.path.length` | int | Length of 'process.ancestors.file.path' string |  |
 | `process.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -232,6 +237,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `process.ancestors.interpreter.file.name` | string | File's basename |  |
 | `process.ancestors.interpreter.file.name.length` | int | Length of 'process.ancestors.interpreter.file.name' string |  |
+| `process.ancestors.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `process.ancestors.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.ancestors.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `process.ancestors.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.ancestors.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `process.ancestors.interpreter.file.path` | string | File's path |  |
 | `process.ancestors.interpreter.file.path.length` | int | Length of 'process.ancestors.interpreter.file.path' string |  |
 | `process.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -275,6 +285,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.file.mount_id` | int | Mount ID of the file |  |
 | `process.file.name` | string | File's basename |  |
 | `process.file.name.length` | int | Length of 'process.file.name' string |  |
+| `process.file.package.major` | int | Major version of the package provided this file |  |
+| `process.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.file.package.name` | string | Name of the package provided this file |  |
+| `process.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.file.package.version` | string | Full version of the package provided this file |  |
 | `process.file.path` | string | File's path |  |
 | `process.file.path.length` | int | Length of 'process.file.path' string |  |
 | `process.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -297,6 +312,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `process.interpreter.file.name` | string | File's basename |  |
 | `process.interpreter.file.name.length` | int | Length of 'process.interpreter.file.name' string |  |
+| `process.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `process.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `process.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `process.interpreter.file.path` | string | File's path |  |
 | `process.interpreter.file.path.length` | int | Length of 'process.interpreter.file.path' string |  |
 | `process.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -334,6 +354,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.parent.file.mount_id` | int | Mount ID of the file |  |
 | `process.parent.file.name` | string | File's basename |  |
 | `process.parent.file.name.length` | int | Length of 'process.parent.file.name' string |  |
+| `process.parent.file.package.major` | int | Major version of the package provided this file |  |
+| `process.parent.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.parent.file.package.name` | string | Name of the package provided this file |  |
+| `process.parent.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.parent.file.package.version` | string | Full version of the package provided this file |  |
 | `process.parent.file.path` | string | File's path |  |
 | `process.parent.file.path.length` | int | Length of 'process.parent.file.path' string |  |
 | `process.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -356,6 +381,11 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `process.parent.interpreter.file.name` | string | File's basename |  |
 | `process.parent.interpreter.file.name.length` | int | Length of 'process.parent.interpreter.file.name' string |  |
+| `process.parent.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `process.parent.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `process.parent.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `process.parent.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `process.parent.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `process.parent.interpreter.file.path` | string | File's path |  |
 | `process.parent.interpreter.file.path.length` | int | Length of 'process.parent.interpreter.file.path' string |  |
 | `process.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -433,6 +463,11 @@ A file’s permissions were changed
 | `chmod.file.mount_id` | int | Mount ID of the file |  |
 | `chmod.file.name` | string | File's basename |  |
 | `chmod.file.name.length` | int | Length of 'chmod.file.name' string |  |
+| `chmod.file.package.major` | int | Major version of the package provided this file |  |
+| `chmod.file.package.minor` | int | Minor version of the package provided this file |  |
+| `chmod.file.package.name` | string | Name of the package provided this file |  |
+| `chmod.file.package.patch` | int | Patch version of the package provided this file |  |
+| `chmod.file.package.version` | string | Full version of the package provided this file |  |
 | `chmod.file.path` | string | File's path |  |
 | `chmod.file.path.length` | int | Length of 'chmod.file.path' string |  |
 | `chmod.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -461,6 +496,11 @@ A file’s owner was changed
 | `chown.file.mount_id` | int | Mount ID of the file |  |
 | `chown.file.name` | string | File's basename |  |
 | `chown.file.name.length` | int | Length of 'chown.file.name' string |  |
+| `chown.file.package.major` | int | Major version of the package provided this file |  |
+| `chown.file.package.minor` | int | Minor version of the package provided this file |  |
+| `chown.file.package.name` | string | Name of the package provided this file |  |
+| `chown.file.package.patch` | int | Patch version of the package provided this file |  |
+| `chown.file.package.version` | string | Full version of the package provided this file |  |
 | `chown.file.path` | string | File's path |  |
 | `chown.file.path.length` | int | Length of 'chown.file.path' string |  |
 | `chown.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -518,6 +558,11 @@ A process was executed or forked
 | `exec.file.mount_id` | int | Mount ID of the file |  |
 | `exec.file.name` | string | File's basename |  |
 | `exec.file.name.length` | int | Length of 'exec.file.name' string |  |
+| `exec.file.package.major` | int | Major version of the package provided this file |  |
+| `exec.file.package.minor` | int | Minor version of the package provided this file |  |
+| `exec.file.package.name` | string | Name of the package provided this file |  |
+| `exec.file.package.patch` | int | Patch version of the package provided this file |  |
+| `exec.file.package.version` | string | Full version of the package provided this file |  |
 | `exec.file.path` | string | File's path |  |
 | `exec.file.path.length` | int | Length of 'exec.file.path' string |  |
 | `exec.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -540,6 +585,11 @@ A process was executed or forked
 | `exec.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `exec.interpreter.file.name` | string | File's basename |  |
 | `exec.interpreter.file.name.length` | int | Length of 'exec.interpreter.file.name' string |  |
+| `exec.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `exec.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `exec.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `exec.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `exec.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `exec.interpreter.file.path` | string | File's path |  |
 | `exec.interpreter.file.path.length` | int | Length of 'exec.interpreter.file.path' string |  |
 | `exec.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -592,6 +642,11 @@ A process was terminated
 | `exit.file.mount_id` | int | Mount ID of the file |  |
 | `exit.file.name` | string | File's basename |  |
 | `exit.file.name.length` | int | Length of 'exit.file.name' string |  |
+| `exit.file.package.major` | int | Major version of the package provided this file |  |
+| `exit.file.package.minor` | int | Minor version of the package provided this file |  |
+| `exit.file.package.name` | string | Name of the package provided this file |  |
+| `exit.file.package.patch` | int | Patch version of the package provided this file |  |
+| `exit.file.package.version` | string | Full version of the package provided this file |  |
 | `exit.file.path` | string | File's path |  |
 | `exit.file.path.length` | int | Length of 'exit.file.path' string |  |
 | `exit.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -614,6 +669,11 @@ A process was terminated
 | `exit.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `exit.interpreter.file.name` | string | File's basename |  |
 | `exit.interpreter.file.name.length` | int | Length of 'exit.interpreter.file.name' string |  |
+| `exit.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `exit.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `exit.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `exit.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `exit.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `exit.interpreter.file.path` | string | File's path |  |
 | `exit.interpreter.file.path.length` | int | Length of 'exit.interpreter.file.path' string |  |
 | `exit.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -646,6 +706,11 @@ Create a new name/alias for a file
 | `link.file.destination.mount_id` | int | Mount ID of the file |  |
 | `link.file.destination.name` | string | File's basename |  |
 | `link.file.destination.name.length` | int | Length of 'link.file.destination.name' string |  |
+| `link.file.destination.package.major` | int | Major version of the package provided this file |  |
+| `link.file.destination.package.minor` | int | Minor version of the package provided this file |  |
+| `link.file.destination.package.name` | string | Name of the package provided this file |  |
+| `link.file.destination.package.patch` | int | Patch version of the package provided this file |  |
+| `link.file.destination.package.version` | string | Full version of the package provided this file |  |
 | `link.file.destination.path` | string | File's path |  |
 | `link.file.destination.path.length` | int | Length of 'link.file.destination.path' string |  |
 | `link.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -661,6 +726,11 @@ Create a new name/alias for a file
 | `link.file.mount_id` | int | Mount ID of the file |  |
 | `link.file.name` | string | File's basename |  |
 | `link.file.name.length` | int | Length of 'link.file.name' string |  |
+| `link.file.package.major` | int | Major version of the package provided this file |  |
+| `link.file.package.minor` | int | Minor version of the package provided this file |  |
+| `link.file.package.name` | string | Name of the package provided this file |  |
+| `link.file.package.patch` | int | Patch version of the package provided this file |  |
+| `link.file.package.version` | string | Full version of the package provided this file |  |
 | `link.file.path` | string | File's path |  |
 | `link.file.path.length` | int | Length of 'link.file.path' string |  |
 | `link.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -685,6 +755,11 @@ A new kernel module was loaded
 | `load_module.file.mount_id` | int | Mount ID of the file |  |
 | `load_module.file.name` | string | File's basename |  |
 | `load_module.file.name.length` | int | Length of 'load_module.file.name' string |  |
+| `load_module.file.package.major` | int | Major version of the package provided this file |  |
+| `load_module.file.package.minor` | int | Minor version of the package provided this file |  |
+| `load_module.file.package.name` | string | Name of the package provided this file |  |
+| `load_module.file.package.patch` | int | Patch version of the package provided this file |  |
+| `load_module.file.package.version` | string | Full version of the package provided this file |  |
 | `load_module.file.path` | string | File's path |  |
 | `load_module.file.path.length` | int | Length of 'load_module.file.path' string |  |
 | `load_module.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -713,6 +788,11 @@ A directory was created
 | `mkdir.file.mount_id` | int | Mount ID of the file |  |
 | `mkdir.file.name` | string | File's basename |  |
 | `mkdir.file.name.length` | int | Length of 'mkdir.file.name' string |  |
+| `mkdir.file.package.major` | int | Major version of the package provided this file |  |
+| `mkdir.file.package.minor` | int | Minor version of the package provided this file |  |
+| `mkdir.file.package.name` | string | Name of the package provided this file |  |
+| `mkdir.file.package.patch` | int | Patch version of the package provided this file |  |
+| `mkdir.file.package.version` | string | Full version of the package provided this file |  |
 | `mkdir.file.path` | string | File's path |  |
 | `mkdir.file.path.length` | int | Length of 'mkdir.file.path' string |  |
 | `mkdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -737,6 +817,11 @@ A mmap command was executed
 | `mmap.file.mount_id` | int | Mount ID of the file |  |
 | `mmap.file.name` | string | File's basename |  |
 | `mmap.file.name.length` | int | Length of 'mmap.file.name' string |  |
+| `mmap.file.package.major` | int | Major version of the package provided this file |  |
+| `mmap.file.package.minor` | int | Minor version of the package provided this file |  |
+| `mmap.file.package.name` | string | Name of the package provided this file |  |
+| `mmap.file.package.patch` | int | Patch version of the package provided this file |  |
+| `mmap.file.package.version` | string | Full version of the package provided this file |  |
 | `mmap.file.path` | string | File's path |  |
 | `mmap.file.path.length` | int | Length of 'mmap.file.path' string |  |
 | `mmap.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -787,6 +872,11 @@ A file was opened
 | `open.file.mount_id` | int | Mount ID of the file |  |
 | `open.file.name` | string | File's basename |  |
 | `open.file.name.length` | int | Length of 'open.file.name' string |  |
+| `open.file.package.major` | int | Major version of the package provided this file |  |
+| `open.file.package.minor` | int | Minor version of the package provided this file |  |
+| `open.file.package.name` | string | Name of the package provided this file |  |
+| `open.file.package.patch` | int | Patch version of the package provided this file |  |
+| `open.file.package.version` | string | Full version of the package provided this file |  |
 | `open.file.path` | string | File's path |  |
 | `open.file.path.length` | int | Length of 'open.file.path' string |  |
 | `open.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -833,6 +923,11 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.ancestors.file.name` | string | File's basename |  |
 | `ptrace.tracee.ancestors.file.name.length` | int | Length of 'ptrace.tracee.ancestors.file.name' string |  |
+| `ptrace.tracee.ancestors.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.ancestors.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.ancestors.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.ancestors.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.ancestors.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.ancestors.file.path` | string | File's path |  |
 | `ptrace.tracee.ancestors.file.path.length` | int | Length of 'ptrace.tracee.ancestors.file.path' string |  |
 | `ptrace.tracee.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -855,6 +950,11 @@ A ptrace command was executed
 | `ptrace.tracee.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.ancestors.interpreter.file.name` | string | File's basename |  |
 | `ptrace.tracee.ancestors.interpreter.file.name.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.name' string |  |
+| `ptrace.tracee.ancestors.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.ancestors.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.ancestors.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.ancestors.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.ancestors.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.ancestors.interpreter.file.path` | string | File's path |  |
 | `ptrace.tracee.ancestors.interpreter.file.path.length` | int | Length of 'ptrace.tracee.ancestors.interpreter.file.path' string |  |
 | `ptrace.tracee.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -898,6 +998,11 @@ A ptrace command was executed
 | `ptrace.tracee.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.file.name` | string | File's basename |  |
 | `ptrace.tracee.file.name.length` | int | Length of 'ptrace.tracee.file.name' string |  |
+| `ptrace.tracee.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.file.path` | string | File's path |  |
 | `ptrace.tracee.file.path.length` | int | Length of 'ptrace.tracee.file.path' string |  |
 | `ptrace.tracee.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -920,6 +1025,11 @@ A ptrace command was executed
 | `ptrace.tracee.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.interpreter.file.name` | string | File's basename |  |
 | `ptrace.tracee.interpreter.file.name.length` | int | Length of 'ptrace.tracee.interpreter.file.name' string |  |
+| `ptrace.tracee.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.interpreter.file.path` | string | File's path |  |
 | `ptrace.tracee.interpreter.file.path.length` | int | Length of 'ptrace.tracee.interpreter.file.path' string |  |
 | `ptrace.tracee.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -957,6 +1067,11 @@ A ptrace command was executed
 | `ptrace.tracee.parent.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.parent.file.name` | string | File's basename |  |
 | `ptrace.tracee.parent.file.name.length` | int | Length of 'ptrace.tracee.parent.file.name' string |  |
+| `ptrace.tracee.parent.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.parent.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.parent.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.parent.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.parent.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.parent.file.path` | string | File's path |  |
 | `ptrace.tracee.parent.file.path.length` | int | Length of 'ptrace.tracee.parent.file.path' string |  |
 | `ptrace.tracee.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -979,6 +1094,11 @@ A ptrace command was executed
 | `ptrace.tracee.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `ptrace.tracee.parent.interpreter.file.name` | string | File's basename |  |
 | `ptrace.tracee.parent.interpreter.file.name.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.name' string |  |
+| `ptrace.tracee.parent.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `ptrace.tracee.parent.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `ptrace.tracee.parent.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `ptrace.tracee.parent.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `ptrace.tracee.parent.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `ptrace.tracee.parent.interpreter.file.path` | string | File's path |  |
 | `ptrace.tracee.parent.interpreter.file.path.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.path' string |  |
 | `ptrace.tracee.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1018,6 +1138,11 @@ Remove extended attributes
 | `removexattr.file.mount_id` | int | Mount ID of the file |  |
 | `removexattr.file.name` | string | File's basename |  |
 | `removexattr.file.name.length` | int | Length of 'removexattr.file.name' string |  |
+| `removexattr.file.package.major` | int | Major version of the package provided this file |  |
+| `removexattr.file.package.minor` | int | Minor version of the package provided this file |  |
+| `removexattr.file.package.name` | string | Name of the package provided this file |  |
+| `removexattr.file.package.patch` | int | Patch version of the package provided this file |  |
+| `removexattr.file.package.version` | string | Full version of the package provided this file |  |
 | `removexattr.file.path` | string | File's path |  |
 | `removexattr.file.path.length` | int | Length of 'removexattr.file.path' string |  |
 | `removexattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1043,6 +1168,11 @@ A file/directory was renamed
 | `rename.file.destination.mount_id` | int | Mount ID of the file |  |
 | `rename.file.destination.name` | string | File's basename |  |
 | `rename.file.destination.name.length` | int | Length of 'rename.file.destination.name' string |  |
+| `rename.file.destination.package.major` | int | Major version of the package provided this file |  |
+| `rename.file.destination.package.minor` | int | Minor version of the package provided this file |  |
+| `rename.file.destination.package.name` | string | Name of the package provided this file |  |
+| `rename.file.destination.package.patch` | int | Patch version of the package provided this file |  |
+| `rename.file.destination.package.version` | string | Full version of the package provided this file |  |
 | `rename.file.destination.path` | string | File's path |  |
 | `rename.file.destination.path.length` | int | Length of 'rename.file.destination.path' string |  |
 | `rename.file.destination.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1058,6 +1188,11 @@ A file/directory was renamed
 | `rename.file.mount_id` | int | Mount ID of the file |  |
 | `rename.file.name` | string | File's basename |  |
 | `rename.file.name.length` | int | Length of 'rename.file.name' string |  |
+| `rename.file.package.major` | int | Major version of the package provided this file |  |
+| `rename.file.package.minor` | int | Minor version of the package provided this file |  |
+| `rename.file.package.name` | string | Name of the package provided this file |  |
+| `rename.file.package.patch` | int | Patch version of the package provided this file |  |
+| `rename.file.package.version` | string | Full version of the package provided this file |  |
 | `rename.file.path` | string | File's path |  |
 | `rename.file.path.length` | int | Length of 'rename.file.path' string |  |
 | `rename.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1082,6 +1217,11 @@ A directory was removed
 | `rmdir.file.mount_id` | int | Mount ID of the file |  |
 | `rmdir.file.name` | string | File's basename |  |
 | `rmdir.file.name.length` | int | Length of 'rmdir.file.name' string |  |
+| `rmdir.file.package.major` | int | Major version of the package provided this file |  |
+| `rmdir.file.package.minor` | int | Minor version of the package provided this file |  |
+| `rmdir.file.package.name` | string | Name of the package provided this file |  |
+| `rmdir.file.package.patch` | int | Patch version of the package provided this file |  |
+| `rmdir.file.package.version` | string | Full version of the package provided this file |  |
 | `rmdir.file.path` | string | File's path |  |
 | `rmdir.file.path.length` | int | Length of 'rmdir.file.path' string |  |
 | `rmdir.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1145,6 +1285,11 @@ Set exteneded attributes
 | `setxattr.file.mount_id` | int | Mount ID of the file |  |
 | `setxattr.file.name` | string | File's basename |  |
 | `setxattr.file.name.length` | int | Length of 'setxattr.file.name' string |  |
+| `setxattr.file.package.major` | int | Major version of the package provided this file |  |
+| `setxattr.file.package.minor` | int | Minor version of the package provided this file |  |
+| `setxattr.file.package.name` | string | Name of the package provided this file |  |
+| `setxattr.file.package.patch` | int | Patch version of the package provided this file |  |
+| `setxattr.file.package.version` | string | Full version of the package provided this file |  |
 | `setxattr.file.path` | string | File's path |  |
 | `setxattr.file.path.length` | int | Length of 'setxattr.file.path' string |  |
 | `setxattr.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1190,6 +1335,11 @@ A signal was sent
 | `signal.target.ancestors.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.ancestors.file.name` | string | File's basename |  |
 | `signal.target.ancestors.file.name.length` | int | Length of 'signal.target.ancestors.file.name' string |  |
+| `signal.target.ancestors.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.ancestors.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.ancestors.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.ancestors.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.ancestors.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.ancestors.file.path` | string | File's path |  |
 | `signal.target.ancestors.file.path.length` | int | Length of 'signal.target.ancestors.file.path' string |  |
 | `signal.target.ancestors.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1212,6 +1362,11 @@ A signal was sent
 | `signal.target.ancestors.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.ancestors.interpreter.file.name` | string | File's basename |  |
 | `signal.target.ancestors.interpreter.file.name.length` | int | Length of 'signal.target.ancestors.interpreter.file.name' string |  |
+| `signal.target.ancestors.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.ancestors.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.ancestors.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.ancestors.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.ancestors.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.ancestors.interpreter.file.path` | string | File's path |  |
 | `signal.target.ancestors.interpreter.file.path.length` | int | Length of 'signal.target.ancestors.interpreter.file.path' string |  |
 | `signal.target.ancestors.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1255,6 +1410,11 @@ A signal was sent
 | `signal.target.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.file.name` | string | File's basename |  |
 | `signal.target.file.name.length` | int | Length of 'signal.target.file.name' string |  |
+| `signal.target.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.file.path` | string | File's path |  |
 | `signal.target.file.path.length` | int | Length of 'signal.target.file.path' string |  |
 | `signal.target.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1277,6 +1437,11 @@ A signal was sent
 | `signal.target.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.interpreter.file.name` | string | File's basename |  |
 | `signal.target.interpreter.file.name.length` | int | Length of 'signal.target.interpreter.file.name' string |  |
+| `signal.target.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.interpreter.file.path` | string | File's path |  |
 | `signal.target.interpreter.file.path.length` | int | Length of 'signal.target.interpreter.file.path' string |  |
 | `signal.target.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1314,6 +1479,11 @@ A signal was sent
 | `signal.target.parent.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.parent.file.name` | string | File's basename |  |
 | `signal.target.parent.file.name.length` | int | Length of 'signal.target.parent.file.name' string |  |
+| `signal.target.parent.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.parent.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.parent.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.parent.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.parent.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.parent.file.path` | string | File's path |  |
 | `signal.target.parent.file.path.length` | int | Length of 'signal.target.parent.file.path' string |  |
 | `signal.target.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1336,6 +1506,11 @@ A signal was sent
 | `signal.target.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
 | `signal.target.parent.interpreter.file.name` | string | File's basename |  |
 | `signal.target.parent.interpreter.file.name.length` | int | Length of 'signal.target.parent.interpreter.file.name' string |  |
+| `signal.target.parent.interpreter.file.package.major` | int | Major version of the package provided this file |  |
+| `signal.target.parent.interpreter.file.package.minor` | int | Minor version of the package provided this file |  |
+| `signal.target.parent.interpreter.file.package.name` | string | Name of the package provided this file |  |
+| `signal.target.parent.interpreter.file.package.patch` | int | Patch version of the package provided this file |  |
+| `signal.target.parent.interpreter.file.package.version` | string | Full version of the package provided this file |  |
 | `signal.target.parent.interpreter.file.path` | string | File's path |  |
 | `signal.target.parent.interpreter.file.path.length` | int | Length of 'signal.target.parent.interpreter.file.path' string |  |
 | `signal.target.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1374,6 +1549,11 @@ A splice command was executed
 | `splice.file.mount_id` | int | Mount ID of the file |  |
 | `splice.file.name` | string | File's basename |  |
 | `splice.file.name.length` | int | Length of 'splice.file.name' string |  |
+| `splice.file.package.major` | int | Major version of the package provided this file |  |
+| `splice.file.package.minor` | int | Minor version of the package provided this file |  |
+| `splice.file.package.name` | string | Name of the package provided this file |  |
+| `splice.file.package.patch` | int | Patch version of the package provided this file |  |
+| `splice.file.package.version` | string | Full version of the package provided this file |  |
 | `splice.file.path` | string | File's path |  |
 | `splice.file.path.length` | int | Length of 'splice.file.path' string |  |
 | `splice.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1400,6 +1580,11 @@ A file was deleted
 | `unlink.file.mount_id` | int | Mount ID of the file |  |
 | `unlink.file.name` | string | File's basename |  |
 | `unlink.file.name.length` | int | Length of 'unlink.file.name' string |  |
+| `unlink.file.package.major` | int | Major version of the package provided this file |  |
+| `unlink.file.package.minor` | int | Minor version of the package provided this file |  |
+| `unlink.file.package.name` | string | Name of the package provided this file |  |
+| `unlink.file.package.patch` | int | Patch version of the package provided this file |  |
+| `unlink.file.package.version` | string | Full version of the package provided this file |  |
 | `unlink.file.path` | string | File's path |  |
 | `unlink.file.path.length` | int | Length of 'unlink.file.path' string |  |
 | `unlink.file.rights` | int | Mode/rights of the file | Chmod mode constants |
@@ -1434,6 +1619,11 @@ Change file access/modification times
 | `utimes.file.mount_id` | int | Mount ID of the file |  |
 | `utimes.file.name` | string | File's basename |  |
 | `utimes.file.name.length` | int | Length of 'utimes.file.name' string |  |
+| `utimes.file.package.major` | int | Major version of the package provided this file |  |
+| `utimes.file.package.minor` | int | Minor version of the package provided this file |  |
+| `utimes.file.package.name` | string | Name of the package provided this file |  |
+| `utimes.file.package.patch` | int | Patch version of the package provided this file |  |
+| `utimes.file.package.version` | string | Full version of the package provided this file |  |
 | `utimes.file.path` | string | File's path |  |
 | `utimes.file.path.length` | int | Length of 'utimes.file.path' string |  |
 | `utimes.file.rights` | int | Mode/rights of the file | Chmod mode constants |

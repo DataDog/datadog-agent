@@ -1177,6 +1177,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
 	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", true)
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.remote_storage.compression", false)
+	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.sbom.remote_storage.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.delay", 30)
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.tick", 10)
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.enabled", false)
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)

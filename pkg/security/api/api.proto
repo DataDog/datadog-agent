@@ -3,6 +3,7 @@ syntax = "proto3";
 option go_package = "pkg/security/api";
 
 package api;
+import "pkg/security/api/cyclonedx/bom-1.4.proto";
 
 message GetEventParams {}
 
@@ -180,6 +181,17 @@ message ActivityDumpStreamMessage {
     bytes Data = 3;
 }
 
+message GetSBOMStreamParams {}
+
+message SBOMMessage {
+    string Host = 1;
+    string Service = 2;
+    string Source = 3;
+    repeated string Tags = 4;
+    cyclonedx.v1_4.Bom BOM = 5;
+    string ContainerID = 6;
+}
+
 service SecurityModule {
     rpc GetEvents(GetEventParams) returns (stream SecurityEventMessage) {}
     rpc GetProcessEvents(GetProcessEventParams) returns (stream SecurityProcessEventMessage) {}
@@ -197,4 +209,7 @@ service SecurityModule {
     rpc StopActivityDump(ActivityDumpStopParams) returns (ActivityDumpStopMessage) {}
     rpc TranscodingRequest(TranscodingRequestParams) returns (TranscodingRequestMessage) {}
     rpc GetActivityDumpStream(ActivityDumpStreamParams) returns (stream ActivityDumpStreamMessage) {}
+
+    // SBOM
+    rpc GetSBOMStream(GetSBOMStreamParams) returns (stream SBOMMessage) {}
 }

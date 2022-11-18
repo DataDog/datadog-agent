@@ -12,91 +12,152 @@ import (
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
-type pid1CacheEntry struct {
-	pid      uint32
-	refCount int
-}
-
-// CgroupsResolver defines a cgroup monitor
-type CgroupsResolver struct {
+// CGroupCacheEntry cgroup resolver cache entry
+type CGroupCacheEntry struct {
 	sync.RWMutex
-	pids *simplelru.LRU[string, *pid1CacheEntry]
+	ID   string
+	PIDs *simplelru.LRU[uint32, int8]
 }
 
-// AddPID1 associates a container id and a pid which is expected to be the pid 1
-func (cr *CgroupsResolver) AddPID1(id string, pid uint32) {
+// NewCGroupCacheEntry returns a new instance of a CGroupCacheEntry
+func NewCGroupCacheEntry(id string, pids ...uint32) (*CGroupCacheEntry, error) {
+	pidsLRU, err := simplelru.NewLRU[uint32, int8](1000, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	newCGroup := CGroupCacheEntry{
+		ID:   id,
+		PIDs: pidsLRU,
+	}
+
+	for _, pid := range pids {
+		newCGroup.PIDs.Add(pid, 0)
+	}
+	return &newCGroup, nil
+}
+
+// GetRootPIDs returns the list of root pids for the current workload
+func (cgce *CGroupCacheEntry) GetRootPIDs() []uint32 {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	return cgce.PIDs.Keys()
+}
+
+// CGroupsResolver defines a cgroup monitor
+type CGroupsResolver struct {
+	sync.RWMutex
+	workloads    *simplelru.LRU[string, *CGroupCacheEntry]
+	sbomResolver *SBOMResolver
+}
+
+// AddPID associates a container id and a pid which is expected to be the pid 1
+func (cr *CGroupsResolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	entry, exists := cr.pids.Get(id)
-	if !exists {
-		cr.pids.Add(id, &pid1CacheEntry{pid: pid, refCount: 1})
-	} else {
-		if entry.pid > pid {
-			entry.pid = pid
-		}
-		entry.refCount++
+	if !process.IsContainerRoot() {
+		return
+	}
+
+	entry, exists := cr.workloads.Get(process.ContainerID)
+	if exists {
+		entry.PIDs.Add(process.Pid, 0)
+		return
+	}
+
+	var err error
+	// create new entry now
+	newCGroup, err := NewCGroupCacheEntry(process.ContainerID, process.Pid)
+	if err != nil {
+		seclog.Errorf("couldn't create new cgroup_resolver cache entry: %v", err)
+		return
+	}
+
+	// add the new CGroup to the cache
+	cr.workloads.Add(process.ContainerID, newCGroup)
+
+	if cr.sbomResolver != nil {
+		// a new entry was created, notify the SBOM resolver that it should create a new entry too
+		cr.sbomResolver.Retain(process.ContainerID, newCGroup)
 	}
 }
 
-// GetPID1 return the registered pid1
-func (cr *CgroupsResolver) GetPID1(id string) (uint32, bool) {
+// GetWorkload returns the workload referenced by the provided ID
+func (cr *CGroupsResolver) GetWorkload(id string) (*CGroupCacheEntry, bool) {
 	cr.RLock()
 	defer cr.RUnlock()
 
-	entry, exists := cr.pids.Get(id)
-	if !exists {
-		return 0, false
-	}
-
-	return entry.pid, true
+	return cr.workloads.Get(id)
 }
 
-// DelByPID force removes the entry
-func (cr *CgroupsResolver) DelByPID(pid uint32) {
+// DelPID removes a PID from the cgroup resolver
+func (cr *CGroupsResolver) DelPID(pid uint32) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	for _, id := range cr.pids.Keys() {
-		entry, exists := cr.pids.Get(id)
-		if exists && entry.pid == pid {
-			cr.pids.Remove(id)
+	for _, id := range cr.workloads.Keys() {
+		entry, exists := cr.workloads.Get(id)
+		if exists {
+			cr.deleteWorkloadPID(pid, entry)
+		}
+	}
+}
+
+// DelPIDWithID removes a PID from the cgroup cache entry referenced by the provided ID
+func (cr *CGroupsResolver) DelPIDWithID(id string, pid uint32) {
+	cr.Lock()
+	defer cr.Unlock()
+
+	entry, exists := cr.workloads.Get(id)
+	if exists {
+		cr.deleteWorkloadPID(pid, entry)
+	}
+}
+
+// deleteWorkloadPID removes a PID from a workload
+func (cr *CGroupsResolver) deleteWorkloadPID(pid uint32, workload *CGroupCacheEntry) {
+	workload.Lock()
+	defer workload.Unlock()
+
+	for _, workloadPID := range workload.PIDs.Keys() {
+		if pid == workloadPID {
+			workload.PIDs.Remove(pid)
 			break
 		}
 	}
-}
 
-// Release decrement usage
-func (cr *CgroupsResolver) Release(id string) {
-	cr.Lock()
-	defer cr.Unlock()
-
-	entry, exists := cr.pids.Get(id)
-	if exists {
-		entry.refCount--
-		if entry.refCount <= 0 {
-			cr.pids.Remove(id)
-		}
+	// check if the workload should be deleted
+	if workload.PIDs.Len() <= 0 {
+		cr.workloads.Remove(workload.ID)
 	}
 }
 
 // Len return the number of entries
-func (cr *CgroupsResolver) Len() int {
+func (cr *CGroupsResolver) Len() int {
 	cr.RLock()
 	defer cr.RUnlock()
 
-	return cr.pids.Len()
+	return cr.workloads.Len()
 }
 
-// NewCgroupsResolver returns a new cgroups monitor
-func NewCgroupsResolver() (*CgroupsResolver, error) {
-	pids, err := simplelru.NewLRU[string, *pid1CacheEntry](1024, nil)
+// NewCGroupsResolver returns a new cgroups monitor
+func NewCGroupsResolver(sbomResolver *SBOMResolver) (*CGroupsResolver, error) {
+	workloads, err := simplelru.NewLRU[string, *CGroupCacheEntry](1024, func(key string, value *CGroupCacheEntry) {
+		// notify the SBOM resolver that the CGroupCacheEntry was ejected
+		sbomResolver.Release(key)
+	})
 	if err != nil {
 		return nil, err
 	}
-	return &CgroupsResolver{
-		pids: pids,
+	return &CGroupsResolver{
+		workloads:    workloads,
+		sbomResolver: sbomResolver,
 	}, nil
 }

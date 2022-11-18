@@ -179,6 +179,16 @@ type Config struct {
 	EventStreamUseRingBuffer bool
 	// EventStreamBufferSize specifies the buffer size of the eBPF map used for events
 	EventStreamBufferSize int
+
+	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
+	SBOMResolverEnabled bool
+	// SBOMResolverSBOMSenderDelay defines the amount of time a SBOM should be delayed before the sender forwards it to
+	// Datadog. This delay is introduces to give a chance for the tags to be properly resolved.
+	SBOMResolverSBOMSenderDelay time.Duration
+	// SBOMResolverSBOMSenderTick defines the ticker for the SBOM sender
+	SBOMResolverSBOMSenderTick time.Duration
+	// SBOMResolverSBOMSenderEnabled defines if SBOMs should be sent to the backend
+	SBOMResolverSBOMSenderEnabled bool
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -274,6 +284,12 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 			}
 			return mds * (1 << 10)
 		},
+
+		// SBOM resolver
+		SBOMResolverEnabled:           coreconfig.Datadog.GetBool("runtime_security_config.sbom.enabled"),
+		SBOMResolverSBOMSenderDelay:   time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.delay")) * time.Second,
+		SBOMResolverSBOMSenderTick:    time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.tick")) * time.Minute,
+		SBOMResolverSBOMSenderEnabled: coreconfig.Datadog.GetBool("runtime_security_config.sbom.sbom_sender.enabled"),
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -407,6 +423,28 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 // ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config
 func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
 	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", coreconfig.Datadog)
+	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
+	if err != nil {
+		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)
+		if err == nil {
+			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main)
+			endpoints, err = logsconfig.BuildEndpoints(httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid endpoints: %w", err)
+	}
+
+	for _, status := range endpoints.GetStatus() {
+		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
+	}
+	return endpoints, nil
+}
+
+// SBOMRemoteStorageEndpoints returns the list of SBOM remote storage endpoints parsed from the agent config
+func SBOMRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
+	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.sbom.remote_storage.endpoints.", coreconfig.Datadog)
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	if err != nil {
 		endpoints, err = logsconfig.BuildHTTPEndpoints(intakeTrackType, intakeProtocol, intakeOrigin)

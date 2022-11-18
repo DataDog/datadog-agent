@@ -37,6 +37,8 @@ type SecurityModuleClient interface {
 	StopActivityDump(ctx context.Context, in *ActivityDumpStopParams, opts ...grpc.CallOption) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(ctx context.Context, in *TranscodingRequestParams, opts ...grpc.CallOption) (*TranscodingRequestMessage, error)
 	GetActivityDumpStream(ctx context.Context, in *ActivityDumpStreamParams, opts ...grpc.CallOption) (SecurityModule_GetActivityDumpStreamClient, error)
+	// SBOM
+	GetSBOMStream(ctx context.Context, in *GetSBOMStreamParams, opts ...grpc.CallOption) (SecurityModule_GetSBOMStreamClient, error)
 }
 
 type securityModuleClient struct {
@@ -242,6 +244,38 @@ func (x *securityModuleGetActivityDumpStreamClient) Recv() (*ActivityDumpStreamM
 	return m, nil
 }
 
+func (c *securityModuleClient) GetSBOMStream(ctx context.Context, in *GetSBOMStreamParams, opts ...grpc.CallOption) (SecurityModule_GetSBOMStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SecurityModule_ServiceDesc.Streams[3], "/api.SecurityModule/GetSBOMStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &securityModuleGetSBOMStreamClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type SecurityModule_GetSBOMStreamClient interface {
+	Recv() (*SBOMMessage, error)
+	grpc.ClientStream
+}
+
+type securityModuleGetSBOMStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *securityModuleGetSBOMStreamClient) Recv() (*SBOMMessage, error) {
+	m := new(SBOMMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // SecurityModuleServer is the server API for SecurityModule service.
 // All implementations must embed UnimplementedSecurityModuleServer
 // for forward compatibility
@@ -261,6 +295,8 @@ type SecurityModuleServer interface {
 	StopActivityDump(context.Context, *ActivityDumpStopParams) (*ActivityDumpStopMessage, error)
 	TranscodingRequest(context.Context, *TranscodingRequestParams) (*TranscodingRequestMessage, error)
 	GetActivityDumpStream(*ActivityDumpStreamParams, SecurityModule_GetActivityDumpStreamServer) error
+	// SBOM
+	GetSBOMStream(*GetSBOMStreamParams, SecurityModule_GetSBOMStreamServer) error
 	mustEmbedUnimplementedSecurityModuleServer()
 }
 
@@ -309,6 +345,9 @@ func (UnimplementedSecurityModuleServer) TranscodingRequest(context.Context, *Tr
 }
 func (UnimplementedSecurityModuleServer) GetActivityDumpStream(*ActivityDumpStreamParams, SecurityModule_GetActivityDumpStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetActivityDumpStream not implemented")
+}
+func (UnimplementedSecurityModuleServer) GetSBOMStream(*GetSBOMStreamParams, SecurityModule_GetSBOMStreamServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetSBOMStream not implemented")
 }
 func (UnimplementedSecurityModuleServer) mustEmbedUnimplementedSecurityModuleServer() {}
 
@@ -584,6 +623,27 @@ func (x *securityModuleGetActivityDumpStreamServer) Send(m *ActivityDumpStreamMe
 	return x.ServerStream.SendMsg(m)
 }
 
+func _SecurityModule_GetSBOMStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetSBOMStreamParams)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(SecurityModuleServer).GetSBOMStream(m, &securityModuleGetSBOMStreamServer{stream})
+}
+
+type SecurityModule_GetSBOMStreamServer interface {
+	Send(*SBOMMessage) error
+	grpc.ServerStream
+}
+
+type securityModuleGetSBOMStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *securityModuleGetSBOMStreamServer) Send(m *SBOMMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // SecurityModule_ServiceDesc is the grpc.ServiceDesc for SecurityModule service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -650,6 +710,11 @@ var SecurityModule_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "GetActivityDumpStream",
 			Handler:       _SecurityModule_GetActivityDumpStream_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "GetSBOMStream",
+			Handler:       _SecurityModule_GetSBOMStream_Handler,
 			ServerStreams: true,
 		},
 	},

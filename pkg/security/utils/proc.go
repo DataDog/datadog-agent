@@ -110,6 +110,11 @@ func StatusPath(pid int32) string {
 	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/status", pid))
 }
 
+// ProcRootPath returns the path to the root directory of a pid in /proc
+func ProcRootPath(pid int32) string {
+	return filepath.Join(util.HostProc(), fmt.Sprintf("%d/root", pid))
+}
+
 // ModulesPath returns the path to the modules file in /proc
 func ModulesPath() string {
 	return filepath.Join(util.HostProc(), "modules")

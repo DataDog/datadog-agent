@@ -117,6 +117,7 @@ func (m *Module) Init() error {
 
 	m.probe.AddEventHandler(model.UnknownEventType, m)
 	m.probe.AddActivityDumpHandler(m)
+	m.probe.AddSBOMHandler(m)
 
 	// initialize extra event monitors
 	if m.config.EventMonitoring {
@@ -569,6 +570,11 @@ func (m *Module) SendProcessEventData(data []byte) {
 // HandleActivityDump sends an activity dump to the backend
 func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
 	m.apiServer.SendActivityDump(dump)
+}
+
+// HandleSBOM sends a SBOM message to the backend
+func (m *Module) HandleSBOM(sbom *sapi.SBOMMessage) {
+	m.apiServer.SendSBOMMessage(sbom)
 }
 
 // SendStats send stats

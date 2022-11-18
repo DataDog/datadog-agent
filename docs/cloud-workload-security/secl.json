@@ -260,6 +260,36 @@
           "constants": ""
         },
         {
+          "name": "process.ancestors.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "process.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
@@ -389,6 +419,36 @@
           "name": "process.ancestors.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'process.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.ancestors.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -650,6 +710,36 @@
           "constants": ""
         },
         {
+          "name": "process.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "process.file.path",
           "type": "string",
           "definition": "File's path",
@@ -779,6 +869,36 @@
           "name": "process.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'process.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -1004,6 +1124,36 @@
           "constants": ""
         },
         {
+          "name": "process.parent.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "process.parent.file.path",
           "type": "string",
           "definition": "File's path",
@@ -1133,6 +1283,36 @@
           "name": "process.parent.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'process.parent.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "process.parent.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -1454,6 +1634,36 @@
           "constants": ""
         },
         {
+          "name": "chmod.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chmod.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "chmod.file.path",
           "type": "string",
           "definition": "File's path",
@@ -1586,6 +1796,36 @@
           "name": "chown.file.name.length",
           "type": "int",
           "definition": "Length of 'chown.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "chown.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -1865,6 +2105,36 @@
           "constants": ""
         },
         {
+          "name": "exec.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "exec.file.path",
           "type": "string",
           "definition": "File's path",
@@ -1994,6 +2264,36 @@
           "name": "exec.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'exec.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exec.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -2276,6 +2576,36 @@
           "constants": ""
         },
         {
+          "name": "exit.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "exit.file.path",
           "type": "string",
           "definition": "File's path",
@@ -2405,6 +2735,36 @@
           "name": "exit.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'exit.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "exit.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -2567,6 +2927,36 @@
           "constants": ""
         },
         {
+          "name": "link.file.destination.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.destination.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "link.file.destination.path",
           "type": "string",
           "definition": "File's path",
@@ -2654,6 +3044,36 @@
           "name": "link.file.name.length",
           "type": "int",
           "definition": "Length of 'link.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "link.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "link.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -2765,6 +3185,36 @@
           "name": "load_module.file.name.length",
           "type": "int",
           "definition": "Length of 'load_module.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "load_module.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -2903,6 +3353,36 @@
           "constants": ""
         },
         {
+          "name": "mkdir.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mkdir.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "mkdir.file.path",
           "type": "string",
           "definition": "File's path",
@@ -3011,6 +3491,36 @@
           "name": "mmap.file.name.length",
           "type": "int",
           "definition": "Length of 'mmap.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "mmap.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -3200,6 +3710,36 @@
           "name": "open.file.name.length",
           "type": "int",
           "definition": "Length of 'open.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "open.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "open.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "open.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "open.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "open.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -3446,6 +3986,36 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.ancestors.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
@@ -3575,6 +4145,36 @@
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'ptrace.tracee.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.ancestors.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -3836,6 +4436,36 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.file.path",
           "type": "string",
           "definition": "File's path",
@@ -3965,6 +4595,36 @@
           "name": "ptrace.tracee.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'ptrace.tracee.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -4190,6 +4850,36 @@
           "constants": ""
         },
         {
+          "name": "ptrace.tracee.parent.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "ptrace.tracee.parent.file.path",
           "type": "string",
           "definition": "File's path",
@@ -4319,6 +5009,36 @@
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'ptrace.tracee.parent.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "ptrace.tracee.parent.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -4523,6 +5243,36 @@
           "constants": ""
         },
         {
+          "name": "removexattr.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "removexattr.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "removexattr.file.path",
           "type": "string",
           "definition": "File's path",
@@ -4640,6 +5390,36 @@
           "constants": ""
         },
         {
+          "name": "rename.file.destination.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.destination.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "rename.file.destination.path",
           "type": "string",
           "definition": "File's path",
@@ -4727,6 +5507,36 @@
           "name": "rename.file.name.length",
           "type": "int",
           "definition": "Length of 'rename.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rename.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -4838,6 +5648,36 @@
           "name": "rmdir.file.name.length",
           "type": "int",
           "definition": "Length of 'rmdir.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "rmdir.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -5087,6 +5927,36 @@
           "constants": ""
         },
         {
+          "name": "setxattr.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "setxattr.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "setxattr.file.path",
           "type": "string",
           "definition": "File's path",
@@ -5324,6 +6194,36 @@
           "constants": ""
         },
         {
+          "name": "signal.target.ancestors.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "signal.target.ancestors.file.path",
           "type": "string",
           "definition": "File's path",
@@ -5453,6 +6353,36 @@
           "name": "signal.target.ancestors.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'signal.target.ancestors.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.ancestors.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -5714,6 +6644,36 @@
           "constants": ""
         },
         {
+          "name": "signal.target.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "signal.target.file.path",
           "type": "string",
           "definition": "File's path",
@@ -5843,6 +6803,36 @@
           "name": "signal.target.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'signal.target.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -6068,6 +7058,36 @@
           "constants": ""
         },
         {
+          "name": "signal.target.parent.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "signal.target.parent.file.path",
           "type": "string",
           "definition": "File's path",
@@ -6197,6 +7217,36 @@
           "name": "signal.target.parent.interpreter.file.name.length",
           "type": "int",
           "definition": "Length of 'signal.target.parent.interpreter.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "signal.target.parent.interpreter.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -6395,6 +7445,36 @@
           "constants": ""
         },
         {
+          "name": "splice.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "splice.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
+          "constants": ""
+        },
+        {
           "name": "splice.file.path",
           "type": "string",
           "definition": "File's path",
@@ -6515,6 +7595,36 @@
           "name": "unlink.file.name.length",
           "type": "int",
           "definition": "Length of 'unlink.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "unlink.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
@@ -6653,6 +7763,36 @@
           "name": "utimes.file.name.length",
           "type": "int",
           "definition": "Length of 'utimes.file.name' string",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.package.major",
+          "type": "int",
+          "definition": "Major version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.package.minor",
+          "type": "int",
+          "definition": "Minor version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.package.name",
+          "type": "string",
+          "definition": "Name of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.package.patch",
+          "type": "int",
+          "definition": "Patch version of the package provided this file",
+          "constants": ""
+        },
+        {
+          "name": "utimes.file.package.version",
+          "type": "string",
+          "definition": "Full version of the package provided this file",
           "constants": ""
         },
         {
