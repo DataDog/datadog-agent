@@ -15,6 +15,7 @@ func newOidTrie() *OidTrie {
 	return &OidTrie{}
 }
 
+// BuildTries builds the OidTrie from a list of OIDs
 func BuildTries(allOids []string) *OidTrie {
 	root := newOidTrie()
 	for _, oid := range allOids {
@@ -63,19 +64,22 @@ func (o *OidTrie) exist(oid string, isLeaf bool) bool {
 	return true
 }
 
+// NodeExist checks if the oid is a known node
 func (o *OidTrie) NodeExist(oid string) bool {
 	return o.exist(oid, false)
 }
 
+// LeafExist checks if the oid is a known leaf
 func (o *OidTrie) LeafExist(oid string) bool {
 	return o.exist(oid, true)
 }
 
-func (o *OidTrie) Print(prefix string) {
+// DebugPrint is used to print the whole Trie for debugging purpose
+func (o *OidTrie) DebugPrint(prefix string) {
 	if len(o.Children) == 0 {
 		log.Infof("OID: %s", prefix)
 	}
 	for oid, child := range o.Children {
-		child.Print(fmt.Sprintf("%s.%d", prefix, oid))
+		child.DebugPrint(fmt.Sprintf("%s.%d", prefix, oid))
 	}
 }

@@ -255,7 +255,7 @@ func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfi
 
 	log.Warnf("root tries: %v", root)
 
-	root.Print("")
+	root.DebugPrint("")
 
 	log.Warnf("fetch all oids: %v", allOids)
 
