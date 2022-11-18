@@ -12,8 +12,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/cilium/ebpf/btf"
 	"io"
 	"math"
+	"path/filepath"
 	"sync"
 	"time"
 	"unsafe"
@@ -93,7 +97,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		helperErr = bpfTelemetry.HelperErrMap
 	}
 
-	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr)
+	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +150,105 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelem
 		return nil, err
 	}
 	log.Infof("initialized ebpf conntrack")
+	return e, nil
+}
+
+func LoadCOREProbe(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) (netlink.Conntracker, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error detecting kernel version: %s", err)
+	}
+	if kv < kernel.VersionCode(4, 9, 0) {
+		return nil, fmt.Errorf("detected kernel version %s, but conntrack probe requires a kernel version of at least 4.9.0.", kv)
+	}
+
+	var telemetry ddebpf.COREResult
+	defer func() {
+		ddebpf.StoreCORETelemetryForAsset("conntrack", telemetry)
+	}()
+
+	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
+	// eBPF conntrack require nf_conntrack symbols
+	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
+	if err == nil {
+		conn.Close()
+	}
+
+	var btfData *btf.Spec
+	btfData, telemetry = ddebpf.GetBTF(cfg.BTFPath, cfg.BPFDir)
+
+	if btfData == nil {
+		return nil, fmt.Errorf("could not find BTF data on host")
+	}
+
+	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re/conntrack"), "conntrack.o")
+	if err != nil {
+		telemetry = ddebpf.AssetReadError
+		return nil, fmt.Errorf("error reading conntrack.o file: %s", err)
+	}
+	defer buf.Close()
+
+	var mapErr *ebpf.Map
+	var helperErr *ebpf.Map
+	if bpfTelemetry != nil {
+		mapErr = bpfTelemetry.MapErrMap
+		helperErr = bpfTelemetry.HelperErrMap
+	}
+
+	m, err := getManager(cfg, buf, cfg.ConntrackMaxStateSize, mapErr, helperErr, btfData)
+	if err != nil {
+		return nil, err
+	}
+	if bpfTelemetry != nil {
+		if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+			return nil, fmt.Errorf("could not register ebpf telemetry: %v", err)
+		}
+	}
+
+	err = m.Start()
+	if err != nil {
+		_ = m.Stop(manager.CleanAll)
+		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
+	}
+
+	ctMap, _, err := m.GetMap(string(probes.ConntrackMap))
+	if err != nil {
+		_ = m.Stop(manager.CleanAll)
+		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
+	}
+
+	telemetryMap, _, err := m.GetMap(string(probes.ConntrackTelemetryMap))
+	if err != nil {
+		_ = m.Stop(manager.CleanAll)
+		return nil, fmt.Errorf("unable to get telemetry map: %w", err)
+	}
+
+	rootNS, err := util.GetNetNsInoFromPid(cfg.ProcRoot, 1)
+	if err != nil {
+		return nil, fmt.Errorf("could not find network root namespace: %w", err)
+	}
+
+	e := &ebpfConntracker{
+		m:            m,
+		ctMap:        ctMap,
+		telemetryMap: telemetryMap,
+		rootNS:       rootNS,
+		stats:        newEbpfConntrackerStats(),
+		stop:         make(chan struct{}),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
+	defer cancel()
+
+	err = e.dumpInitialTables(ctx, cfg)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("could not initialize conntrack after %s", cfg.ConntrackInitTimeout)
+		}
+		return nil, err
+	}
+
+	log.Debugf("successfully loaded CO-RE version of conntrack probe")
 	return e, nil
 }
 
@@ -378,7 +481,7 @@ func (e *ebpfConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]net
 	return entries, nil
 }
 
-func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map) (*manager.Manager, error) {
+func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTelemetryMap, helperErrTelemetryMap *ebpf.Map, btfData *btf.Spec) (*manager.Manager, error) {
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: string(probes.ConntrackMap)},
@@ -445,6 +548,14 @@ func getManager(cfg *config.Config, buf io.ReaderAt, maxStateSize int, mapErrTel
 	}
 	if helperErrTelemetryMap != nil {
 		opts.MapEditors[string(probes.HelperErrTelemetryMap)] = helperErrTelemetryMap
+	}
+
+	if btfData != nil {
+		opts.VerifierOptions = ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				KernelTypes: btfData,
+			},
+		}
 	}
 
 	err = mgr.InitWithOptions(buf, opts)

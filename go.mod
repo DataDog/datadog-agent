@@ -438,3 +438,5 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // so we created a fork that removed the dependency entirely. This can be
 // removed once k8s.io uses opentelemetry 1.0 or newer
 replace k8s.io/apiserver => github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5
+
+replace github.com/cilium/ebpf v0.9.3 => github.com/cilium/ebpf v0.9.4-0.20221120125200-35b90bc248ed

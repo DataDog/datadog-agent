@@ -231,6 +231,17 @@ func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (
 		log.Warnf("error initializing ebpf conntracker, falling back to netlink version: %s", err)
 	}
 
+	if cfg.EnableCORE {
+		c, err = LoadCOREProbe(cfg, bpfTelemetry)
+		if err == nil {
+			return c, nil
+		}
+		if !cfg.AllowRuntimeCompiledFallback {
+			return nil, fmt.Errorf("error loading CO-RE conntracker probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation.", err)
+		}
+		log.Warnf("load co-re error: %s", err)
+	}
+
 	c, err = netlink.NewConntracker(cfg)
 	if err != nil {
 		if cfg.IgnoreConntrackInitFailure {
