@@ -254,6 +254,19 @@ func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
 	})
 }
 
+func (s StatCountersByCookie) String() string {
+	var builder strings.Builder
+	builder.WriteString("[")
+	if len(s) > 0 {
+		builder.WriteString(fmt.Sprintf("%+v", *s[0]))
+		for i := 1; i < len(s); i++ {
+			builder.WriteString(fmt.Sprintf(" %+v", *s[i]))
+		}
+	}
+	builder.WriteString("]")
+	return builder.String()
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address

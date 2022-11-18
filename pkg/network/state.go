@@ -6,6 +6,7 @@
 package network
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -547,7 +548,9 @@ func (ns *networkState) updateConnWithStats(client *client, key string, c *Conne
 			var underflow bool
 			if last, underflow = counters.Sub(st); underflow {
 				ns.telemetry.statsUnderflows++
-				log.Debugf("Stats underflow for key:%s, stats:%+v, connection:%+v", BeautifyKey(key), st, *c)
+				log.DebugFunc(func() string {
+					return fmt.Sprintf("Stats underflow for key:%s, cookie:%d, stats counters:%s, connection counters:%s", BeautifyKey(key), cookie, sts, c.Monotonic)
+				})
 
 				counters = counters.Max(st)
 				last, _ = counters.Sub(st)
