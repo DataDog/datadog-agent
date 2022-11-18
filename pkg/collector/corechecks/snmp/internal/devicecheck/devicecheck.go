@@ -37,6 +37,9 @@ const (
 	deviceHostnamePrefix = "device:"
 )
 
+// define timeNow as variable to make it possible to mock it during test
+var timeNow = time.Now
+
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
 	config                 *checkconfig.CheckConfig
@@ -44,6 +47,7 @@ type DeviceCheck struct {
 	session                session.Session
 	sessionCloseErrorCount *atomic.Uint64
 	savedDynamicTags       []string
+	nextAutodetectMetrics  time.Time
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -59,6 +63,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		config:                 newConfig,
 		session:                sess,
 		sessionCloseErrorCount: atomic.NewUint64(0),
+		nextAutodetectMetrics:  timeNow(),
 	}, nil
 }
 
@@ -174,7 +179,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		}
 	}
 
-	err = d.doAutodetectProfile(d.session)
+	err = d.detectMetricsToMonitor(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -199,9 +204,23 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	return deviceReachable, tags, valuesStore, joinedError
 }
 
-func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
-	// Try to detect profile using device sysobjectid
-	if d.config.AutodetectProfile {
+func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
+	if d.config.DetectMetricsEnabled {
+		if d.nextAutodetectMetrics.After(timeNow()) {
+			return nil
+		}
+		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricRefreshInterval) * time.Second)
+
+		detectedMetrics := d.detectAvailableMetrics()
+		log.Debugf("detected metrics: %v", detectedMetrics)
+		d.config.Metrics = []checkconfig.MetricsConfig{}
+		d.config.AddUptimeMetric()
+		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
+	} else {
+		if !d.config.AutodetectProfile {
+			return nil
+		}
+		// detect using profile
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
@@ -219,6 +238,43 @@ func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
 		}
 	}
 	return nil
+}
+
+func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
+	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
+	log.Debugf("fetched OIDs: %v", fetchedOIDs)
+
+	root := common.BuildTries(fetchedOIDs)
+	if log.ShouldLog(seelog.DebugLvl) {
+		root.DebugPrint()
+	}
+
+	var metricConfigs []checkconfig.MetricsConfig
+
+	for _, profileDef := range d.config.Profiles {
+		for _, metricConfig := range profileDef.Metrics {
+			newMetricConfig := metricConfig
+			newMetricConfig.MetricTags = checkconfig.MetricTagConfigList{}
+			newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+			if metricConfig.Symbol.OID != "" && root.NodeExist(metricConfig.Symbol.OID) {
+				metricConfigs = append(metricConfigs, newMetricConfig)
+				continue
+			}
+			for _, symbol := range metricConfig.Symbols {
+				if symbol.OID != "" && root.NodeExist(symbol.OID) {
+					newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
+				}
+			}
+
+			for _, metricTag := range metricConfig.MetricTags {
+				newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
+			}
+			if len(newMetricConfig.Symbols) > 0 {
+				metricConfigs = append(metricConfigs, newMetricConfig)
+			}
+		}
+	}
+	return metricConfigs
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {

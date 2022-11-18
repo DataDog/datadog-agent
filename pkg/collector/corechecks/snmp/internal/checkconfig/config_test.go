@@ -1273,6 +1273,122 @@ use_device_id_as_hostname: true
 	assert.Equal(t, false, config.UseDeviceIDAsHostname)
 }
 
+func Test_buildConfig_DetectMetricsEnabled(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+detect_metrics_enabled: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+detect_metrics_enabled: true
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, true, config.DetectMetricsEnabled)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+detect_metrics_enabled: false
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+detect_metrics_enabled: true
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, false, config.DetectMetricsEnabled)
+}
+
+func Test_buildConfig_DetectMetricsRefreshInterval(t *testing.T) {
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+oid_batch_size: 10
+`)
+	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 3600, config.DetectMetricRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+detect_metrics_refresh_interval: 10
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, config.DetectMetricRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+detect_metrics_refresh_interval: 10
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 20
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, config.DetectMetricRefreshInterval)
+
+	// language=yaml
+	rawInstanceConfig = []byte(`
+ip_address: 1.2.3.4
+community_string: "abc"
+detect_metrics_refresh_interval: 20
+`)
+	// language=yaml
+	rawInitConfig = []byte(`
+oid_batch_size: 10
+detect_metrics_refresh_interval: 30
+`)
+	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+	assert.Equal(t, 20, config.DetectMetricRefreshInterval)
+}
+
 func Test_buildConfig_minCollectionInterval(t *testing.T) {
 	tests := []struct {
 		name              string
