@@ -166,7 +166,7 @@ type CheckConfig struct {
 	AutodetectMetrics     bool
 	MinCollectionInterval time.Duration
 
-	CollectAllAvailableMetrics bool
+	DetectMetricsToCollect bool
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -305,9 +305,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Network = instance.Network
 
 	if instance.DetectMetricsToCollect != nil {
-		c.CollectAllAvailableMetrics = bool(*instance.DetectMetricsToCollect)
+		c.DetectMetricsToCollect = bool(*instance.DetectMetricsToCollect)
 	} else {
-		c.CollectAllAvailableMetrics = bool(initConfig.CollectAllAvailableMetrics)
+		c.DetectMetricsToCollect = bool(initConfig.CollectAllAvailableMetrics)
 	}
 
 	if c.IPAddress == "" && c.Network == "" {
@@ -614,7 +614,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectMetrics = c.AutodetectMetrics
-	newConfig.CollectAllAvailableMetrics = c.CollectAllAvailableMetrics
+	newConfig.DetectMetricsToCollect = c.DetectMetricsToCollect
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig

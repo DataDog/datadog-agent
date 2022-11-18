@@ -1285,7 +1285,7 @@ oid_batch_size: 10
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, false, config.CollectAllAvailableMetrics)
+	assert.Equal(t, false, config.DetectMetricsToCollect)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1299,7 +1299,7 @@ detect_metrics_to_collect: true
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, true, config.CollectAllAvailableMetrics)
+	assert.Equal(t, true, config.DetectMetricsToCollect)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1313,7 +1313,7 @@ oid_batch_size: 10
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, true, config.CollectAllAvailableMetrics)
+	assert.Equal(t, true, config.DetectMetricsToCollect)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1328,7 +1328,7 @@ detect_metrics_to_collect: true
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, false, config.CollectAllAvailableMetrics)
+	assert.Equal(t, false, config.DetectMetricsToCollect)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {

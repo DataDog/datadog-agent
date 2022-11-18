@@ -203,7 +203,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	if !d.config.AutodetectMetrics {
 		return nil
 	}
-	if d.config.CollectAllAvailableMetrics {
+	if d.config.DetectMetricsToCollect {
 		// TODO: TEST ME
 		detectedMetrics, err := d.detectAvailableMetrics()
 		if err != nil {
@@ -238,10 +238,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 }
 
 func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, error) {
-	fetchedOIDs, err := session.FetchAllOIDsUsingGetNext(d.session)
-	if err != nil {
-		return nil, err
-	}
+	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
 	root := common.BuildTries(fetchedOIDs)
