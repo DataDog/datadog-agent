@@ -35,7 +35,7 @@ func GetResultValueFromPDU(pduVariable gosnmp.SnmpPDU) (string, ResultValue, err
 func ResultToScalarValues(result *gosnmp.SnmpPacket) ScalarResultValuesType {
 	returnValues := make(map[string]ResultValue, len(result.Variables))
 	for _, pduVariable := range result.Variables {
-		if IsNonValueBERType(pduVariable.Type) {
+		if shouldSkip(pduVariable.Type) {
 			continue
 		}
 		name, value, err := GetResultValueFromPDU(pduVariable)
@@ -56,7 +56,7 @@ func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (C
 	nextOidsMap := make(map[string]string, len(columnOids))
 	maxRowsPerCol := int(math.Ceil(float64(len(snmpPacket.Variables)) / float64(len(columnOids))))
 	for i, pduVariable := range snmpPacket.Variables {
-		if IsNonValueBERType(pduVariable.Type) {
+		if shouldSkip(pduVariable.Type) {
 			continue
 		}
 
@@ -86,7 +86,7 @@ func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (C
 	return returnValues, nextOidsMap
 }
 
-func IsNonValueBERType(berType gosnmp.Asn1BER) bool {
+func shouldSkip(berType gosnmp.Asn1BER) bool {
 	switch berType {
 	case gosnmp.EndOfContents, gosnmp.EndOfMibView, gosnmp.NoSuchInstance, gosnmp.NoSuchObject:
 		return true
