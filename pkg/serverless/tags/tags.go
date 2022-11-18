@@ -7,7 +7,6 @@ package tags
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -180,7 +179,7 @@ func addTag(tagMap map[string]string, tag string) map[string]string {
 
 func getRuntimeFromOsReleaseFile(osReleasePath string) string {
 	runtime := ""
-	bytesRead, err := ioutil.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
+	bytesRead, err := os.ReadFile(fmt.Sprintf("%s/os-release", osReleasePath))
 	if err != nil {
 		log.Debug("could not read os-release file")
 		return ""

@@ -7,7 +7,7 @@ package daemon
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -53,7 +53,7 @@ type StartInvocation struct {
 func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.StartInvocation route.")
 	startTime := time.Now()
-	reqBody, err := ioutil.ReadAll(r.Body)
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Error("Could not read StartInvocation request body")
 		http.Error(w, "Could not read StartInvocation request body", 400)
@@ -92,7 +92,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Debug("Hit on the serverless.EndInvocation route.")
 	endTime := time.Now()
 	ecs := e.daemon.ExecutionContext.GetCurrentState()
-	responseBody, err := ioutil.ReadAll(r.Body)
+	responseBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		err := log.Error("Could not read EndInvocation request body")
 		http.Error(w, err.Error(), 400)

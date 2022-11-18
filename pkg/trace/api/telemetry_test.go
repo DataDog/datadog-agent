@@ -6,7 +6,7 @@
 package api
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -24,7 +24,7 @@ import (
 // response OK.
 func assertingServer(t *testing.T, onReq func(req *http.Request, reqBody []byte) error) *httptest.Server {
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		body, err := ioutil.ReadAll(req.Body)
+		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		assert.NoError(t, onReq(req, body))
 		_, err = w.Write([]byte("OK"))
@@ -42,7 +42,7 @@ func newRequestRecorder(t *testing.T) (req *http.Request, rec *httptest.Response
 
 func recordedResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 	resp := rec.Result()
-	responseBody, err := ioutil.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.NoError(t, err)
 
