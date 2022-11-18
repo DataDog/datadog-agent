@@ -1,6 +1,8 @@
 import datetime
 import errno
+import glob
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -633,6 +635,15 @@ def generate_cws_proto(ctx):
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
             )
+
+    for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
+
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
 
 
 def get_git_dirty_files():
