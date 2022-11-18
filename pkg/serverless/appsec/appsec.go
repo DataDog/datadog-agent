@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build serverless
+// +build serverless
+
 // Package appsec provides a simple Application Security Monitoring API for
 // serverless.
 package appsec

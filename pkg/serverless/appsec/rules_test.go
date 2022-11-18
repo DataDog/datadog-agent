@@ -3,14 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build serverless
+// +build serverless
+
 package appsec
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/go-libddwaf"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStaticRule(t *testing.T) {

@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build serverless
+// +build serverless
+
 // Package httpsec defines is the HTTP instrumentation API and contract for
 // AppSec. It defines an abstract representation of HTTP handlers, along with
 // helper functions to wrap (aka. instrument) standard net/http handlers.
