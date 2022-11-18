@@ -202,43 +202,35 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 }
 
 func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
-	log.Warn("detectMonitoredMetrics")
+	if !d.config.AutodetectProfile {
+		return nil
+	}
+	if d.config.CollectAllAvailableMetrics {
+		// TODO: TEST ME
+		detectedMetrics, err := d.detectAvailableMetrics(sess)
+		if err != nil {
+			return err
+		}
+		log.Debugf("detected metrics: %v", detectedMetrics)
+		d.config.Metrics = []checkconfig.MetricsConfig{}
+		d.config.AddUptimeMetric()
+		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
+	} else {
+		// detect using profile
+		sysObjectID, err := session.FetchSysObjectID(sess)
+		if err != nil {
+			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
+		}
+		d.config.AutodetectProfile = false // do not try to auto detect profile next time
 
-	// Try to detect profile using device sysobjectid
-	log.Warn("AutodetectProfile")
-	if d.config.AutodetectProfile {
-		log.Warn("do AutodetectProfile")
-		if d.config.CollectAllAvailableMetrics {
-			// TODO: TEST ME
-			log.Warn("DetectMetricsToCollect")
-			t := time.Now()
-			metrics, err := d.detectAvailableMetrics(sess)
-			log.Warnf("detectAvailableMetrics time: %v", time.Since(t).Seconds())
-			if err != nil {
-				return err
-			}
-			log.Warnf("available metrics: %v", metrics)
-			d.config.Metrics = []checkconfig.MetricsConfig{}
-			d.config.AddUptimeMetric()
-			d.config.UpdateConfigMetadataMetricsAndTags(nil, metrics, nil, d.config.CollectTopology)
+		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
+		if err != nil {
+			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		} else {
-			log.Warn("CollectProfileMetrics")
-			// detect using profile
-			sysObjectID, err := session.FetchSysObjectID(sess)
+			err = d.config.RefreshWithProfile(profile)
 			if err != nil {
-				return fmt.Errorf("failed to fetch sysobjectid: %s", err)
-			}
-			d.config.AutodetectProfile = false // do not try to auto detect profile next time
-
-			profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
-			if err != nil {
-				return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
-			} else {
-				err = d.config.RefreshWithProfile(profile)
-				if err != nil {
-					// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
-					return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
-				}
+				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 			}
 		}
 	}
