@@ -626,6 +626,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
+	newConfig.DetectMetricRefreshInterval = c.DetectMetricRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig

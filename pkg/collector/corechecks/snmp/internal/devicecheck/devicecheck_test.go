@@ -594,6 +594,67 @@ profiles:
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
 }
 
+func TestDetectMetricsToCollect_detectMetricsToMonitor_nextAutodetectMetrics(t *testing.T) {
+	timeNow = common.MockTimeNow
+	defer func() { timeNow = time.Now }()
+
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+detect_metrics_enabled: true
+detect_metrics_refresh_interval: 600 # 10min
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+	sess.On("GetNext", []string{"1.0"}).Return(session.CreateGetNextPacket("9999", gosnmp.EndOfMibView, nil), nil)
+
+	deviceCk.detectMetricsToMonitor(sess)
+
+	expectedNextAutodetectMetricsTime := common.MockTimeNow().Add(600 * time.Second)
+	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
+
+	// 10 seconds after
+	timeNow = func() time.Time {
+		return common.MockTimeNow().Add(10 * time.Second)
+	}
+	deviceCk.detectMetricsToMonitor(sess)
+	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
+
+	// 599 seconds after
+	timeNow = func() time.Time {
+		return common.MockTimeNow().Add(599 * time.Second)
+	}
+	deviceCk.detectMetricsToMonitor(sess)
+	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
+
+	// 600 seconds after
+	expectedNextAutodetectMetricsTime = common.MockTimeNow().Add(1200 * time.Second)
+	timeNow = func() time.Time {
+		return common.MockTimeNow().Add(600 * time.Second)
+	}
+	deviceCk.detectMetricsToMonitor(sess)
+	assert.Equal(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics)
+}
+
 func TestDeviceCheck_Hostname(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 	// language=yaml

@@ -37,6 +37,8 @@ const (
 	deviceHostnamePrefix = "device:"
 )
 
+var timeNow = time.Now
+
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
 	config                 *checkconfig.CheckConfig
@@ -60,7 +62,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		config:                 newConfig,
 		session:                sess,
 		sessionCloseErrorCount: atomic.NewUint64(0),
-		nextAutodetectMetrics:  time.Now(),
+		nextAutodetectMetrics:  timeNow(),
 	}, nil
 }
 
@@ -202,8 +204,11 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 }
 
 func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	if d.config.DetectMetricsEnabled && d.nextAutodetectMetrics.Before(time.Now()) {
-		d.nextAutodetectMetrics = time.Now().Add(time.Duration(d.config.DetectMetricRefreshInterval) * time.Second)
+	if d.config.DetectMetricsEnabled {
+		if d.nextAutodetectMetrics.After(timeNow()) {
+			return nil
+		}
+		d.nextAutodetectMetrics = timeNow().Add(time.Duration(d.config.DetectMetricRefreshInterval) * time.Second)
 
 		detectedMetrics := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
