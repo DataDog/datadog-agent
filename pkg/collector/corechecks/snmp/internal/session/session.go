@@ -166,6 +166,7 @@ func FetchSysObjectID(session Session) (string, error) {
 func FetchAllOIDsUsingGetNext(session Session) []string {
 	var savedOIDs []string
 	curRequestOid := "1.0"
+	alreadySeenOIDs := make(map[string]bool)
 
 	for {
 		results, err := session.GetNext([]string{curRequestOid})
@@ -190,6 +191,14 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 				curRequestOid = nextColumn
 			}
 		}
+
+		if alreadySeenOIDs[curRequestOid] == true {
+			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
+			log.Debug("error: received non sequential OIDs")
+			break
+		}
+		alreadySeenOIDs[curRequestOid] = true
+
 		savedOIDs = append(savedOIDs, oid)
 	}
 	return savedOIDs
