@@ -1,4 +1,4 @@
 ---
-other:
+fixes:
   - |
     Fix cloud_foundry_container_tagger.retry_interval default value.
