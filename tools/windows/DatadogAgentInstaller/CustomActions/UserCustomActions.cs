@@ -69,7 +69,8 @@ namespace Datadog.CustomActions
                 try
                 {
                     var propertyVal = handler(session);
-                    if (!string.IsNullOrEmpty(propertyVal)) {
+                    if (!string.IsNullOrEmpty(propertyVal))
+                    {
                         session[propertyName] = propertyVal;
                         session.Log($"Found {propertyName} in registry {session[propertyName]}");
                     }
@@ -125,10 +126,11 @@ namespace Datadog.CustomActions
                             {
                                 var domain = subkey.GetValue("installedDomain").ToString();
                                 var user = subkey.GetValue("installedUser").ToString();
-                                if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user)) {
+                                if (!string.IsNullOrEmpty(domain) && !string.IsNullOrEmpty(user))
+                                {
                                     return $"{domain}\\{user}";
                                 }
-                                return "";
+                                return string.Empty;
                             });
 
                         // PROJECTLOCATION
