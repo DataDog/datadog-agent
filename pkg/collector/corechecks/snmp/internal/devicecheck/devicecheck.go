@@ -288,30 +288,6 @@ func (d *DeviceCheck) detectAvailableMetrics(sess session.Session) ([]checkconfi
 			}
 		}
 	}
-
-	//batches, err := common.CreateStringBatches(allColumnMetricOids, d.config.OidBatchSize)
-	//if err != nil {
-	//	return fmt.Errorf("failed to create oid batches: %s", err)
-	//}
-	//
-	//for _, batch := range batches {
-	//	packet, err := sess.GetNext(batch)
-	//	log.Warnf("nextOids: %v", len(packet.Variables))
-	//	if err != nil {
-	//		return err
-	//	}
-	//	// TODO: need to handle case where batch len is different than variable len ?
-	//	if len(batch) == len(packet.Variables) {
-	//		for idx, pdu := range packet.Variables {
-	//			oid := strings.TrimLeft(pdu.Name, ".")
-	//			if strings.HasPrefix(oid, batch[idx]) {
-	//				availableColumnOids = append(availableColumnOids, batch[idx])
-	//			}
-	//		}
-	//	}
-	//}
-	//log.Warnf("allColumnMetricOids: %v", len(allColumnMetricOids))
-	//log.Warnf("availableColumnOids: %v", len(availableColumnOids))
 	return metrics, nil
 }
 
