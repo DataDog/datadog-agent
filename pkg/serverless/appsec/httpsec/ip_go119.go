@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build go1.19
-// +build go1.19
+//go:build go1.19 && serverless
+// +build go1.19,serverless
 
 package httpsec
 
