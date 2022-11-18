@@ -204,9 +204,9 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		return nil
 	}
 	if d.config.DetectMetricsToCollect {
-		// TODO: TEST ME
 		detectedMetrics, err := d.detectAvailableMetrics()
 		if err != nil {
+			// TODO: TEST ME
 			return err
 		}
 		log.Debugf("detected metrics: %v", detectedMetrics)
