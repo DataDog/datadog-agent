@@ -92,6 +92,28 @@ func TestCliParamsFallbackVersion(t *testing.T) {
 	}
 }
 
+func TestGetConstraintsPath(t *testing.T) {
+	// File existing returns expected path
+	tempdir := t.TempDir()
+	dir := filepath.Join(tempdir, "root-dir")
+	expectedPath := filepath.Join(dir, "final_constraints-py3.txt")
+	os.MkdirAll(filepath.Dir(expectedPath), 0777)
+	f, err := os.Create(expectedPath)
+	if err != nil {
+		t.Errorf("failed to create: %s", err)
+		return
+	}
+	f.Close()
+
+	path, err := getConstraintsPath("3", dir)
+	assert.Equal(t, expectedPath, path)
+	assert.Nil(t, err)
+
+	// File not existing returns error
+	_, err = getConstraintsPath("2", dir)
+	assert.NotNil(t, err)
+}
+
 // A minimal mock for a command that lets us control its output and make assertions
 type CmdMock struct {
 	name             string

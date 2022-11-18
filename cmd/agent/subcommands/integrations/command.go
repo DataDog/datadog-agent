@@ -58,7 +58,6 @@ var (
 
 	rootDir             string
 	reqAgentReleasePath string
-	constraintsPath     string
 )
 
 // cliParams are the command-line arguments for the sub-subcommands.
@@ -219,11 +218,6 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 		rootDir = parentDir
 	}
 
-	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
-	if _, err := os.Lstat(constraintsPath); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -334,6 +328,14 @@ func pip(python *pythonRunner, cmd string, args []string, verbose int) error {
 	return python.runModule("pip", args)
 }
 
+func getConstraintsPath(version string, rootDir string) (string, error) {
+	constraintsPath := filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", version))
+	if _, err := os.Lstat(constraintsPath); err != nil {
+		return "", err
+	}
+	return constraintsPath, nil
+}
+
 func install(config config.Component, cliParams *cliParams) error {
 	cliParams.fallbackVersion(config.GetString("python_version"))
 	if err := loadPythonInfo(config, cliParams); err != nil {
@@ -345,6 +347,11 @@ func install(config config.Component, cliParams *cliParams) error {
 		return err
 	}
 	pkgName, err := validateArgs(cliParams.args, cliParams.localWheel)
+	if err != nil {
+		return err
+	}
+
+	constraintsPath, err := getConstraintsPath(cliParams.pythonMajorVersion, rootDir)
 	if err != nil {
 		return err
 	}
