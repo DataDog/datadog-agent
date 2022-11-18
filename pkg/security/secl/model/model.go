@@ -644,6 +644,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
+	Parent   Process            `field:"parent,opts:exposed_at_event_root_only"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
 }
 

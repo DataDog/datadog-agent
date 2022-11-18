@@ -77,6 +77,7 @@ func qualifiedType(module *common.Module, kind string) string {
 	}
 }
 
+// handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
 	if verbose {
 		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s\n", name, kind, alias)
@@ -172,13 +173,14 @@ func getFieldIdentName(expr ast.Expr) (name string, isPointer bool, isArray bool
 }
 
 type seclField struct {
-	name                string
-	iterator            string
-	handler             string
-	cachelessResolution bool
-	skipADResolution    bool
-	lengthField         bool
-	weight              int64
+	name                   string
+	iterator               string
+	handler                string
+	cachelessResolution    bool
+	skipADResolution       bool
+	lengthField            bool
+	weight                 int64
+	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -217,6 +219,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.lengthField = true
 					case "skip_ad":
 						field.skipADResolution = true
+					case "exposed_at_event_root_only":
+						field.exposedAtEventRootOnly = true
 					}
 				}
 			}
@@ -226,6 +230,7 @@ func parseFieldDef(def string) (seclField, error) {
 	return field, nil
 }
 
+// handleSpec is a recursive function that walks through the fields of a module
 func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
@@ -248,6 +253,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					event = e
 					if _, ok = module.EventTypes[e]; !ok {
 						module.EventTypes[e] = common.NewEventTypeMetada()
+						dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
 					}
 					module.EventTypes[e].Doc = fieldCommentText
 				}
@@ -308,7 +314,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							prefixedFieldName = fieldBasename
 						}
 
-						// maintain a list of all the fields
+						// maintain a list of all the fields, including their prefixes
 						module.AllFields[prefixedFieldName] = &common.StructField{
 							Name:          prefixedFieldName,
 							Event:         event,
@@ -390,7 +396,9 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								log.Print(err)
 							}
 
-							delete(dejavu, fieldBasename)
+							if !seclField.exposedAtEventRootOnly {
+								delete(dejavu, fieldBasename)
+							}
 						}
 
 						if verbose {
