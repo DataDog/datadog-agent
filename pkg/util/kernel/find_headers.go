@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -302,7 +301,7 @@ func containsCriticalHeaders(dirs []string) bool {
 }
 
 func deleteKernelHeaderDirectory(dir string) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		log.Warnf("error deleting kernel headers: %v", err)
 	}

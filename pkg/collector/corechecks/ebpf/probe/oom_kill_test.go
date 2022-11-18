@@ -10,7 +10,6 @@ package probe
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
@@ -37,11 +36,8 @@ const oomKilledBashScript = `
 exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
 
-// COREEnvVar forces use of CO-RE for ebpf functionality
-const COREEnvVar = "DD_TESTS_CO_RE"
-
 func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +135,5 @@ func TestOOMKillProbe(t *testing.T) {
 
 func testConfig() *ebpf.Config {
 	cfg := ebpf.NewConfig()
-
-	if os.Getenv(COREEnvVar) != "" {
-		cfg.EnableCORE = true
-		cfg.AllowRuntimeCompiledFallback = false
-	} else {
-		cfg.EnableCORE = false
-	}
-
 	return cfg
 }

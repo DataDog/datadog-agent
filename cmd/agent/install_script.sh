@@ -1,12 +1,20 @@
 #!/bin/bash
 # (C) Datadog, Inc. 2010-present
 # All rights reserved
-# Licensed under Simplified BSD License (see LICENSE)
+# Licensed under Apache-2.0 License (see LICENSE)
 # Datadog Agent installation script: install and set up the Agent on supported Linux distributions
 # using the package manager and Datadog repositories.
 
 set -e
-install_script_version=1.10.0.post
+
+echo -e "\033[33m
+ install_script.sh is deprecated. Please use one of
+ 
+ * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent6.sh to install Agent 6
+ * https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh to install Agent 7
+\033[0m"
+
+install_script_version=1.11.0.deprecated
 logfile="ddagent-install.log"
 support_email=support@datadoghq.com
 
@@ -543,6 +551,23 @@ elif [ "$OS" = "SUSE" ]; then
     SUSE11="yes"
   fi
 
+  # Doing "rpm --import" requires curl on SUSE/SLES
+  echo -e "\033[34m\n* Ensuring curl is installed\n\033[0m\n"
+  if ! rpm -q curl > /dev/null; then
+    # If zypper fails to refresh a random repo, it installs the package, but then fails
+    # anyway. Therefore we let it do its thing and then see if curl was installed or not.
+    if [ -z "$sudo_cmd" ]; then
+      ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install curl ||:
+    else
+      $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install curl ||:
+    fi
+    if ! rpm -q curl > /dev/null; then
+      echo -e "\033[31mFailed to install curl.\033[0m\n"
+      fallback_msg
+      exit 1;
+    fi
+  fi
+
   echo -e "\033[34m\n* Importing the Datadog GPG Keys\n\033[0m"
   if [ "$SUSE11" == "yes" ]; then
     # SUSE 11 special case
@@ -638,10 +663,20 @@ elif [ "$OS" = "SUSE" ]; then
   fi
 
   if [ -z "$sudo_cmd" ]; then
-    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
+    ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}" ||:
   else
-    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}"
+    $sudo_cmd ZYPP_RPM_DEBUG="${ZYPP_RPM_DEBUG:-0}" zypper --non-interactive install "${packages[@]}" ||:
   fi
+
+  # If zypper fails to refresh a random repo, it installs the package, but then fails
+  # anyway. Therefore we let it do its thing and then see if curl was installed or not.
+  for expected_pkg in "${packages[@]}"; do
+    if ! rpm -q "${expected_pkg}" > /dev/null; then
+      echo -e "\033[31mFailed to install ${expected_pkg}.\033[0m\n"
+      fallback_msg
+      exit 1;
+    fi
+  done
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.

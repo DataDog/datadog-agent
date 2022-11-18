@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
@@ -38,16 +37,11 @@ func newTestRemoteRates() *RemoteRates {
 	}
 }
 
-func configGenerator(version uint64, rates apmsampling.APMSampling) map[string]state.APMSamplingConfig {
-	return map[string]state.APMSamplingConfig{
-		"testid": {
-			Config: rates,
-			Metadata: state.Metadata{
-				ID:      "testid",
-				Version: version,
-			},
-		},
-	}
+func configGenerator(version uint64, rates apmsampling.APMSampling) []RemoteRateUpdate {
+	return []RemoteRateUpdate{{
+		Version: version,
+		Config:  rates,
+	}}
 }
 
 func TestRemoteTPSUpdate(t *testing.T) {

@@ -6,12 +6,13 @@ import platform
 import re
 import shutil
 import sys
+import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
 
 from invoke import task
-from invoke.exceptions import Exit, UnexpectedExit
+from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
 from .libs.ninja_syntax import NinjaWriter
@@ -46,7 +47,8 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION = "12.0.1"
+CLANG_VERSION_RUNTIME = "12.0.1"
+CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
 def ninja_define_windows_resources(ctx, nw, major_version):
@@ -241,7 +243,7 @@ def ninja_runtime_compilation_files(nw):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcp_queue_length.go": "tcp-queue-length",
-        "pkg/network/http/compile.go": "http",
+        "pkg/network/protocols/http/compile.go": "http",
         "pkg/network/tracer/compile.go": "conntrack",
         "pkg/network/tracer/connection/kprobe/compile.go": "tracer",
         "pkg/security/ebpf/compile.go": "runtime-security",
@@ -269,7 +271,14 @@ def ninja_cgo_type_files(nw, windows):
     nw.pool(name="cgo_pool", depth=1)
     if windows:
         go_platform = "windows"
-        def_files = {"pkg/network/driver/types.go": ["pkg/network/driver/ddnpmapi.h"]}
+        def_files = {
+            "pkg/network/driver/types.go": [
+                "pkg/network/driver/ddnpmapi.h",
+            ],
+            "pkg/util/winutil/etw/types.go": [
+                "pkg/util/winutil/etw/etw-provider.h",
+            ],
+        }
         nw.rule(
             name="godefs",
             pool="cgo_pool",
@@ -288,19 +297,18 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/ebpf/kprobe_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/tcp_states.h",
-                "pkg/network/ebpf/c/tags-types.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
-            "pkg/network/http/http_types.go": [
+            "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
-                "pkg/network/ebpf/c/http-types.h",
+                "pkg/network/ebpf/c/protocols/http-types.h",
             ],
         }
         nw.rule(
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
-            + "CC=clang go tool cgo -godefs -- -fsigned-char $in_file | "
+            + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
             + "go run $script_path > $out_file",
         )
 
@@ -309,6 +317,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],
@@ -319,6 +328,7 @@ def ninja_cgo_type_files(nw, windows):
                 "in_file": in_file,
                 "out_file": out_file,
                 "script_path": script_path,
+                "rel_import": rel_import,
             },
         )
 
@@ -520,9 +530,13 @@ def test(
     _, _, env = get_build_flags(ctx)
     env['DD_SYSTEM_PROBE_BPF_DIR'] = EMBEDDED_SHARE_DIR
     if runtime_compiled:
-        env['DD_TESTS_RUNTIME_COMPILED'] = "1"
-    if co_re:
-        env['DD_TESTS_CO_RE'] = "1"
+        env['DD_ENABLE_RUNTIME_COMPILER'] = "true"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
+        env['DD_ENABLE_CO_RE'] = "false"
+    elif co_re:
+        env['DD_ENABLE_CO_RE'] = "true"
+        env['DD_ALLOW_RUNTIME_COMPILED_FALLBACK'] = "false"
+        env['DD_ALLOW_PRECOMPILED_FALLBACK'] = "false"
 
     go_root = os.getenv("GOROOT")
     if go_root:
@@ -591,10 +605,19 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
 
-    if os.path.exists("/opt/datadog-agent/embedded/bin/clang-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/clang-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
-    if os.path.exists("/opt/datadog-agent/embedded/bin/llc-bpf"):
-        shutil.copy("/opt/datadog-agent/embedded/bin/llc-bpf", os.path.join(KITCHEN_ARTIFACT_DIR, ".."))
+    gopath = os.getenv("GOPATH")
+    copy_files = [
+        "/opt/datadog-agent/embedded/bin/clang-bpf",
+        "/opt/datadog-agent/embedded/bin/llc-bpf",
+        f"{gopath}/bin/gotestsum",
+    ]
+
+    files_dir = os.path.join(KITCHEN_ARTIFACT_DIR, "..")
+    for cf in copy_files:
+        if os.path.exists(cf):
+            shutil.copy(cf, files_dir)
+
+    ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
 
 @task
@@ -648,13 +671,13 @@ def kitchen_genconfig(
     elif arch == "arm64":
         arch = "arm64"
     else:
-        raise UnexpectedExit("unsupported arch specified")
+        raise Exit("unsupported arch specified")
 
     if not image_size and provider == "azure":
         image_size = "Standard_D2_v2"
 
     if not image_size:
-        raise UnexpectedExit("Image size must be specified")
+        raise Exit("Image size must be specified")
 
     if azure_sub_id is None and provider == "azure":
         raise Exit("azure subscription id must be specified with --azure-sub-id")
@@ -948,16 +971,30 @@ def setup_runtime_clang(ctx):
     if arch == "x64":
         arch = "amd64"
 
-    if clang_version_str != CLANG_VERSION:
+    if clang_version_str != CLANG_VERSION_RUNTIME:
         # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION}.{arch}"
+        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
 
-    if llc_version_str != CLANG_VERSION:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION}.{arch}"
+    if llc_version_str != CLANG_VERSION_RUNTIME:
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch}"
         ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
         ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+
+
+def verify_system_clang_version(ctx):
+    clang_res = ctx.run("clang --version", warn=True)
+    clang_version_str = ""
+    if clang_res.ok:
+        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
+        version_index = clang_version_parts.index("version")
+        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
+
+    if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
+        raise Exit(
+            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
+        )
 
 
 def build_object_files(
@@ -972,6 +1009,7 @@ def build_object_files(
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
     if not windows:
+        verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
         print("checking for clang executable...")
@@ -1049,7 +1087,7 @@ def generate_lookup_tables(ctx, windows=is_windows):
 
     lookup_table_generate_files = [
         "./pkg/network/go/goid/main.go",
-        "./pkg/network/http/gotls/lookup/main.go",
+        "./pkg/network/protocols/http/gotls/lookup/main.go",
     ]
     for file in lookup_table_generate_files:
         ctx.run(f"go generate {file}")
@@ -1120,3 +1158,31 @@ def generate_minimized_btfs(
             tar_working_directory = os.path.join(output_dir, path_from_root)
             ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
             ctx.run(f"rm {output_btf_path}")
+
+
+@task
+def print_failed_tests(_, output_dir):
+    fail_count = 0
+    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
+        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
+
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            with tarfile.open(testjson_tgz) as tgz:
+                tgz.extractall(path=unpack_dir)
+
+            for test_json in glob.glob(f"{unpack_dir}/*.json"):
+                bundle, _ = os.path.splitext(os.path.basename(test_json))
+                with open(test_json) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        if 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                print(f"FAIL: [{test_platform}] [{bundle}] {package} {name}")
+                                fail_count += 1
+
+    if fail_count > 0:
+        raise Exit(code=1)

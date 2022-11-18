@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -tests=false
-
 package model
 
 import (
 	"container/list"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -139,7 +139,6 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 }*/
 
 // ArgsEnvs raw value for args and envs
-//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -147,7 +146,6 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
-//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte
@@ -245,24 +243,12 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
-func stringArraysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed bool
 }
@@ -295,15 +281,15 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed       bool
 	filteredEnvs []string
@@ -392,5 +378,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }

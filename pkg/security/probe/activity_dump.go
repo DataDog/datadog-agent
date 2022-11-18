@@ -162,7 +162,6 @@ func NewEmptyActivityDump() *ActivityDump {
 }
 
 // WithDumpOption can be used to configure an ActivityDump
-//msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
@@ -344,6 +343,11 @@ func (ad *ActivityDump) commMatches(comm string) bool {
 	return ad.DumpMetadata.Comm == comm
 }
 
+// nameMatches returns true if the ActivityDump name matches the provided name
+func (ad *ActivityDump) nameMatches(name string) bool {
+	return ad.DumpMetadata.Name == name
+}
+
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
 func (ad *ActivityDump) containerIDMatches(containerID string) bool {
 	return ad.DumpMetadata.ContainerID == containerID
@@ -500,13 +504,12 @@ func (ad *ActivityDump) debug(w io.Writer) {
 }
 
 func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
-	var traced bool
 	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
-			traced = true
+			return true
 		}
 	}
-	return traced
+	return false
 }
 
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
@@ -1140,7 +1143,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 		return nil
 	}
 
-	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+	for _, eventType := range ad.LoadConfig.TracedEventTypes {
 		switch eventType {
 		case model.FileOpenEventType:
 			if err = pan.snapshotFiles(p, ad); err != nil {

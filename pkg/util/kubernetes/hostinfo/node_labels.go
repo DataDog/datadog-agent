@@ -16,11 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-const (
-	eksClusterNameLabelKey       = "alpha.eksctl.io/cluster-name"
-	datadogADClusterNameLabelKey = "ad.datadoghq.com/cluster-name"
-)
-
 // NodeInfo is use to get Kubernetes Node metadata information
 type NodeInfo struct {
 	// client use to get NodeName from the "/pods" kubelet api.
@@ -63,51 +58,4 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 		return cl.GetNodeLabels(nodeName)
 	}
 	return n.apiserverNodeLabelsFunc(ctx, nodeName)
-}
-
-// clusterNameLabelType this struct is used to attach to the label key the information if this label should
-// override cluster-name previously detected.
-type clusterNameLabelType struct {
-	key string
-	// shouldOverride if set to true override previous cluster-name
-	shouldOverride bool
-}
-
-var (
-	// We use a slice to define the default Node label key to keep the ordering
-	defaultClusterNameLabelKeyConfigs = []clusterNameLabelType{
-		{key: eksClusterNameLabelKey, shouldOverride: false},
-		{key: datadogADClusterNameLabelKey, shouldOverride: true},
-	}
-)
-
-// GetNodeClusterNameLabel returns clustername by fetching a node label
-func (n *NodeInfo) GetNodeClusterNameLabel(ctx context.Context, clusterName string) (string, error) {
-	nodeLabels, err := n.GetNodeLabels(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	var clusterNameLabelKeys []clusterNameLabelType
-	// check if a node label has been added on the config
-	if customLabels := config.Datadog.GetString("kubernetes_node_label_as_cluster_name"); customLabels != "" {
-		clusterNameLabelKeys = append(clusterNameLabelKeys, clusterNameLabelType{key: customLabels, shouldOverride: true})
-	} else {
-		// Use default configuration
-		clusterNameLabelKeys = defaultClusterNameLabelKeyConfigs
-	}
-
-	for _, labelConfig := range clusterNameLabelKeys {
-		if v, ok := nodeLabels[labelConfig.key]; ok {
-			if clusterName == "" {
-				clusterName = v
-				continue
-			}
-
-			if labelConfig.shouldOverride {
-				clusterName = v
-			}
-		}
-	}
-	return clusterName, nil
 }

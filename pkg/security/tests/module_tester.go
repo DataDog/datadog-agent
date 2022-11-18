@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,8 +32,6 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
-
-	"runtime/pprof"
 
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
@@ -743,7 +742,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
@@ -1250,7 +1249,7 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
 func (tm *testModule) Close() {
@@ -1497,17 +1496,18 @@ func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir
 	return files, nil
 }
 
-func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
-		Comm: comm,
+		Name:        name,
+		ContainerID: containerID,
+		Comm:        comm,
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
-		t.Errorf("failed to stop activity dump: %s", err)
 		return err
 	}
 	return nil

@@ -22,6 +22,10 @@ Release on: 2022-11-02
 Upgrade Notes
 -------------
 
+- Starting Agent 7.40, the Agent will fail to start when unable to determine hostname instead of silently using unrelevant hostname (usually, a container id).
+  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
+  This change mostly affects Agents running in containerized environments as we cannot rely on OS hostname.
+
 - Universal Service Monitoring now requires a Linux kernel version of 4.14 or greater.
 
 
@@ -37,9 +41,7 @@ New Features
 - Add a username and password dialog window to the Windows Installer
 
 - APM: DogStatsD data can now be proxied through the "/dogstatsd/v1/proxy" endpoint
-  over UDS or UDP. If a socket is provided with dogstatsd_socket, the proxy will
-  default to proxying over UDS. Otherwise, UDP will be used. See
-  https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
+  over UDP. See https://docs.datadoghq.com/developers/dogstatsd#setup for configuration details.
 
 - Cloud Workload Security now has Agent version constraints for Macros in SECL expressions.
 
@@ -132,6 +134,8 @@ Known Issues
 ------------
 
 - APM: OTLP Ingest: resource attributes such as service.name are correctly picked up by spans.
+- APM: The "/dogstatsd/v1/proxy" endpoint can only accept a single payload at a time. This will
+  be fixed in the v2 endpoint which will split payloads by newline.
 
 
 .. _Release Notes_7.40.0_Deprecation Notes:
@@ -195,10 +199,6 @@ Other Notes
   selects updated codepaths in Autodiscovery and the Logs Agent.  No behavior
   change is expected.  Please report any behavior that is "fixed" by setting
   this flag to false.
-
-- Starting Agent 7.40, the Agent will fail to start when unable to determine hostname instead of silently using unrelevant hostname (usually, a container id).
-  Hostname resolution is key to many features and failure to determine hostname means that the Agent is not configured properly.
-  This change mostly affects Agents running in containerized environments as we cannot rely on OS hostname.
 
 
 .. _Release Notes_7.39.1:
