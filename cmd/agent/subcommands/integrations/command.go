@@ -76,6 +76,8 @@ type cliParams struct {
 	localWheel         bool
 	thirdParty         bool
 	pythonMajorVersion string
+	python2Path        string
+	python3Path        string
 }
 
 func (cp *cliParams) python() *pythonRunner {
@@ -84,6 +86,13 @@ func (cp *cliParams) python() *pythonRunner {
 		pyPath = sysPythonPath()
 	} else {
 		pyPath = defaultPythonPath()
+	}
+
+	if cp.python2Path != "" {
+		pyPath.py2 = cp.python2Path
+	}
+	if cp.python3Path != "" {
+		pyPath.py3 = cp.python3Path
 	}
 
 	if cp.pythonMajorVersion == "2" {
@@ -107,9 +116,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.allowRoot, "allow-root", "r", false, "flag to enable root to install packages")
 	integrationCmd.PersistentFlags().BoolVarP(&cliParams.useSysPython, "use-sys-python", "p", false, "use system python instead [dev flag]")
 	integrationCmd.PersistentFlags().StringVarP(&cliParams.pythonMajorVersion, "python", "", "", "the version of Python to act upon (2 or 3). defaults to the python_version setting in datadog.yaml")
+	integrationCmd.PersistentFlags().StringVarP(&cliParams.python2Path, "python2-path", "", "", "use python executable at path as python2[dev flag]")
+	integrationCmd.PersistentFlags().StringVarP(&cliParams.python3Path, "python3-path", "", "", "use python executable at path as python3[dev flag]")
 
 	// Power user flags - mark as hidden
 	integrationCmd.PersistentFlags().MarkHidden("use-sys-python") //nolint:errcheck
+	integrationCmd.PersistentFlags().MarkHidden("python2-path")   //nolint:errcheck
+	integrationCmd.PersistentFlags().MarkHidden("python3-path")   //nolint:errcheck
 
 	// all subcommands use the same provided components, with a different oneShot callback
 	runOneShot := func(callback interface{}) error {
