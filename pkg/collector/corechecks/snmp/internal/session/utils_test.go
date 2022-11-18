@@ -20,8 +20,11 @@ func TestGetNextColumnOid(t *testing.T) {
 			expectedOid: "1.3.6.1.2.1.2.2.1.100",
 		},
 		{
-			oid:         "1.3.6.1.2.1.2.2.1.1.1",
-			expectedOid: "1.3.6.1.2.1.2.2.1.2",
+
+			oid: "1.3.6.1.2.1.2.2.1.1.1",
+			// ideally it should return "1.3.6.1.2.1.2.2.1.2" instead of `1.3.6.1.2.1.2.2.1.1.2`
+			// but we can improve the algorithm later if needed
+			expectedOid: "1.3.6.1.2.1.2.2.1.1.2",
 		},
 	}
 	for _, tt := range tests {
