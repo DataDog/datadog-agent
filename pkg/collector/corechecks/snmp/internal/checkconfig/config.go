@@ -489,8 +489,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		profiles = defaultProfiles
 	}
 
-	//log.Warnf("defaultProfiles: %v", profiles)
-
 	for _, profileDef := range profiles {
 		normalizeMetrics(profileDef.Metrics)
 	}
