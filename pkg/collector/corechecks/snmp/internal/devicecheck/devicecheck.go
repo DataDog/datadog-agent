@@ -174,7 +174,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		}
 	}
 
-	err = d.detectMonitoredMetrics(d.session)
+	err = d.detectMetricsToMonitor(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -199,8 +199,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	return deviceReachable, tags, valuesStore, joinedError
 }
 
-func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
-	if !d.config.AutodetectProfile {
+func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
+	if !d.config.AutodetectMetrics {
 		return nil
 	}
 	if d.config.CollectAllAvailableMetrics {
@@ -213,13 +213,16 @@ func (d *DeviceCheck) detectMonitoredMetrics(sess session.Session) error {
 		d.config.Metrics = []checkconfig.MetricsConfig{}
 		d.config.AddUptimeMetric()
 		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
+
+		// TODO: Mechanism to invalidate
+		d.config.AutodetectMetrics = false
 	} else {
 		// detect using profile
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
-		d.config.AutodetectProfile = false // do not try to auto detect profile next time
+		d.config.AutodetectMetrics = false // do not try to auto detect profile next time
 
 		profile, err := checkconfig.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {

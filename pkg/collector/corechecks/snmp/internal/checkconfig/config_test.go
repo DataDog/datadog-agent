@@ -220,7 +220,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
 	assert.Equal(t, "127.0.0.0/30", config.ResolvedSubnetName)
-	assert.Equal(t, false, config.AutodetectProfile)
+	assert.Equal(t, false, config.AutodetectMetrics)
 }
 
 func TestDiscoveryConfigurations(t *testing.T) {
@@ -303,7 +303,7 @@ profiles:
 	assert.Equal(t, 2, len(config.Profiles))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
-	assert.Equal(t, false, config.AutodetectProfile)
+	assert.Equal(t, false, config.AutodetectMetrics)
 	assert.Equal(t, 3600, config.DiscoveryInterval)
 	assert.Equal(t, 3, config.DiscoveryAllowedFailures)
 	assert.Equal(t, 5, config.DiscoveryWorkers)
@@ -1649,7 +1649,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 		DeviceID:              "123",
 		DeviceIDTags:          []string{"DeviceIDTags:tag"},
 		ResolvedSubnetName:    "1.2.3.4/28",
-		AutodetectProfile:     true,
+		AutodetectMetrics:     true,
 		MinCollectionInterval: 120,
 	}
 	configCopy := config.Copy()
@@ -1688,7 +1688,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.Equal(t, config.DeviceID, configCopy.DeviceID)
 	assertNotSameButEqualElements(t, config.DeviceIDTags, configCopy.DeviceIDTags)
 	assert.Equal(t, config.ResolvedSubnetName, configCopy.ResolvedSubnetName)
-	assert.Equal(t, config.AutodetectProfile, configCopy.AutodetectProfile)
+	assert.Equal(t, config.AutodetectMetrics, configCopy.AutodetectMetrics)
 	assert.Equal(t, config.MinCollectionInterval, configCopy.MinCollectionInterval)
 }
 

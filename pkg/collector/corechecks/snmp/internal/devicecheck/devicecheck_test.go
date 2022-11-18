@@ -288,7 +288,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
+	assert.Equal(t, false, deviceCk.config.AutodetectMetrics)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously
 	firstRunMetrics := deviceCk.config.Metrics
@@ -636,7 +636,7 @@ profiles:
 		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
-	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
+	assert.Equal(t, false, deviceCk.config.AutodetectMetrics)
 
 	sess.ConnectErr = fmt.Errorf("some error")
 	err = deviceCk.Run(time.Now())
