@@ -273,7 +273,7 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 			return nil, err
 		}
 		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", id)
+			continue
 		}
 
 		specs = append(specs, s...)
