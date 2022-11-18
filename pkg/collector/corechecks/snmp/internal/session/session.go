@@ -164,6 +164,7 @@ func FetchSysObjectID(session Session) (string, error) {
 
 // FetchAllOidsUsingGetNext fetches all available OIDs
 func FetchAllOidsUsingGetNext(session Session) ([]string, error) {
+	// TODO: TEST ME
 	var savedOids []string
 	curReqOid := "1.3"
 	for {
