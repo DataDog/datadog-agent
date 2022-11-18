@@ -186,9 +186,11 @@ func FetchAllOidsUsingGetNext(session Session) ([]string, error) {
 			nextColumn, err := GetNextColumnOid(oid)
 			if err != nil {
 				log.Errorf("Invalid column oid: %s", oid)
-				break
+				curReqOid = oid
+				// TODO: TEST ME
+			} else {
+				curReqOid = nextColumn
 			}
-			curReqOid = nextColumn
 		}
 		savedOids = append(savedOids, oid)
 
