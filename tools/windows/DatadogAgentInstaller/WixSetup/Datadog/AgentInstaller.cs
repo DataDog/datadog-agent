@@ -50,19 +50,19 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new Project("Datadog Agent",
-                new User(new Id("ddagentuser"),
-                // CreateUser fails with ERROR_BAD_USERNAME if this value is a fully qualified user name
-                "[DDAGENTUSER_NAME]")
+                new User()
                 {
-                    Domain = "[DDAGENTUSER_DOMAIN]",
-                    Password = "[DDAGENTUSER_PASSWORD]",
+                    // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
+                    Name = "[DDAGENTUSER_PROCESSED_NAME]",
+                    Domain = "[DDAGENTUSER_PROCESSED_DOMAIN]",
+                    Password = "[DDAGENTUSER_PROCESSED_PASSWORD]",
                     PasswordNeverExpires = true,
                     RemoveOnUninstall = true,
                     FailIfExists = false,
-                    //ComponentCondition = Condition.NOT("DDAGENTUSER_FOUND=\"true\")")
                 },
                 _agentCustomActions.ReadConfig,
                 _agentCustomActions.WriteConfig,
+                _agentCustomActions.ReadRegistryProperties,
                 _agentCustomActions.ProcessDdAgentUserCredentials,
                 _agentCustomActions.DecompressPythonDistributions,
                 _agentCustomActions.ConfigureUser,
@@ -70,29 +70,23 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                //new Property("DDAGENTUSER_NAME", "ddagentuser"),
+                // User provided password property
                 new Property("DDAGENTUSER_PASSWORD")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                new Property("PROJECTLOCATION",
-                    new RegistrySearch(
-                        RegistryHive.LocalMachine,
-                        "SOFTWARE\\Datadog\\Datadog Agent",
-                        "InstallPath", RegistrySearchType.raw)
-                )
+                // ProcessDDAgentUserCredentials CustomAction processed password property
+                new Property("DDAGENTUSER_PROCESSED_PASSWORD")
                 {
-                    AttributesDefinition = "Secure=yes"
+                    AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                new Property("APPLICATIONDATADIRECTORY",
-                    new RegistrySearch(
-                        RegistryHive.LocalMachine,
-                        "SOFTWARE\\Datadog\\Datadog Agent",
-                        "ConfigRoot",
-                        RegistrySearchType.raw)
-                )
+                new Property("PROJECTLOCATION")
                 {
-                    AttributesDefinition = "Secure=yes"
+                    AttributesDefinition = "Secure=yes",
+                },
+                new Property("APPLICATIONDATADIRECTORY")
+                {
+                    AttributesDefinition = "Secure=yes",
                 },
                 new CloseApplication(new Id("CloseTrayApp"),
                     Path.GetFileName(_agentBinaries.Tray),
@@ -105,8 +99,12 @@ namespace WixSetup.Datadog
                 new RegKey(
                     _agentFeatures.MainApplication,
                     RegistryHive.LocalMachine, @"Software\Datadog\Datadog Agent",
-                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } },
-                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Permissions = new[] { new Permission { User = "[DDAGENTUSER_FQ_NAME]", GenericAll = true } } }
+                    // Store these properties in the registry for retrieval by future
+                    // installer runs via the ReadRegistryProperties CA.
+                    new RegValue("InstallPath", "[PROJECTLOCATION]") { Win64 = true },
+                    new RegValue("ConfigRoot", "[APPLICATIONDATADIRECTORY]") { Win64 = true },
+                    new RegValue("installedDomain", "[DDAGENTUSER_PROCESSED_DOMAIN]") { Win64 = true },
+                    new RegValue("installedUser", "[DDAGENTUSER_PROCESSED_NAME]") { Win64 = true }
                 )
                 {
                     Win64 = true
@@ -145,7 +143,7 @@ namespace WixSetup.Datadog
                     new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All) { ChangePermission = true },
                     new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All) { ChangePermission = true },
                     new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.None) { ChangePermission = true },
-                    new DirPermission("[DDAGENTUSER_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = true },
+                    new DirPermission("[DDAGENTUSER_PROCESSED_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = true },
                     new DirFiles($@"{EtcSource}\*.yaml.example"),
                     new Dir("checks.d"),
                     new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
@@ -256,8 +254,8 @@ namespace WixSetup.Datadog
                 PreShutdownDelay = 1000 * 60 * 3,
                 PermissionEx = DefaultPermissions(),
                 // Account must be a fully qualified name.
-                Account = "[DDAGENTUSER_FQ_NAME]",
-                Password = "[DDAGENTUSER_PASSWORD]"
+                Account = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
+                Password = "[DDAGENTUSER_PROCESSED_PASSWORD]"
             };
         }
 
@@ -296,7 +294,7 @@ namespace WixSetup.Datadog
         {
             var agentService = GenerateServiceInstaller("datadogagent", "Datadog Agent", "Send metrics to Datadog");
             var processAgentService = GenerateDependentServiceInstaller(new Id("ddagentprocessservice"), "datadog-process-agent", "Datadog Process Agent", "Send process metrics to Datadog", "LocalSystem");
-            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_FQ_NAME]", "[DDAGENTUSER_PASSWORD]");
+            var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_PROCESSED_FQ_NAME]", "[DDAGENTUSER_PROCESSED_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
             var targetBinFolder = new Dir("bin",
