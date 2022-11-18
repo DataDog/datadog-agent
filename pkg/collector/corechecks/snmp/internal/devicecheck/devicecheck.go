@@ -204,11 +204,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		return nil
 	}
 	if d.config.DetectMetricsToCollect {
-		detectedMetrics, err := d.detectAvailableMetrics()
-		if err != nil {
-			// TODO: TEST ME
-			return err
-		}
+		detectedMetrics := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
 		d.config.Metrics = []checkconfig.MetricsConfig{}
 		d.config.AddUptimeMetric()
@@ -237,7 +233,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, error) {
+func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -271,7 +267,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, err
 			}
 		}
 	}
-	return metricConfigs, nil
+	return metricConfigs
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
