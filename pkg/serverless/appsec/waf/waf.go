@@ -16,8 +16,8 @@ package waf
 // // pointer to ddwaf_context_init.
 // void go_ddwaf_object_free(ddwaf_object*);
 // #cgo CFLAGS: -I${SRCDIR}/include
-// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/lib/linux-amd64 -lddwaf -lm -ldl -Wl,-rpath=/lib64:/usr/lib64:/usr/local/lib64:/lib:/usr/lib:/usr/local/lib
-// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/lib/linux-arm64 -lddwaf -lm -ldl -Wl,-rpath=/lib64:/usr/lib64:/usr/local/lib64:/lib:/usr/lib:/usr/local/lib
+// #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/lib/linux-amd64 -lddwaf -lm -ldl -lrt -Wl,-rpath=/lib64:/usr/lib64:/usr/local/lib64:/lib:/usr/lib:/usr/local/lib
+// #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/lib/linux-arm64 -lddwaf -lm -ldl -lrt -Wl,-rpath=/lib64:/usr/lib64:/usr/local/lib64:/lib:/usr/lib:/usr/local/lib
 // #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/lib/darwin-amd64 -lddwaf -lstdc++
 // #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/lib/darwin-arm64 -lddwaf -lstdc++
 import "C"
