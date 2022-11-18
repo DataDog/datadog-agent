@@ -37,6 +37,7 @@ func python(path string) *pythonRunner {
 	}
 }
 
+// Creates a copy of the runner with the environment set to newEnv
 func (p *pythonRunner) withEnv(newEnv []string) *pythonRunner {
 	newRunner := *p
 	newRunner.env = newEnv
