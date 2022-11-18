@@ -124,7 +124,6 @@ type InstanceConfig struct {
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
 
-	// TODO: test me
 	DetectMetricsToCollect *Boolean `yaml:"detect_metrics_to_collect"`
 }
 
