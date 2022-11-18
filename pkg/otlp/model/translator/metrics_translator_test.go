@@ -526,14 +526,6 @@ func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensio
 	)
 }
 
-func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dimensions {
-	dims = dims.WithSuffix("bucket")
-	return dims.AddTags(
-		fmt.Sprintf("lower_bound:%s", lowerBound),
-		fmt.Sprintf("upper_bound:%s", upperBound),
-	)
-}
-
 func TestLegacyBucketsTags(t *testing.T) {
 	// Test that passing the same tags slice doesn't reuse the slice.
 	ctx := context.Background()
