@@ -9,6 +9,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction WriteConfig { get; }
 
+        public ManagedAction ReadRegistryProperties { get; }
+
         public ManagedAction ProcessDdAgentUserCredentials { get; }
 
         public ManagedAction DecompressPythonDistributions { get; }
@@ -17,16 +19,43 @@ namespace WixSetup.Datadog
 
         public AgentCustomActions()
         {
+            ReadRegistryProperties = new CustomAction<UserCustomActions>(
+                    new Id("ReadRegistryProperties"),
+                    UserCustomActions.ReadRegistryProperties,
+                    Return.ignore,
+                    // AppSearch is when RegistrySearch is run, so that will overwrite
+                    // any command line values.
+                    // Prefer using our CA over RegistrySearch.
+                    // It is executed on the Welcome screen of the installer.
+                    When.After,
+                    Step.AppSearch,
+                    Condition.NOT_BeingRemoved,
+                    // Run in either sequence so our CA is also run in non-UI installs
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
+                )
+                {
+                    // Ensure we only run in one sequence
+                    Execute = Execute.firstSequence
+                };
+
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
                     new Id("ReadConfigCustomAction"),
                     ConfigCustomActions.ReadConfig,
                     Return.ignore,
-                    When.Before,
-                    Step.InstallInitialize,
-                    Condition.NOT_BeingRemoved
+                    // Must execute after ReadRegistryProperties since we depend
+                    // on APPLICATIONDATADIRECTORY being set.
+                    When.After,
+                    new Step(ReadRegistryProperties.Name),
+                    Condition.NOT_BeingRemoved,
+                    // Run in either sequence so our CA is also run in non-UI installs
+                    Sequence.InstallExecuteSequence | Sequence.InstallUISequence
                 )
+                {
+                    // Ensure we only run in one sequence
+                    Execute = Execute.firstSequence
+                }
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
@@ -73,9 +102,12 @@ namespace WixSetup.Datadog
                     new Id("ProcessDdAgentUserCredentials"),
                     UserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
+                    // Run at end of "config phase", right before the "make changes" phase.
                     When.Before,
                     Step.InstallInitialize,
-                    Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                    // Run unless we are being uninstalled.
+                    // This CA produces properties used for services, accounts, and permissions.
+                    Condition.NOT_BeingRemoved
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true);
@@ -101,7 +133,7 @@ namespace WixSetup.Datadog
                 {
                     Execute = Execute.deferred
                 }
-                .SetProperties("DDAGENTUSER_FQ_NAME=[DDAGENTUSER_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
         }
     }
 }
