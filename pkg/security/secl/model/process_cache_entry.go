@@ -98,8 +98,8 @@ func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	}
 }
 
-// SetParent set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+// SetParentOfForkChild set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
 	pc.IsThread = true
@@ -117,7 +117,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.SetParent(pc)
+	childEntry.SetParentOfForkChild(pc)
 }
 
 // Equals returns whether process cache entries share the same values for comm and args/envs

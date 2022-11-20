@@ -845,7 +845,7 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	parent := p.resolveFromProcfs(ppid, maxDepth-1)
 	if inserted && entry != nil && parent != nil {
 		if parent.Equals(entry) {
-			entry.SetParent(parent)
+			entry.SetParentOfForkChild(parent)
 		} else {
 			entry.SetAncestor(parent)
 		}
