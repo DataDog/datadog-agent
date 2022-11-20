@@ -23,15 +23,13 @@ long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len) {return 
     }                                                                       \
 
 static __inline int32_t read_big_endian_int32(const char* buf) {
-    int32_t val;
-    bpf_probe_read_kernel(&val, 4, (void*)buf);
-    return bpf_ntohl(val);
+    int32_t *val = (int32_t*)buf;
+    return bpf_ntohl(*val);
 }
 
 static __inline int16_t read_big_endian_int16(const char* buf) {
-    int16_t val;
-    bpf_probe_read_kernel(&val, 2, (void*)buf);
-    return bpf_ntohs(val);
+    int16_t *val = (int16_t*)buf;
+    return bpf_ntohs(*val);
 }
 
 // Checking if the buffer represents kafka message

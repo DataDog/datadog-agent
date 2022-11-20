@@ -1,3 +1,5 @@
+# Taken from https://github.com/conduktor/kafka-stack-docker-compose/blob/master/zk-single-kafka-single.yml
+
 version: '3'
 
 services:
