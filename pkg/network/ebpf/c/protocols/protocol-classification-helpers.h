@@ -39,20 +39,20 @@ static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_SIZE)
 
     const int32_t message_size = read_big_endian_int32(buf);
-    size_t offset = sizeof(int32_t);
+    size_t offset = sizeof(message_size);
 
     if (message_size < 0) {
         return false;
     }
 
     const int16_t request_api_key = read_big_endian_int16(buf + offset);
-    offset += sizeof(int16_t);
+    offset += sizeof(request_api_key);
     if (request_api_key < 0 || request_api_key > KAFKA_MAX_VERSION) {
         return false;
     }
 
     const int16_t request_api_version = read_big_endian_int16(buf + offset);
-    offset += sizeof(int16_t);
+    offset += sizeof(request_api_version);
     if (request_api_version < 0 || request_api_version > KAFKA_MAX_API) {
         return false;
     }
