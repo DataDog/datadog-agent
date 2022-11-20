@@ -810,6 +810,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	event.ProcessContext.Parent = event.ProcessContext.Ancestor.Process
 
 	if IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return
