@@ -25,29 +25,12 @@ static __inline int32_t read_big_endian_int32(const char* buf) {
 //static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
     char *request_fragment = kafka_transaction->request_fragment;
-//    const uint32_t request_fragment_size = sizeof(kafka_transaction->request_fragment);
-//    if (buf_size < KAFKA_MIN_SIZE) {
-//        log_debug("buffer size is less than KAFKA_MIN_SIZE");
-//        return false;
-//    }
-
     if (request_fragment == NULL) {
-//        log_debug("request_fragment == NULL");
         return false;
     }
 
-    // Kafka size field is 4 bytes
-//    const int32_t message_size = read_big_endian_int32(buf) + 4;
     const int32_t message_size = read_big_endian_int32(request_fragment);
-    //log_debug("message_size = %d", message_size);
-    //log_debug("buf_size = %d", buf_size);
-
-    // Enforcing count to be exactly message_size + 4 to mitigate mis-classification.
-    // However, this will miss long messages broken into multiple reads.
-//    if (message_size < 0 || buf_size != (__u32)message_size) {
     if (message_size <= 0) {
-//        log_debug("message_size < 0 || buf_size != (__u32)message_size");
-//        log_debug("message_size <= 0");
         return false;
     }
 
@@ -76,18 +59,18 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
      kafka_transaction->correlation_id = correlation_id;
 
     const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
-//    const uint32_t MAX_LENGTH_FOR_CLIENT_ID_STRING = 50;
-    //char client_id[MAX_LENGTH_FOR_CLIENT_ID_STRING] = {0};
     bpf_memset(kafka_transaction->client_id, 0, sizeof(kafka_transaction->client_id));
     uint16_t client_id_size_final = 0;
     if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
         const int16_t client_id_size = read_big_endian_int16(request_fragment + 12);
         kafka_transaction->current_offset_in_request_fragment += client_id_size;
         log_debug("client_id_size: %d", client_id_size);
+
+        // The following code is to avoid verifier problems
         uint32_t max_size_of_client_id_string = sizeof(kafka_transaction->client_id);
         client_id_size_final = client_id_size < max_size_of_client_id_string ? client_id_size : max_size_of_client_id_string;
-//        kafka_transaction->current_offset_in_request_fragment += client_id_size_final;
-        // A nullable string length might be -1 to signify null, it should be supported here
+
+        // A nullable string length might be -1 to signify null, it is supported here
         if (client_id_size <= 0 || client_id_size > max_size_of_client_id_string) {
             log_debug("client_id <= 0 || client_id_size > MAX_LENGTH_FOR_CLIENT_ID_STRING");
         } else {
@@ -101,7 +84,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     // TODO: should be done in a more clean way
     kafka_transaction->current_offset_in_request_fragment += 14;
 
-    // TODO: Support request header v0
+    // TODO: Support request header v0?
     // TODO: need to check what is TAG_BUFFER that can appear in a v2 request header
 
     return true;
@@ -133,8 +116,8 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
 
 static __always_inline bool try_parse_produce_request(char *request_fragment, kafka_transaction_t *kafka_transaction) {
     log_debug("Trying to parse produce request");
-    if (kafka_transaction->request_api_version != 7) {
-        // TODO: Support all protocol versions, currently supporting only version 7 for the testing env
+    if (kafka_transaction->request_api_version < 3 || kafka_transaction->request_api_version > 8) {
+        // TODO: Support all protocol versions, currently supporting only version 3-8
         return false;
     }
 
