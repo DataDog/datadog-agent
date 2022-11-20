@@ -91,7 +91,7 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 // resolveFileFieldsPath resolves the inode to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
 	if e.MountID == 0 {
-		return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID), nil
+		return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID), nil
 	}
 
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
