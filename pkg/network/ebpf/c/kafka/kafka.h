@@ -193,25 +193,7 @@ static __always_inline kafka_transaction_t *kafka_fetch_state(kafka_transaction_
 //}
 
 static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info, __u64 tags) {
-//    // TODO: read 4 bytes as size
-//    const __u32 buffer_size = sizeof(kafka_stack->request_fragment);
-
-//    if (!kafka_transaction || kafka_seen_before(kafka_transaction, skb_info)) {
-//        return 0;
-//    }
-
-    // Temporary hack for debugging
-//    if (kafka_transaction->tup.dport != 9092 && kafka_transaction->tup.sport != 9092) {
-//        return 0;
-//    }
-
-//    kafka_update_seen_before(kafka_transaction, skb_info);
-
-//    log_debug("Kafka port!");
-
-//    if (!is_kafka(buffer, buffer_size)) {
     if (!try_parse_request_header(kafka_transaction)) {
-        //log_debug("Not a Kafka traffic");
         return 0;
     }
     if (!try_parse_request(kafka_transaction)) {
@@ -220,41 +202,6 @@ static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction,
     log_debug("kafka_transaction->topic_name: %s", kafka_transaction->topic_name);
 
     kafka_enqueue(kafka_transaction);
-
-//    http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
-//    http_method_t method = HTTP_METHOD_UNKNOWN;
-//    http_parse_data(buffer, &packet_type, &method);
-//
-//    http_transaction_t *http = http_fetch_state(http_stack, packet_type);
-//    if (!http || http_seen_before(http, skb_info)) {
-//        return 0;
-//    }
-//
-//    if (http_should_flush_previous_state(http, packet_type)) {
-//        http_enqueue(http);
-//        __builtin_memcpy(http, http_stack, sizeof(http_transaction_t));
-//    }
-//
-//    log_debug("http_process: type=%d method=%d\n", packet_type, method);
-//    if (packet_type == HTTP_REQUEST) {
-//        http_begin_request(http, method, buffer);
-//        http_update_seen_before(http, skb_info);
-//    } else if (packet_type == HTTP_RESPONSE) {
-//        http_begin_response(http, buffer);
-//        http_update_seen_before(http, skb_info);
-//    }
-//
-//    http->tags |= tags;
-//
-//    if (http_responding(http)) {
-//        http->response_last_seen = bpf_ktime_get_ns();
-//    }
-//
-//    if (http_closed(http, skb_info, http_stack->owned_by_src_port)) {
-//        http_enqueue(http);
-//        bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
-//    }
-//
     return 0;
 }
 
