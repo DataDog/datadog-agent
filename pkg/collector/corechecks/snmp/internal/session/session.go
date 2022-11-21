@@ -163,6 +163,7 @@ func FetchSysObjectID(session Session) (string, error) {
 }
 
 // FetchAllOIDsUsingGetNext fetches all available OIDs
+// Fetch all scalar OIDs and first row of table OIDs.
 func FetchAllOIDsUsingGetNext(session Session) []string {
 	var savedOIDs []string
 	curRequestOid := "1.0"
