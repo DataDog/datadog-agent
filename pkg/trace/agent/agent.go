@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -112,6 +113,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	println("Agent.Run")
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
@@ -210,8 +212,9 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 // Process is the default work unit that receives a trace, transforms it and
 // passes it downstream.
 func (a *Agent) Process(p *api.Payload) {
+	fmt.Println("Process called")
 	if len(p.Chunks()) == 0 {
-		log.Debugf("Skipping received empty payload")
+		fmt.Println("Skipping received empty payload")
 		return
 	}
 	now := time.Now()
@@ -346,6 +349,10 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	ss.TracerPayload = p.TracerPayload
 	ss.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
+	ss.APIKey = p.ApiKey
+	ss.Site = p.Site
+	fmt.Printf("ss.Size %d\n", ss.Size)
+
 	if ss.Size > 0 {
 		a.TraceWriter.In <- ss
 	}

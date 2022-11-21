@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -40,6 +41,11 @@ type SampledChunks struct {
 	SpanCount int64
 	// EventCount specifies the total number of events found in Traces.
 	EventCount int64
+
+	// APIKey optionally overrides the endpoint API key.
+	APIKey string
+	// Site optionally overrides the endpoint site.
+	Site string
 }
 
 // TraceWriter buffers traces and APM events, flushing them to the Datadog API.
@@ -66,6 +72,7 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
+	cfg     *config.AgentConfig
 	easylog *log.ThrottledLogger
 }
 
@@ -84,30 +91,14 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 		syncMode:     cfg.SynchronousFlushing,
 		tick:         5 * time.Second,
 		agentVersion: cfg.AgentVersion,
+		cfg:          cfg,
 		easylog:      log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 	}
-	climit := cfg.TraceWriter.ConnectionLimit
-	if climit == 0 {
-		// Default to 10% of the connection limit to outgoing sends.
-		// Since the connection limit was removed, keep this at 200
-		// as it was when we had it (2k).
-		climit = 200
-	}
-	qsize := cfg.TraceWriter.QueueSize
-	if qsize == 0 {
-		// default to 50% of maximum memory.
-		maxmem := cfg.MaxMemory / 2
-		if maxmem == 0 {
-			// or 500MB if unbound
-			maxmem = 500 * 1024 * 1024
-		}
-		qsize = int(math.Max(1, maxmem/float64(MaxPayloadSize)))
-	}
+
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
-	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
-	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize)
+	tw.senders = createSenders(cfg, tw)
 	return tw
 }
 
@@ -121,6 +112,7 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
+	fmt.Println("Running TraceWriter")
 	if w.syncMode {
 		w.runSync()
 	} else {
@@ -135,6 +127,7 @@ func (w *TraceWriter) runAsync() {
 	for {
 		select {
 		case pkg := <-w.In:
+			fmt.Println("Adding Spans Async")
 			w.addSpans(pkg)
 		case <-w.stop:
 			w.drainAndFlush()
@@ -152,6 +145,7 @@ func (w *TraceWriter) runSync() {
 	for {
 		select {
 		case pkg := <-w.In:
+			fmt.Println("Adding Spans Sync")
 			w.addSpans(pkg)
 		case notify := <-w.flushChan:
 			w.drainAndFlush()
@@ -177,6 +171,16 @@ func (w *TraceWriter) FlushSync() error {
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
+	fmt.Println("Adding spans")
+
+	if pkg.APIKey != "" && pkg.APIKey != w.cfg.Endpoints[0].APIKey {
+		fmt.Printf("Changed API Key to %s\n", pkg.APIKey)
+		// Stop the existing senders, and create a new one.
+		stopSenders(w.senders)
+		w.cfg.Endpoints = []*config.Endpoint{{APIKey: pkg.APIKey, Host: w.cfg.Endpoints[0].Host, NoProxy: w.cfg.Endpoints[0].NoProxy}}
+		w.senders = createSenders(w.cfg, w)
+	}
+
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
@@ -308,4 +312,27 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		metrics.Count("datadog.trace_agent.trace_writer.dropped", 1, nil, 1)
 		metrics.Count("datadog.trace_agent.trace_writer.dropped_bytes", int64(data.bytes), nil, 1)
 	}
+}
+
+func createSenders(cfg *config.AgentConfig, tw *TraceWriter) []*sender {
+	climit := cfg.TraceWriter.ConnectionLimit
+	if climit == 0 {
+		// Default to 10% of the connection limit to outgoing sends.
+		// Since the connection limit was removed, keep this at 200
+		// as it was when we had it (2k).
+		climit = 200
+	}
+	qsize := cfg.TraceWriter.QueueSize
+	if qsize == 0 {
+		// default to 50% of maximum memory.
+		maxmem := cfg.MaxMemory / 2
+		if maxmem == 0 {
+			// or 500MB if unbound
+			maxmem = 500 * 1024 * 1024
+		}
+		qsize = int(math.Max(1, maxmem/float64(MaxPayloadSize)))
+	}
+	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
+
+	return newSenders(cfg, tw, pathTraces, climit, qsize)
 }

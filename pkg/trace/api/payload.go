@@ -29,6 +29,12 @@ type Payload struct {
 
 	// ClientDroppedP0s specifies the number of P0 traces chunks dropped by the client.
 	ClientDroppedP0s int64
+
+	// Site specifies the site of the trace payload. This optionally overrides the build in configuration
+	Site string
+
+	// ApiKey specifies the API key of the trace payload. This optionally overrides the build in configuration
+	ApiKey string
 }
 
 // Chunks returns chunks in TracerPayload
