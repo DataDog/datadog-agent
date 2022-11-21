@@ -13,13 +13,13 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
 type httpEtwInterface struct {
 	maxEntriesBuffered int
-	dataChannel        chan []etw.Http
+	dataChannel        chan []WinHttpTransaction
 	eventLoopWG        sync.WaitGroup
 	captureHTTP        bool
 	captureHTTPS       bool
@@ -28,24 +28,25 @@ type httpEtwInterface struct {
 func newHttpEtwInterface(c *config.Config) *httpEtwInterface {
 	return &httpEtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
-		dataChannel:        make(chan []etw.Http),
+		dataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableHTTPSMonitoring,
+		captureHTTP:        c.EnableHTTPMonitoring,
 	}
 }
 
 func (hei *httpEtwInterface) setCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
-	etw.SetEnabledProtocols(http, https)
+	SetEnabledProtocols(http, https)
 }
 func (hei *httpEtwInterface) setMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
-	etw.SetMaxFlows(maxFlows)
+	SetMaxFlows(maxFlows)
 }
 
 func (hei *httpEtwInterface) setMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
-	etw.SetMaxRequestBytes(maxRequestBytes)
+	SetMaxRequestBytes(maxRequestBytes)
 }
 
 func (hei *httpEtwInterface) startReadingHttpFlows() {
@@ -66,7 +67,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 
 		startingEtwChan <- struct{}{}
 
-		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, 0)
+		err := etw.StartEtw("ddnpm-httpservice", etw.EtwProviderHttpService, hei)
 
 		if err == nil {
 			log.Infof("ETW HttpService subscription copmpleted")
@@ -96,7 +97,7 @@ func (hei *httpEtwInterface) startReadingHttpFlows() {
 		for {
 			// etw.ReadHttpTx() should be executed after another thread above executes etw.StartEtw()
 			// Probably additional synchronization is required
-			httpTxs, err := etw.ReadHttpTx()
+			httpTxs, err := ReadHttpTx()
 			if err != nil {
 				log.Infof("ETW HttpService subscriptions is stopped. Stopping http monitoring")
 				return

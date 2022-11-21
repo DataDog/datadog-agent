@@ -20,13 +20,20 @@ void etwCallbackC(DD_ETW_EVENT_INFO* eventInfo);
 */
 import "C"
 
+type Subscriber interface {
+	OnStart()
+	OnStop()
+	OnEvent(*DDEtwEventInfo)
+}
+
 var (
-	curEtwProviders uint64 = 0
-	curEtwFlags     uint64 = 0
+	subscribers = make(map[EtwProviderType]Subscriber)
 )
 
+type EtwProviderType uint64
+
 const (
-	EtwProviderHttpService uint64 = 1 << iota
+	EtwProviderHttpService EtwProviderType = 1 << iota
 )
 
 const (
@@ -34,7 +41,7 @@ const (
 	EtwTraceFlagAsync   uint64 = 1 << iota
 )
 
-func providersToNativeProviders(etwProviders uint64) C.int64_t {
+func providersToNativeProviders(etwProviders EtwProviderType) C.int64_t {
 	var etwNativeProviders C.int64_t = 0
 
 	if (etwProviders & EtwProviderHttpService) == EtwProviderHttpService {
@@ -58,7 +65,7 @@ func flagsToNativeFlags(etwFlags uint64) C.int64_t {
 	return etwNativeFlags
 }
 
-func isHttpServiceSubscriptionEnabled(etwProviders uint64) bool {
+func isHttpServiceSubscriptionEnabled(etwProviders EtwProviderType) bool {
 	return (etwProviders & EtwProviderHttpService) == EtwProviderHttpService
 }
 
@@ -66,27 +73,37 @@ func isHttpServiceSubscriptionEnabled(etwProviders uint64) bool {
 func etwCallbackC(eventInfo *C.DD_ETW_EVENT_INFO) {
 	switch eventInfo.provider {
 	case C.DD_ETW_TRACE_PROVIDER_HttpService:
-		etwHttpServiceCallback(eventInfo)
+		if sub, ok := subscribers[EtwProviderHttpService]; ok {
+			sub.OnEvent((*DDEtwEventInfo)(unsafe.Pointer(eventInfo)))
+		}
 	}
 }
 
-func StartEtw(subscriptionName string, etwProviders uint64, etwFlags uint64) error {
+// StartEtw starts the ETW service
+//
+// as currently constructed, it's still very much HTTP tracing only. Groundwork
+// has been laid for adding additional tracing types (by using the map for callbacks, etc)
+// but it's still HTTP centric.
+//
+// to add additional tracing will require ability to start, stop, add and remove specific
+// tracing types
+func StartEtw(subscriptionName string, etwProviders EtwProviderType, sub Subscriber) error {
 
 	if isHttpServiceSubscriptionEnabled(etwProviders) {
-		startEtwHttpServiceSubscription()
+		subscribers[etwProviders] = sub
+		sub.OnStart()
 	}
-
-	curEtwProviders = etwProviders
-	curEtwFlags = etwFlags
 
 	ret := C.StartEtwSubscription(
 		C.CString(subscriptionName),
 		providersToNativeProviders(etwProviders),
-		flagsToNativeFlags(etwFlags),
+		flagsToNativeFlags(0),
 		(C.ETW_EVENT_CALLBACK)(unsafe.Pointer(C.etwCallbackC)))
 
 	if isHttpServiceSubscriptionEnabled(etwProviders) {
-		stopEtwHttpServiceSubscription()
+		delete(subscribers, etwProviders)
+		sub.OnStop()
+
 	}
 
 	if ret != 0 {
@@ -96,15 +113,16 @@ func StartEtw(subscriptionName string, etwProviders uint64, etwFlags uint64) err
 	return nil
 }
 
+// StopEtw stops the tracing service
+//
+// See above note about http-centrism
 func StopEtw(subscriptionName string) {
-	if curEtwProviders != 0 {
+	if len(subscribers) != 0 {
 		C.StopEtwSubscription()
 
-		if isHttpServiceSubscriptionEnabled(curEtwProviders) {
-			stopEtwHttpServiceSubscription()
+		if sub, ok := subscribers[EtwProviderHttpService]; ok {
+			sub.OnStop()
 		}
 
-		curEtwProviders = 0
-		curEtwFlags = 0
 	}
 }

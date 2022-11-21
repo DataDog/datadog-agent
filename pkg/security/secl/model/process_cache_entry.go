@@ -9,6 +9,8 @@ import (
 	"container/list"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -185,6 +187,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
 
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -241,18 +247,6 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
-func stringArraysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
 	*ArgsEnvsCacheEntry
@@ -273,7 +267,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -291,7 +285,7 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry
@@ -317,7 +311,7 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -388,5 +382,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }

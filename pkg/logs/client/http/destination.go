@@ -11,7 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -291,7 +291,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 
 	defer resp.Body.Close()
-	response, err := ioutil.ReadAll(resp.Body)
+	response, err := io.ReadAll(resp.Body)
 	if err != nil {
 		// the read failed because the server closed or terminated the connection
 		// *after* serving the request.

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/theupdateframework/go-tuf/data"
 )
 
@@ -65,18 +64,14 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 // APMSamplingConfig is a deserialized APM Sampling configuration file
 // along with its associated remote config metadata.
 type APMSamplingConfig struct {
-	Config   apmsampling.APMSampling
+	Config   []byte
 	Metadata Metadata
 }
 
 func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
-	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(data)
-	if err != nil {
-		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
-	}
+	// We do not unmarshal the data here because its format depends on the config ID.
 	return APMSamplingConfig{
-		Config:   apmConfig,
+		Config:   data,
 		Metadata: metadata,
 	}, nil
 }
@@ -253,7 +248,7 @@ type ASMDataRuleData struct {
 
 // ASMDataRuleDataEntry represents a data entry in a rule data file
 type ASMDataRuleDataEntry struct {
-	Expiration int    `json:"expiration,omitempty"`
+	Expiration int64  `json:"expiration,omitempty"`
 	Value      string `json:"value"`
 }
 

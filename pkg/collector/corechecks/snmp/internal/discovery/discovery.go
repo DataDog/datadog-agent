@@ -307,8 +307,8 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory) Discovery {
-	return Discovery{
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory) *Discovery {
+	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,

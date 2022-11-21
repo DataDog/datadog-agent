@@ -9,7 +9,6 @@
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -32,7 +31,7 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestCheckRights(t *testing.T) {
-	_, err := ioutil.TempFile("", "agent-collector-test")
+	_, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 
 	// default options
@@ -42,7 +41,7 @@ func TestCheckRights(t *testing.T) {
 	require.NotNil(t, checkRights("/does not exists", allowGroupExec))
 
 	// missing current user
-	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 
@@ -55,7 +54,7 @@ func TestCheckRights(t *testing.T) {
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -67,7 +66,7 @@ func TestCheckRights(t *testing.T) {
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing Administrator
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -79,7 +78,7 @@ func TestCheckRights(t *testing.T) {
 	assert.NotNil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// extra rights for someone else
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",
@@ -91,7 +90,7 @@ func TestCheckRights(t *testing.T) {
 	assert.Nil(t, checkRights(tmpfile.Name(), allowGroupExec))
 
 	// missing localSystem or Administrator
-	tmpfile, err = ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err = os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 	exec.Command("powershell", "test/setAcl.ps1",

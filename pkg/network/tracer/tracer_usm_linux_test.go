@@ -14,7 +14,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
@@ -105,7 +104,7 @@ func TestHTTPStats(t *testing.T) {
 	srv := &nethttp.Server{
 		Addr: serverAddr,
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-			io.Copy(ioutil.Discard, req.Body)
+			io.Copy(io.Discard, req.Body)
 			w.WriteHeader(200)
 		}),
 		ReadTimeout:  time.Second,

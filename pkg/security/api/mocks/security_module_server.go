@@ -310,6 +310,11 @@ func (_m *SecurityModuleServer) TranscodingRequest(_a0 context.Context, _a1 *api
 	return r0, r1
 }
 
+// mustEmbedUnimplementedSecurityModuleServer provides a mock function with given fields:
+func (_m *SecurityModuleServer) mustEmbedUnimplementedSecurityModuleServer() {
+	_m.Called()
+}
+
 type mockConstructorTestingTNewSecurityModuleServer interface {
 	mock.TestingT
 	Cleanup(func())

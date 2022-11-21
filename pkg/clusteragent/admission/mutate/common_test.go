@@ -9,11 +9,15 @@
 package mutate
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 )
 
 func Test_contains(t *testing.T) {
@@ -217,5 +221,35 @@ func Test_injectVolume(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
+	}
+}
+
+func BenchmarkJSONPatch(b *testing.B) {
+	scheme := runtime.NewScheme()
+	_ = admiv1.AddToScheme(scheme)
+	decoder := serializer.NewCodecFactory(scheme).UniversalDeserializer()
+
+	content, err := os.ReadFile("./testdata/large_pod.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	obj, _, err := decoder.Decode(content, nil, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	podJSON := obj.(*admiv1.AdmissionReview).Request.Object.Raw
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		jsonPatch, err := mutate(podJSON, "foobar-bax", injectConfig, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		if len(jsonPatch) < 100 {
+			b.Fatal("Empty JSONPatch")
+		}
 	}
 }

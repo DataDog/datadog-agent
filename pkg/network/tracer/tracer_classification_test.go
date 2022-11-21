@@ -13,7 +13,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	nethttp "net/http"
 	"testing"
@@ -119,7 +118,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				}
 				resp, err := client.Get("http://" + serverAddr + "/test")
 				require.NoError(t, err)
-				io.Copy(ioutil.Discard, resp.Body)
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
@@ -129,7 +128,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				srv := &nethttp.Server{
 					Addr: ln.Addr().String(),
 					Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-						io.Copy(ioutil.Discard, req.Body)
+						io.Copy(io.Discard, req.Body)
 						w.WriteHeader(200)
 					}),
 					ReadTimeout:  time.Second,

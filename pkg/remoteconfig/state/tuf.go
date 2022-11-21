@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -130,7 +129,7 @@ func (s *rootClientRemoteStore) GetMeta(name string) (stream io.ReadCloser, size
 			return nil, 0, err
 		}
 		if parsedRoot.Version == metaPath.version {
-			return ioutil.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
+			return io.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
 		}
 	}
 	return nil, 0, client.ErrNotFound{File: name}

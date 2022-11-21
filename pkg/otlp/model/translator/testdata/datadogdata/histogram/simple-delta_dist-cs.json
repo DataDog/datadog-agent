@@ -1,0 +1,50 @@
+{
+  "Sketches": [
+    {
+      "Name": "doubleHist.test",
+      "Tags": [
+        "attribute_tag:attribute_value"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "Timestamp": 1667560641226420924,
+      "Summary": {
+        "Min": -100,
+        "Max": 100,
+        "Sum": 3.141592653589793,
+        "Avg": 0.15707963267948966,
+        "Cnt": 20
+      },
+      "Keys": [
+        0
+      ],
+      "Counts": [
+        20
+      ]
+    }
+  ],
+  "TimeSeries": [
+    {
+      "Name": "doubleHist.test.count",
+      "Tags": [
+        "attribute_tag:attribute_value"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420924,
+      "Value": 20
+    },
+    {
+      "Name": "doubleHist.test.sum",
+      "Tags": [
+        "attribute_tag:attribute_value"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420924,
+      "Value": 3.141592653589793
+    }
+  ]
+}

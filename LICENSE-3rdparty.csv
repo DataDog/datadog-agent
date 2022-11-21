@@ -739,7 +739,7 @@ core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license 
 core,github.com/tinylib/msgp/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/parse,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/printer,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
-core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2021, Tobias Klauser"
+core,github.com/tklauser/go-sysconf,BSD-3-Clause,"Copyright (c) 2018-2022, Tobias Klauser"
 core,github.com/tklauser/numcpus,Apache-2.0,Copyright 2018 Tobias Klauser
 core,github.com/twmb/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci | Copyright 2018, Travis Bischel"
 core,github.com/ugorji/go/codec,MIT,Copyright (c) 2012-2020 Ugorji Nwoke
@@ -1014,8 +1014,6 @@ core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright (c) 2009 The Go Autho
 core,golang.org/x/time/rate,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang/go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
-core,gomodules.xyz/jsonpatch/v3,Apache-2.0,Copyright (c) 2015 The Authors
-core,gomodules.xyz/orderedmap,MIT,Copyright (c) 2017 Ian Coleman
 core,google.golang.org/api/googleapi,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/googleapi/transport,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
 core,google.golang.org/api/iamcredentials/v1,BSD-3-Clause,Copyright (c) 2011 Google Inc. All rights reserved.
