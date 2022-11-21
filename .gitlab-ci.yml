@@ -30,6 +30,7 @@ include:
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
@@ -82,6 +83,7 @@ stages:
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - functional_test_junit_upload
   - internal_kubernetes_deploy
   - notify
 
@@ -731,8 +733,10 @@ variables:
 
 .on_system_probe_changes_or_manual:
   - changes:
+      - pkg/collector/corechecks/ebpf/**/*
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - pkg/util/kernel/**/*
       - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*

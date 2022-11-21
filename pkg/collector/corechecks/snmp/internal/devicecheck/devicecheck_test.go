@@ -644,3 +644,51 @@ profiles:
 	assert.Error(t, err, "some error")
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", metrics.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
 }
+
+func TestRun_sessionCloseError(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sess.CloseErr = fmt.Errorf("close error")
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+collect_device_metadata: false
+ip_address: 1.2.3.4
+community_string: public
+metrics:
+- symbol:
+    OID: 1.2.3
+    name: myMetric
+`)
+	// language=yaml
+	rawInitConfig := []byte(`
+profiles:
+ f5-big-ip:
+   definition_file: f5-big-ip.yaml
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
+	assert.Nil(t, err)
+
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory)
+	assert.Nil(t, err)
+
+	sender := mocksender.NewMockSender("123") // required to initiate aggregator
+	sender.SetupAcceptAll()
+
+	deviceCk.SetSender(report.NewMetricSender(sender, ""))
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{},
+	}
+	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
+	sess.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
+
+	err = deviceCk.Run(time.Now())
+	assert.Nil(t, err)
+
+	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
+}

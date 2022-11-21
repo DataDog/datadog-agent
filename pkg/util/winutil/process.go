@@ -200,14 +200,21 @@ func getCommandParamsForProcess32(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString32(h windows.Handle, u unicodeString32) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString32, maxLength %v < length %v", u.maxLength, u.length)
+	}
+	// length does not include null terminator, if it exists
+	// allocate two extra bytes so we can add it ourself
 	buf := make([]uint8, u.length+2)
-	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length))
 	if err != nil {
 		return "", err
 	}
-	if read != uint64(u.length+2) {
-		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString32) %v != %v", read, u.length+2)
+	if read != uint64(u.length) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString32) %v != %v", read, u.length)
 	}
+	// null terminate string
+	buf = append(buf, 0, 0)
 	return ConvertWindowsString(buf), nil
 }
 
@@ -295,14 +302,21 @@ func getCommandParamsForProcess64(h windows.Handle, includeImagePath bool) (*Pro
 }
 
 func readUnicodeString(h windows.Handle, u unicodeString) (string, error) {
+	if u.length > u.maxLength {
+		return "", fmt.Errorf("Invalid unicodeString, maxLength %v < length %v", u.maxLength, u.length)
+	}
+	// length does not include null terminator, if it exists
+	// allocate two extra bytes so we can add it ourself
 	buf := make([]uint8, u.length+2)
-	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length+2))
+	read, err := ReadProcessMemory(h, uintptr(u.buffer), uintptr(unsafe.Pointer(&buf[0])), uint32(u.length))
 	if err != nil {
 		return "", err
 	}
-	if read != uint64(u.length+2) {
-		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString) %v != %v", read, u.length+2)
+	if read != uint64(u.length) {
+		return "", fmt.Errorf("Wrong amount of bytes read (unicodeString) %v != %v", read, u.length)
 	}
+	// null terminate string
+	buf = append(buf, 0, 0)
 	return ConvertWindowsString(buf), nil
 }
 

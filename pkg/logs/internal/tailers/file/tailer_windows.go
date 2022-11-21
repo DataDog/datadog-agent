@@ -79,7 +79,11 @@ func (t *Tailer) readAvailable() (int, error) {
 				return bytes, io.EOF
 			}
 
-			f.Seek(offset, io.SeekStart)
+			_, err = f.Seek(offset, io.SeekStart)
+			if err != nil {
+				log.Debugf("Error seek()ing file %v", err)
+				return bytes, err
+			}
 		}
 
 		inBuf := make([]byte, 4096)

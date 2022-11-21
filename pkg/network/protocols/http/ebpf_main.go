@@ -65,6 +65,28 @@ type ebpfProgram struct {
 type subprogram interface {
 	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
+
+	// Subprogram probes maybe defined in the same ELF file as the probes
+	// of the main program. The cilium loader loads all programs defined
+	// in an ELF file in to the kernel. Therefore, these programs may be
+	// loaded into the kernel, whether the subprogram is activated or not.
+	//
+	// Before the loading can be performed we must associate a function which
+	// performs some fixup in the EBPF bytecode:
+	// https://github.com/DataDog/datadog-agent/blob/main/pkg/ebpf/c/bpf_telemetry.h#L58
+	// If this is not correctly done, the verifier will reject the EBPF bytecode.
+	//
+	// The ebpf telemetry manager
+	// (https://github.com/DataDog/datadog-agent/blob/main/pkg/network/telemetry/telemetry_manager.go#L19)
+	// takes an instance of the Manager managing the main program, to acquire
+	// the list of the probes to patch.
+	// https://github.com/DataDog/datadog-agent/blob/main/pkg/network/telemetry/ebpf_telemetry.go#L256
+	// This Manager may not include the probes of the subprograms. GetAllUndefinedProbes() is,
+	// therefore, necessary for returning the probes of these subprograms so they can be
+	// correctly patched at load-time, when the Manager is being initialized.
+	//
+	// To reiterate, this is necessary due to the fact that the cilium loader loads
+	// all programs defined in an ELF file regardless if they are later attached or not.
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 	Start()
 	Stop()

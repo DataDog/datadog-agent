@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp -tests=false
-
 package model
 
 import (
 	"container/list"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -125,21 +125,7 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
 
-/*func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
-	ancestor := pc.Ancestor
-	for i := 0; ancestor != nil; i++ {
-		for j := 0; j <= i; j++ {
-			s += "\t"
-		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.ArgsArray)
-		ancestor = ancestor.Ancestor
-	}
-	return s
-}*/
-
 // ArgsEnvs raw value for args and envs
-//msgp:ignore ArgsEnvs
 type ArgsEnvs struct {
 	ID        uint32
 	Size      uint32
@@ -147,7 +133,6 @@ type ArgsEnvs struct {
 }
 
 // ArgsEnvsCacheEntry defines a args/envs base entry
-//msgp:ignore ArgsEnvsCacheEntry
 type ArgsEnvsCacheEntry struct {
 	Size      uint32
 	ValuesRaw []byte
@@ -188,6 +173,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 // Append an entry to the list
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
+
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
 
 	if p.last != nil {
 		p.last.next = entry
@@ -245,24 +234,12 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 	return values, truncated
 }
 
-func stringArraysEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed bool
 }
@@ -277,7 +254,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -295,15 +272,15 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry `msg:"-"`
+	*ArgsEnvsCacheEntry
 
-	Values    []string `msg:"values"`
-	Truncated bool     `msg:"-"`
+	Values    []string
+	Truncated bool
 
 	parsed       bool
 	filteredEnvs []string
@@ -321,7 +298,7 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -392,5 +369,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 	pa, _ := p.ToArray()
 	oa, _ := o.ToArray()
 
-	return stringArraysEqual(pa, oa)
+	return slices.Equal(pa, oa)
 }

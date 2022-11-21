@@ -12,9 +12,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,7 +60,7 @@ var (
 )
 
 func mockMetadataRequest(t *testing.T) *httptest.Server {
-	content, err := ioutil.ReadFile("test/gce_metadata.json")
+	content, err := os.ReadFile("test/gce_metadata.json")
 	if err != nil {
 		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
 	}

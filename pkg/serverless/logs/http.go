@@ -6,7 +6,7 @@
 package logs
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -25,7 +25,7 @@ func (l *LambdaLogsAPIServer) Close() {
 
 // ServeHTTP - see type LambdaLogsCollector comment.
 func (c *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	data, _ := ioutil.ReadAll(r.Body)
+	data, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {

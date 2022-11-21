@@ -7,7 +7,7 @@ package trigger
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"reflect"
 	"runtime"
@@ -38,7 +38,7 @@ func TestEventPayloadParsing(t *testing.T) {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
 		assert.NoError(t, err)
 
-		jsonData, err := ioutil.ReadAll(file)
+		jsonData, err := io.ReadAll(file)
 		assert.NoError(t, err)
 
 		event, err := Unmarshal(strings.ToLower(string(jsonData)))
@@ -78,7 +78,7 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 			file, err := os.Open(fmt.Sprintf("%v/%v", testDir, wrongTestFile.Name()))
 			assert.NoError(t, err)
 
-			jsonData, err := ioutil.ReadAll(file)
+			jsonData, err := io.ReadAll(file)
 			assert.NoError(t, err)
 
 			event, err := Unmarshal(strings.ToLower(string(jsonData)))
@@ -112,7 +112,7 @@ func TestGetEventType(t *testing.T) {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
 		assert.NoError(t, err)
 
-		jsonData, err := ioutil.ReadAll(file)
+		jsonData, err := io.ReadAll(file)
 		assert.NoError(t, err)
 
 		jsonPayload, err := Unmarshal(strings.ToLower(string(jsonData)))

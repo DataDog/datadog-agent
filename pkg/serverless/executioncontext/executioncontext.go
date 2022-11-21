@@ -7,7 +7,7 @@ package executioncontext
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -98,7 +98,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0600)
+	err = os.WriteFile(persistedStateFilePath, file, 0600)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	file, err := ioutil.ReadFile(persistedStateFilePath)
+	file, err := os.ReadFile(persistedStateFilePath)
 	if err != nil {
 		return err
 	}

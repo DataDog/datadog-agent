@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,7 +42,6 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
-	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
 import pkg_resources
 try:
@@ -61,7 +59,6 @@ var (
 	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	rootDir             string
-	pythonMinorVersion  string
 	reqAgentReleasePath string
 	constraintsPath     string
 )
@@ -197,25 +194,6 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 	constraintsPath = filepath.Join(rootDir, fmt.Sprintf("final_constraints-py%s.txt", cliParams.pythonMajorVersion))
 	if _, err := os.Lstat(constraintsPath); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func detectPythonMinorVersion(cliParams *cliParams) error {
-	if pythonMinorVersion == "" {
-		pythonPath, err := getCommandPython(cliParams)
-		if err != nil {
-			return err
-		}
-
-		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
-		minorVersion, err := versionCmd.Output()
-		if err != nil {
-			return err
-		}
-
-		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
 	}
 
 	return nil
@@ -720,7 +698,7 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 }
 
 func minAllowedVersion(integration string) (*semver.Version, bool, error) {
-	lines, err := ioutil.ReadFile(reqAgentReleasePath)
+	lines, err := os.ReadFile(reqAgentReleasePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -816,7 +794,7 @@ func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 }
 
 func moveConfigurationFiles(srcFolder string, dstFolder string) error {
-	files, err := ioutil.ReadDir(srcFolder)
+	files, err := os.ReadDir(srcFolder)
 	if err != nil {
 		return err
 	}
@@ -846,12 +824,12 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		srcContent, err := ioutil.ReadFile(src)
+		srcContent, err := os.ReadFile(src)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
 			continue
 		}
-		err = ioutil.WriteFile(dst, srcContent, 0644)
+		err = os.WriteFile(dst, srcContent, 0644)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue

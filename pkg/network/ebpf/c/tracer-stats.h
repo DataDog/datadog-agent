@@ -6,11 +6,7 @@
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "sock-defines.h"
-
-static __always_inline u32 get_sk_cookie(struct sock *sk) {
-    u64 t = bpf_ktime_get_ns();
-    return (u32)((u64)sk ^ t);
-}
+#include "cookie.h"
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it

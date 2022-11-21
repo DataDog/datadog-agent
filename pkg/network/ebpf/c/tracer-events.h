@@ -6,6 +6,7 @@
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "tcp_states.h"
+#include "cookie.h"
 
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
@@ -34,7 +35,7 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t *tup) {
+static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
     clean_protocol_classification(tup);
 
     u32 cpu = bpf_get_smp_processor_id();
@@ -59,10 +60,20 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
+    if (!cst && is_udp) {
+        increment_telemetry_count(udp_dropped_conns);
+        return; // nothing to report
+    }
+
     if (cst) {
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
+    } else {
+        // we don't have any stats for the connection,
+        // so cookie is not set, set it here
+        conn.conn_stats.cookie = get_sk_cookie(sk);
     }
+
     conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event
