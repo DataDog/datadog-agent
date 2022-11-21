@@ -19,14 +19,15 @@ import (
 // InfoProvider can be extended/implemented for more complex data.
 //
 // When implementing InfoProvider - be aware of the 2 ways it is used by the status page:
-// 1. when a single message is returned, the statuspage will display a single line:
-//	    InfoKey(): Info()[0]
 //
-// 2. when multiple messages are returned, the status page will display an indented list:
-//      InfoKey():
-//        Info()[0]
-//        Info()[1]
-//        Info()[n]
+//  1. when a single message is returned, the statuspage will display a single line:
+//     InfoKey(): Info()[0]
+//
+//  2. when multiple messages are returned, the status page will display an indented list:
+//     InfoKey():
+//     Info()[0]
+//     Info()[1]
+//     Info()[n]
 //
 // InfoKey only needs to be unique per source, and should be human readable.
 type InfoProvider interface {
@@ -51,6 +52,11 @@ func NewCountInfo(key string) *CountInfo {
 // Add a new value to the count
 func (c *CountInfo) Add(v int64) {
 	c.count.Add(v)
+}
+
+// Get the underlying value of the count
+func (c *CountInfo) Get() int64 {
+	return c.count.Load()
 }
 
 // InfoKey returns the key
