@@ -379,3 +379,25 @@ func TestFetchAllOIDsUsingGetNext_End(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchAllOIDsUsingGetNext_invalidMoreThanOneVariables(t *testing.T) {
+	sess := CreateMockSession()
+
+	packets := CreateGetNextPacket("1.3.6.1.2.1.1.9.1.2.1", gosnmp.OctetString, []byte(`123`))
+	packets.Variables = append(packets.Variables, packets.Variables[0])
+	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	assert.Equal(t, []string(nil), resultOIDs)
+}
+
+func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
+	sess := CreateMockSession()
+	packets := &gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{},
+	}
+	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
+
+	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	assert.Equal(t, []string(nil), resultOIDs)
+}

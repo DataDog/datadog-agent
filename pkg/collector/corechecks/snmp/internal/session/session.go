@@ -176,7 +176,6 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 			break
 		}
 		if len(results.Variables) != 1 {
-			// TODO: TESTME
 			log.Debugf("Expect 1 variable, but got %d: %+v", len(results.Variables), results.Variables)
 			break
 		}
