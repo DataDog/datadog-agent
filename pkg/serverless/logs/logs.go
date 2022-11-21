@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -288,7 +288,7 @@ func removeInvalidTracingItem(data []byte) []byte {
 
 // ServeHTTP - see type LambdaLogsCollector comment.
 func (c *LambdaLogsCollector) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	data, _ := ioutil.ReadAll(r.Body)
+	data, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {

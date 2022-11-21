@@ -15,7 +15,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -413,7 +412,7 @@ func createTempDir() (string, error) {
 	}
 
 	dirName := hex.EncodeToString(b)
-	return ioutil.TempDir("", dirName)
+	return os.MkdirTemp("", dirName)
 }
 
 func zipStatusFile(tempDir, hostname string) error {
@@ -520,7 +519,7 @@ func zipExpVar(tempDir, hostname string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		slurp, err := ioutil.ReadAll(resp.Body)
+		slurp, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -639,7 +638,7 @@ func zipProcessChecks(tempDir, hostname string, getAddressPort func() (url strin
 		filename := fmt.Sprintf("%s_check_output.json", checkName)
 		if err := zipHTTPCallContent(tempDir, hostname, filename, checkURL+checkName); err != nil {
 			_ = log.Error(err)
-			err = ioutil.WriteFile(
+			err = os.WriteFile(
 				filepath.Join(tempDir, hostname, "process_check_output.json"),
 				[]byte(fmt.Sprintf("error: process-agent is not running or is unreachable: %s", err.Error())),
 				os.ModePerm,
@@ -874,7 +873,7 @@ func zipHTTPCallContent(tempDir, hostname, filename, url string) error {
 	defer resp.Body.Close()
 
 	// read the entire body, so that it can be scrubbed in its entirety
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -889,7 +888,7 @@ func zipPerformanceProfile(tempDir, hostname string, pdata ProfileData) error {
 	}
 	for name, data := range pdata {
 		fullpath := filepath.Join(dir, name)
-		if err := ioutil.WriteFile(fullpath, data, os.ModePerm); err != nil {
+		if err := os.WriteFile(fullpath, data, os.ModePerm); err != nil {
 			return err
 		}
 	}
@@ -917,7 +916,7 @@ func walkConfigFilePaths(tempDir, hostname string, confSearchPaths SearchPaths, 
 			if cnfFileExtRx.Match([]byte(firstSuffix)) || cnfFileExtRx.Match([]byte(ext)) {
 				baseName := strings.Replace(src, filePath, "", 1)
 
-				data, err := ioutil.ReadFile(src)
+				data, err := os.ReadFile(src)
 				if err != nil {
 					if os.IsNotExist(err) {
 						log.Warnf("the specified path: %s does not exist", filePath)
@@ -965,7 +964,7 @@ func writeScrubbedFile(filename string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filename, scrubbed, os.ModePerm)
+	return os.WriteFile(filename, scrubbed, os.ModePerm)
 }
 
 // writeScrubbedFileSafe verifies that the folder exists before calling writeScrubbedFile()
@@ -1038,7 +1037,7 @@ func createConfigFiles(filePath, tempDir, hostname string, permsInfos permission
 	_, err := os.Stat(filePath)
 	if err == nil {
 
-		data, err := ioutil.ReadFile(filePath)
+		data, err := os.ReadFile(filePath)
 		if err != nil {
 			return err
 		}

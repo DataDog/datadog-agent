@@ -10,7 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"time"
 
 	"go.uber.org/fx"
@@ -72,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	dogstatsdCaptureCmd.Flags().BoolVarP(&cliParams.dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }

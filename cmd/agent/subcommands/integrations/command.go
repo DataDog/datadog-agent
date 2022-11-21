@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -699,7 +698,7 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 }
 
 func minAllowedVersion(integration string) (*semver.Version, bool, error) {
-	lines, err := ioutil.ReadFile(reqAgentReleasePath)
+	lines, err := os.ReadFile(reqAgentReleasePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -795,7 +794,7 @@ func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 }
 
 func moveConfigurationFiles(srcFolder string, dstFolder string) error {
-	files, err := ioutil.ReadDir(srcFolder)
+	files, err := os.ReadDir(srcFolder)
 	if err != nil {
 		return err
 	}
@@ -825,12 +824,12 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		srcContent, err := ioutil.ReadFile(src)
+		srcContent, err := os.ReadFile(src)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
 			continue
 		}
-		err = ioutil.WriteFile(dst, srcContent, 0644)
+		err = os.WriteFile(dst, srcContent, 0644)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue

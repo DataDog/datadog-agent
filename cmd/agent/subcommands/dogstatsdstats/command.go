@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"go.uber.org/fx"
@@ -132,7 +131,7 @@ func requestDogstatsdStats(log log.Component, config config.Component, cliParams
 		}
 	}
 
-	if err := ioutil.WriteFile(cliParams.dsdStatsFilePath, []byte(s), 0644); err != nil {
+	if err := os.WriteFile(cliParams.dsdStatsFilePath, []byte(s), 0644); err != nil {
 		fmt.Println("Error while writing the file (is the location writable by the dd-agent user?):", err)
 	} else {
 		fmt.Println("Dogstatsd stats written in:", cliParams.dsdStatsFilePath)

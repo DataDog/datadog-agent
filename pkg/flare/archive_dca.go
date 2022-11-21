@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -140,7 +139,7 @@ func writeLocal(tempDir, hostname string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(f, []byte{}, os.ModePerm)
+	return os.WriteFile(f, []byte{}, os.ModePerm)
 }
 
 func zipDCAStatusFile(tempDir, hostname string) error {
@@ -166,7 +165,7 @@ func zipDCAStatusFile(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	err = os.WriteFile(f, cleaned, os.ModePerm)
 	return err
 }
 
@@ -203,7 +202,7 @@ func zipMetadataMap(tempDir, hostname string) error {
 		return err
 	}
 
-	return ioutil.WriteFile(f, sByte, os.ModePerm)
+	return os.WriteFile(f, sByte, os.ModePerm)
 }
 
 func zipClusterAgentClusterChecks(tempDir, hostname string) error {
@@ -250,7 +249,7 @@ func zipHPAStatus(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, sByte, os.ModePerm)
+	err = os.WriteFile(f, sByte, os.ModePerm)
 	if err != nil {
 		return err
 	}

@@ -1,3 +1,5 @@
+import os
+
 from invoke import task
 
 from .libs.github_actions_tools import download_artifacts, follow_workflow_run, trigger_macos_workflow
@@ -26,8 +28,8 @@ def trigger_macos_build(
         python_runtimes=python_runtimes,
         # Send pipeline id and bucket branch so that the package version
         # can be constructed properly for nightlies.
-        gitlab_pipeline_id=env.get("CI_PIPELINE_ID", None),
-        bucket_branch=env.get("BUCKET_BRANCH", None),
+        gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
+        bucket_branch=os.environ.get("BUCKET_BRANCH", None),
     )
 
     follow_workflow_run(run_id)

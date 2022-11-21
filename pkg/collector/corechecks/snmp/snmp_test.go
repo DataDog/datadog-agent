@@ -6,19 +6,16 @@
 package snmp
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -27,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -1653,17 +1649,11 @@ metric_tags:
 func TestDiscovery_CheckError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
 	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
@@ -1697,7 +1687,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -1726,13 +1716,7 @@ metric_tags:
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0, "", snmpGlobalTagsWithLoader)
 	}
 
-	w.Flush()
-	logs := b.String()
-
-	assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."), 4, logs)
-	for i := 0; i < 4; i++ {
-		assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."+strconv.Itoa(i)), 1, logs)
-	}
+	assert.Equal(t, uint64(4), chk.workerRunDeviceCheckErrors.Load())
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {

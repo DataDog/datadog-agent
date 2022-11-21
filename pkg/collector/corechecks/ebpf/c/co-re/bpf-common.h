@@ -5,6 +5,10 @@
 #include "bpf_core_read.h"
 #include "bpf_helpers.h"
 
+enum cgroup_subsys_id___local {
+		memory_cgrp_id___local = 123, /* value doesn't matter */
+};
+
 static __always_inline int get_cgroup_name(char *buf, size_t sz) {
     __builtin_memset(buf, 0, sz);
 
@@ -14,7 +18,9 @@ static __always_inline int get_cgroup_name(char *buf, size_t sz) {
 
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
 
-    if (BPF_CORE_READ_STR_INTO(buf, cur_tsk, cgroups, subsys[0], cgroup, kn, name)) {
+    int cgrp_id = bpf_core_enum_value(enum cgroup_subsys_id___local, memory_cgrp_id___local);
+    const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
+    if (bpf_probe_read_kernel_str(buf, sz, name) < 0) {
         return -1;
     }
 
