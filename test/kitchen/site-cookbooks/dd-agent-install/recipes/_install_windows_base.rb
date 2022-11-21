@@ -29,8 +29,11 @@ else
   end
 end
 
+temp_file_basename = ::File.join(Chef::Config[:file_cache_path], 'ddagent-cli').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
+
 dd_agent_installer = "#{dd_agent_installer_basename}.msi"
 source_url += dd_agent_installer
+temp_file = "#{temp_file_basename}.msi"
 
 log_file_name = ::File.join(Chef::Config[:file_cache_path], 'install.log').gsub(File::SEPARATOR, File::ALT_SEPARATOR || File::SEPARATOR)
 # Delete the log file in case it exists (in case of multiple converge runs for example)
@@ -57,6 +60,9 @@ windows_package 'Datadog Agent' do
   retry_delay package_retry_delay unless package_retry_delay.nil?
   options install_options
   action :install
+  remote_file_attributes ({
+    :path => temp_file
+  })
 end
 
 # This runs during the converge phase and will return a non-zero exit
