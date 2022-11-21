@@ -46,6 +46,8 @@ func (r *RegoRule) Common() *RuleCommon {
 type RuleScope string
 
 const (
+	// Host const
+	Unscoped RuleScope = "none"
 	// DockerScope const
 	DockerScope RuleScope = "docker"
 	// KubernetesNodeScope const

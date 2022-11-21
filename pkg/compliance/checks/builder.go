@@ -476,6 +476,8 @@ func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList
 		return compliance.KubernetesNodeScope, nil
 	case scopeList.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
+	case scopeList.Includes(compliance.Unscoped):
+		return compliance.Unscoped, nil
 	default:
 		return "", ErrRuleScopeNotSupported
 	}
