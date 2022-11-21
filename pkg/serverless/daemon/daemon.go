@@ -40,6 +40,8 @@ type Daemon struct {
 
 	TraceAgent *trace.ServerlessTraceAgent
 
+	ColdStartCreator *trace.ColdStartSpanCreator
+
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
 	lastInvocations []time.Time
@@ -184,6 +186,10 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
+	d.ColdStartCreator = creator
+}
+
 // SetFlushStrategy sets the flush strategy to use.
 func (d *Daemon) SetFlushStrategy(strategy flush.Strategy) {
 	log.Debugf("Set flush strategy: %s (was: %s)", strategy.String(), d.GetFlushStrategy())
@@ -304,6 +310,10 @@ func (d *Daemon) Stop() {
 
 	if d.MetricAgent != nil {
 		d.MetricAgent.Stop()
+	}
+
+	if d.ColdStartCreator != nil {
+		d.ColdStartCreator.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")

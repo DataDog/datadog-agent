@@ -103,7 +103,6 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
-		ColdStartDuration:  ecs.ColdstartDuration,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
