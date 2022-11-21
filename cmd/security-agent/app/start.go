@@ -43,10 +43,6 @@ func start(cliParams *startCliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel)
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	go handleSignals(stopCh)
-
 	err := RunAgent(ctx, cliParams.pidfilePath)
 	if errors.Is(err, errAllComponentsDisabled) {
 		return nil
@@ -54,6 +50,10 @@ func start(cliParams *startCliParams) error {
 	if err != nil {
 		return err
 	}
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	go handleSignals(stopCh)
 
 	// Block here until we receive a stop signal
 	<-stopCh

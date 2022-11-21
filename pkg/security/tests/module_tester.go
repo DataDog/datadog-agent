@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,8 +32,6 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
-
-	"runtime/pprof"
 
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
@@ -94,6 +93,12 @@ runtime_security_config:
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
+    local_storage:
+      output_directory: {{ .ActivityDumpLocalStorageDirectory }}
+      compression: {{ .ActivityDumpLocalStorageCompression }}
+      formats: {{range .ActivityDumpLocalStorageFormats}}
+      - {{.}}
+      {{end}}
 {{end}}
   load_controller:
     events_count_threshold: {{ .EventsCountThreshold }}
@@ -171,19 +176,21 @@ const (
 )
 
 type testOpts struct {
-	testDir                      string
-	disableFilters               bool
-	disableApprovers             bool
-	enableActivityDump           bool
-	activityDumpRateLimiter      int
-	activityDumpTracedEventTypes []string
-	disableDiscarders            bool
-	eventsCountThreshold         int
-	reuseProbeHandler            bool
-	disableERPCDentryResolution  bool
-	disableMapDentryResolution   bool
-	envsWithValue                []string
-	disableAbnormalPathCheck     bool
+	testDir                             string
+	disableFilters                      bool
+	disableApprovers                    bool
+	enableActivityDump                  bool
+	activityDumpRateLimiter             int
+	activityDumpTracedEventTypes        []string
+	activityDumpLocalStorageDirectory   string
+	activityDumpLocalStorageCompression bool
+	activityDumpLocalStorageFormats     []string
+	disableDiscarders                   bool
+	eventsCountThreshold                int
+	disableERPCDentryResolution         bool
+	disableMapDentryResolution          bool
+	envsWithValue                       []string
+	disableAbnormalPathCheck            bool
 }
 
 func (s *stringSlice) String() string {
@@ -201,98 +208,44 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
+		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
+		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
+		reflect.DeepEqual(to.activityDumpLocalStorageFormats, opts.activityDumpLocalStorageFormats) &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
-		to.reuseProbeHandler == opts.reuseProbeHandler &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue)
 }
 
 type testModule struct {
-	config                *config.Config
-	opts                  testOpts
-	st                    *simpleTest
-	t                     testing.TB
-	module                *module.Module
-	probe                 *sprobe.Probe
-	probeHandler          *testProbeHandler
-	cmdWrapper            cmdWrapper
-	ruleHandler           testRuleHandler
-	eventDiscarderHandler testEventDiscarderHandler
-	statsdClient          *StatsdClient
-	proFile               *os.File
+	sync.RWMutex
+	config        *config.Config
+	opts          testOpts
+	st            *simpleTest
+	t             testing.TB
+	module        *module.Module
+	probe         *sprobe.Probe
+	eventHandlers eventHandlers
+	cmdWrapper    cmdWrapper
+	statsdClient  *StatsdClient
+	proFile       *os.File
 }
 
 var testMod *testModule
 
-type testDiscarder struct {
-	event     eval.Event
-	field     string
-	eventType eval.EventType
-}
+type onRuleHandler func(*sprobe.Event, *rules.Rule)
+type onProbeEventHandler func(*sprobe.Event)
+type onCustomSendEventHandler func(*rules.Rule, *sprobe.CustomEvent)
+type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
 
-type ruleHandler func(*sprobe.Event, *rules.Rule)
-type eventHandler func(*sprobe.Event)
-type customEventHandler func(*rules.Rule, *sprobe.CustomEvent)
-type eventDiscarderHandler func(*testDiscarder) bool
-
-type testEventDiscarderHandler struct {
+type eventHandlers struct {
 	sync.RWMutex
-	callback eventDiscarderHandler
-}
-
-type testRuleHandler struct {
-	sync.RWMutex
-	callback ruleHandler
-}
-
-type testEventHandler struct {
-	callback eventHandler
-}
-
-type testcustomEventHandler struct {
-	callback customEventHandler
-}
-
-type testProbeHandler struct {
-	sync.RWMutex
-	reloading          sync.Mutex
-	module             *module.Module
-	eventHandler       *testEventHandler
-	customEventHandler *testcustomEventHandler
-}
-
-func (h *testProbeHandler) HandleEvent(event *sprobe.Event) {
-	h.RLock()
-	defer h.RUnlock()
-
-	h.reloading.Lock()
-	defer h.reloading.Unlock()
-
-	if h.eventHandler != nil && h.eventHandler.callback != nil {
-		h.eventHandler.callback(event)
-	}
-}
-
-func (h *testProbeHandler) SetModule(module *module.Module) {
-	h.Lock()
-	h.module = module
-	h.Unlock()
-}
-
-func (h *testProbeHandler) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	h.RLock()
-	defer h.RUnlock()
-
-	if h.module == nil {
-		return
-	}
-
-	if h.customEventHandler != nil && h.customEventHandler.callback != nil {
-		h.customEventHandler.callback(rule, event)
-	}
+	onRuleMatch       onRuleHandler
+	onProbeEvent      onProbeEventHandler
+	onCustomSendEvent onCustomSendEventHandler
+	onDiscarderPushed onDiscarderPushedHandler
 }
 
 //nolint:deadcode,unused
@@ -611,11 +564,15 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 	}
 
 	if opts.activityDumpRateLimiter == 0 {
-		opts.activityDumpRateLimiter = 100
+		opts.activityDumpRateLimiter = 500
 	}
 
 	if len(opts.activityDumpTracedEventTypes) == 0 {
 		opts.activityDumpTracedEventTypes = []string{"exec", "open", "bind", "dns", "syscalls"}
+	}
+
+	if opts.activityDumpLocalStorageDirectory == "" {
+		opts.activityDumpLocalStorageDirectory = "/tmp/activity_dumps"
 	}
 
 	erpcDentryResolutionEnabled := true
@@ -630,17 +587,20 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":              dir,
-		"DisableApprovers":             opts.disableApprovers,
-		"EnableActivityDump":           opts.enableActivityDump,
-		"ActivityDumpRateLimiter":      opts.activityDumpRateLimiter,
-		"ActivityDumpTracedEventTypes": opts.activityDumpTracedEventTypes,
-		"EventsCountThreshold":         opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled":  erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":   mapDentryResolutionEnabled,
-		"LogPatterns":                  logPatterns,
-		"LogTags":                      logTags,
-		"EnvsWithValue":                opts.envsWithValue,
+		"TestPoliciesDir":                     dir,
+		"DisableApprovers":                    opts.disableApprovers,
+		"EnableActivityDump":                  opts.enableActivityDump,
+		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
+		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
+		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
+		"ActivityDumpLocalStorageCompression": opts.activityDumpLocalStorageCompression,
+		"ActivityDumpLocalStorageFormats":     opts.activityDumpLocalStorageFormats,
+		"EventsCountThreshold":                opts.eventsCountThreshold,
+		"ErpcDentryResolutionEnabled":         erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":          mapDentryResolutionEnabled,
+		"LogPatterns":                         logPatterns,
+		"LogTags":                             logTags,
+		"EnvsWithValue":                       opts.envsWithValue,
 	}); err != nil {
 		return nil, err
 	}
@@ -727,9 +687,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 
-		testMod.probeHandler.reloading.Lock()
-		defer testMod.probeHandler.reloading.Unlock()
-
 		if err = testMod.reloadConfiguration(); err != nil {
 			return testMod, err
 		}
@@ -739,7 +696,6 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 	} else if testMod != nil {
-		testMod.probeHandler.SetModule(nil)
 		testMod.cleanup()
 	}
 
@@ -747,27 +703,28 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	statsdClient := NewStatsdClient()
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create module: %w", err)
-	}
-
 	if opts.disableApprovers {
 		config.EnableApprovers = false
 	}
 
 	testMod = &testModule{
-		config:       config,
-		opts:         opts,
-		st:           st,
-		t:            t,
-		module:       mod.(*module.Module),
-		probe:        mod.(*module.Module).GetProbe(),
-		probeHandler: &testProbeHandler{module: mod.(*module.Module)},
-		cmdWrapper:   cmdWrapper,
-		statsdClient: statsdClient,
-		proFile:      proFile,
+		config:        config,
+		opts:          opts,
+		st:            st,
+		t:             t,
+		cmdWrapper:    cmdWrapper,
+		statsdClient:  statsdClient,
+		proFile:       proFile,
+		eventHandlers: eventHandlers{},
 	}
+
+	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create module: %w", err)
+	}
+
+	testMod.module = mod.(*module.Module)
+	testMod.probe = testMod.module.GetProbe()
 
 	var loadErr *multierror.Error
 	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
@@ -776,6 +733,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		rs.AddListener(testMod)
 	})
 
+	testMod.probe.AddEventHandler(model.UnknownEventType, testMod)
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
 	if err := testMod.module.Init(); err != nil {
@@ -784,11 +742,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
-
-	testMod.probe.AddEventHandler(model.UnknownEventType, testMod.probeHandler)
 
 	if err := testMod.module.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start module: %w", err)
@@ -804,6 +760,30 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	return testMod, nil
+}
+
+func (tm *testModule) HandleEvent(event *sprobe.Event) {
+	tm.eventHandlers.RLock()
+	defer tm.eventHandlers.RUnlock()
+
+	if tm.eventHandlers.onProbeEvent != nil {
+		tm.eventHandlers.onProbeEvent(event)
+	}
+}
+
+func (tm *testModule) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {}
+
+func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb func() []string, service string) {
+	tm.eventHandlers.RLock()
+	defer tm.eventHandlers.RUnlock()
+
+	switch ev := event.(type) {
+	case *sprobe.Event:
+	case *sprobe.CustomEvent:
+		if tm.eventHandlers.onCustomSendEvent != nil {
+			tm.eventHandlers.onCustomSendEvent(rule, ev)
+		}
+	}
 }
 
 func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
@@ -831,9 +811,9 @@ func (tm *testModule) Root() string {
 }
 
 func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
-	tm.ruleHandler.RLock()
-	callback := tm.ruleHandler.callback
-	tm.ruleHandler.RUnlock()
+	tm.eventHandlers.RLock()
+	callback := tm.eventHandlers.onRuleMatch
+	tm.eventHandlers.RUnlock()
 
 	if callback != nil {
 		callback(event.(*sprobe.Event), rule)
@@ -843,24 +823,23 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 func (tm *testModule) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 }
 
-func (tm *testModule) RegisterEventDiscarderHandler(cb eventDiscarderHandler) {
-	tm.eventDiscarderHandler.Lock()
-	tm.eventDiscarderHandler.callback = cb
-	tm.eventDiscarderHandler.Unlock()
+func (tm *testModule) RegisterDiscarderPushedHandler(cb onDiscarderPushedHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onDiscarderPushed = cb
+	tm.eventHandlers.Unlock()
 }
 
 func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string) {
-	tm.eventDiscarderHandler.RLock()
-	callback := tm.eventDiscarderHandler.callback
-	tm.eventDiscarderHandler.RUnlock()
+	tm.eventHandlers.RLock()
+	callback := tm.eventHandlers.onDiscarderPushed
+	tm.eventHandlers.RUnlock()
 
 	if callback != nil {
-		discarder := &testDiscarder{event: event, field: field, eventType: eventType}
-		_ = callback(discarder)
+		_ = callback(event, field, eventType)
 	}
 }
 
-func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb eventDiscarderHandler) error {
+func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb onDiscarderPushedHandler) error {
 	tb.Helper()
 
 	message := make(chan ActionMessage, 1)
@@ -868,7 +847,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	tm.RegisterEventDiscarderHandler(func(d *testDiscarder) bool {
+	tm.RegisterDiscarderPushedHandler(func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
 		tb.Helper()
 
 		select {
@@ -879,7 +858,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 			case Skip:
 				cancel()
 			case Continue:
-				if cb(d) {
+				if cb(event, field, eventType) {
 					cancel()
 				} else {
 					message <- Continue
@@ -890,7 +869,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb e
 	})
 
 	defer func() {
-		tm.RegisterEventDiscarderHandler(nil)
+		tm.RegisterDiscarderPushedHandler(nil)
 	}()
 
 	if err := action(); err != nil {
@@ -973,7 +952,7 @@ func (err ErrSkipTest) Error() string {
 	return err.msg
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHandler) {
+func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
 	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
@@ -985,7 +964,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb ruleHand
 	}
 }
 
-func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandler) error {
+func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1033,20 +1012,20 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb ruleHandl
 	}
 }
 
-func (tm *testModule) RegisterRuleEventHandler(cb ruleHandler) {
-	tm.ruleHandler.Lock()
-	tm.ruleHandler.callback = cb
-	tm.ruleHandler.Unlock()
+func (tm *testModule) RegisterRuleEventHandler(cb onRuleHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onRuleMatch = cb
+	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, eventType ...model.EventType) error {
+func (tm *testModule) GetCustomEventSent(tb testing.TB, action func() error, cb func(rule *rules.Rule, event *sprobe.CustomEvent) bool, timeout time.Duration, eventType ...model.EventType) error {
 	tb.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	message := make(chan ActionMessage, 1)
 
-	tm.RegisterCustomEventHandler(func(rule *rules.Rule, event *sprobe.CustomEvent) {
+	tm.RegisterCustomSendEventHandler(func(rule *rules.Rule, event *sprobe.CustomEvent) {
 		if len(eventType) > 0 {
 			if event.GetEventType() != eventType[0] {
 				return
@@ -1069,7 +1048,7 @@ func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb
 			}
 		}
 	})
-	defer tm.RegisterCustomEventHandler(nil)
+	defer tm.RegisterCustomSendEventHandler(nil)
 
 	if err := action(); err != nil {
 		message <- Skip
@@ -1078,23 +1057,23 @@ func (tm *testModule) GetProbeCustomEvent(tb testing.TB, action func() error, cb
 	message <- Continue
 
 	select {
-	case <-time.After(getEventTimeout):
+	case <-time.After(timeout):
 		return NewTimeoutError(tm.probe)
 	case <-ctx.Done():
 		return nil
 	}
 }
 
-func (tm *testModule) RegisterEventHandler(cb eventHandler) {
-	tm.probeHandler.Lock()
-	tm.probeHandler.eventHandler = &testEventHandler{callback: cb}
-	tm.probeHandler.Unlock()
+func (tm *testModule) RegisterProbeEventHandler(cb onProbeEventHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onProbeEvent = cb
+	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) RegisterCustomEventHandler(cb customEventHandler) {
-	tm.probeHandler.Lock()
-	tm.probeHandler.customEventHandler = &testcustomEventHandler{callback: cb}
-	tm.probeHandler.Unlock()
+func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onCustomSendEvent = cb
+	tm.eventHandlers.Unlock()
 }
 
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
@@ -1103,7 +1082,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 
 	message := make(chan ActionMessage, 1)
 
-	tm.RegisterEventHandler(func(event *sprobe.Event) {
+	tm.RegisterProbeEventHandler(func(event *sprobe.Event) {
 		if len(eventTypes) > 0 {
 			match := false
 			for _, eventType := range eventTypes {
@@ -1133,7 +1112,7 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.E
 			}
 		}
 	})
-	defer tm.RegisterEventHandler(nil)
+	defer tm.RegisterProbeEventHandler(nil)
 
 	if action == nil {
 		message <- Continue
@@ -1270,7 +1249,7 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
 func (tm *testModule) Close() {
@@ -1517,20 +1496,59 @@ func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir
 	return files, nil
 }
 
-func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
-		Comm: comm,
+		Name:        name,
+		ContainerID: containerID,
+		Comm:        comm,
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
-		t.Errorf("failed to start activity dump: %s", err)
 		return err
 	}
 	return nil
+}
+
+type activityDumpIdentifier struct {
+	Name        string
+	ContainerID string
+	OutputFiles []string
+}
+
+func (tm *testModule) ListActivityDumps() ([]activityDumpIdentifier, error) {
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return nil, errors.New("No monitor")
+	}
+	p := &api.ActivityDumpListParams{}
+	mess, err := monitor.ListActivityDumps(p)
+	if err != nil || mess == nil {
+		return nil, err
+	}
+
+	var dumps []activityDumpIdentifier
+	for _, dump := range mess.Dumps {
+		var files []string
+		for _, storage := range dump.Storage {
+			if storage.Type == "local_storage" {
+				files = append(files, storage.File)
+			}
+		}
+		if len(files) == 0 {
+			continue // do not add activity dumps without any local storage files
+		}
+
+		dumps = append(dumps, activityDumpIdentifier{
+			Name:        dump.Metadata.Name,
+			ContainerID: dump.Metadata.ContainerID,
+			OutputFiles: files,
+		})
+	}
+	return dumps, nil
 }
 
 func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
@@ -1554,4 +1572,46 @@ func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.Act
 	}
 
 	return ad, nil
+}
+
+func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
+	docker, err := newDockerCmdWrapper(tm.st.Root(), "alpine")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = docker.start()
+	if err != nil {
+		return nil, err
+	}
+
+	return docker, nil
+}
+
+func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
+	dockerInstance, err := tm.StartADocker()
+	if err != nil {
+		return nil, nil, err
+	}
+	time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+	dumps, err := tm.ListActivityDumps()
+	if err != nil {
+		_, _ = dockerInstance.stop()
+		return nil, nil, err
+	}
+	dump := findLearningContainer(dumps, dockerInstance.containerID)
+	if dump == nil {
+		_, _ = dockerInstance.stop()
+		return nil, nil, errors.New("ContainerID not found on activity dump list")
+	}
+	return dockerInstance, dump, nil
+}
+
+func findLearningContainer(dumps []activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+	for _, dump := range dumps {
+		if dump.ContainerID == containerID {
+			return &dump
+		}
+	}
+	return nil
 }

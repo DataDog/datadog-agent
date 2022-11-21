@@ -10,7 +10,6 @@ package replay
 
 import (
 	"errors"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"sync"
@@ -20,8 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const maxMapSize = 0xFFFFFFFFFFFF // 256TB
 
 type memoryMap []byte
 
@@ -41,7 +38,7 @@ func (m *memoryMap) header() *reflect.SliceHeader {
 func getFileContent(path string, mmap bool) ([]byte, error) {
 
 	if !mmap {
-		return ioutil.ReadFile(path)
+		return os.ReadFile(path)
 	}
 
 	f, err := os.Open(path)

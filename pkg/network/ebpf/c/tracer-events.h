@@ -6,6 +6,7 @@
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "tcp_states.h"
+#include "cookie.h"
 
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
@@ -14,7 +15,29 @@ static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
 }
 
-static __always_inline void cleanup_conn(conn_tuple_t *tup) {
+static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
+    conn_tuple_t conn_tuple = *tup;
+    conn_tuple.pid = 0;
+    conn_tuple.netns = 0;
+    bpf_map_delete_elem(&connection_protocol, &conn_tuple);
+
+    conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
+    if (skb_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *skb_tup_ptr;
+        conn_tuple_t inverse_skb_conn_tup = {0};
+        invert_conn_tuple(skb_tup_ptr, &inverse_skb_conn_tup);
+        inverse_skb_conn_tup.pid = 0;
+        inverse_skb_conn_tup.netns = 0;
+        bpf_map_delete_elem(&connection_protocol, &inverse_skb_conn_tup);
+        bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &skb_tup);
+    }
+
+    bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
+}
+
+static __always_inline void cleanup_conn(conn_tuple_t *tup, struct sock *sk) {
+    clean_protocol_classification(tup);
+
     u32 cpu = bpf_get_smp_processor_id();
 
     // Will hold the full connection data to send through the perf buffer
@@ -37,10 +60,20 @@ static __always_inline void cleanup_conn(conn_tuple_t *tup) {
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
+    if (!cst && is_udp) {
+        increment_telemetry_count(udp_dropped_conns);
+        return; // nothing to report
+    }
+
     if (cst) {
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
+    } else {
+        // we don't have any stats for the connection,
+        // so cookie is not set, set it here
+        conn.conn_stats.cookie = get_sk_cookie(sk);
     }
+
     conn.conn_stats.timestamp = bpf_ktime_get_ns();
 
     // Batch TCP closed connections before generating a perf event

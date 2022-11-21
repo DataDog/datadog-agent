@@ -260,11 +260,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", p.ProbeIdentificationPair)
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	for _, id := range undefinedProbes {
@@ -272,11 +271,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", id)
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	return specs, nil

@@ -14,7 +14,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -146,7 +146,7 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 	}
 	defer response.Body.Close()
 
-	b, err := ioutil.ReadAll(response.Body)
+	b, err := io.ReadAll(response.Body)
 	if err != nil {
 		log.Debugf("Fail to read request %s body: %s", req.URL.String(), err)
 		return nil, 0, err

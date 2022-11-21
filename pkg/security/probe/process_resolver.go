@@ -124,7 +124,7 @@ type ProcessResolver struct {
 
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
-	lock sync.RWMutex
+	lock sync.Mutex
 	pool *sync.Pool
 
 	// entries that wont be release to the pool
@@ -135,8 +135,8 @@ type ArgsEnvsPool struct {
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
 	// first try from resident pool
 	if el := a.freeResidents.Front(); el != nil {
@@ -150,9 +150,6 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-
 	entry := a.Get()
 
 	entry.Size = event.ArgsEnvs.Size
@@ -407,7 +404,10 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	if err != nil {
+		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
+	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -667,12 +667,16 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 }
 
 // SetProcessFilesystem resolves process file system
-func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
+func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		if err != nil {
+			return "", err
+		}
+		entry.FileEvent.Filesystem = fs
 	}
 
-	return entry.FileEvent.Filesystem
+	return entry.FileEvent.Filesystem, nil
 }
 
 // ApplyBootTime realign timestamp from the boot time
@@ -719,14 +723,14 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 
 	p.SetProcessArgs(entry)
 	p.SetProcessEnvs(entry)
-	p.SetProcessFilesystem(entry)
 	p.SetProcessTTY(entry)
 	p.SetProcessUsersGroups(entry)
 	p.ApplyBootTime(entry)
-
 	p.SetProcessSymlink(entry)
 
-	return nil
+	_, err := p.SetProcessFilesystem(entry)
+
+	return err
 }
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps

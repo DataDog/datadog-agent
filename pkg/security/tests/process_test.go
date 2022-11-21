@@ -1106,7 +1106,7 @@ func TestProcessExec(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args == "/dev/null"`, executable),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -1899,7 +1899,7 @@ chmod 755 pyscript.py
 	defer testModule.Close()
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
@@ -1919,12 +1919,12 @@ chmod 755 pyscript.py
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
-			}, func(event *sprobe.Event, rule *rules.Rule) {
+			}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				if test.check != nil {
 					test.check(event, rule)
 				}
-			})
+			}))
 		})
 	}
 }

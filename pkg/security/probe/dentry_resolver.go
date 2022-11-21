@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"C"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -24,13 +23,14 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
-import "strings"
 
 var (
 	fakeInodeMSW = uint64(0xdeadc001)
@@ -132,7 +132,7 @@ type PathEntry struct {
 
 // GetName returns the path value as a string
 func (pv *PathLeaf) GetName() string {
-	return C.GoString((*C.char)(unsafe.Pointer(&pv.Name)))
+	return model.NullTerminatedString(pv.Name[:])
 }
 
 // eRPCStats is used to collect kernel space metrics about the eRPC resolution
@@ -294,11 +294,8 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 			return err
 		}
 		dr.cache[key.MountID] = entries
-		path.Generation = 0
-	} else {
-		// lookup mount_id generation
-		path.Generation = dr.cacheGeneration.Load()
 	}
+	path.Generation = dr.cacheGeneration.Load()
 
 	// release before in case of override
 	if prev, exists := entries.Get(key.Inode); exists {
@@ -310,7 +307,8 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	return nil
 }
 
-func (dr *DentryResolver) getNameFromCache(mountID uint32, inode uint64) (string, error) {
+// ResolveNameFromCache returns the name
+func (dr *DentryResolver) ResolveNameFromCache(mountID uint32, inode uint64) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -339,13 +337,13 @@ func (dr *DentryResolver) getPathEntryFromPool(parent PathKey, name string) *Pat
 	entry := dr.pathEntryPool.Get().(*PathEntry)
 	entry.Parent = parent
 	entry.Name = name
-	entry.Generation = 0
+	entry.Generation = dr.cacheGeneration.Load()
 
 	return entry
 }
 
-// GetNameFromMap resolves the name of the provided inode
-func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
+// ResolveNameFromMap resolves the name of the provided inode
+func (dr *DentryResolver) ResolveNameFromMap(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -373,13 +371,13 @@ func (dr *DentryResolver) GetNameFromMap(mountID uint32, inode uint64, pathID ui
 }
 
 // GetName resolves a couple of mountID/inode to a path
-func (dr *DentryResolver) GetName(mountID uint32, inode uint64, pathID uint32) string {
-	name, err := dr.getNameFromCache(mountID, inode)
+func (dr *DentryResolver) ResolveName(mountID uint32, inode uint64, pathID uint32) string {
+	name, err := dr.ResolveNameFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		name, err = dr.GetNameFromERPC(mountID, inode, pathID)
+		name, err = dr.ResolveNameFromERPC(mountID, inode, pathID)
 	}
 	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, err = dr.GetNameFromMap(mountID, inode, pathID)
+		name, err = dr.ResolveNameFromMap(mountID, inode, pathID)
 	}
 
 	if err != nil {
@@ -456,7 +454,7 @@ func computeFilenameFromParts(parts []string) string {
 func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID uint32, cache bool) (string, error) {
 	var cacheKey PathKey
 	var cacheEntry *PathEntry
-	var err, resolutionErr error
+	var resolutionErr error
 	var name string
 	var path PathLeaf
 	key := PathKey{MountID: mountID, Inode: inode, PathID: pathID}
@@ -476,9 +474,9 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		key.Write(keyBuffer)
-		if err = dr.pathnames.Lookup(keyBuffer, &path); err != nil {
+		if err := dr.pathnames.Lookup(keyBuffer, &path); err != nil {
 			filenameParts = nil
-			err = errDentryPathKeyNotFound
+			resolutionErr = errDentryPathKeyNotFound
 			break
 		}
 		depth++
@@ -498,7 +496,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		if path.Name[0] == '/' {
 			name = "/"
 		} else {
-			name = C.GoString((*C.char)(unsafe.Pointer(&path.Name)))
+			name = model.NullTerminatedString(path.Name[:])
 			filenameParts = append(filenameParts, name)
 		}
 
@@ -520,17 +518,12 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 
 	filename := computeFilenameFromParts(filenameParts)
 
-	// resolution errors are more important than regular map lookup errors
-	if resolutionErr != nil {
-		err = resolutionErr
-	}
-
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.PathResolutionTag,
 	}
 
-	if err == nil {
+	if resolutionErr == nil {
 		dr.cacheEntries(keys, entries)
 
 		if depth > 0 {
@@ -545,7 +538,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 		dr.missCounters[entry].Inc()
 	}
 
-	return filename, err
+	return filename, resolutionErr
 }
 
 func (dr *DentryResolver) preventSegmentMajorPageFault() {
@@ -557,10 +550,6 @@ func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	dr.erpcSegment[4*os.Getpagesize()] = 0
 	dr.erpcSegment[5*os.Getpagesize()] = 0
 	dr.erpcSegment[6*os.Getpagesize()] = 0
-}
-
-func (dr *DentryResolver) markSegmentAsZero() {
-	model.ByteOrder.PutUint64(dr.erpcSegment[0:8], 0)
 }
 
 func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64, pathID uint32) (uint32, error) {
@@ -580,8 +569,8 @@ func (dr *DentryResolver) requestResolve(op uint8, mountID uint32, inode uint64,
 	return challenge, dr.erpc.Request(&dr.erpcRequest)
 }
 
-// GetNameFromERPC resolves the name of the provided inode / mount id / path id
-func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
+// ResolveNameFromERPC resolves the name of the provided inode / mount id / path id
+func (dr *DentryResolver) ResolveNameFromERPC(mountID uint32, inode uint64, pathID uint32) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.ERPCTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -598,7 +587,7 @@ func (dr *DentryResolver) GetNameFromERPC(mountID uint32, inode uint64, pathID u
 		return "", errERPCRequestNotProcessed
 	}
 
-	seg := C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[16])))
+	seg := model.NullTerminatedString(dr.erpcSegment[16:])
 	if len(seg) == 0 || len(seg) > 0 && seg[0] == 0 {
 		dr.missCounters[entry].Inc()
 		return "", fmt.Errorf("couldn't resolve segment (len: %d)", len(seg))
@@ -684,7 +673,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		}
 
 		if dr.erpcSegment[i] != '/' {
-			segment = C.GoString((*C.char)(unsafe.Pointer(&dr.erpcSegment[i])))
+			segment = model.NullTerminatedString(dr.erpcSegment[i:])
 			filenameParts = append(filenameParts, segment)
 			i += len(segment) + 1
 		} else {
@@ -729,7 +718,8 @@ func (dr *DentryResolver) Resolve(mountID uint32, inode uint64, pathID uint32, c
 	return path, err
 }
 
-func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
+// ResolveParentFromCache resolves the parent
+func (dr *DentryResolver) ResolveParentFromCache(mountID uint32, inode uint64) (uint32, uint64, error) {
 	entry := counterEntry{
 		resolutionType: metrics.CacheTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -745,7 +735,8 @@ func (dr *DentryResolver) resolveParentFromCache(mountID uint32, inode uint64) (
 	return path.Parent.MountID, path.Parent.Inode, nil
 }
 
-func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+// ResolveParentFromERPC resolves the parent
+func (dr *DentryResolver) ResolveParentFromERPC(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	entry := counterEntry{
 		resolutionType: metrics.ERPCTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -770,7 +761,8 @@ func (dr *DentryResolver) resolveParentFromERPC(mountID uint32, inode uint64, pa
 	return parentMountID, parentInode, nil
 }
 
-func (dr *DentryResolver) resolveParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
+// ResolveParentFromMap resolves the parent
+func (dr *DentryResolver) ResolveParentFromMap(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.ParentResolutionTag,
@@ -788,12 +780,12 @@ func (dr *DentryResolver) resolveParentFromMap(mountID uint32, inode uint64, pat
 
 // GetParent returns the parent mount_id/inode
 func (dr *DentryResolver) GetParent(mountID uint32, inode uint64, pathID uint32) (uint32, uint64, error) {
-	parentMountID, parentInode, err := dr.resolveParentFromCache(mountID, inode)
+	parentMountID, parentInode, err := dr.ResolveParentFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
-		parentMountID, parentInode, err = dr.resolveParentFromERPC(mountID, inode, pathID)
+		parentMountID, parentInode, err = dr.ResolveParentFromERPC(mountID, inode, pathID)
 	}
 	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
-		parentMountID, parentInode, err = dr.resolveParentFromMap(mountID, inode, pathID)
+		parentMountID, parentInode, err = dr.ResolveParentFromMap(mountID, inode, pathID)
 	}
 
 	if parentInode == 0 {

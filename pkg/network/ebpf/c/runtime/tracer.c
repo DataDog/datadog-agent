@@ -3,6 +3,7 @@
 #include "bpf_builtins.h"
 #include "tracer.h"
 
+#include "protocols/protocol-classification-helpers.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
@@ -36,6 +37,13 @@
 
 #include "conn-tuple.h"
 #include "sock.h"
+
+// The entrypoint for all packets.
+SEC("socket/classifier")
+int socket__classifier(struct __sk_buff *skb) {
+    protocol_classifier_entrypoint(skb);
+    return 0;
+}
 
 SEC("kprobe/tcp_sendmsg")
 int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
@@ -84,7 +92,8 @@ int kretprobe__tcp_sendmsg(struct pt_regs *ctx) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
+    protocol_t protocol = get_protocol(&t);
+    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, protocol, skp);
 }
 
 SEC("kprobe/tcp_close")
@@ -106,7 +115,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t);
+    cleanup_conn(&t, sk);
     return 0;
 }
 
@@ -200,7 +209,7 @@ int kretprobe__ip6_make_skb(struct pt_regs *ctx) {
     }
 
     log_debug("kprobe/ip6_make_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -266,7 +275,7 @@ int kretprobe__ip_make_skb(struct pt_regs *ctx) {
     }
 
     log_debug("kprobe/ip_send_skb: pid_tgid: %d, size: %d\n", pid_tgid, size);
-    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, size, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
     increment_telemetry_count(udp_send_processed);
 
     return 0;
@@ -291,7 +300,7 @@ static __always_inline void handle_skb_consume_udp(struct sock *sk, struct sk_bu
     u64 pid_tgid = bpf_get_current_pid_tgid();
     t.pid = pid_tgid >> 32;
     t.netns = get_netns(&sk->sk_net);
-    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, sk);
+    handle_message(&t, 0, data_len, CONN_DIRECTION_UNKNOWN, 0, 1, PACKET_COUNT_INCREMENT, PROTOCOL_UNCLASSIFIED, sk);
 }
 
 static __always_inline int handle_udp_recvmsg(struct pt_regs *ctx) {
@@ -451,7 +460,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     }
 
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
+    handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, PROTOCOL_UNCLASSIFIED, skp);
 
     log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
@@ -473,7 +482,7 @@ int kretprobe__inet_csk_accept(struct pt_regs *ctx) {
         return 0;
     }
     handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
-    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, PROTOCOL_UNCLASSIFIED, sk);
 
     port_binding_t pb = {};
     pb.netns = t.netns;
@@ -511,7 +520,7 @@ int kprobe__udp_destroy_sock(struct pt_regs *ctx) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup);
+        cleanup_conn(&tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
@@ -746,10 +755,51 @@ int kretprobe__do_sendfile(struct pt_regs *ctx) {
         __u32 packets_in = 0;
         __u32 packets_out = 0;
         get_tcp_segment_counts(*sock, &packets_in, &packets_out);
-        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, *sock);
+        handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, PROTOCOL_UNCLASSIFIED, *sock);
     }
 cleanup:
     bpf_map_delete_elem(&do_sendfile_args, &pid_tgid);
+    return 0;
+}
+
+// Represents the parameters being passed to the tracepoint net/net_dev_queue
+struct net_dev_queue_ctx {
+    u64 unused;
+    struct sk_buff* skb;
+};
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+    struct sock* sk;
+    bpf_probe_read(&sk, sizeof(struct sock*), &skb->sk);
+    if (!sk) {
+        return 0;
+    }
+
+    conn_tuple_t skb_tup;
+    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
+    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+        return 0;
+    }
+
+    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    conn_tuple_t sock_tup;
+    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
+    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    sock_tup.netns = 0;
+
+    bpf_map_update_with_telemetry(skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
+    bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
+
     return 0;
 }
 

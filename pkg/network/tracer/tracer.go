@@ -32,8 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -334,6 +334,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
+	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
@@ -364,6 +367,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
+	coretm := ddebpf.GetCORETelemetryByAsset()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -374,6 +378,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
+		CORETelemetryByAsset:        coretm,
 	}, nil
 }
 

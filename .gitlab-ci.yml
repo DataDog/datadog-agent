@@ -3,6 +3,7 @@ include:
   - /.gitlab/shared.yml
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
+  - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
@@ -29,6 +30,7 @@ include:
   - /.gitlab/kitchen_cleanup.yml
   - /.gitlab/functional_test.yml
   - /.gitlab/functional_test_cleanup.yml
+  - /.gitlab/functional_test_junit_upload.yml
   - /.gitlab/internal_kubernetes_deploy.yml
   - /.gitlab/notify.yml
   # FIXME: our current Gitlab version doesn't support importing a file more than once
@@ -58,6 +60,7 @@ stages:
   - source_test
   - source_test_junit_upload
   - binary_build
+  - package_deps_build
   - integration_test
   - package_build
   - internal_deploy
@@ -80,6 +83,7 @@ stages:
   - kitchen_cleanup
   - functional_test
   - functional_test_cleanup
+  - functional_test_junit_upload
   - internal_kubernetes_deploy
   - notify
 
@@ -137,12 +141,13 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v10569882-6a6bd89
+  DATADOG_AGENT_BUILDIMAGES: v10863649-c23f296
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
-  DATADOG_AGENT_WINBUILDIMAGES: v10569882-6a6bd89
-  DATADOG_AGENT_ARMBUILDIMAGES: v10569882-6a6bd89
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10569882-6a6bd89
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10569882-6a6bd89
+  DATADOG_AGENT_WINBUILDIMAGES: v10863649-c23f296
+  DATADOG_AGENT_ARMBUILDIMAGES: v10863649-c23f296
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v10863649-c23f296
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v10863649-c23f296
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded
@@ -707,6 +712,10 @@ variables:
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
+.on_main_or_testing_cleanup:
+  - <<: *if_main_branch
+  - <<: *if_testing_cleanup
+
 .on_testing_cleanup:
   - <<: *if_testing_cleanup
 
@@ -724,8 +733,10 @@ variables:
 
 .on_system_probe_changes_or_manual:
   - changes:
+      - pkg/collector/corechecks/ebpf/**/*
       - pkg/ebpf/**/*
       - pkg/network/**/*
+      - pkg/util/kernel/**/*
       - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
       - test/kitchen/test/integration/system-probe-test/**/*
       - test/kitchen/test/integration/win-sysprobe-test/**/*

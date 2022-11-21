@@ -108,7 +108,6 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Family = family
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
-
 	if connectionType == TCP {
 		tf := flow.TCPFlow()
 		if tf != nil {
@@ -123,7 +122,52 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		if isFlowClosed(flow.Flags) {
 			m.TCPClosed = 1
 		}
+
+		if flow.ClassificationStatus == driver.ClassificationClassified {
+			switch crq := flow.ClassifyRequest; {
+			default:
+				// this is unexpected.  The various case statements should
+				// encompass all of the available values.
+
+			case crq == driver.ClassificationRequestUnclassified:
+				// do nothing because it may be classified in the response if
+				// the request portion of the flow was missed.
+
+			case crq >= driver.ClassificationRequestHTTPUnknown && crq < driver.ClassificationRequestHTTPLast:
+				cs.Protocol = ProtocolHTTP
+			case crq == driver.ClassificationRequestHTTP2:
+				cs.Protocol = ProtocolHTTP2
+			case crq == driver.ClassificationRequestTLS:
+				cs.Protocol = ProtocolTLS
+			}
+
+			switch crsp := flow.ClassifyResponse; {
+			default:
+				// this is unexpected.  The various case statements should
+				// encompass all of the available values.
+
+			case crsp == driver.ClassificationRequestUnclassified:
+				// do nothing because it will have been classified in the request
+
+			case crsp == driver.ClassificationResponseHTTP:
+				if flow.HttpUpgradeToH2Accepted == 1 {
+					cs.Protocol = ProtocolHTTP2
+				} else {
+					// could have missed the request.  Most likely this is just
+					// resetting the existing value
+					cs.Protocol = ProtocolHTTP
+				}
+			}
+
+		} else if flow.ClassificationStatus == driver.ClassificationUnclassified {
+			cs.Protocol = ProtocolUnclassified
+		} else {
+			// one of
+			// ClassificationUnableInsufficientData, ClassificationUnknown
+			cs.Protocol = ProtocolUnknown
+		}
 	}
 
-	cs.Monotonic.Put(0, m)
+	cs.Monotonic.Put(uint32(flow.FlowHandle), m)
+
 }

@@ -10,25 +10,25 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.40.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.40.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/google/gofuzz v1.2.0
-	github.com/google/uuid v1.1.2
-	github.com/pkg/errors v0.9.1
+	github.com/google/uuid v1.3.0
 	github.com/shirou/gopsutil/v3 v3.22.9
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v0.62.0
-	go.opentelemetry.io/collector/semconv v0.62.0
+	go.opentelemetry.io/collector/pdata v0.64.1
+	go.opentelemetry.io/collector/semconv v0.64.1
 	go.uber.org/atomic v1.10.0
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
@@ -37,7 +37,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.40.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
@@ -58,6 +58,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect

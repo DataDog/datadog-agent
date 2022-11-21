@@ -591,6 +591,19 @@ int test_exec_in_pthread(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_sleep(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify at a sleep duration\n");
+        return EXIT_FAILURE;
+    }
+    int duration = atoi(argv[1]);
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -654,6 +667,8 @@ int main(int argc, char **argv) {
             exit_code = test_unlink(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "sleep") == 0) {
+            exit_code = test_sleep(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;

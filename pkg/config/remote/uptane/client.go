@@ -24,7 +24,8 @@ import (
 type Client struct {
 	sync.Mutex
 
-	orgID int64
+	orgID           int64
+	orgUUIDProvider OrgUUIDProvider
 
 	configLocalStore  *localStore
 	configRemoteStore *remoteStoreConfig
@@ -35,6 +36,7 @@ type Client struct {
 	directorTUFClient   *client.Client
 
 	targetStore *targetStore
+	orgStore    *orgStore
 
 	cachedVerify     bool
 	cachedVerifyTime time.Time
@@ -51,8 +53,11 @@ func WithOrgIDCheck(orgID int64) ClientOption {
 	}
 }
 
+// OrgUUIDProvider is a provider of the agent org UUID
+type OrgUUIDProvider func() (string, error)
+
 // NewClient creates a new uptane client
-func NewClient(cacheDB *bbolt.DB, cacheKey string, options ...ClientOption) (*Client, error) {
+func NewClient(cacheDB *bbolt.DB, cacheKey string, orgUUIDProvider OrgUUIDProvider, options ...ClientOption) (*Client, error) {
 	transactionalStore := newTransactionalStore(cacheDB)
 	localStoreConfig, err := newLocalStoreConfig(transactionalStore, cacheKey)
 	if err != nil {
@@ -63,13 +68,16 @@ func NewClient(cacheDB *bbolt.DB, cacheKey string, options ...ClientOption) (*Cl
 		return nil, err
 	}
 	targetStore := newTargetStore(transactionalStore, cacheKey)
+	orgStore := newOrgStore(transactionalStore, cacheKey)
 	c := &Client{
 		configLocalStore:    localStoreConfig,
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorLocalStore:  localStoreDirector,
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
 		targetStore:         targetStore,
+		orgStore:            orgStore,
 		transactionalStore:  transactionalStore,
+		orgUUIDProvider:     orgUUIDProvider,
 	}
 	for _, o := range options {
 		o(c)
@@ -226,7 +234,7 @@ func (c *Client) verify() error {
 	if c.cachedVerify && time.Since(c.cachedVerifyTime) < time.Minute {
 		return nil
 	}
-	err := c.verifyOrgID()
+	err := c.verifyOrg()
 	if err != nil {
 		return err
 	}
@@ -239,7 +247,54 @@ func (c *Client) verify() error {
 	return nil
 }
 
-func (c *Client) verifyOrgID() error {
+func (c *Client) storedOrgUUID() (string, error) {
+	// This is an important block of code : to avoid being locked out
+	// of the agent in case of a wrong uuid being stored, we link an
+	// org UUID storage to a root version. What this means in practice
+	// is that if we ever get locked out due to a problem in the orgUUID
+	// storage, we can issue a root rotation to unlock ourselves.
+	rootVersion, err := c.configLocalStore.GetMetaVersion(metaRoot)
+	if err != nil {
+		return "", err
+	}
+	orgUUID, found, err := c.orgStore.getOrgUUID(rootVersion)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		orgUUID, err = c.orgUUIDProvider()
+		if err != nil {
+			return "", err
+		}
+		err := c.orgStore.storeOrgUUID(rootVersion, orgUUID)
+		if err != nil {
+			return "", fmt.Errorf("could not store orgUUID in the org store: %v", err)
+		}
+	}
+	return orgUUID, nil
+}
+
+func (c *Client) verifyOrg() error {
+	rawCustom, err := c.configLocalStore.GetMetaCustom(metaSnapshot)
+	if err != nil {
+		return fmt.Errorf("could not obtain snapshot custom: %v", err)
+	}
+	custom, err := snapshotCustom(rawCustom)
+	if err != nil {
+		return fmt.Errorf("could not parse snapshot custom: %v", err)
+	}
+	// Another safeguard here: if we ever get locked out of agents,
+	// we can remove the orgUUID from the snapshot and they'll work
+	// again. This being said, this is last resort.
+	if custom.OrgUUID != nil {
+		orgUUID, err := c.storedOrgUUID()
+		if err != nil {
+			return fmt.Errorf("could not obtain stored/remote orgUUID: %v", err)
+		}
+		if *custom.OrgUUID != orgUUID {
+			return fmt.Errorf("stored/remote OrgUUID and snapshot OrgUUID do not match: stored=%s received=%s", orgUUID, *custom.OrgUUID)
+		}
+	}
 	// skip the orgID check when no orgID was provided to the client
 	if c.orgID == 0 {
 		return nil

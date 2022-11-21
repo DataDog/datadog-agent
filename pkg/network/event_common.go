@@ -14,8 +14,19 @@ import (
 	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+)
+
+type ProtocolType uint16
+
+const (
+	ProtocolUnclassified ProtocolType = iota
+	ProtocolUnknown
+	ProtocolHTTP
+	ProtocolHTTP2
+	ProtocolTLS
+	MaxProtocols
 )
 
 // ConnectionType will be either TCP or UDP
@@ -122,6 +133,7 @@ type Connections struct {
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32
+	CORETelemetryByAsset        map[string]int32
 	HTTP                        map[http.Key]*http.RequestStats
 	DNSStats                    dns.StatsByKeyByNameByType
 }
@@ -286,6 +298,7 @@ type ConnectionStats struct {
 
 	IntraHost bool
 	IsAssured bool
+	Protocol  ProtocolType
 }
 
 // Via has info about the routing decision for a flow
@@ -443,6 +456,7 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 	}
 
 	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 
 	return str
 }

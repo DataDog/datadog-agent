@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -104,7 +103,7 @@ func (t testProvider) Source(context.Context) (source.Source, error) {
 
 func newTranslator(t *testing.T, logger *zap.Logger, opts ...Option) *Translator {
 	options := append([]Option{
-		WithFallbackSourceProvider(testProvider("fallbackHostname")),
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
 		WithHistogramMode(HistogramModeDistributions),
 		WithNumberMode(NumberModeCumulativeToDelta),
 	}, opts...)
@@ -169,7 +168,11 @@ func newGauge(dims *Dimensions, ts uint64, val float64) metric {
 }
 
 func newCount(dims *Dimensions, ts uint64, val float64) metric {
-	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags}
+	return newCountWithHost(dims, ts, val, "")
+}
+
+func newCountWithHost(dims *Dimensions, ts uint64, val float64, host string) metric {
+	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags, host: host}
 }
 
 func newSketch(dims *Dimensions, ts uint64, s summary.Summary) sketch {
@@ -354,6 +357,41 @@ func TestMapIntMonotonicWithReboot(t *testing.T) {
 	)
 }
 
+func TestMapIntMonotonicReportFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	startTs := int(getProcessStartTime()) + 1
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
+func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
+	startTs := int(getProcessStartTime()) + 1
+	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
+	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
 func TestMapIntMonotonicOutOfOrder(t *testing.T) {
 	stamps := []int{1, 0, 2, 3}
 	values := []int64{0, 1, 2, 3}
@@ -481,6 +519,41 @@ func TestMapDoubleMonotonicWithReboot(t *testing.T) {
 	)
 }
 
+func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	startTs := int(getProcessStartTime()) + 1
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
+func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
+	startTs := int(getProcessStartTime()) + 1
+	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
+	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
 func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	stamps := []int{1, 0, 2, 3}
 	values := []float64{0, 1, 2, 3}
@@ -524,270 +597,6 @@ func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensio
 			host:      dimensions.Host(),
 		},
 	)
-}
-
-func dimsWithBucket(dims *Dimensions, lowerBound string, upperBound string) *Dimensions {
-	dims = dims.WithSuffix("bucket")
-	return dims.AddTags(
-		fmt.Sprintf("lower_bound:%s", lowerBound),
-		fmt.Sprintf("upper_bound:%s", upperBound),
-	)
-}
-
-func TestMapDeltaHistogramMetrics(t *testing.T) {
-	ts := pcommon.NewTimestampFromTime(time.Now())
-	slice := pmetric.NewHistogramDataPointSlice()
-	point := slice.AppendEmpty()
-	point.SetCount(20)
-	point.SetSum(math.Pi)
-	point.BucketCounts().FromRaw([]uint64{2, 18})
-	point.ExplicitBounds().FromRaw([]float64{0})
-	point.SetTimestamp(ts)
-
-	dims := newDims("doubleHist.test")
-	dimsTags := dims.AddTags("attribute_tag:attribute_value")
-	counts := []metric{
-		newCount(dims.WithSuffix("count"), uint64(ts), 20),
-		newCount(dims.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	countsAttributeTags := []metric{
-		newCount(dimsTags.WithSuffix("count"), uint64(ts), 20),
-		newCount(dimsTags.WithSuffix("sum"), uint64(ts), math.Pi),
-	}
-
-	bucketsCounts := []metric{
-		newCount(dimsWithBucket(dims, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dims, "0", "inf"), uint64(ts), 18),
-	}
-
-	bucketsCountsAttributeTags := []metric{
-		newCount(dimsWithBucket(dimsTags, "-inf", "0"), uint64(ts), 2),
-		newCount(dimsWithBucket(dimsTags, "0", "inf"), uint64(ts), 18),
-	}
-
-	sketches := []sketch{
-		newSketch(dims, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: int64(point.Count()),
-		}),
-	}
-
-	sketchesAttributeTags := []sketch{
-		newSketch(dimsTags, uint64(ts), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: point.Sum(),
-			Avg: point.Sum() / float64(point.Count()),
-			Cnt: 20,
-		}),
-	}
-
-	ctx := context.Background()
-	delta := true
-
-	tests := []struct {
-		name             string
-		histogramMode    HistogramMode
-		sendCountSum     bool
-		tags             []string
-		expectedMetrics  []metric
-		expectedSketches []sketch
-	}{
-		{
-			name:             "No buckets: send count & sum metrics, no attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			expectedMetrics:  counts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "No buckets: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  bucketsCounts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  bucketsCountsAttributeTags,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  append(counts, bucketsCounts...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  append(countsAttributeTags, bucketsCountsAttributeTags...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  []metric{},
-			expectedSketches: sketchesAttributeTags,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, no tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{},
-			expectedMetrics:  counts,
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: send count & sum metrics, attribute tags",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			tags:             []string{"attribute_tag:attribute_value"},
-			expectedMetrics:  countsAttributeTags,
-			expectedSketches: sketchesAttributeTags,
-		},
-	}
-
-	for _, testInstance := range tests {
-		t.Run(testInstance.name, func(t *testing.T) {
-			tr := newTranslator(t, zap.NewNop())
-			tr.cfg.HistMode = testInstance.histogramMode
-			tr.cfg.SendCountSum = testInstance.sendCountSum
-			consumer := &mockFullConsumer{}
-			dims := &Dimensions{name: "doubleHist.test", tags: testInstance.tags}
-			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
-			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
-			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-		})
-	}
-}
-
-func TestMapCumulativeHistogramMetrics(t *testing.T) {
-	slice := pmetric.NewHistogramDataPointSlice()
-	point := slice.AppendEmpty()
-	point.SetCount(20)
-	point.SetSum(math.Pi)
-	point.BucketCounts().FromRaw([]uint64{2, 18})
-	point.ExplicitBounds().FromRaw([]float64{0})
-	point.SetTimestamp(seconds(0))
-
-	point = slice.AppendEmpty()
-	point.SetCount(20 + 30)
-	point.SetSum(math.Pi + 20)
-	point.BucketCounts().FromRaw([]uint64{2 + 11, 18 + 19})
-	point.ExplicitBounds().FromRaw([]float64{0})
-	point.SetTimestamp(seconds(2))
-
-	dims := newDims("doubleHist.test")
-	counts := []metric{
-		newCount(dims.WithSuffix("count"), uint64(seconds(2)), 30),
-		newCount(dims.WithSuffix("sum"), uint64(seconds(2)), 20),
-	}
-
-	bucketsCounts := []metric{
-		newCount(dimsWithBucket(dims, "-inf", "0"), uint64(seconds(2)), 11),
-		newCount(dimsWithBucket(dims, "0", "inf"), uint64(seconds(2)), 19),
-	}
-
-	sketches := []sketch{
-		newSketch(dims, uint64(seconds(2)), summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: 20,
-			Avg: 20.0 / 30.0,
-			Cnt: 30,
-		}),
-	}
-
-	ctx := context.Background()
-	delta := false
-
-	tests := []struct {
-		name             string
-		histogramMode    HistogramMode
-		sendCountSum     bool
-		expectedMetrics  []metric
-		expectedSketches []sketch
-	}{
-		{
-			name:             "No buckets: send count & sum metrics",
-			histogramMode:    HistogramModeNoBuckets,
-			sendCountSum:     true,
-			expectedMetrics:  counts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: do not send count & sum metrics",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     false,
-			expectedMetrics:  bucketsCounts,
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Counters: send count & sum metrics",
-			histogramMode:    HistogramModeCounters,
-			sendCountSum:     true,
-			expectedMetrics:  append(counts, bucketsCounts...),
-			expectedSketches: []sketch{},
-		},
-		{
-			name:             "Distributions: do not send count & sum metrics",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     false,
-			expectedMetrics:  []metric{},
-			expectedSketches: sketches,
-		},
-		{
-			name:             "Distributions: send count & sum metrics",
-			histogramMode:    HistogramModeDistributions,
-			sendCountSum:     true,
-			expectedMetrics:  counts,
-			expectedSketches: sketches,
-		},
-	}
-
-	for _, testInstance := range tests {
-		t.Run(testInstance.name, func(t *testing.T) {
-			tr := newTranslator(t, zap.NewNop())
-			tr.cfg.HistMode = testInstance.histogramMode
-			tr.cfg.SendCountSum = testInstance.sendCountSum
-			consumer := &mockFullConsumer{}
-			dims := newDims("doubleHist.test")
-			tr.mapHistogramMetrics(ctx, consumer, dims, slice, delta)
-			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
-			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-		})
-	}
 }
 
 func TestLegacyBucketsTags(t *testing.T) {
@@ -869,83 +678,9 @@ func exampleSummaryDataPointSlice(ts pcommon.Timestamp, sum float64, count uint6
 	return slice
 }
 
-func TestMapSummaryMetrics(t *testing.T) {
-	ts := pcommon.NewTimestampFromTime(time.Now())
-	slice := exampleSummaryDataPointSlice(ts, 10_001, 101)
-
-	newTranslator := func(tags []string, quantiles bool) *Translator {
-		c := newTestCache()
-		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		options := []Option{WithFallbackSourceProvider(testProvider("fallbackHostname"))}
-		if quantiles {
-			options = append(options, WithQuantiles())
-		}
-		tr, err := New(zap.NewNop(), options...)
-		require.NoError(t, err)
-		tr.prevPts = c
-		return tr
-	}
-
-	dims := newDims("summary.example")
-	noQuantiles := []metric{
-		newCount(dims.WithSuffix("count"), uint64(ts), 100),
-		newCount(dims.WithSuffix("sum"), uint64(ts), 10_000),
-	}
-	qBaseDims := dims.WithSuffix("quantile")
-	quantiles := []metric{
-		newGauge(qBaseDims.AddTags("quantile:0"), uint64(ts), 0),
-		newGauge(qBaseDims.AddTags("quantile:0.5"), uint64(ts), 100),
-		newGauge(qBaseDims.AddTags("quantile:0.999"), uint64(ts), 500),
-		newGauge(qBaseDims.AddTags("quantile:1.0"), uint64(ts), 600),
-	}
-	ctx := context.Background()
-	tr := newTranslator([]string{}, false)
-	consumer := &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dims, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		noQuantiles,
-	)
-	tr = newTranslator([]string{}, true)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dims, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		append(noQuantiles, quantiles...),
-	)
-
-	dimsTags := dims.AddTags("attribute_tag:attribute_value")
-	noQuantilesAttr := []metric{
-		newCount(dimsTags.WithSuffix("count"), uint64(ts), 100),
-		newCount(dimsTags.WithSuffix("sum"), uint64(ts), 10_000),
-	}
-
-	qBaseDimsTags := dimsTags.WithSuffix("quantile")
-	quantilesAttr := []metric{
-		newGauge(qBaseDimsTags.AddTags("quantile:0"), uint64(ts), 0),
-		newGauge(qBaseDimsTags.AddTags("quantile:0.5"), uint64(ts), 100),
-		newGauge(qBaseDimsTags.AddTags("quantile:0.999"), uint64(ts), 500),
-		newGauge(qBaseDimsTags.AddTags("quantile:1.0"), uint64(ts), 600),
-	}
-	tr = newTranslator([]string{"attribute_tag:attribute_value"}, false)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dimsTags, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		noQuantilesAttr,
-	)
-	tr = newTranslator([]string{"attribute_tag:attribute_value"}, true)
-	consumer = &mockTimeSeriesConsumer{}
-	tr.mapSummaryMetrics(ctx, consumer, dimsTags, slice)
-	assert.ElementsMatch(t,
-		consumer.metrics,
-		append(noQuantilesAttr, quantilesAttr...),
-	)
-}
-
 const (
-	testHostname = "res-hostname"
+	testHostname     = "res-hostname"
+	fallbackHostname = "fallbackHostname"
 )
 
 func createTestMetrics(additionalAttributes map[string]string, name, version string) pmetric.Metrics {
@@ -1113,6 +848,50 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	met.SetEmptySummary()
 	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
 	slice.CopyTo(met.Summary().DataPoints())
+	return md
+}
+
+func createTestIntCumulativeMonotonicMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	met.SetName(exampleDims.name)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	met.Sum().SetIsMonotonic(true)
+
+	values := []int64{10, 15, 20}
+	dpsInt := met.Sum().DataPoints()
+	dpsInt.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		dpInt := dpsInt.AppendEmpty()
+		dpInt.SetStartTimestamp(seconds(startTs))
+		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		dpInt.SetIntValue(val)
+	}
+	return md
+}
+
+func createTestDoubleCumulativeMonotonicMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	met.SetName(exampleDims.name)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	met.Sum().SetIsMonotonic(true)
+
+	values := []float64{10, 15, 20}
+	dpsInt := met.Sum().DataPoints()
+	dpsInt.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		dpInt := dpsInt.AppendEmpty()
+		dpInt.SetStartTimestamp(seconds(startTs))
+		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		dpInt.SetDoubleValue(val)
+	}
 	return md
 }
 
@@ -1663,8 +1442,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: math.Pi / float64(30),
 					Cnt: 30,
@@ -1681,8 +1460,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1702,8 +1481,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1720,8 +1499,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1738,8 +1517,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			expectedMetrics:                      nil,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1759,8 +1538,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1776,8 +1555,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			withCountSum:                         false,
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1797,8 +1576,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1818,8 +1597,8 @@ func TestMapExponentialHistogram(t *testing.T) {
 			},
 			expectedSketches: []sketch{
 				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -1.0475797592879845,
-					Max: 1.0974563270357618,
+					Min: -100_000,
+					Max: 100_000,
 					Sum: math.Pi,
 					Avg: 0.10471975511965977,
 					Cnt: 30,
@@ -1908,6 +1687,8 @@ func createTestExponentialHistogram(additionalAttributes map[string]string, name
 	expDeltaHist.SetCount(30)
 	expDeltaHist.SetZeroCount(10)
 	expDeltaHist.SetSum(math.Pi)
+	expDeltaHist.SetMin(-100_000)
+	expDeltaHist.SetMax(100_000)
 	expDeltaHist.Negative().SetOffset(2)
 
 	expDeltaHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})

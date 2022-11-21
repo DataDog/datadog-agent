@@ -19,7 +19,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	utilFunc "github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -91,6 +92,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.cmd = cmd
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: true,
+				}.LogForOneShot("CORE", "off", true)),
+				core.Bundle,
 			)
 		},
 	}
@@ -125,7 +131,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{snmpCmd}
 }
 
-func snmpwalk(cliParams *cliParams) error {
+func snmpwalk(config config.Component, cliParams *cliParams) error {
 	var (
 		address      string
 		deviceIP     string
@@ -159,18 +165,11 @@ func snmpwalk(cliParams *cliParams) error {
 		deviceIP = address[:strings.Index(address, ":")]
 		value, _ = strconv.ParseUint(address[strings.Index(address, ":")+1:], 0, 16)
 		port = uint16(value)
-		if port == 0 {
-			port = defaultPort
-		}
 	} else {
 		//If the customer provides only 1 argument : the ip_address
 		//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
 		deviceIP = address
 		//Allow the possibility to pass the config file as an argument to the command
-		err := common.SetupConfig(cliParams.ConfFilePath)
-		if err != nil {
-			fmt.Printf("The config file provided is invalid : %v \n", err)
-		}
 		snmpConfigList, err := parse.GetConfigCheckSnmp()
 		instance := parse.GetIPConfig(deviceIP, snmpConfigList)
 		if err != nil {
@@ -196,10 +195,10 @@ func snmpwalk(cliParams *cliParams) error {
 			if instance.Timeout != 0 {
 				cliParams.timeout = instance.Timeout
 			}
-
-		} else {
-			port = defaultPort
 		}
+	}
+	if port == 0 {
+		port = defaultPort
 	}
 
 	// Communication options check

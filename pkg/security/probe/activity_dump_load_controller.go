@@ -22,7 +22,7 @@ import (
 
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
-	TracedEventTypesReductionOrder = []model.EventType{model.FileOpenEventType, model.SyscallsEventType, model.DNSEventType, model.BindEventType}
+	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 	// MinDumpTimeout is the shortest timeout for a dump
 	MinDumpTimeout = 10 * time.Minute
 )
@@ -106,13 +106,13 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
+	if timeToThreshold < MinDumpTimeout/2 && ad.LoadConfig.Timeout > MinDumpTimeout {
 		if err := lc.reduceDumpTimeout(newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/10 {
+	if timeToThreshold < MinDumpTimeout/4 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}

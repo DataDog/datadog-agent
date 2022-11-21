@@ -119,7 +119,6 @@ func TestNamedPipeTooBigMessage(t *testing.T) {
 type namedPipeListenerTest struct {
 	*NamedPipeListener
 	packetOut chan packets.Packets
-	client    net.Conn
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {

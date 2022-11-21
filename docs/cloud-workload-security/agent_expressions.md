@@ -408,6 +408,7 @@ A DNS request was sent
 
 | Property | Type | Definition | Constants |
 | -------- | ---- | ---------- | --------- |
+| `dns.id` | int | [Experimental] the DNS request ID |  |
 | `dns.question.class` | int | the class looked up by the DNS question | DNS qclasses |
 | `dns.question.count` | int | the total count of questions in the DNS request |  |
 | `dns.question.length` | int | the total DNS request size in bytes |  |

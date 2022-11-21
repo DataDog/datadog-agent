@@ -102,9 +102,7 @@
 /cmd/trace-agent/                       @DataDog/agent-apm
 /cmd/agent/subcommands/controlsvc       @DataDog/windows-agent
 /cmd/agent/subcommands/dogstatsd*       @DataDog/agent-metrics-logs
-/cmd/agent/subcommands/installsvc       @DataDog/windows-agent
 /cmd/agent/subcommands/integrations     @DataDog/software-integrity-and-trust @DataDog/agent-integrations @DataDog/agent-shared-components
-/cmd/agent/subcommands/removesvc        @DataDog/windows-agent
 /cmd/agent/subcommands/remoteconfig     @Datadog/remote-config
 /cmd/agent/subcommands/snmp             @DataDog/network-device-monitoring
 /cmd/agent/subcommands/streamlogs       @DataDog/agent-metrics-logs
@@ -280,16 +278,15 @@
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
-/pkg/network/ebpf/c/http*               @DataDog/universal-service-monitoring
-/pkg/network/ebpf/c/go-tls-*            @DataDog/universal-service-monitoring
-/pkg/network/ebpf/c/tags-types.h        @DataDog/universal-service-monitoring
-/pkg/network/ebpf/go_tls*               @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
-/pkg/network/http/                      @DataDog/universal-service-monitoring
-/pkg/network/http/driver_*.go           @DataDog/windows-kernel-integrations
-/pkg/network/http/*_windows*.go         @DataDog/windows-kernel-integrations
-/pkg/network/tracer/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/protocols/                 @DataDog/universal-service-monitoring
+/pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
+/pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
+/pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks
 /pkg/ebpf/bytecode/runtime/http.go      @DataDog/universal-service-monitoring
@@ -303,8 +300,6 @@
 /pkg/security/                          @DataDog/agent-security
 /pkg/netflow/                           @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
-/pkg/trace/appsec/                      @DataDog/agent-appsec
-/pkg/config/appsec.go                   @DataDog/agent-appsec
 /pkg/workloadmeta/                      @DataDog/container-integrations
 /pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 
@@ -324,7 +319,6 @@
 /tasks/trace_agent.py                   @DataDog/agent-apm
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/winbuildscripts/                 @DataDog/windows-agent
-
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations

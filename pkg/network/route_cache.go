@@ -97,6 +97,10 @@ func newRouteCache(size int, router Router, ttl time.Duration) *routeCache {
 }
 
 func (c *routeCache) Close() {
+	c.Lock()
+	defer c.Unlock()
+
+	c.cache.Clear()
 	c.router.Close()
 }
 
@@ -191,7 +195,7 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 
 	var fd int
 	var nlHandle *netlink.Handle
-	err = util.WithNS(cfg.ProcRoot, rootNs, func() (sockErr error) {
+	err = util.WithNS(rootNs, func() (sockErr error) {
 		if fd, err = unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0); err != nil {
 			return err
 		}
@@ -225,6 +229,7 @@ func NewNetlinkRouter(cfg *config.Config) (Router, error) {
 }
 
 func (n *netlinkRouter) Close() {
+	n.ifcache.Clear()
 	unix.Close(n.ioctlFD)
 	n.nlHandle.Close()
 }

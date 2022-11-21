@@ -41,9 +41,10 @@ func init() {
 }
 
 type systemCollector struct {
-	reader         *cgroups.Reader
-	procPath       string
-	baseController string
+	reader              *cgroups.Reader
+	procPath            string
+	baseController      string
+	hostCgroupNamespace bool
 }
 
 func newSystemCollector() (*systemCollector, error) {
@@ -80,6 +81,16 @@ func newSystemCollector() (*systemCollector, error) {
 	// Set base controller for cgroupV1 (remains empty for cgroupV2)
 	if reader.CgroupVersion() == 1 {
 		systemCollector.baseController = cgroupV1BaseController
+	}
+
+	// Check if we are in host cgroup namespace or not. Will be useful to determine the best way to retrieve self container ID.
+	cgroupInode, err := systemutils.GetProcessNamespaceInode("/proc", "self", "cgroup")
+	if err != nil {
+		log.Warn("Unable to determine cgroup namespace id in system collector")
+	} else {
+		if isCgroupHost := cgroups.IsProcessHostCgroupNamespace(procPath, cgroupInode); isCgroupHost != nil {
+			systemCollector.hostCgroupNamespace = *isCgroupHost
+		}
 	}
 
 	return systemCollector, nil
@@ -138,8 +149,7 @@ func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Durat
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
-	containerID, err := cgroups.IdentiferFromCgroupReferences("/proc", "self", c.baseController, cgroups.ContainerFilter)
-	return containerID, err
+	return getSelfContainerID(c.hostCgroupNamespace, c.reader.CgroupVersion(), c.baseController)
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
