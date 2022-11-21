@@ -6,14 +6,13 @@
 //go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package crd
+package discovery
 
 import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,7 +49,7 @@ func (d *DiscoveryCollector) VerifyForInventory(collectorName string) (collector
 func (d *DiscoveryCollector) DiscoverCRDResource(grv string) (*k8sCollectors.CRCollector, error) {
 	if !d.cache.filled {
 		var err error
-		d.cache.groups, d.cache.resources, err = discovery.GetServerGroupsAndResources()
+		d.cache.groups, d.cache.resources, err = GetServerGroupsAndResources()
 		if err != nil {
 			return nil, err
 		}

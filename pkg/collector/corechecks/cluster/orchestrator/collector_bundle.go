@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/crd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -39,7 +38,7 @@ type CollectorBundle struct {
 	stopCh              chan struct{}
 	runCfg              *collectors.CollectorRunConfig
 	manifestBuffer      *ManifestBuffer
-	crdDiscovery        *crd.DiscoveryCollector
+	crdDiscovery        *discovery.DiscoveryCollector
 	activatedCollectors map[string]struct{}
 }
 
@@ -66,7 +65,7 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 		},
 		stopCh:              make(chan struct{}),
 		manifestBuffer:      NewManifestBuffer(chk),
-		crdDiscovery:        crd.NewDiscoveryCollectorForInventory(),
+		crdDiscovery:        discovery.NewDiscoveryCollectorForInventory(),
 		activatedCollectors: map[string]struct{}{},
 	}
 
@@ -268,10 +267,10 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		}
 
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			if cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && !orchestrator.IsCRDType(nt) {
 				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
 			} else {
-				// We don't buffer manifests for the pod check
+				// We don't buffer manifests for the pod or crd/cr checks
 				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 			}
 		}
