@@ -663,7 +663,7 @@ func buildGoTLSClientBin(t *testing.T) string {
 	}
 
 	clientSrcDir := fmt.Sprintf("%s/%s", cur, ClientSrcPath)
-	clientBuildDir, err := ioutil.TempDir("/tmp", "gotls_client_build-")
+	clientBuildDir, err := os.MkdirTemp("/tmp", "gotls_client_build-")
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
