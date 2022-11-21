@@ -132,21 +132,19 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     struct task_struct *t = (struct task_struct *) bpf_get_current_task();
     struct mm_struct *mm;
     struct file *exe_file;
-    struct dentry *dentry;
+    struct inode *inode;
 
     bpf_probe_read(&mm, sizeof(mm), &t->mm);
     bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
-    bpf_probe_read(&dentry, sizeof(dentry), &exe_file->f_path.dentry);
+    bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
 
-    struct inode *d_inode;
-    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
-    if (!d_inode) {
+    if (!inode) {
         log_debug("get_offsets_data: could not read inode struct pointer\n");
         return NULL;
     }
 
     unsigned long ino;
-    bpf_probe_read(&ino, sizeof(ino), &d_inode->i_ino);
+    bpf_probe_read(&ino, sizeof(ino), &inode->i_ino);
 
     log_debug("get_offsets_data: task binary inode number: %d\n", ino);
 
