@@ -189,6 +189,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
 
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
