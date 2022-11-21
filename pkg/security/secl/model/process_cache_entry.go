@@ -35,6 +35,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.Parent = &parent.Process
 	pc.IsThread = false
 	parent.Retain()
 }
