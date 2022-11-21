@@ -186,13 +186,13 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 			break
 		}
 		oid := strings.TrimLeft(variable.Name, ".")
-		if strings.HasSuffix(oid, ".0") {
+		if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
 			curRequestOid = oid
 		} else {
 			nextColumn, err := GetNextColumnOid(oid)
 			if err != nil {
 				log.Debugf("Invalid column oid: %s", oid)
-				curRequestOid = oid
+				curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
 			} else {
 				curRequestOid = nextColumn
 			}
