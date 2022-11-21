@@ -23,14 +23,14 @@ func TestSummaryMetrics(t *testing.T) {
 	}{
 		{
 			name:     "summary",
-			otlpfile: "testdata/otlpdata/summary/simple-delta.json",
-			ddogfile: "testdata/datadogdata/summary/simple-delta_summary.json",
+			otlpfile: "testdata/otlpdata/summary/simple.json",
+			ddogfile: "testdata/datadogdata/summary/simple_summary.json",
 			options:  []Option{WithFallbackSourceProvider(testProvider("fallbackHostname"))},
 		},
 		{
 			name:     "summary-with-quantiles",
-			otlpfile: "testdata/otlpdata/summary/simple-delta.json",
-			ddogfile: "testdata/datadogdata/summary/simple-delta_summary-with-quantile.json",
+			otlpfile: "testdata/otlpdata/summary/simple.json",
+			ddogfile: "testdata/datadogdata/summary/simple_summary-with-quantile.json",
 			options: []Option{
 				WithFallbackSourceProvider(testProvider("fallbackHostname")),
 				WithQuantiles(),
