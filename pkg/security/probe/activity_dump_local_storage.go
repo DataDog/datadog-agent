@@ -68,7 +68,7 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 	}
 
 	lru, err := simplelru.NewLRU(p.config.ActivityDumpLocalStorageMaxDumpsCount, func(key interface{}, value interface{}) {
-		files, ok := key.([]string)
+		files, ok := value.([]string)
 		if !ok || len(files) == 0 {
 			return
 		}
