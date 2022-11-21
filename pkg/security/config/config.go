@@ -45,6 +45,8 @@ type Config struct {
 	WatchPoliciesDir bool
 	// PolicyMonitorEnabled enable policy monitoring
 	PolicyMonitorEnabled bool
+	// PolicyMonitorTypes list type of policy monitor used
+	PolicyMonitorTypes []string
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 	// EnableApprovers defines if in-kernel approvers should be activated or not
@@ -243,6 +245,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		PoliciesDir:          coreconfig.Datadog.GetString("runtime_security_config.policies.dir"),
 		WatchPoliciesDir:     coreconfig.Datadog.GetBool("runtime_security_config.policies.watch_dir"),
 		PolicyMonitorEnabled: coreconfig.Datadog.GetBool("runtime_security_config.policies.monitor.enabled"),
+		PolicyMonitorTypes:   coreconfig.Datadog.GetStringSlice("runtime_security_config.policies.monitor.types"),
 
 		// runtime compilation
 		RuntimeCompilationEnabled:       coreconfig.Datadog.GetBool("runtime_security_config.runtime_compilation.enabled"),

@@ -112,6 +112,8 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
+	// CustomRulesStateEventType is the custom event used to report the status of the rules
+	CustomRulesStateEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )

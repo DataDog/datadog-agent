@@ -15,10 +15,12 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/go-multierror"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -27,8 +29,15 @@ import (
 )
 
 const (
-	// policyMetricRate defines how often the policy metric will be sent
-	policyMetricRate = 30 * time.Second
+	// policyStatusMetricRate defines how often the policy metric will be sent
+	policyStatusMetricRate = time.Minute
+
+	// policyStatusMetricRate defines how often the policy log status will be sent
+	policyStatusLogRate = 15 * time.Minute
+
+	// monitor types
+	metricMonitorType = "metric"
+	logMonitorType    = "log"
 )
 
 // Policy describes policy related information
@@ -42,9 +51,11 @@ type Policy struct {
 type PolicyMonitor struct {
 	sync.RWMutex
 
+	types        []string
+	sender       EventSender
 	statsdClient statsd.ClientInterface
 	policies     map[string]Policy
-	rules        map[string]string
+	rules        map[string]*rules.ErrRuleLoad
 }
 
 // AddPolicies add policies to the monitor
@@ -56,13 +67,13 @@ func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.
 		p.policies[policy.Name] = Policy{Name: policy.Name, Source: policy.Source, Version: policy.Version}
 
 		for _, rule := range policy.Rules {
-			p.rules[rule.ID] = "loaded"
+			p.rules[rule.ID] = nil
 		}
 
 		if mErrs != nil && mErrs.Errors != nil {
 			for _, err := range mErrs.Errors {
 				if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-					p.rules[rerr.Definition.ID] = string(rerr.Type())
+					p.rules[rerr.Definition.ID] = rerr
 				}
 			}
 		}
@@ -72,15 +83,52 @@ func (p *PolicyMonitor) AddPolicies(policies []*rules.Policy, mErrs *multierror.
 // Start the monitor
 func (p *PolicyMonitor) Start(ctx context.Context) {
 	go func() {
-		timerMetric := time.NewTicker(policyMetricRate)
+		timerMetric := time.NewTicker(policyStatusMetricRate)
 		defer timerMetric.Stop()
+
+		timerLog := time.NewTicker(policyStatusLogRate)
+		defer timerLog.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 
+			case <-timerLog.C:
+				if !slices.Contains(p.types, logMonitorType) {
+					continue
+				}
+
+				var report RuleStatesReport
+
+				p.RLock()
+				for id, err := range p.rules {
+					if err == nil {
+						report.Loaded = append(report.Loaded, id)
+					} else {
+						switch err.Type() {
+						case rules.AgentVersionErrType:
+							report.AgentVersionErr = append(report.AgentVersionErr, id)
+						case rules.AgentFilterErrType:
+							report.AgentFilterErr = append(report.AgentFilterErr, id)
+						case rules.EventTypeNotEnabledErrType:
+							report.EventTypeNotEnabledErr = append(report.EventTypeNotEnabledErr, id)
+						case rules.SyntaxErrType:
+							report.SyntaxErr = append(report.SyntaxErr, id)
+						default:
+							report.UnknownErr = append(report.UnknownErr, id)
+						}
+					}
+				}
+				p.RUnlock()
+
+				rule, event := events.NewCustomRule(events.RulesStateRuleID), events.NewCustomEvent(model.CustomRulesStateEventType, report)
+				p.sender.SendEvent(rule, event, func() []string { return nil }, "")
 			case <-timerMetric.C:
+				if !slices.Contains(p.types, metricMonitorType) {
+					continue
+				}
+
 				p.RLock()
 				for _, policy := range p.policies {
 					tags := []string{
@@ -95,7 +143,12 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 					}
 				}
 
-				for id, status := range p.rules {
+				for id, err := range p.rules {
+					var status = "loaded"
+					if err != nil {
+						status = string(err.Type())
+					}
+
 					tags := []string{
 						"rule_id:" + id,
 						fmt.Sprintf("status:%v", status),
@@ -113,12 +166,25 @@ func (p *PolicyMonitor) Start(ctx context.Context) {
 }
 
 // NewPolicyMonitor returns a new Policy monitor
-func NewPolicyMonitor(statsdClient statsd.ClientInterface) *PolicyMonitor {
+func NewPolicyMonitor(sender EventSender, statsdClient statsd.ClientInterface, types []string) *PolicyMonitor {
 	return &PolicyMonitor{
+		sender:       sender,
 		statsdClient: statsdClient,
+		types:        types,
 		policies:     make(map[string]Policy),
-		rules:        make(map[string]string),
+		rules:        make(map[string]*rules.ErrRuleLoad),
 	}
+}
+
+// RuleStatesReport describes the rules states report
+// easyjson:json
+type RuleStatesReport struct {
+	Loaded                 []eval.RuleID
+	AgentVersionErr        []eval.RuleID
+	AgentFilterErr         []eval.RuleID
+	EventTypeNotEnabledErr []eval.RuleID
+	SyntaxErr              []eval.RuleID
+	UnknownErr             []eval.RuleID
 }
 
 // RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched

@@ -26,6 +26,8 @@ const (
 	AbnormalPathRuleID = "abnormal_path"
 	// SelfTestRuleID is the rule ID for the self_test events
 	SelfTestRuleID = "self_test"
+	// RulesStateRuleID is the ID used for the event reporting rules state
+	RulesStateRuleID = "rules_state"
 )
 
 // NewCustomRule returns a new custom rule
@@ -44,6 +46,7 @@ func AllCustomRuleIDs() []string {
 		NoisyProcessRuleID,
 		AbnormalPathRuleID,
 		SelfTestRuleID,
+		RulesStateRuleID,
 	}
 }
 

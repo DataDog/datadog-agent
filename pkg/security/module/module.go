@@ -696,7 +696,6 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,
 		selfTester:     selfTester,
-		policyMonitor:  NewPolicyMonitor(statsdClient),
 		sendStatsChan:  make(chan chan bool, 1),
 	}
 	m.apiServer.module = m
@@ -706,6 +705,8 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 	} else {
 		m.eventSender = m
 	}
+
+	m.policyMonitor = NewPolicyMonitor(m.eventSender, statsdClient, cfg.PolicyMonitorTypes)
 
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)

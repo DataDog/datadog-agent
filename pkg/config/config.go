@@ -1122,6 +1122,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.watch_dir", false)
 	config.BindEnvAndSetDefault("runtime_security_config.policies.monitor.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.policies.monitor.types", []string{})
 	config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
 	config.BindEnvAndSetDefault("runtime_security_config.enable_approvers", true)
 	config.BindEnvAndSetDefault("runtime_security_config.enable_kernel_filters", true)
