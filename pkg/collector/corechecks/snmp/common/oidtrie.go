@@ -13,6 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// OidTrie is a trie structure that represent OIDs as tree
+// It's an efficient data structure for verifying if an OID is known or not.
+// The search complexity of NodeExist / LeafExist methods are O(n),
+// where n is the length of the OID (number of dot separated numbers).
+// The search complexity doesn't depend on the size of the trie.
 type OidTrie struct {
 	Children map[int]*OidTrie
 }
