@@ -11,9 +11,14 @@ import (
 	"strings"
 )
 
-func GetNextColumnOid(oid string) (string, error) {
-	idx := strings.LastIndex(oid, ".1.")
-	if idx == -1 { // not found
+// GetNextColumnOidNaive will return the next column OID for a given OID
+// This is a naive algorithm based on detecting `.1.` (the table Entry oid that contains), increase the next digit and returns it.
+// Caveat: if the input OID index contain `.1.` the function won't return the next column OID but all the OID elements until `.1.`.
+func GetNextColumnOidNaive(oid string) (string, error) {
+	oid = strings.TrimRight(strings.TrimLeft(oid, "."), ".") // TODO: TESTME
+	idx := strings.LastIndex(oid, ".1.")                     // Try to find the table Entry OID
+	if idx == -1 {
+		// not found
 		return "", fmt.Errorf("the oid is not a column oid: %s", oid)
 	}
 	tableOid := oid[0:idx]

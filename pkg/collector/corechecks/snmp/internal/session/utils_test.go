@@ -38,7 +38,7 @@ func TestGetNextColumnOid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.oid, func(t *testing.T) {
-			newOid, err := GetNextColumnOid(tt.oid)
+			newOid, err := GetNextColumnOidNaive(tt.oid)
 			assert.Equal(t, tt.expectedOid, newOid)
 
 			if tt.expectedErr != "" {
