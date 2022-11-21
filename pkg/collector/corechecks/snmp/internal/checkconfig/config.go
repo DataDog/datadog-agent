@@ -307,6 +307,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.IPAddress = instance.IPAddress
 	c.Port = uint16(instance.Port)
 	c.Network = instance.Network
+
 	if c.IPAddress == "" && c.Network == "" {
 		return nil, fmt.Errorf("`ip_address` or `network` config must be provided")
 	}
