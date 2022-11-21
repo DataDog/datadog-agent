@@ -35,6 +35,10 @@ func TestGetNextColumnOid(t *testing.T) {
 			oid:         "1.3.6.2.2.2.2.2.99999",
 			expectedErr: "the oid is not a column oid: 1.3.6.2.2.2.2.2.99999",
 		},
+		{
+			oid:         ".1.3.6.1.2.1.2.2.1.2.99.", // trim trailing/ending `.`
+			expectedOid: "1.3.6.1.2.1.2.2.1.3",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.oid, func(t *testing.T) {
