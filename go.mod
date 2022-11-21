@@ -43,7 +43,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.39
+	github.com/DataDog/agent-payload/v5 v5.0.40
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.3
@@ -438,5 +438,3 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // so we created a fork that removed the dependency entirely. This can be
 // removed once k8s.io uses opentelemetry 1.0 or newer
 replace k8s.io/apiserver => github.com/juliogreff/apiserver v0.23.6-0.20220531090536-be42650a25e5
-
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.40-0.20221103132242-2a472bfe01dd
