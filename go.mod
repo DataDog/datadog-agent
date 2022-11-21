@@ -422,6 +422,12 @@ require google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118102553-40bc70a9cbc3
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
+	inet.af/netaddr v0.0.0-20220811202034-502d2d690317
+)
+
+require (
+	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
+	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
 )
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
