@@ -229,7 +229,7 @@ func (w *soWatcher) checkProcessDone() (updated bool) {
 		}
 	}
 
-	for libpath := range w.registry.byPath {
+	for libpath := range pathsToBeRemoved {
 		w.registry.unregister(libpath)
 	}
 
