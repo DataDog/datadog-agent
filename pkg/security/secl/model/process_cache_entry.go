@@ -189,6 +189,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
 
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -277,7 +281,7 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -321,7 +325,7 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 
 	// now we have the cache we can free
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.Release()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
