@@ -104,7 +104,7 @@ func (t testProvider) Source(context.Context) (source.Source, error) {
 
 func newTranslator(t *testing.T, logger *zap.Logger, opts ...Option) *Translator {
 	options := append([]Option{
-		WithFallbackSourceProvider(testProvider("fallbackHostname")),
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
 		WithHistogramMode(HistogramModeDistributions),
 		WithNumberMode(NumberModeCumulativeToDelta),
 	}, opts...)
@@ -169,7 +169,11 @@ func newGauge(dims *Dimensions, ts uint64, val float64) metric {
 }
 
 func newCount(dims *Dimensions, ts uint64, val float64) metric {
-	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags}
+	return newCountWithHost(dims, ts, val, "")
+}
+
+func newCountWithHost(dims *Dimensions, ts uint64, val float64, host string) metric {
+	return metric{name: dims.name, typ: Count, timestamp: ts, value: val, tags: dims.tags, host: host}
 }
 
 func newSketch(dims *Dimensions, ts uint64, s summary.Summary) sketch {
@@ -354,6 +358,41 @@ func TestMapIntMonotonicWithReboot(t *testing.T) {
 	)
 }
 
+func TestMapIntMonotonicReportFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	startTs := int(getProcessStartTime()) + 1
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
+func TestMapIntMonotonicReportDiffForFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
+	startTs := int(getProcessStartTime()) + 1
+	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
+	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.MapMetrics(ctx, createTestIntCumulativeMonotonicMetrics(), consumer)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
 func TestMapIntMonotonicOutOfOrder(t *testing.T) {
 	stamps := []int{1, 0, 2, 3}
 	values := []int64{0, 1, 2, 3}
@@ -477,6 +516,41 @@ func TestMapDoubleMonotonicWithReboot(t *testing.T) {
 		[]metric{
 			newCount(exampleDims, uint64(seconds(2)), 30),
 			newCount(exampleDims, uint64(seconds(6)), 20),
+		},
+	)
+}
+
+func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	startTs := int(getProcessStartTime()) + 1
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 10, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
+		},
+	)
+}
+
+func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	consumer := &mockFullConsumer{}
+	dims := &Dimensions{name: exampleDims.name, host: fallbackHostname}
+	startTs := int(getProcessStartTime()) + 1
+	// Add an entry to the cache about the timeseries, in this case we send the diff (9) rather than the first value (10).
+	tr.prevPts.MonotonicDiff(dims, uint64(seconds(startTs)), uint64(seconds(startTs+1)), 1)
+	tr.MapMetrics(ctx, createTestDoubleCumulativeMonotonicMetrics(), consumer)
+	assert.ElementsMatch(t,
+		consumer.metrics,
+		[]metric{
+			newCountWithHost(exampleDims, uint64(seconds(startTs+1)), 9, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+2)), 5, fallbackHostname),
+			newCountWithHost(exampleDims, uint64(seconds(startTs+3)), 5, fallbackHostname),
 		},
 	)
 }
@@ -719,7 +793,7 @@ func TestMapSummaryMetrics(t *testing.T) {
 		c := newTestCache()
 		c.cache.Set((&Dimensions{name: "summary.example.count", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
 		c.cache.Set((&Dimensions{name: "summary.example.sum", tags: tags}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-		options := []Option{WithFallbackSourceProvider(testProvider("fallbackHostname"))}
+		options := []Option{WithFallbackSourceProvider(testProvider(fallbackHostname))}
 		if quantiles {
 			options = append(options, WithQuantiles())
 		}
@@ -787,7 +861,8 @@ func TestMapSummaryMetrics(t *testing.T) {
 }
 
 const (
-	testHostname = "res-hostname"
+	testHostname     = "res-hostname"
+	fallbackHostname = "fallbackHostname"
 )
 
 func createTestMetrics(additionalAttributes map[string]string, name, version string) pmetric.Metrics {
@@ -955,6 +1030,50 @@ func createTestMetrics(additionalAttributes map[string]string, name, version str
 	met.SetEmptySummary()
 	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
 	slice.CopyTo(met.Summary().DataPoints())
+	return md
+}
+
+func createTestIntCumulativeMonotonicMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	met.SetName(exampleDims.name)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	met.Sum().SetIsMonotonic(true)
+
+	values := []int64{10, 15, 20}
+	dpsInt := met.Sum().DataPoints()
+	dpsInt.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		dpInt := dpsInt.AppendEmpty()
+		dpInt.SetStartTimestamp(seconds(startTs))
+		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		dpInt.SetIntValue(val)
+	}
+	return md
+}
+
+func createTestDoubleCumulativeMonotonicMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	met := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	met.SetName(exampleDims.name)
+	met.SetEmptySum()
+	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+	met.Sum().SetIsMonotonic(true)
+
+	values := []float64{10, 15, 20}
+	dpsInt := met.Sum().DataPoints()
+	dpsInt.EnsureCapacity(len(values))
+
+	startTs := int(getProcessStartTime()) + 1
+	for i, val := range values {
+		dpInt := dpsInt.AppendEmpty()
+		dpInt.SetStartTimestamp(seconds(startTs))
+		dpInt.SetTimestamp(seconds(startTs + i + 1))
+		dpInt.SetDoubleValue(val)
+	}
 	return md
 }
 
