@@ -254,23 +254,20 @@ func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 	for _, profileDef := range d.config.Profiles {
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
-			newMetricConfig.MetricTags = checkconfig.MetricTagConfigList{}
-			newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
-			if metricConfig.Symbol.OID != "" && root.NodeExist(metricConfig.Symbol.OID) {
-				metricConfigs = append(metricConfigs, newMetricConfig)
-				continue
-			}
-			for _, symbol := range metricConfig.Symbols {
-				if symbol.OID != "" && root.NodeExist(symbol.OID) {
-					newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
+			if metricConfig.IsScalar() {
+				if root.NodeExist(metricConfig.Symbol.OID) {
+					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
-			}
-
-			for _, metricTag := range metricConfig.MetricTags {
-				newMetricConfig.MetricTags = append(newMetricConfig.MetricTags, metricTag)
-			}
-			if len(newMetricConfig.Symbols) > 0 {
-				metricConfigs = append(metricConfigs, newMetricConfig)
+			} else if metricConfig.IsColumn() {
+				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
+				for _, symbol := range metricConfig.Symbols {
+					if root.NodeExist(symbol.OID) {
+						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
+					}
+				}
+				if len(newMetricConfig.Symbols) > 0 {
+					metricConfigs = append(metricConfigs, newMetricConfig)
+				}
 			}
 		}
 	}

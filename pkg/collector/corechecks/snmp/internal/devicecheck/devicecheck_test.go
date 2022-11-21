@@ -1047,3 +1047,7 @@ profiles:
 
 	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
 }
+
+func TestDeviceCheck_detectAvailableMetrics(t *testing.T) {
+	// TODO: Test me
+}
