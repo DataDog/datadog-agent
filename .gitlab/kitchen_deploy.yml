@@ -43,13 +43,6 @@
 .deploy_deb_resource_group-a7: &deploy_deb_resource_group-a7
   resource_group: deploy_deb_a7
 
-.deploy_rpm_resource_group-a6: &deploy_rpm_resource_group-a6
-  resource_group: deploy_rpm_a6
-
-.deploy_rpm_resource_group-a7: &deploy_rpm_resource_group-a7
-  resource_group: deploy_rpm_a7
-
-
 .deploy_deb_testing-a6:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
@@ -138,7 +131,6 @@ deploy_deb_testing-a7_arm64:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  <<: *deploy_deb_resource_group-a6
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
   before_script:
@@ -170,7 +162,6 @@ deploy_rpm_testing-a6_arm64:
   stage: kitchen_deploy
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
   tags: ["runner:main"]
-  <<: *deploy_deb_resource_group-a7
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
   before_script:
