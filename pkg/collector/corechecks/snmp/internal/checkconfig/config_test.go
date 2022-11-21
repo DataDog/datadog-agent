@@ -1343,7 +1343,7 @@ oid_batch_size: 10
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, 3600, config.DetectMetricRefreshInterval)
+	assert.Equal(t, 3600, config.DetectMetricsRefreshInterval)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1357,7 +1357,7 @@ detect_metrics_refresh_interval: 10
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, 10, config.DetectMetricRefreshInterval)
+	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1371,7 +1371,7 @@ oid_batch_size: 20
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, 10, config.DetectMetricRefreshInterval)
+	assert.Equal(t, 10, config.DetectMetricsRefreshInterval)
 
 	// language=yaml
 	rawInstanceConfig = []byte(`
@@ -1386,7 +1386,7 @@ detect_metrics_refresh_interval: 30
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, 20, config.DetectMetricRefreshInterval)
+	assert.Equal(t, 20, config.DetectMetricsRefreshInterval)
 }
 
 func Test_buildConfig_minCollectionInterval(t *testing.T) {

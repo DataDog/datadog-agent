@@ -581,7 +581,7 @@ profiles:
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.submitted_metrics", telemetryTags)
 
-	expectedNextAutodetectMetricsTime := savedAutodetectMetricsTime.Add(time.Duration(deviceCk.config.DetectMetricRefreshInterval) * time.Second)
+	expectedNextAutodetectMetricsTime := savedAutodetectMetricsTime.Add(time.Duration(deviceCk.config.DetectMetricsRefreshInterval) * time.Second)
 	assert.WithinDuration(t, expectedNextAutodetectMetricsTime, deviceCk.nextAutodetectMetrics, 3*time.Second)
 
 	// Make sure we don't auto detect and add metrics twice if we already did that previously

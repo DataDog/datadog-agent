@@ -209,7 +209,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if d.nextAutodetectMetrics.After(timeNow()) {
 			return nil
 		}
-		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricRefreshInterval) * time.Second)
+		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricsRefreshInterval) * time.Second)
 
 		detectedMetrics := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
