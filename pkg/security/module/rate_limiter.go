@@ -11,20 +11,24 @@ package module
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-const (
+var (
 	// Arbitrary default limit to prevent flooding.
-	defaultLimit = rate.Limit(10)
-	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
-	// flooding.
-	defaultBurst int = 40
+	defaultLimiter = NewLimiter(rate.Limit(10), 40)
+
+	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
+		probe.AbnormalPathRuleID: NewLimiter(rate.Every(time.Second), 1),
+	}
 )
 
 // Limiter describes an object that applies limits on
@@ -55,10 +59,16 @@ type RateLimiter struct {
 
 // NewRateLimiter initializes an empty rate limiter
 func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
 	}
+
+	for id, limiter := range defaultPerRuleLimiters {
+		rl.limiters[id] = limiter
+	}
+
+	return rl
 }
 
 // Apply a set of rules
@@ -71,7 +81,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 		if rule.Definition.Every != 0 {
 			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
 		} else {
-			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+			newLimiters[id] = defaultLimiter
 		}
 	}
 	rl.limiters = newLimiters
