@@ -182,23 +182,6 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 	return processResult, len(resourceMetadataModels)
 }
 
-// build orchestrator manifest message
-func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
-	manifests := make([]*model.Manifest, 0, len(resourceManifests))
-
-	for _, m := range resourceManifests {
-		manifests = append(manifests, m.(*model.Manifest))
-	}
-
-	return &model.CollectorManifest{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		Manifests:   manifests,
-		GroupId:     ctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-	}
-}
-
 // ChunkManifest is to chunk Manifest payloads
 func ChunkManifest(ctx *ProcessorContext, p *Processor, resourceManifestModels []interface{}) []model.MessageBody {
 	// Chunking resources based on the serialized size of their manifest and maximum messages number
