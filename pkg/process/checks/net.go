@@ -85,7 +85,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	}
 	c.networkID = networkID
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor()
+	c.serviceExtractor = parser.NewServiceExtractor(cfg.EnableProcessServiceInference)
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -319,13 +319,20 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			if len(c.Tags) > 0 {
-				tagsStr := make([]string, 0, len(c.Tags)+1)
+			serviceTag := serviceExtractor.GetServiceTag(c.Pid)
+
+			if len(c.Tags) > 0 || serviceTag != "" {
+				tagCount := len(c.Tags)
+				if serviceTag != "" {
+					tagCount += 2
+				}
+				tagsStr := make([]string, 0, tagCount)
 				for _, t := range c.Tags {
 					tagsStr = append(tagsStr, tags[t])
 				}
-				if serviceTag := serviceExtractor.GetServiceTag(c.Pid); serviceTag != "" {
-					tagsStr = append(tagsStr, serviceTag)
+
+				if serviceTag != "" {
+					tagsStr = append(tagsStr, "service_source:process", serviceTag)
 				}
 				c.Tags = nil
 				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))

@@ -28,6 +28,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace             = "system_probe_config"
 	spNS                  = Namespace
+	smNS                  = "service_monitoring_config"
 	defaultConfigFileName = "system-probe.yaml"
 
 	defaultConnsMessageBatchSize = 600
@@ -49,8 +50,9 @@ func key(pieces ...string) string {
 
 // Config represents the configuration options for the system-probe
 type Config struct {
-	Enabled        bool
-	EnabledModules map[ModuleName]struct{}
+	Enabled                       bool
+	EnabledModules                map[ModuleName]struct{}
+	EnableProcessServiceInference bool
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -184,7 +186,7 @@ func load(configPath string) (*Config, error) {
 
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
 
 	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
@@ -231,8 +233,15 @@ func load(configPath string) (*Config, error) {
 		c.Enabled = false
 		c.SocketAddress = ""
 	}
+
+	if usmEnabled && cfg.GetBool(key(smNS, "enable_process_service_inference")) {
+		log.Info("service monitoring detected, enabling process service inference")
+		c.EnableProcessServiceInference = true
+	}
+
 	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	cfg.Set(key(spNS, "enabled"), c.Enabled)
+	cfg.Set(key(smNS, "enable_process_service_inference"), c.EnableProcessServiceInference)
 
 	return c, nil
 }
