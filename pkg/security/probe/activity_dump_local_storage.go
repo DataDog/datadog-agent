@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -58,7 +58,7 @@ func (s dumpFilesSlice) Less(i, j int) bool {
 
 // ActivityDumpLocalStorage is used to manage ActivityDumps storage
 type ActivityDumpLocalStorage struct {
-	localDumps *simplelru.LRU
+	localDumps *simplelru.LRU[string, []string]
 }
 
 // NewActivityDumpLocalStorage creates a new ActivityDumpLocalStorage instance
@@ -67,9 +67,8 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		return &ActivityDumpLocalStorage{}, nil
 	}
 
-	lru, err := simplelru.NewLRU(p.config.ActivityDumpLocalStorageMaxDumpsCount, func(key interface{}, value interface{}) {
-		files, ok := value.([]string)
-		if !ok || len(files) == 0 {
+	lru, err := simplelru.NewLRU(p.config.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
+		if len(files) == 0 {
 			return
 		}
 		// remove everything
@@ -162,14 +161,10 @@ func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad
 
 	// add the file to the list of local dumps (thus removing one or more files if we reached the limit)
 	if storage.localDumps != nil {
-		filesRaw, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
+		files, ok := storage.localDumps.Get(ad.DumpMetadata.Name)
 		if !ok {
 			storage.localDumps.Add(ad.DumpMetadata.Name, []string{outputPath})
 		} else {
-			files, ok := filesRaw.([]string)
-			if !ok {
-				files = []string{}
-			}
 			storage.localDumps.Add(ad.DumpMetadata.Name, append(files, outputPath))
 		}
 	}

@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	lib "github.com/cilium/ebpf"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
 
@@ -53,7 +53,7 @@ type DentryResolver struct {
 	erpcStats             [2]*lib.Map
 	bufferSelector        *lib.Map
 	activeERPCStatsBuffer uint32
-	cache                 map[uint32]*lru.Cache
+	cache                 map[uint32]*lru.Cache[uint64, *PathEntry]
 	cacheGeneration       *atomic.Uint64
 	erpc                  *ERPC
 	erpcSegment           []byte
@@ -245,7 +245,7 @@ func (dr *DentryResolver) DelCacheEntry(mountID uint32, inode uint64) {
 			// this is also call the onEvict function of LRU thus releasing the entry from the pool
 			entries.Remove(key.Inode)
 
-			parent := path.(*PathEntry).Parent
+			parent := path.Parent
 			if parent.Inode == 0 {
 				break
 			}
@@ -272,12 +272,11 @@ func (dr *DentryResolver) lookupInodeFromCache(mountID uint32, inode uint64) (*P
 		return nil, ErrEntryNotFound
 	}
 
-	cacheEntry := entry.(*PathEntry)
-	if cacheEntry.Generation < dr.cacheGeneration.Load() {
+	if entry.Generation < dr.cacheGeneration.Load() {
 		return nil, ErrEntryNotFound
 	}
 
-	return cacheEntry, nil
+	return entry, nil
 }
 
 // We need to cache inode by inode instead of caching the whole path in order to be
@@ -287,7 +286,7 @@ func (dr *DentryResolver) cacheInode(key PathKey, path *PathEntry) error {
 	if !exists {
 		var err error
 
-		entries, err = lru.NewWithEvict(dr.config.DentryCacheSize, func(_, value interface{}) {
+		entries, err = lru.NewWithEvict(dr.config.DentryCacheSize, func(_ uint64, value *PathEntry) {
 			dr.pathEntryPool.Put(value)
 		})
 		if err != nil {
@@ -946,7 +945,7 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	return &DentryResolver{
 		config:          probe.config,
 		statsdClient:    probe.statsdClient,
-		cache:           make(map[uint32]*lru.Cache),
+		cache:           make(map[uint32]*lru.Cache[uint64, *PathEntry]),
 		erpc:            probe.erpc,
 		erpcRequest:     ERPCRequest{},
 		erpcStatsZero:   make([]eRPCStats, numCPU),
