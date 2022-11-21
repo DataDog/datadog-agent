@@ -175,6 +175,11 @@ func FetchAllOIDsUsingGetNext(session Session) []string {
 			log.Debugf("GetNext error: %s", err)
 			break
 		}
+		if len(results.Variables) != 1 {
+			// TODO: TESTME
+			log.Debugf("Expect 1 variable, but got %d: %+v", len(results.Variables), results.Variables)
+			break
+		}
 		variable := results.Variables[0]
 		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
 			log.Debug("No more OIDs to fetch")
