@@ -46,7 +46,7 @@ func (h *IngressHandlers) BuildMessageBody(ctx *processors.ProcessorContext, res
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Ingresses:   models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

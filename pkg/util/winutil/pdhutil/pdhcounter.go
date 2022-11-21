@@ -18,7 +18,6 @@ var (
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
 	pfnPdhCollectQueryData              = PdhCollectQueryData
-	pfnPdhRemoveCounter                 = PdhRemoveCounter
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
 	pfnPdhCloseQuery                    = PdhCloseQuery
@@ -34,7 +33,7 @@ type CounterInstanceVerify func(string) bool
 type PdhCounterSet struct {
 	className string
 	query     PDH_HQUERY
-	counter PDH_HCOUNTER
+	counter   PDH_HCOUNTER
 
 	counterName string
 }
@@ -47,14 +46,14 @@ type PdhSingleInstanceCounterSet struct {
 // PdhMultiInstanceCounterSet is a specialization for a multiple instance counter
 type PdhMultiInstanceCounterSet struct {
 	PdhCounterSet
-	verifyfn             CounterInstanceVerify
+	verifyfn CounterInstanceVerify
 }
 
 // Initialize initializes a counter set object
 func (p *PdhCounterSet) Initialize(className string, counterName string) error {
 
 	// refresh PDH object cache (refresh will only occur periodically)
-	tryRefreshPdhObjectCache()
+	_, _ = tryRefreshPdhObjectCache()
 
 	p.className = className
 	p.counterName = counterName
@@ -170,6 +169,5 @@ func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
 
 // Close closes the query handle, freeing the underlying windows resources.
 func (p *PdhCounterSet) Close() {
-	PdhCloseQuery(p.query)
+	pfnPdhCloseQuery(p.query)
 }
-

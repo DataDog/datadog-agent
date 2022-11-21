@@ -18,10 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-var (
-	username = "ddagentuser"
-)
-
 // checkRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
 func checkRights(filename string, allowGroupExec bool) error {

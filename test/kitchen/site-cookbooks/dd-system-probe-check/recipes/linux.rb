@@ -120,3 +120,45 @@ cookbook_file "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/minimiz
   source "minimized-btfs.tar.xz"
   action :create
 end
+
+directory "/go/bin" do
+  recursive true
+end
+
+cookbook_file "/go/bin/gotestsum" do
+  source "gotestsum"
+  mode '0744'
+  action :create
+end
+
+cookbook_file "/go/bin/test2json" do
+  source "test2json"
+  mode '0744'
+  action :create
+end
+
+directory "/tmp/junit" do
+  recursive true
+end
+
+cookbook_file "/tmp/junit/job_url.txt" do
+  source "job_url.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+cookbook_file "/tmp/junit/tags.txt" do
+  source "tags.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+directory "/tmp/testjson" do
+  recursive true
+end
+
+directory "/tmp/pkgjson" do
+  recursive true
+end

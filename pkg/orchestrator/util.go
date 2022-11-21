@@ -18,8 +18,8 @@ type NodeType int
 var CheckName = "orchestrator"
 
 const (
-	// K8sDeployment represents a Kubernetes Deployment
-	K8sDeployment NodeType = iota
+	// K8sUnsetType represents a Kubernetes unset type
+	K8sUnsetType NodeType = iota
 	// K8sPod represents a Kubernetes Pod
 	K8sPod
 	// K8sReplicaSet represents a Kubernetes ReplicaSet
@@ -54,6 +54,8 @@ const (
 	K8sServiceAccount
 	// K8sIngress represents a Kubernetes Ingress
 	K8sIngress
+	// K8sDeployment represents a Kubernetes Deployment
+	K8sDeployment
 	// K8sNamespace represents a Kubernetes Namespace
 	K8sNamespace
 	// K8sCRD represents a Kubernetes CRD
@@ -133,6 +135,8 @@ func (n NodeType) String() string {
 		return "CustomResourceDefinition"
 	case K8sCR:
 		return "CustomResources"
+	case K8sUnsetType:
+		return "UnsetType"
 	default:
 		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
@@ -160,9 +164,10 @@ func (n NodeType) Orchestrator() string {
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
 		K8sIngress,
-		K8sNamespace,
 		K8sCRD,
-		K8sCR:
+		K8sCR,
+		K8sNamespace,
+		K8sUnsetType:
 		return "k8s"
 	default:
 		_ = log.Errorf("Unknown NodeType %v", n)

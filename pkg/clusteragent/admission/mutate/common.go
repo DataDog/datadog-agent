@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"gomodules.xyz/jsonpatch/v3"
+	jsonpatch "github.com/evanphx/json-patch"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
 )
@@ -38,12 +38,12 @@ func mutate(rawPod []byte, ns string, m mutateFunc, dc dynamic.Interface) ([]byt
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
 
-	patchOperation, err := jsonpatch.CreatePatch(rawPod, bytes) // TODO: Try to generate the patch at the mutateFunc
+	patchOperation, err := jsonpatch.CreateMergePatch(rawPod, bytes) // TODO: Try to generate the patch at the mutateFunc
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
 
-	return json.Marshal(patchOperation)
+	return patchOperation, nil
 }
 
 // contains returns whether EnvVar slice contains an env var with a given name

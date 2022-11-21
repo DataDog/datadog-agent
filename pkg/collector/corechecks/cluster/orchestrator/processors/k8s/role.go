@@ -46,7 +46,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resour
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Roles:       models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

@@ -8,7 +8,7 @@ package configutils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -20,7 +20,7 @@ import (
 // Adapted from: https://github.com/open-telemetry/opentelemetry-collector/blob/v0.41.0/config/configmapprovider/inmemory.go
 func NewMapFromYAMLString(cfg string) (*confmap.Conf, error) {
 	inp := strings.NewReader(cfg)
-	content, err := ioutil.ReadAll(inp)
+	content, err := io.ReadAll(inp)
 	if err != nil {
 		return nil, err
 	}

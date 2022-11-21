@@ -189,7 +189,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	}
 
 	defer func() {
-		if err := test.StopActivityDumpComm(t, "testsuite"); err != nil {
+		if err := test.StopActivityDump("", "", "testsuite"); err != nil {
 			t.Fatal(err)
 		}
 	}()

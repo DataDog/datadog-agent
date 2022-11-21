@@ -8,8 +8,6 @@
 package memory
 
 import (
-	"runtime"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -21,7 +19,6 @@ import (
 var virtualMemory = winutil.VirtualMemory
 var swapMemory = winutil.SwapMemory
 var pageMemory = winutil.PagefileMemory
-var runtimeOS = runtime.GOOS
 
 // Check doesn't need additional fields
 type Check struct {
@@ -42,7 +39,6 @@ func (c *Check) Configure(data integration.Data, initConfig integration.Data, so
 
 	return err
 }
-
 
 // Run executes the check
 func (c *Check) Run() error {

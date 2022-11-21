@@ -129,8 +129,6 @@ var (
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
-	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
-		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
@@ -378,26 +376,8 @@ func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, cha
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
-// SetHostname sets the hostname that the aggregator uses by default on all the data it sends
-// Blocks until the main aggregator goroutine has finished handling the update
-func (agg *BufferedAggregator) SetHostname(hostname string) {
-	agg.hostnameUpdate <- hostname
-	<-agg.hostnameUpdateDone
-}
-
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
-	agg.mu.Lock()
-	defer agg.mu.Unlock()
-
-	if _, ok := agg.checkSamplers[id]; ok {
-		return fmt.Errorf("Sender with ID '%s' has already been registered, will use existing sampler", id)
-	}
-	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog.GetBool("check_sampler_expire_metrics"),
-		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
-		agg.tagsStore,
-	)
+	agg.checkItems <- &registerSampler{id}
 	return nil
 }
 
@@ -767,12 +747,6 @@ func (agg *BufferedAggregator) run() {
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
-		case h := <-agg.hostnameUpdate:
-			aggregatorHostnameUpdate.Add(1)
-			tlmHostnameUpdate.Inc()
-			agg.hostname = h
-			changeAllSendersDefaultHostname(h)
-			agg.hostnameUpdateDone <- struct{}{}
 		case orchestratorMetadata := <-agg.orchestratorMetadataIn:
 			aggregatorOrchestratorMetadata.Add(1)
 			// each resource has its own payload so we cannot aggregate
@@ -910,4 +884,39 @@ func (agg *BufferedAggregator) handleDeregisterSampler(id check.ID) {
 	if cs, ok := agg.checkSamplers[id]; ok {
 		cs.deregistered = true
 	}
+}
+
+// registerSampler is an item sent internally by the aggregator to
+// register a new sampler or re-use an existing one.
+//
+// This handles a situation when a check is descheduled and then
+// immediately re-scheduled again, within one Flush interval.
+//
+// We cannot immediately remove `deregistered` flag from the sampler,
+// since the deregisterSampler message may still be in the queue when
+// the check is re-scheduled. If registerSampler is called before
+// the check runs, we will have a sampler for it one way or another.
+type registerSampler struct {
+	id check.ID
+}
+
+func (s *registerSampler) handle(agg *BufferedAggregator) {
+	agg.handleRegisterSampler(s.id)
+}
+
+func (agg *BufferedAggregator) handleRegisterSampler(id check.ID) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+
+	if cs, ok := agg.checkSamplers[id]; ok {
+		cs.deregistered = false
+		log.Debugf("Sampler with ID '%s' has already been registered, will use existing sampler", id)
+		return
+	}
+	agg.checkSamplers[id] = newCheckSampler(
+		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog.GetBool("check_sampler_expire_metrics"),
+		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		agg.tagsStore,
+	)
 }

@@ -46,7 +46,7 @@ func (h *JobHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Jobs:        models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

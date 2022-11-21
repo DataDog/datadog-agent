@@ -46,7 +46,7 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx *processors.ProcessorConte
 		GroupId:         ctx.MsgGroupID,
 		GroupSize:       int32(groupSize),
 		ServiceAccounts: models,
-		Tags:            ctx.Cfg.ExtraTags,
+		Tags:            append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
