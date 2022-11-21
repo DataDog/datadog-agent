@@ -124,7 +124,7 @@ func TestRemoveConnections(t *testing.T) {
 	})
 
 	clientID := "1"
-	state := newDefaultState().(*networkState)
+	state := newDefaultState()
 	conns := state.GetDelta(clientID, latestEpochTime(), nil, nil, nil).Conns
 	assert.Equal(t, 0, len(conns))
 
@@ -576,6 +576,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+
+		// should not hold on to closed connection stats
+		assert.Empty(t, state.clients["c"].stats)
 	})
 
 	t.Run("TwoShortlivedConnections", func(t *testing.T) {
@@ -616,6 +619,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 8, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 8, int(conns[0].Last.SentBytes))
+
+		// should not hold on to closed connection stats
+		assert.Empty(t, state.clients["c"].stats)
 	})
 
 	t.Run("TwoShortlivedConnectionsCrossing-1", func(t *testing.T) {
@@ -659,6 +665,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.EqualValues(t, 1, conns[0].Last.SentBytes)
 		assert.EqualValues(t, 1, conns[0].MonotonicSum().SentBytes)
 
+		// should not hold on to closed connection stats
+		assert.Len(t, state.clients["c"].stats, 1)
+
 		// Store the connection as closed
 		m, _ := conn.Monotonic.Get(1)
 		m.SentBytes++
@@ -676,6 +685,10 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		require.Len(t, conns, 1)
 		assert.EqualValues(t, uint64(2), conns[0].Last.SentBytes)
 		assert.EqualValues(t, uint64(3), conns[0].MonotonicSum().SentBytes)
+		// should not hold on to active connection stats
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn.ByteKey(state.buf))], 1)
+		require.Equal(t, uint32(2), state.clients["c"].stats[string(conn.ByteKey(state.buf))][0].Cookie)
 
 		m.SentBytes++
 		conn2.Monotonic.Put(2, m)
@@ -687,6 +700,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		require.Len(t, conns, 1)
 		assert.EqualValues(t, 1, conns[0].Last.SentBytes)
 		assert.EqualValues(t, 2, conns[0].MonotonicSum().SentBytes)
+		// should not hold on to closed connection stats
+		assert.Len(t, state.clients["c"].stats, 0)
 	})
 
 	t.Run("TwoShortlivedConnectionsCrossing-2", func(t *testing.T) {
@@ -730,6 +745,10 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		require.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		// should not hold on to closed connection stats
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(2), state.clients["c"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes += 3
@@ -750,6 +769,10 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 6, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
+		// should not hold on to closed connection stats
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn3.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(3), state.clients["c"].stats[string(conn3.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes += 2
@@ -761,6 +784,8 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
+		// should not hold on to closed connection stats
+		assert.Empty(t, state.clients["c"].stats)
 	})
 
 	t.Run("ConnectionCrossing", func(t *testing.T) {
@@ -794,6 +819,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["c"].stats[string(conn.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		conn.Monotonic.Put(1, StatCounters{SentBytes: 8})
@@ -804,6 +832,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 8, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["c"].stats)
 	})
 
 	t.Run("TwoShortlivedConnectionsCrossingWithTwoClients", func(t *testing.T) {
@@ -859,6 +888,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["d"].stats)
 
 		// Store the connection as an opened connection
 		conn2 := conn
@@ -874,6 +904,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(2), state.clients["c"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as an opened connection
 		m.SentBytes++
@@ -886,6 +919,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["d"].stats, 1)
+		require.Len(t, state.clients["d"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(2), state.clients["d"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes += 2
@@ -906,6 +942,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 6, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn3.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(3), state.clients["c"].stats[string(conn3.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection again
 		m.SentBytes++
@@ -918,6 +957,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 7, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["d"].stats, 1)
+		require.Len(t, state.clients["d"].stats[string(conn3.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(3), state.clients["d"].stats[string(conn3.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes++
@@ -930,12 +972,14 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["c"].stats)
 
 		// 5th get, for client d we should have monotonic = 3 and last stats = 1
 		conns = state.GetDelta(clientD, latestEpochTime(), nil, nil, nil).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 1, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["d"].stats)
 	})
 
 	t.Run("ShortlivedConnectionCrossingWithThreeClients", func(t *testing.T) {
@@ -1009,6 +1053,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 2, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["e"].stats, 1)
+		require.Len(t, state.clients["e"].stats[string(conn.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["e"].stats[string(conn.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes++
@@ -1021,12 +1068,14 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["d"].stats)
 
 		// Third get for client e we should have monotonic = 3and last stats = 1
 		conns = state.GetDelta(clientE, latestEpochTime(), nil, nil, nil).Conns
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 1, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["e"].stats)
 
 		// Store the connection as an opened connection
 		conn2 := conn
@@ -1041,6 +1090,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(2), state.clients["c"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as an opened connection
 		m.SentBytes++
@@ -1053,6 +1105,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["d"].stats, 1)
+		require.Len(t, state.clients["d"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(2), state.clients["d"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		// Store the connection as closed
 		m.SentBytes += 2
@@ -1065,6 +1120,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, 5, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		assert.Empty(t, state.clients["e"].stats)
 	})
 
 	t.Run("LonglivedConnectionWithTwoClientsJoiningAtDifferentTimes", func(t *testing.T) {
@@ -1106,6 +1162,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 3, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["c"].stats[string(conn.ByteKey(state.buf))][0].Cookie)
 
 		conn2 := conn
 		m, _ := conn.Monotonic.Get(1)
@@ -1118,6 +1177,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 4, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["d"].stats, 1)
+		require.Len(t, state.clients["d"].stats[string(conn2.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["d"].stats[string(conn2.ByteKey(state.buf))][0].Cookie)
 
 		conn3 := conn2
 		m.SentBytes += 3
@@ -1129,6 +1191,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 7, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn3.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["c"].stats[string(conn3.ByteKey(state.buf))][0].Cookie)
 
 		conn4 := conn3
 		m.SentBytes += 2
@@ -1140,6 +1205,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Len(t, conns, 1)
 		assert.Equal(t, 9, int(conns[0].MonotonicSum().SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
+		assert.Len(t, state.clients["c"].stats, 1)
+		require.Len(t, state.clients["c"].stats[string(conn4.ByteKey(state.buf))], 1)
+		assert.Equal(t, uint32(1), state.clients["c"].stats[string(conn4.ByteKey(state.buf))][0].Cookie)
 	})
 }
 
@@ -1281,7 +1349,7 @@ func TestUnorderedCloseEvent(t *testing.T) {
 	assert.EqualValues(t, 0, conns[0].Last.RecvBytes)
 
 	// Ensure we don't have underflows / unordered conns
-	assert.Zero(t, state.(*networkState).telemetry.statsUnderflows)
+	assert.Zero(t, state.telemetry.statsUnderflows)
 
 	assert.Len(t, state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns, 0)
 }
@@ -1641,7 +1709,7 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 	for _, te := range tests {
 		conns = append(conns, te.conn)
 	}
-	state := newDefaultState().(*networkState)
+	state := newDefaultState()
 	state.determineConnectionIntraHost(conns)
 	for i, te := range tests {
 		if i >= len(conns) {
@@ -1831,9 +1899,9 @@ func latestEpochTime() uint64 {
 	return latestTime.Inc()
 }
 
-func newDefaultState() State {
+func newDefaultState() *networkState {
 	// Using values from ebpf.NewConfig()
-	return NewState(2*time.Minute, 50000, 75000, 75000, 7500)
+	return NewState(2*time.Minute, 50000, 75000, 75000, 7500).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {

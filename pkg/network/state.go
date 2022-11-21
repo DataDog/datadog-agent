@@ -31,6 +31,9 @@ const (
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
 	ConnectionByteKeyMaxLen = 41
+
+	// the maximum number of counter stats objects ("cookies") we can have per connection
+	maxCounterCookies = 3
 )
 
 // State takes care of handling the logic for:
@@ -124,10 +127,44 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 	newStats := make(map[string]StatCountersByCookie, len(c.stats))
 	for key, st := range c.stats {
 		// Only keep active connections stats
-		if _, isActive := active[key]; isActive {
-			newStats[key] = st
+		activeConn, ok := active[key]
+		if !ok {
+			continue
+		}
+
+		// go over counters and only keep those
+		// that have the same cookie values as
+		// the active connection
+		n := len(st) - 1
+		for i := 0; i < n; {
+			var found bool
+			for j := range activeConn.Monotonic {
+				if activeConn.Monotonic[j].Cookie == st[i].Cookie {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				st[i], st[n] = st[n], st[i]
+				n--
+			} else {
+				i++
+			}
+
+			if i == len(activeConn.Monotonic) {
+				break
+			}
+		}
+
+		newStats[key] = st[:n+1]
+		if len(st) > maxCounterCookies {
+			log.WarnFunc(func() string {
+				return fmt.Sprintf("max number of counter sets (cookies) reached for connection %s, num cookies: %d", BeautifyKey(key), len(st))
+			})
 		}
 	}
+
 	c.stats = newStats
 }
 
