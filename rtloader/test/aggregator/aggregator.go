@@ -7,7 +7,6 @@ package testaggregator
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -112,7 +111,7 @@ func setUp() error {
 
 func run(call string) (string, error) {
 	resetOuputValues()
-	tmpfile, err := ioutil.TempFile("", "testout")
+	tmpfile, err := os.CreateTemp("", "testout")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,7 +140,7 @@ except Exception as e:
 	}
 
 	var output []byte
-	output, err = ioutil.ReadFile(tmpfile.Name())
+	output, err = os.ReadFile(tmpfile.Name())
 
 	return strings.TrimSpace(string(output)), err
 }

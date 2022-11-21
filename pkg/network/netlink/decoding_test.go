@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/netip"
 	"os"
 	"testing"
@@ -84,7 +83,7 @@ func BenchmarkDecodeMultipleMessages(b *testing.B) {
 }
 
 func loadDumpData() ([]netlink.Message, error) {
-	f, err := ioutil.TempFile("", "message_dump")
+	f, err := os.CreateTemp("", "message_dump")
 	if err != nil {
 		return nil, err
 	}

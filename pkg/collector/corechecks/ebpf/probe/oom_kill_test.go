@@ -10,13 +10,14 @@ package probe
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -38,7 +39,7 @@ exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that t
 `
 
 func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := ioutil.TempFile("", pattern)
+	f, err := os.CreateTemp("", pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +126,13 @@ func TestOOMKillProbe(t *testing.T) {
 	for _, result := range results {
 		if result.TPid == uint32(cmd.Process.Pid) {
 			found = true
+
+			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName)
+			assert.Equal(t, result.TPid, result.Pid)
+			assert.Equal(t, "python3", result.FComm)
+			assert.Equal(t, "python3", result.TComm)
+			assert.NotZero(t, result.Pages)
+			assert.Equal(t, uint32(1), result.MemCgOOM)
 			break
 		}
 	}

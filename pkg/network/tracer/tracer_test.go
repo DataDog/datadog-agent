@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	nethttp "net/http"
@@ -1208,7 +1207,7 @@ func TestTCPEstablished(t *testing.T) {
 	initTracerState(t, tr)
 
 	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -1242,7 +1241,7 @@ func TestTCPEstablished(t *testing.T) {
 
 func TestTCPEstablishedPreExistingConn(t *testing.T) {
 	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -1472,7 +1471,7 @@ func TestTCPDirection(t *testing.T) {
 		Addr: serverAddr,
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
 			t.Logf("received http request from %s", req.RemoteAddr)
-			io.Copy(ioutil.Discard, req.Body)
+			io.Copy(io.Discard, req.Body)
 			w.WriteHeader(200)
 		}),
 		ReadTimeout:  time.Second,

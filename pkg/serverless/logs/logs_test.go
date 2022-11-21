@@ -9,9 +9,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -26,7 +26,7 @@ import (
 )
 
 func TestUnmarshalExtensionLog(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
+	raw, err := os.ReadFile("./testdata/extension_log.json")
 	require.NoError(t, err)
 	var messages []logMessage
 	err = json.Unmarshal(raw, &messages)
@@ -169,23 +169,23 @@ func TestCreateStringRecordForReportLogWithoutInitDuration(t *testing.T) {
 }
 
 func TestRemoveInvalidTracingItemWellFormatted(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
+	raw, err := os.ReadFile("./testdata/valid_logs_payload.json")
 	require.NoError(t, err)
 	sanitizedData := removeInvalidTracingItem(raw)
 	assert.Equal(t, raw, sanitizedData)
 }
 
 func TestRemoveInvalidTracingItemNotWellFormatted(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
+	raw, err := os.ReadFile("./testdata/invalid_logs_payload.json")
 	require.NoError(t, err)
 	sanitizedData := removeInvalidTracingItem(raw)
-	sanitizedRaw, sanitizedErr := ioutil.ReadFile("./testdata/invalid_logs_payload_sanitized.json")
+	sanitizedRaw, sanitizedErr := os.ReadFile("./testdata/invalid_logs_payload_sanitized.json")
 	require.NoError(t, sanitizedErr)
 	assert.Equal(t, string(sanitizedRaw), string(sanitizedData))
 }
 
 func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/valid_logs_payload.json")
+	raw, err := os.ReadFile("./testdata/valid_logs_payload.json")
 	require.NoError(t, err)
 	messages, err := parseLogsAPIPayload(raw)
 	assert.Nil(t, err)
@@ -194,7 +194,7 @@ func TestParseLogsAPIPayloadWellFormated(t *testing.T) {
 }
 
 func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload.json")
+	raw, err := os.ReadFile("./testdata/invalid_logs_payload.json")
 	require.NoError(t, err)
 	messages, err := parseLogsAPIPayload(raw)
 	assert.Nil(t, err)
@@ -202,7 +202,7 @@ func TestParseLogsAPIPayloadNotWellFormated(t *testing.T) {
 }
 
 func TestParseLogsAPIPayloadNotWellFormatedButNotRecoverable(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/invalid_logs_payload_unrecoverable.json")
+	raw, err := os.ReadFile("./testdata/invalid_logs_payload_unrecoverable.json")
 	require.NoError(t, err)
 	_, err = parseLogsAPIPayload(raw)
 	assert.NotNil(t, err)
@@ -643,7 +643,7 @@ func TestServeHTTPSuccess(t *testing.T) {
 		ExecutionContext: mockExecutionContext,
 	}
 
-	raw, err := ioutil.ReadFile("./testdata/extension_log.json")
+	raw, err := os.ReadFile("./testdata/extension_log.json")
 	if err != nil {
 		assert.Fail(t, "should be able to read the log file")
 	}
@@ -665,7 +665,7 @@ func TestUnmarshalJSONInvalid(t *testing.T) {
 
 func TestUnmarshalJSONMalformed(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/invalid_log_no_type.json")
+	raw, errReadFile := os.ReadFile("./testdata/invalid_log_no_type.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -676,7 +676,7 @@ func TestUnmarshalJSONMalformed(t *testing.T) {
 func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_log.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_log.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -688,7 +688,7 @@ func TestUnmarshalJSONLogTypePlatformLogsSubscription(t *testing.T) {
 func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
 	// platform.fault events are not processed by the extension
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_fault.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_fault.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -700,7 +700,7 @@ func TestUnmarshalJSONLogTypePlatformFault(t *testing.T) {
 func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
 	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_telemetry.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_telemetry.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -712,7 +712,7 @@ func TestUnmarshalJSONLogTypePlatformTelemetrySubscription(t *testing.T) {
 func TestUnmarshalJSONLogTypePlatformExtension(t *testing.T) {
 	// platform.extension events are not processed by the extension
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_extension.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_extension.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -723,7 +723,7 @@ func TestUnmarshalJSONLogTypePlatformExtension(t *testing.T) {
 
 func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_start.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_start.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -736,7 +736,7 @@ func TestUnmarshalJSONLogTypePlatformStart(t *testing.T) {
 func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
 	// with the telemetry api, these events should not exist
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_end.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_end.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -748,7 +748,7 @@ func TestUnmarshalJSONLogTypePlatformEnd(t *testing.T) {
 
 func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_report.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_incorrect_report.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -758,7 +758,7 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalMetrics(t *testing.T) {
 
 func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_report_record.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_incorrect_report_record.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
@@ -767,7 +767,7 @@ func TestUnmarshalJSONLogTypeIncorrectReportNotFatalReport(t *testing.T) {
 }
 
 func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid.json")
+	raw, err := os.ReadFile("./testdata/platform_runtime_done_log_valid.json")
 	require.NoError(t, err)
 	var message logMessage
 	err = json.Unmarshal(raw, &message)
@@ -787,7 +787,7 @@ func TestUnmarshalPlatformRuntimeDoneLog(t *testing.T) {
 }
 
 func TestUnmarshalPlatformRuntimeDoneLogWithTelemetry(t *testing.T) {
-	raw, err := ioutil.ReadFile("./testdata/platform_runtime_done_log_valid_with_telemetry.json")
+	raw, err := os.ReadFile("./testdata/platform_runtime_done_log_valid_with_telemetry.json")
 	require.NoError(t, err)
 	var message logMessage
 	err = json.Unmarshal(raw, &message)
@@ -813,7 +813,7 @@ func TestUnmarshalPlatformRuntimeDoneLogWithTelemetry(t *testing.T) {
 
 func TestUnmarshalPlatformRuntimeDoneLogNotFatal(t *testing.T) {
 	logMessage := &logMessage{}
-	raw, errReadFile := ioutil.ReadFile("./testdata/platform_incorrect_runtime_done_log.json")
+	raw, errReadFile := os.ReadFile("./testdata/platform_incorrect_runtime_done_log.json")
 	if errReadFile != nil {
 		assert.Fail(t, "should be able to read the file")
 	}
