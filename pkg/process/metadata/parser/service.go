@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,9 +24,11 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"sudo":      parseCommandContext,
 }
 
-// ServiceExtractor
+var _ metadata.Extractor = &ServiceExtractor{}
+
+// ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
-	// This "secondary index" is used only during the proxy IP discovery process
+	Enabled      bool
 	serviceByPID map[int32]*serviceMetadata
 }
 
@@ -35,8 +38,11 @@ type serviceMetadata struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor() *ServiceExtractor {
-	return &ServiceExtractor{serviceByPID: make(map[int32]*serviceMetadata)}
+func NewServiceExtractor(enabled bool) *ServiceExtractor {
+	return &ServiceExtractor{
+		Enabled:      enabled,
+		serviceByPID: make(map[int32]*serviceMetadata),
+	}
 }
 
 func (d *ServiceExtractor) Type() string {
@@ -44,18 +50,29 @@ func (d *ServiceExtractor) Type() string {
 }
 
 func (d *ServiceExtractor) Extract(p *procutil.Process) {
-	if _, seen := d.serviceByPID[p.Pid]; seen {
+	if !d.Enabled {
 		return
 	}
 
+	if meta, seen := d.serviceByPID[p.Pid]; seen {
+		// check the service metadata is for the same process
+		if len(p.Cmdline) == len(meta.cmdline) {
+			if len(p.Cmdline) == 0 || p.Cmdline[0] == meta.cmdline[0] {
+				return
+			}
+		}
+	}
 	meta := extractServiceMetadata(p.Cmdline)
 	if meta != nil {
-		log.Debugf("detected service metadata")
+		log.Debugf("detected service metadata: %v", meta)
 	}
 
 	d.serviceByPID[p.Pid] = meta
 }
 func (d *ServiceExtractor) GetServiceTag(pid int32) string {
+	if !d.Enabled {
+		return ""
+	}
 	if meta, ok := d.serviceByPID[pid]; ok {
 		return meta.serviceTag
 	}
@@ -86,7 +103,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 		tag := contextFn(cmd[1:])
 		return &serviceMetadata{
 			cmdline:    cmd,
-			serviceTag: tag,
+			serviceTag: "service:" + tag,
 		}
 	}
 
@@ -97,7 +114,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 
 	return &serviceMetadata{
 		cmdline:    cmd,
-		serviceTag: exe,
+		serviceTag: "service:" + exe,
 	}
 }
 
