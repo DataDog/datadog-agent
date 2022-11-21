@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,7 +113,7 @@ func zipTypeperfData(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
+	err = os.WriteFile(f, out.Bytes(), os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -142,7 +141,7 @@ func zipLodctrOutput(tempDir, hostname string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(f, out.Bytes(), os.ModePerm)
+	err = os.WriteFile(f, out.Bytes(), os.ModePerm)
 	if err != nil {
 		log.Warnf("Error writing file %v", err)
 		return err
@@ -296,7 +295,7 @@ func zipDatadogRegistry(tempDir, hostname string) error {
 	defer os.Remove(rawf)
 
 	// Read raw registry file in memory ...
-	data, err := ioutil.ReadFile(rawf)
+	data, err := os.ReadFile(rawf)
 	if err != nil {
 		return err
 	}

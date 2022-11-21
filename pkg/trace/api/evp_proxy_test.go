@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
@@ -37,7 +36,7 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
 		if req.Body != nil {
-			if _, err := ioutil.ReadAll(req.Body); err != nil && err != io.EOF {
+			if _, err := io.ReadAll(req.Body); err != nil && err != io.EOF {
 				return nil, err
 			}
 		}
@@ -45,7 +44,7 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request) 
 		// If we got here it means the proxy didn't raise an error earlier, return an ok resp
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
+			Body:       io.NopCloser(bytes.NewBuffer([]byte("ok_resprino"))),
 		}, nil
 	})
 	handler := evpProxyForwarder(conf)

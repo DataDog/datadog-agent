@@ -774,7 +774,7 @@ func InitConfig(config Config) {
 	// Cloud Foundry Container Tagger
 	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.shell_path", "/bin/sh")
 	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_count", 10)
-	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_interval", 10*time.Second)
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_interval", 10)
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
@@ -1372,9 +1372,11 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":                   {},
-		"DD_DOTNET_TRACER_HOME":        {},
+		"DD_SERVICE":            {},
+		"DD_DOTNET_TRACER_HOME": {},
 		"DD_SERVERLESS_APPSEC_ENABLED": {},
+		// this variable is used by CWS functional tests
+		"DD_TESTS_RUNTIME_COMPILED": {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

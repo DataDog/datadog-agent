@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -188,7 +187,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	// There's more than one destination endpoint
 	var slurp []byte
 	if req.Body != nil {
-		body, err := ioutil.ReadAll(req.Body)
+		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -197,7 +196,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	for i, endpointDomain := range t.endpoints {
 		newreq := req.Clone(req.Context())
 		if slurp != nil {
-			newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		}
 		setTarget(newreq, endpointDomain.Host, endpointDomain.APIKey)
 		if i == 0 {
@@ -209,7 +208,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 		if resp, err := t.transport.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net"
@@ -188,7 +187,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -253,7 +252,7 @@ func TestTCPRTT(t *testing.T) {
 
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -355,7 +354,7 @@ func TestConnectionExpirationRegression(t *testing.T) {
 	// Create TCP Server that simply "drains" connection until receiving an EOF
 	connClosed := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 		connClosed <- struct{}{}
 	})
@@ -416,7 +415,7 @@ func TestConntrackExpiration(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -475,7 +474,7 @@ func TestConntrackDelays(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -512,7 +511,7 @@ func TestTranslationBindingRegression(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
-		io.Copy(ioutil.Discard, c)
+		io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -1450,7 +1449,7 @@ func TestSendfileRegression(t *testing.T) {
 	defer tr.Stop()
 
 	// Create temporary file
-	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	tmpfile, err := os.CreateTemp("", "sendfile_source")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 	n, err := tmpfile.Write(genPayload(clientMessageSize))
@@ -1462,7 +1461,7 @@ func TestSendfileRegression(t *testing.T) {
 	// Start TCP server
 	var rcvd int64
 	server := NewTCPServer(func(c net.Conn) {
-		rcvd, _ = io.Copy(ioutil.Discard, c)
+		rcvd, _ = io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
@@ -1511,7 +1510,7 @@ func TestSendfileError(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
-	tmpfile, err := ioutil.TempFile("", "sendfile_source")
+	tmpfile, err := os.CreateTemp("", "sendfile_source")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.Remove(tmpfile.Name()) })
 
@@ -1522,7 +1521,7 @@ func TestSendfileError(t *testing.T) {
 	require.NoError(t, err)
 
 	server := NewTCPServer(func(c net.Conn) {
-		_, _ = io.Copy(ioutil.Discard, c)
+		_, _ = io.Copy(io.Discard, c)
 		c.Close()
 	})
 	doneChan := make(chan struct{})
