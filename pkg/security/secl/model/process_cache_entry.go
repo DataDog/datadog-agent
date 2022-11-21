@@ -138,10 +138,7 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 		return false
 	}
 
-	pa, _ := p.ToArray()
-	oa, _ := o.ToArray()
-
-	return slices.Equal(pa, oa)
+	return slices.Equal(p.Values, o.Values)
 }
 
 // EnvsEntry defines a args cache entry
@@ -164,15 +161,14 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 		return p.filteredEnvs, p.Truncated
 	}
 
-	values, _ := p.ToArray()
-	if len(values) == 0 {
+	if len(p.Values) == 0 {
 		return nil, p.Truncated
 	}
 
-	p.filteredEnvs = make([]string, len(values))
+	p.filteredEnvs = make([]string, len(p.Values))
 
 	var i int
-	for _, value := range values {
+	for _, value := range p.Values {
 		k, _, found := strings.Cut(value, "=")
 		if !found {
 			continue
@@ -194,10 +190,9 @@ func (p *EnvsEntry) toMap() {
 		return
 	}
 
-	values, _ := p.ToArray()
-	p.kv = make(map[string]string, len(values))
+	p.kv = make(map[string]string, len(p.Values))
 
-	for _, value := range values {
+	for _, value := range p.Values {
 		k, v, found := strings.Cut(value, "=")
 		if found {
 			p.kv[k] = v
@@ -219,8 +214,5 @@ func (p *EnvsEntry) Equals(o *EnvsEntry) bool {
 		return false
 	}
 
-	pa, _ := p.ToArray()
-	oa, _ := o.ToArray()
-
-	return slices.Equal(pa, oa)
+	return slices.Equal(p.Values, o.Values)
 }
