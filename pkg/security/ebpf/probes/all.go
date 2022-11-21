@@ -132,8 +132,6 @@ func AllMaps() []*manager.Map {
 		// SELinux tables
 		{Name: "selinux_write_buffer"},
 		{Name: "selinux_enforce_status"},
-		// Flushing discarders boolean
-		{Name: "flushing_discarders"},
 		// Enabled event mask
 		{Name: "enabled_events"},
 	}
