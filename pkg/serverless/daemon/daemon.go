@@ -341,7 +341,7 @@ func (d *Daemon) TellDaemonRuntimeDone() {
 func (d *Daemon) WaitForDaemon() {
 	// We always want to wait for any in-progress flush to complete
 	d.FlushLock.Lock()
-	d.FlushLock.Unlock()
+	d.FlushLock.Unlock() //nolint:staticcheck
 
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
