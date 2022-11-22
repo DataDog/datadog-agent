@@ -271,28 +271,27 @@ func TestAddColdStartTagWithColdStart(t *testing.T) {
 	})
 }
 
-func TestAddSnapStartTagWithoutSnapStart(t *testing.T) {
-	generatedTags := AddSnapStartTag([]string{
+func TestAddInitTypeTagWithoutInitType(t *testing.T) {
+	generatedTags := AddInitTypeTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-		"snap_start:false",
 	})
 }
 
-func TestAddSnapStartTagWithSnapStart(t *testing.T) {
+func TestAddInitTypeTagWithInitType(t *testing.T) {
 	t.Setenv(InitType, SnapStartValue)
-	generatedTags := AddSnapStartTag([]string{
+	generatedTags := AddInitTypeTag([]string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
 	})
 	assert.Equal(t, generatedTags, []string{
 		"myTagName0:myTagValue0",
 		"myTagName1:myTagValue1",
-		"snap_start:true",
+		"init_type:snap-start",
 	})
 }
 

@@ -161,9 +161,12 @@ func AddColdStartTag(tags []string, coldStart bool) []string {
 	return tags
 }
 
-// AddSnapStartTag appends the snap_start tag to existing tags
-func AddSnapStartTag(tags []string) []string {
-	tags = append(tags, fmt.Sprintf("snap_start:%v", fmt.Sprint(os.Getenv(InitType) == SnapStartValue)))
+// AddInitTypeTag appends the init_type tag to existing tags
+func AddInitTypeTag(tags []string) []string {
+	initType := os.Getenv(InitType)
+	if initType != "" {
+		tags = append(tags, fmt.Sprintf("init_type:%v", initType))
+	}
 	return tags
 }
 
