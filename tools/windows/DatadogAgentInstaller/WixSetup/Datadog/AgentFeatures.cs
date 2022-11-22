@@ -10,8 +10,8 @@ namespace WixSetup.Datadog
 
         public AgentFeatures()
         {
-            Npm = new Feature("NPM", description: "Network Performance Monitoring", isEnabled: false, allowChange: true, configurableDir: "APPLICATIONROOTDIRECTORY");
-            MainApplication = new Feature("MainApplication", description: "Datadog Agent", isEnabled: true, allowChange: false, configurableDir: "APPLICATIONROOTDIRECTORY");
+            Npm = new Feature("NPM", description: "Network Performance Monitoring", isEnabled: false, allowChange: true, configurableDir: "PROJECTLOCATION");
+            MainApplication = new Feature("MainApplication", description: "Datadog Agent", isEnabled: true, allowChange: false, configurableDir: "PROJECTLOCATION");
             MainApplication.Children.Add(Npm);
         }
     }
