@@ -9,5 +9,5 @@
 upgrade:
   - |
     Downloading and installing official checks with `agent integration install`
-    is no longer supported for agent installations that do not include an embedded
+    is no longer supported for Agent installations that do not include an embedded
     python3.
