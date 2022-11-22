@@ -30,7 +30,7 @@ const (
 	DNSResponseCodeNoError = 0
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 41
+	ConnectionByteKeyMaxLen = 45
 
 	// the maximum number of counter stats objects ("cookies") we can have per connection
 	maxCounterCookies = 3
@@ -104,7 +104,7 @@ type client struct {
 	closedConnectionsKeys map[string]int
 
 	closedConnections []ConnectionStats
-	stats             map[string]StatCountersByCookie
+	stats             map[string]StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -124,48 +124,13 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 
 	// XXX: we should change the way we clean this map once
 	// https://github.com/golang/go/issues/20135 is solved
-	newStats := make(map[string]StatCountersByCookie, len(c.stats))
+	newStats := make(map[string]StatCounters, len(c.stats))
 	for key, st := range c.stats {
 		// Only keep active connections stats
-		activeConn, ok := active[key]
-		if !ok {
-			continue
-		}
-
-		// go over counters and only keep those
-		// that have the same cookie values as
-		// the active connection
-		n := len(st) - 1
-		for i := 0; i < n; {
-			var found bool
-			for j := range activeConn.Monotonic {
-				if activeConn.Monotonic[j].Cookie == st[i].Cookie {
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				st[i], st[n] = st[n], st[i]
-				st[n] = nil
-				n--
-			} else {
-				i++
-			}
-
-			if i == len(activeConn.Monotonic) {
-				break
-			}
-		}
-
-		newStats[key] = st[:n+1]
-		if n+1 > maxCounterCookies {
-			log.WarnFunc(func() string {
-				return fmt.Sprintf("max number of counter sets (cookies) reached for connection %s, num cookies: %d", BeautifyKey(key), n+1)
-			})
+		if _, isActive := active[key]; isActive {
+			newStats[key] = st
 		}
 	}
-
 	c.stats = newStats
 }
 
@@ -392,7 +357,7 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			key := string(c.ByteKeyNAT(ns.buf))
+			key := string(c.ByteKey(ns.buf))
 
 			if i, ok := client.closedConnectionsKeys[key]; ok {
 				mergeConnectionStats(&client.closedConnections[i], &c)
@@ -514,7 +479,7 @@ func (ns *networkState) getClient(clientID string) *client {
 
 	c := &client{
 		lastFetch:             time.Now(),
-		stats:                 make(map[string]StatCountersByCookie),
+		stats:                 make(map[string]StatCounters),
 		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
 		closedConnectionsKeys: make(map[string]int),
 		dnsStats:              dns.StatsByKeyByNameByType{},
@@ -533,35 +498,28 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	client.lastFetch = now
 
 	closed := client.closedConnections
-	closedKeys := make(map[string]struct{}, len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
 		key := string(closedConn.ByteKey(ns.buf))
-		closedKeys[key] = struct{}{}
-
-		var activeConn *ConnectionStats
-		if activeConn = active[key]; activeConn != nil {
+		if activeConn := active[key]; activeConn != nil {
 			mergeConnectionStats(closedConn, activeConn)
-			ns.createStatsForKey(client, key)
+			// not an active connection
+			delete(active, key)
 		}
 
-		ns.updateConnWithStats(client, key, closedConn)
+		ns.updateConnWithStats(client, key, closedConn, true)
 
 		if closedConn.Last.IsZero() {
 			continue
 		}
+
 		*buffer.Next() = *closedConn
 	}
 
 	// Active connections
 	for key, c := range active {
-		// If the connection was closed, it has already been processed so skip it
-		if _, ok := closedKeys[key]; ok {
-			continue
-		}
-
 		ns.createStatsForKey(client, key)
-		ns.updateConnWithStats(client, key, c)
+		ns.updateConnWithStats(client, key, c, false)
 
 		if c.Last.IsZero() {
 			continue
@@ -570,42 +528,25 @@ func (ns *networkState) mergeConnections(id string, active map[string]*Connectio
 	}
 }
 
-func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats) {
+func (ns *networkState) updateConnWithStats(client *client, key string, c *ConnectionStats, isClosed bool) {
 	c.Last = StatCounters{}
 	if sts, ok := client.stats[key]; ok {
-		for _, cm := range c.Monotonic {
-			cookie := cm.Cookie
-			counters := cm.StatCounters
+		var last StatCounters
+		var underflow bool
+		if last, underflow = c.Monotonic.Sub(sts); underflow {
+			ns.telemetry.statsUnderflows++
+			log.DebugFunc(func() string {
+				return fmt.Sprintf("Stats underflow for key:%s, cookie:%d, stats counters:%+v, connection counters:%+v", BeautifyKey(key), c.Cookie, sts, c.Monotonic)
+			})
 
-			st, ok := sts.Get(cookie)
-			if !ok {
-				c.Last = c.Last.Add(counters)
-				sts.Put(cookie, counters)
-				client.stats[key] = sts
-				continue
-			}
-
-			var last StatCounters
-			var underflow bool
-			if last, underflow = counters.Sub(st); underflow {
-				ns.telemetry.statsUnderflows++
-				log.DebugFunc(func() string {
-					return fmt.Sprintf("Stats underflow for key:%s, cookie:%d, stats counters:%s, connection counters:%s", BeautifyKey(key), cookie, sts, c.Monotonic)
-				})
-
-				counters = counters.Max(st)
-				last, _ = counters.Sub(st)
-			}
-
-			c.Last = c.Last.Add(last)
-
-			sts.Put(cookie, counters)
-			client.stats[key] = sts
+			c.Monotonic = c.Monotonic.Max(sts)
+			last, _ = c.Monotonic.Sub(sts)
 		}
+
+		c.Last = c.Last.Add(last)
+		client.stats[key] = c.Monotonic
 	} else {
-		for _, counters := range c.Monotonic {
-			c.Last = c.Last.Add(counters.StatCounters)
-		}
+		c.Last = c.Last.Add(c.Monotonic)
 	}
 }
 
@@ -616,7 +557,8 @@ func (ns *networkState) createStatsForKey(client *client, key string) {
 			ns.telemetry.connDropped++
 			return
 		}
-		client.stats[key] = make(StatCountersByCookie, 0, 3)
+
+		client.stats[key] = StatCounters{}
 	}
 }
 
@@ -690,18 +632,13 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 	data := map[string]interface{}{}
 	if client, ok := ns.clients[clientID]; ok {
 		for connKey, s := range client.stats {
-			byCookie := map[uint32]interface{}{}
-			for _, st := range s {
-				byCookie[st.Cookie] = map[string]uint64{
-					"total_sent":            st.SentBytes,
-					"total_recv":            st.RecvBytes,
-					"total_retransmits":     uint64(st.Retransmits),
-					"total_tcp_established": uint64(st.TCPEstablished),
-					"total_tcp_closed":      uint64(st.TCPClosed),
-				}
+			data[BeautifyKey(connKey)] = map[string]uint64{
+				"total_sent":            s.SentBytes,
+				"total_recv":            s.RecvBytes,
+				"total_retransmits":     uint64(s.Retransmits),
+				"total_tcp_established": uint64(s.TCPEstablished),
+				"total_tcp_closed":      uint64(s.TCPClosed),
 			}
-
-			data[BeautifyKey(connKey)] = byCookie
 		}
 	}
 	return data
@@ -766,14 +703,11 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 }
 
 func mergeConnectionStats(a, b *ConnectionStats) {
-	for _, bm := range b.Monotonic {
-		if ams, ok := a.Monotonic.Get(bm.Cookie); ok {
-			a.Monotonic.Put(bm.Cookie, ams.Max(bm.StatCounters))
-			continue
-		}
-
-		a.Monotonic.Put(bm.Cookie, bm.StatCounters)
+	if a.Cookie != b.Cookie {
+		return
 	}
+
+	a.Monotonic = a.Monotonic.Max(b.Monotonic)
 
 	if b.LastUpdateEpoch > a.LastUpdateEpoch {
 		a.LastUpdateEpoch = b.LastUpdateEpoch
