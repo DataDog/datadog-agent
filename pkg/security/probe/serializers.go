@@ -495,14 +495,18 @@ type ExitEventSerializer struct {
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
-	MountPoint     *FileSerializer `json:"mountpoint,omitempty"` // Mount point file information
-	Root           *FileSerializer `json:"source,omitempty"`     // Root file information
-	MountID        uint32          `json:"mount_id"`             // Mount ID of the new mount
-	GroupID        uint32          `json:"group_id"`             // ID of the peer group
-	ParentMountID  uint32          `json:"parent_mount_id"`      // Mount ID of the parent mount
-	BindSrcMountID uint32          `json:"bind_src_mount_id"`    // Mount ID of the source of a bind mount
-	Device         uint32          `json:"device"`               // Device associated with the file
-	FSType         string          `json:"fs_type,omitempty"`    // Filesystem type
+	MountPoint                     *FileSerializer `json:"mountpoint,omitempty"`             // Mount point file information
+	Root                           *FileSerializer `json:"source,omitempty"`                 // Root file information
+	MountID                        uint32          `json:"mount_id"`                         // Mount ID of the new mount
+	GroupID                        uint32          `json:"group_id"`                         // ID of the peer group
+	ParentMountID                  uint32          `json:"parent_mount_id"`                  // Mount ID of the parent mount
+	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`                // Mount ID of the source of a bind mount
+	Device                         uint32          `json:"device"`                           // Device associated with the file
+	FSType                         string          `json:"fs_type,omitempty"`                // Filesystem type
+	MountPointPath                 string          `json:"mountpoint_path,omitempty"`        // Mount point path
+	MountSourcePath                string          `json:"mountsource_path,omitempty"`       // Mount source path
+	MountPointPathResolutionError  string          `json:"mountpoint_path_error,omitempty"`  // Mount point path error
+	MountSourcePathResolutionError string          `json:"mountsource_path_error,omitempty"` // Mount source path error
 }
 
 // EventSerializer serializes an event to JSON
@@ -922,7 +926,9 @@ func newExitEventSerializer(e *Event) *ExitEventSerializer {
 
 func newMountEventSerializer(e *Event) *MountEventSerializer {
 	src, srcErr := e.ResolveMountRoot(&e.Mount)
-	dst, dstErr := e.ResolveMountPointFullPath(&e.Mount)
+	dst, dstErr := e.ResolveMountPoint(&e.Mount)
+	mountPointPath := e.ResolveMountPointPath(&e.Mount)
+	mountSourcePath := e.ResolveMountSourcePath(&e.Mount)
 
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
@@ -935,12 +941,14 @@ func newMountEventSerializer(e *Event) *MountEventSerializer {
 			MountID: &e.Mount.RootMountID,
 			Inode:   &e.Mount.RootInode,
 		},
-		MountID:        e.Mount.MountID,
-		GroupID:        e.Mount.GroupID,
-		ParentMountID:  e.Mount.ParentMountID,
-		BindSrcMountID: e.Mount.BindSrcMountID,
-		Device:         e.Mount.Device,
-		FSType:         e.Mount.GetFSType(),
+		MountID:         e.Mount.MountID,
+		GroupID:         e.Mount.GroupID,
+		ParentMountID:   e.Mount.ParentMountID,
+		BindSrcMountID:  e.Mount.BindSrcMountID,
+		Device:          e.Mount.Device,
+		FSType:          e.Mount.GetFSType(),
+		MountPointPath:  mountPointPath,
+		MountSourcePath: mountSourcePath,
 	}
 
 	if srcErr != nil {
@@ -948,6 +956,13 @@ func newMountEventSerializer(e *Event) *MountEventSerializer {
 	}
 	if dstErr != nil {
 		mountSerializer.MountPoint.PathResolutionError = dstErr.Error()
+	}
+	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
+	if e.Mount.MountPointPathResolutionError != nil {
+		mountSerializer.MountPointPathResolutionError = e.Mount.MountPointPathResolutionError.Error()
+	}
+	if e.Mount.MountSourcePathResolutionError != nil {
+		mountSerializer.MountSourcePathResolutionError = e.Mount.MountSourcePathResolutionError.Error()
 	}
 
 	return mountSerializer

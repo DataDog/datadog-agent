@@ -1991,6 +1991,14 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe15(in *jl
 			out.Device = uint32(in.Uint32())
 		case "fs_type":
 			out.FSType = string(in.String())
+		case "mountpoint_path":
+			out.MountPointPath = string(in.String())
+		case "mountsource_path":
+			out.MountSourcePath = string(in.String())
+		case "mountpoint_path_error":
+			out.MountPointPathResolutionError = string(in.String())
+		case "mountsource_path_error":
+			out.MountSourcePathResolutionError = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2055,6 +2063,26 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe15(out *j
 		const prefix string = ",\"fs_type\":"
 		out.RawString(prefix)
 		out.String(string(in.FSType))
+	}
+	if in.MountPointPath != "" {
+		const prefix string = ",\"mountpoint_path\":"
+		out.RawString(prefix)
+		out.String(string(in.MountPointPath))
+	}
+	if in.MountSourcePath != "" {
+		const prefix string = ",\"mountsource_path\":"
+		out.RawString(prefix)
+		out.String(string(in.MountSourcePath))
+	}
+	if in.MountPointPathResolutionError != "" {
+		const prefix string = ",\"mountpoint_path_error\":"
+		out.RawString(prefix)
+		out.String(string(in.MountPointPathResolutionError))
+	}
+	if in.MountSourcePathResolutionError != "" {
+		const prefix string = ",\"mountsource_path_error\":"
+		out.RawString(prefix)
+		out.String(string(in.MountSourcePathResolutionError))
 	}
 	out.RawByte('}')
 }

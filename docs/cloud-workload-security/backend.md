@@ -566,6 +566,18 @@ CWS logs have the following JSON schema:
                 },
                 "fs_type": {
                     "type": "string"
+                },
+                "mountpoint_path": {
+                    "type": "string"
+                },
+                "mountsource_path": {
+                    "type": "string"
+                },
+                "mountpoint_path_error": {
+                    "type": "string"
+                },
+                "mountsource_path_error": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -2031,6 +2043,18 @@ CWS logs have the following JSON schema:
             "type": "integer"
         },
         "fs_type": {
+            "type": "string"
+        },
+        "mountpoint_path": {
+            "type": "string"
+        },
+        "mountsource_path": {
+            "type": "string"
+        },
+        "mountpoint_path_error": {
+            "type": "string"
+        },
+        "mountsource_path_error": {
             "type": "string"
         }
     },

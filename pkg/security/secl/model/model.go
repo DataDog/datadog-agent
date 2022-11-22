@@ -534,10 +534,10 @@ type Mount struct {
 type MountEvent struct {
 	SyscallEvent
 	Mount
-	MountPointFullPath            string `field:"mountpoint.path"` // Path of the mount point
-	MountSourceFullPath           string `field:"source.path"`     // Source path of a bind mount
-	MountPointPathResolutionError error  `field:"-"`
-	RootPathResolutionError       error  `field:"-"`
+	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // Path of the mount point
+	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // Source path of a bind mount
+	MountPointPathResolutionError  error  `field:"-"`
+	MountSourcePathResolutionError error  `field:"-"`
 }
 
 // GetFSType returns the filesystem type of the mountpoint

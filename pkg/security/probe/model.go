@@ -202,42 +202,33 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 	return e.RootStr, nil
 }
 
-func (ev *Event) SetMountPointFullPath(e *model.MountEvent) error {
-	e.MountPointFullPath, e.MountPointPathResolutionError = ev.resolvers.MountResolver.GetMountFullPath(e.MountID)
-	return e.MountPointPathResolutionError
-}
-
-func (ev *Event) ResolveMountPointFullPath(e *model.MountEvent) (string, error) {
-	if len(e.MountPointFullPath) == 0 {
-		if err := ev.SetMountPointFullPath(e); err != nil {
-			return "", err
-		}
-	}
-	return e.MountPointFullPath, nil
-}
-
-func (ev *Event) SetMountSourceFullPath(e *model.MountEvent) error {
-	if e.BindSrcMountID != 0 {
-		bindSrcMountPointPath, err := ev.resolvers.MountResolver.GetMountFullPath(e.BindSrcMountID)
+func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
+	if len(e.MountPointPath) == 0 {
+		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
 		if err != nil {
-			return err
+			e.MountPointPathResolutionError = err
+			return ""
+		}
+		e.MountPointPath = mountPointPath
+	}
+	return e.MountPointPath
+}
+
+func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
+	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
+		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
 		}
 		rootStr, err := ev.ResolveMountRoot(e)
 		if err != nil {
-			return err
+			e.MountSourcePathResolutionError = err
+			return ""
 		}
-		e.MountSourceFullPath = path.Join(bindSrcMountPointPath, rootStr)
+		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
 	}
-	return nil
-}
-
-func (ev *Event) ResolveMountSourceFullPath(e *model.MountEvent) (string, error) {
-	if len(e.MountSourceFullPath) == 0 {
-		if err := ev.SetMountSourceFullPath(e); err != nil {
-			return "", err
-		}
-	}
-	return e.MountSourceFullPath, nil
+	return e.MountSourcePath
 }
 
 // ResolveContainerID resolves the container ID of the event
