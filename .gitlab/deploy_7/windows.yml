@@ -1,5 +1,5 @@
 ---
-deploy_staging_windows-7:
+deploy_packages_windows-7:
   rules:
     !reference [.on_deploy_a7]
   stage: deploy7

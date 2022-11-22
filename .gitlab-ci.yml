@@ -588,6 +588,18 @@ variables:
     when: manual
     allow_failure: true
 
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+  - when: on_success
+
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7
     when: never

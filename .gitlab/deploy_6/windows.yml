@@ -1,5 +1,5 @@
 ---
-deploy_staging_windows-6:
+deploy_packages_windows-6:
   rules:
     !reference [.on_deploy_a6]
   stage: deploy6
