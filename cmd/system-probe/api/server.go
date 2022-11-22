@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 var expvarServer *http.Server
@@ -36,9 +38,11 @@ func StartServer(cfg *config.Config) error {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
 
-	// Setup prometheus server
+	// Setup telemetry server
 	port := cfg.DefaultSystemProbeExpVarPort
-	http.Handle("/telemetry", telemetry.Handler())
+	if ddconfig.Datadog.GetBool("telemetry.enabled") {
+		http.Handle("/telemetry", telemetry.Handler())
+	}
 	expvarServer := &http.Server{
 		Addr:    "127.0.0.1:" + port,
 		Handler: http.DefaultServeMux,
@@ -46,7 +50,7 @@ func StartServer(cfg *config.Config) error {
 	go func() {
 		err := expvarServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+			log.Errorf("error creating expvar server on port %v: %v", port, err)
 		}
 	}()
 
