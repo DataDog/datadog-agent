@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
@@ -90,8 +90,8 @@ type MountResolver struct {
 	mounts           map[uint32]*model.MountEvent
 	devices          map[uint32]map[uint32]*model.MountEvent
 	deleteQueue      []deleteRequest
-	overlayPathCache *simplelru.LRU
-	parentPathCache  *simplelru.LRU
+	overlayPathCache *simplelru.LRU[uint32, string]
+	parentPathCache  *simplelru.LRU[uint32, string]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -280,7 +280,7 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (
 
 func (mr *MountResolver) getParentPath(mountID uint32) (string, error) {
 	if entry, found := mr.parentPathCache.Get(mountID); found {
-		return entry.(string), nil
+		return entry, nil
 	}
 
 	path, err := mr._getParentPath(mountID, map[uint32]bool{})
@@ -316,7 +316,7 @@ func (mr *MountResolver) getAncestor(mount *model.MountEvent) *model.MountEvent 
 // getOverlayPath uses deviceID to find overlay path
 func (mr *MountResolver) getOverlayPath(mount *model.MountEvent) (string, error) {
 	if entry, found := mr.overlayPathCache.Get(mount.MountID); found {
-		return entry.(string), nil
+		return entry, nil
 	}
 
 	if ancestor := mr.getAncestor(mount); ancestor != nil {
@@ -549,12 +549,12 @@ func (mr *MountResolver) SendStats() error {
 
 // NewMountResolver instantiates a new mount resolver
 func NewMountResolver(statsdClient statsd.ClientInterface) (*MountResolver, error) {
-	overlayPathCache, err := simplelru.NewLRU(256, nil)
+	overlayPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		return nil, err
 	}

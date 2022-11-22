@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
@@ -38,7 +38,7 @@ type LoadController struct {
 	probe *Probe
 
 	eventsTotal        *atomic.Int64
-	eventsCounters     *simplelru.LRU
+	eventsCounters     *simplelru.LRU[eventCounterLRUKey, *atomic.Uint64]
 	pidDiscardersCount *atomic.Int64
 
 	EventsCountThreshold int64
@@ -50,7 +50,7 @@ type LoadController struct {
 
 // NewLoadController instantiates a new load controller
 func NewLoadController(probe *Probe) (*LoadController, error) {
-	lru, err := simplelru.NewLRU(probe.config.PIDCacheSize, nil)
+	lru, err := simplelru.NewLRU[eventCounterLRUKey, *atomic.Uint64](probe.config.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +100,7 @@ func (lc *LoadController) GenericCount(event *Event) {
 
 	entry, ok := lc.eventsCounters.Get(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie})
 	if ok {
-		counter := entry.(*atomic.Uint64)
-		counter.Inc()
+		entry.Inc()
 	} else {
 		lc.eventsCounters.Add(eventCounterLRUKey{Pid: event.ProcessContext.Pid, Cookie: event.ProcessContext.Cookie}, atomic.NewUint64(1))
 	}
@@ -122,13 +121,11 @@ func (lc *LoadController) discardNoisiestProcess() {
 		if !ok || entry == nil {
 			continue
 		}
-		tmpCount := entry.(*atomic.Uint64)
-		tmpKey := key.(eventCounterLRUKey)
 
 		// update max if necessary
-		if maxCount == nil || maxCount.Load() < tmpCount.Load() {
-			maxCount = tmpCount
-			maxKey = tmpKey
+		if maxCount == nil || maxCount.Load() < entry.Load() {
+			maxCount = entry
+			maxKey = key
 		}
 	}
 	if maxCount == nil {
@@ -181,9 +178,8 @@ func (lc *LoadController) cleanupCounter(pid uint32, cookie uint32) {
 	defer lc.Unlock()
 
 	key := eventCounterLRUKey{Pid: pid, Cookie: cookie}
-	entry, ok := lc.eventsCounters.Get(key)
+	counter, ok := lc.eventsCounters.Get(key)
 	if ok {
-		counter := entry.(*atomic.Uint64)
 		lc.eventsTotal.Sub(int64(counter.Load()))
 		lc.eventsCounters.Remove(key)
 	}
