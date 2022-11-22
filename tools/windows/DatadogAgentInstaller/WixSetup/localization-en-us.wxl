@@ -48,6 +48,9 @@
   <String Id ="DDAgentUserDialogUserNameLabel" Overridable="yes" Localizable="yes">Please enter the username (leave blank to use ddagentuser):</String>
   <String Id ="DDAgentUserDialogPasswordLabel" Overridable="yes" Localizable="yes">Please enter the password (leave blank to use random password):</String>
 
+  <!-- these strings for the FatalError dialog -->
+  <String Id ="FatalErrorDialog_ViewLog" Overridable="yes" Localizable="yes">View Log</String>
+
   <String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
   <String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
   <String Id="MsiRMFilesInUseBannerBitmap" Overridable="yes">WixUI_Bmp_Banner</String>

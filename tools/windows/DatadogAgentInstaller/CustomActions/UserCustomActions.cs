@@ -437,5 +437,32 @@ namespace Datadog.CustomActions
         {
             return ConfigureUser(new SessionWrapper(session));
         }
+
+        private static ActionResult OpenMsiLog(ISession session)
+        {
+            try
+            {
+                var wixLogLocation = session["MsiLogFileLocation"];
+                if (!string.IsNullOrEmpty(wixLogLocation)) {
+                    System.Diagnostics.Process.Start(wixLogLocation);
+                    // TODO: pop a message box on error?
+                } else {
+                    // not found
+                    // TODO: pop a message box?
+                }
+            }
+            catch (Exception e)
+            {
+                session.Log($"Failed to open Wix log: {e}");
+                return ActionResult.Failure;
+            }
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult OpenMsiLog(Session session)
+        {
+            return OpenMsiLog(new SessionWrapper(session));
+        }
     }
 }

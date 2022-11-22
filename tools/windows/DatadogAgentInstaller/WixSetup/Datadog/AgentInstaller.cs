@@ -101,6 +101,7 @@ namespace WixSetup.Datadog
                 _agentCustomActions.ProcessDdAgentUserCredentials,
                 _agentCustomActions.DecompressPythonDistributions,
                 _agentCustomActions.ConfigureUser,
+                _agentCustomActions.OpenMsiLog,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
                 {
