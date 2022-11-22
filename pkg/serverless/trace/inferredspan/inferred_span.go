@@ -141,7 +141,7 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 func GenerateSpanId() uint64 {
 	isSnapStart := os.Getenv(tags.InitType) == tags.SnapStartValue
 	if isSnapStart {
-		max := big.NewInt(math.MaxInt64)
+		max := new(big.Int).SetUint64(math.MaxUint64)
 		if randId, err := rand.Int(rand.Reader, max); err != nil {
 			log.Debugf("Failed to generate a secure random span id: %v", err)
 		} else {
