@@ -147,6 +147,7 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 
 			if !found {
 				st[i], st[n] = st[n], st[i]
+				st[n] = nil
 				n--
 			} else {
 				i++
