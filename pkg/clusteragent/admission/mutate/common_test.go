@@ -9,10 +9,12 @@
 package mutate
 
 import (
+	"encoding/json"
 	"os"
 	"reflect"
 	"testing"
 
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/stretchr/testify/assert"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -222,6 +224,20 @@ func Test_injectVolume(t *testing.T) {
 			assert.Equal(t, tt.injected, injectVolume(tt.args.pod, tt.args.volume, tt.args.volumeMount))
 		})
 	}
+}
+
+func TestJSONPatchCorrectness(t *testing.T) {
+	pod := fakePodWithContainer("foo", fakeContainer("container"))
+	withLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
+	podJSON, err := json.Marshal(pod)
+	assert.NoError(t, err)
+
+	jsonPatch, err := mutate(podJSON, "bar", injectConfig, nil)
+	assert.NoError(t, err)
+
+	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
+	assert.NoError(t, err)
+	assert.JSONEq(t, string(expected), string(jsonPatch))
 }
 
 func BenchmarkJSONPatch(b *testing.B) {
