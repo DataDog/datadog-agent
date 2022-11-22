@@ -31,7 +31,7 @@ namespace Datadog.CustomActions
             var configFilePath = Path.Combine(configFolder, "datadog.yaml");
             if (!File.Exists(configFilePath))
             {
-                session.Log("No user config found, continuing.");
+                session.Log($"No user config found in {configFilePath}, continuing.");
                 return ActionResult.Success;
             }
             try
