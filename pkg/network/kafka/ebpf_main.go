@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -53,22 +52,13 @@ const (
 )
 
 type ebpfProgram struct {
-	*errtelemetry.Manager
-	cfg         *config.Config
-	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-	subprograms []subprogram
-	mapCleaner  *ddebpf.MapCleaner
+	*manager.Manager
+	cfg        *config.Config
+	bytecode   bytecode.AssetReader
+	offsets    []manager.ConstantEditor
+	mapCleaner *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
-}
-
-type subprogram interface {
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
-	Start()
-	Stop()
 }
 
 var tailCalls = []manager.TailCallRoute{
@@ -82,15 +72,10 @@ var tailCalls = []manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
-	}
-
-	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
-	if c.AttachKprobesWithKprobeEventsABI {
-		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	}
 
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
@@ -100,12 +85,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: kafkaLastTCPSeqPerConnectionMap},
 			{Name: kafkaBatchesMap},
 			{Name: kafkaBatchStateMap},
-			//	{Name: sslSockByCtxMap},
-			//	{Name: httpProgsMap},
-			//	{Name: "ssl_read_args"},
-			//	{Name: "bio_new_socket_args"},
-			//	{Name: "fd_by_ssl_bio"},
-			//	{Name: "ssl_ctx_by_pid_tgid"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -120,15 +99,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 		},
 		Probes: []*manager.Probe{
-			//{
-			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			//		EBPFSection:  string(probes.TCPSendMsg),
-			//		EBPFFuncName: "kprobe__tcp_sendmsg",
-			//		UID:          probeUID,
-			//	},
-			//	KProbeMaxActive:    maxActive,
-			//	KprobeAttachMethod: kprobeAttachMethod,
-			//},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "tracepoint/net/netif_receive_skb",
@@ -142,18 +112,16 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFFuncName: "socket__kafka_filter_entry",
 					UID:          probeUID,
 				},
-				KprobeAttachMethod: kprobeAttachMethod,
 			},
 		},
 	}
 
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
+		Manager:                mgr,
 		bytecode:               bc,
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            []subprogram{},
 	}
 
 	return program, nil
@@ -166,17 +134,6 @@ func (e *ebpfProgram) Init() error {
 
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-	for _, s := range e.subprograms {
-		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
-	}
-
-	//e.DumpHandler = dumpMapsHandler
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
-	}
-	for _, s := range e.subprograms {
-		s.ConfigureManager(e.Manager)
 	}
 
 	onlineCPUs, err := cpupossible.Get()
@@ -249,10 +206,6 @@ func (e *ebpfProgram) Init() error {
 		},
 	}
 
-	for _, s := range e.subprograms {
-		s.ConfigureOptions(&options)
-	}
-
 	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
@@ -267,12 +220,6 @@ func (e *ebpfProgram) Start() error {
 		return err
 	}
 
-	for _, s := range e.subprograms {
-		s.Start()
-	}
-
-	//e.setupMapCleaner()
-
 	return nil
 }
 
@@ -280,9 +227,6 @@ func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
-	for _, s := range e.subprograms {
-		s.Stop()
-	}
 	return err
 }
 

@@ -40,7 +40,7 @@ func TestSanity(t *testing.T) {
 
 	cfg := config.New()
 	cfg.BPFDebug = true
-	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	monitor, err := NewMonitor(cfg, nil, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
