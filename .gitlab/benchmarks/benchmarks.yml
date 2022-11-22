@@ -1,0 +1,27 @@
+variables:
+  # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
+  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
+  INDEX_FILE: index.txt
+
+benchmark:
+  stage: benchmarks
+  image: $BASE_CI_IMAGE
+  timeout: 1h
+  rules:
+    !reference [.on_trace_agent_changes_or_manual]
+  interruptible: true
+  tags: ["runner:apm-k8s-tweaked-metal"]
+  script:
+    - ./.gitlab/benchmarks/scripts/capture-hardware-software-info.sh
+    - ./.gitlab/benchmarks/scripts/run-benchmarks.sh
+    # - ./.gitlab/scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
+    - ./.gitlab/benchmarks/scripts/analyze-results.sh
+    - ./.gitlab/benchmarks/scripts/post-pr-comment.sh
+  artifacts:
+    name: "reports"
+    paths:
+      - reports/
+    expire_in: 3 months
+  variables:
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: datadog-agent
+    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"

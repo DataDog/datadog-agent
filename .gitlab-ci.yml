@@ -38,6 +38,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -84,6 +85,7 @@ stages:
   - functional_test_junit_upload
   - internal_kubernetes_deploy
   - notify
+  - benchmarks
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
@@ -765,4 +767,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true
