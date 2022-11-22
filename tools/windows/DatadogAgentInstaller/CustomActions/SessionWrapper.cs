@@ -31,11 +31,7 @@ namespace Datadog.CustomActions
 
         public void Log(string msg, string memberName, string filePath, int lineNumber)
         {
-#if DEBUG
-            _session.Log($"[{DateTime.Now:g} - {memberName} - {filePath}:line {lineNumber}] {msg}");
-#else
-            _session.Log($"[{DateTime.Now:g} - {memberName}] {msg}");
-#endif
+            _session.Log($"CA: {DateTime.Now:HH:mm:ss}: {memberName}. {msg}");
         }
 
         public ComponentInfoCollection Components => _session.Components;
