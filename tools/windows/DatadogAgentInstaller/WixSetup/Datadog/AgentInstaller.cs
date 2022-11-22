@@ -3,6 +3,7 @@ using System.IO;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
+using WixSharp.Controls;
 using File = WixSharp.File;
 
 namespace WixSetup.Datadog
@@ -139,15 +140,17 @@ namespace WixSetup.Datadog
             )
             .AddDirectories(
                 CreateProgramFilesFolder(),
-                new Dir(new Id("APPLICATIONDATADIRECTORY"), @"%CommonAppData%\Datadog",
-                    new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All) { ChangePermission = true },
-                    new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All) { ChangePermission = true },
-                    new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.None) { ChangePermission = false },
-                    new DirPermission("[DDAGENTUSER_PROCESSED_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = false },
-                    new DirFiles($@"{EtcSource}\*.yaml.example"),
-                    new Dir("checks.d"),
-                    new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                        new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                new Dir(new Id("%CommonAppData%"),
+                    new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
+                        new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All) { ChangePermission = true },
+                        new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All) { ChangePermission = true },
+                        new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.None) { ChangePermission = false },
+                        new DirPermission("[DDAGENTUSER_PROCESSED_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = false },
+                        new DirFiles($@"{EtcSource}\*.yaml.example"),
+                        new Dir("checks.d"),
+                        new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
+                            new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                        )
                     )
                 ),
                 new Dir(@"%ProgramMenu%\Datadog",
@@ -179,10 +182,7 @@ namespace WixSetup.Datadog
             project.Media.Clear();
             project.WixSourceGenerated += document =>
             {
-                if (WixSourceGenerated != null)
-                {
-                    WixSourceGenerated(document);
-                }
+                WixSourceGenerated?.Invoke(document);
                 document.Select("Wix/Product")
                     .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
             };
@@ -199,17 +199,19 @@ namespace WixSetup.Datadog
         {
             var targetBinFolder = CreateBinFolder();
             var binFolder =
-                new Dir(new Id("APPLICATIONROOTDIRECTORY"), @"%ProgramFiles%\Datadog",
-                    new Dir(new Id("PROJECTLOCATION"), "Datadog Agent",
-                        targetBinFolder,
-                        new Dir("LICENSES",
-                            new Files($@"{InstallerSource}\LICENSES\*")
-                            ),
-                        new DirFiles($@"{InstallerSource}\*.json"),
-                        new DirFiles($@"{InstallerSource}\*.txt"),
-                        new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
+                new Dir(new Id("%ProgramFiles%"),
+                    new Dir(new Id("PROJECTLOCATION"), "Datadog",
+                        new InstallDir("Datadog Agent",
+                            targetBinFolder,
+                            new Dir("LICENSES",
+                                new Files($@"{InstallerSource}\LICENSES\*")
+                                ),
+                            new DirFiles($@"{InstallerSource}\*.json"),
+                            new DirFiles($@"{InstallerSource}\*.txt"),
+                            new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
                         )
-                    );
+                    )
+                );
             if (_agentPython.IncludePython2)
             {
                 binFolder.AddFile(new CompressedDir(this, "embedded2", $@"{InstallerSource}\embedded3"));
