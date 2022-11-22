@@ -490,8 +490,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
-	if ctags := attributes.ContainerTagFromAttributes(span.Meta); ctags != "" {
-		setMetaOTLP(span, tagContainersTags, ctags)
+	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
+		if _, ok := span.Meta[k]; !ok {
+			// overwrite only if it does not exist
+			setMetaOTLP(span, k, v)
+		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
