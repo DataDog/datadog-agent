@@ -82,6 +82,11 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/flush", port), nil)
 	assert.Nil(err)
 	response, err := client.Do(request)
+	if err != nil {
+		// retry once in case the daemon wasn't ready to accept requests
+		time.Sleep(100 * time.Millisecond)
+		response, err = client.Do(request)
+	}
 	assert.Nil(err)
 	response.Body.Close()
 	select {
