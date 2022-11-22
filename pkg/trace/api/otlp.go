@@ -59,7 +59,7 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
