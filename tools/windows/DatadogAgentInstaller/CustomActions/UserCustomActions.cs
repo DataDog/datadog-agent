@@ -5,6 +5,7 @@ using System.Security.Principal;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
+using Microsoft.Win32;
 using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions
@@ -16,8 +17,8 @@ namespace Datadog.CustomActions
     {
         public static string GetRandomPassword(int length)
         {
-            byte[] rgb = new byte[length];
-            RNGCryptoServiceProvider rngCrypt = new RNGCryptoServiceProvider();
+            var rgb = new byte[length];
+            var rngCrypt = new RNGCryptoServiceProvider();
             rngCrypt.GetBytes(rgb);
             return Convert.ToBase64String(rgb);
         }
@@ -88,13 +89,10 @@ namespace Datadog.CustomActions
         /// Convenience wrapper of <c>RegistryProperty</c> for properties that have an exact 1:1 mapping to a registry value
         /// and don't require additional processing.
         /// </summary>
-        private static void RegistryValueProperty(ISession session, string propertyName, Microsoft.Win32.RegistryKey registryKey, string registryValue)
+        private static void RegistryValueProperty(ISession session, string propertyName, RegistryKey registryKey, string registryValue)
         {
             RegistryProperty(session, propertyName,
-                GetRegistryPropertyHandler =>
-                {
-                    return registryKey.GetValue(registryValue).ToString();
-                });
+                GetRegistryPropertyHandler => registryKey.GetValue(registryValue)?.ToString());
         }
 
         /// <summary>
@@ -107,7 +105,7 @@ namespace Datadog.CustomActions
         {
             try
             {
-                using (var subkey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
+                using (var subkey = Registry.LocalMachine.OpenSubKey(@"Software\Datadog\Datadog Agent"))
                 {
                     if (subkey != null)
                     {
@@ -117,7 +115,7 @@ namespace Datadog.CustomActions
                         // * The registry
                         // * The command line
                         // * The agent user dialog
-                        // The user account domain and name are stored separetely in the registry
+                        // The user account domain and name are stored separately in the registry
                         // but are passed together on the command line and the agent user dialog.
                         // This function will combine the registry properties if they exist.
                         // Preference is given to creds provided on the command line and the agent user dialog.
@@ -162,7 +160,7 @@ namespace Datadog.CustomActions
             {
                 if (!string.IsNullOrEmpty(session["DDAGENTUSER_PROCESSED_FQ_NAME"]))
                 {
-                  // This function has already executed succesfully
+                  // This function has already executed successfully
                   return ActionResult.Success;
                 }
 
