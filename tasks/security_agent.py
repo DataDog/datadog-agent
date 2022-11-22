@@ -601,7 +601,7 @@ def generate_cws_proto(ctx):
     # on both performance and memory.
     # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
     # child nodes. The maximum depth difference between nodes become a very important metric.
-    pool_structs = [
+    ad_pool_structs = [
         "ActivityDump",
         "ProcessActivityNode",
         "FileActivityNode",
@@ -615,9 +615,6 @@ def generate_cws_proto(ctx):
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
-            pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
-            )
             plugin_opts = " ".join(
                 [
                     f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
@@ -627,13 +624,16 @@ def generate_cws_proto(ctx):
             )
 
             # Activity Dumps
+            ad_pool_opts = " ".join(
+                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in ad_pool_structs
+            )
             ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
 
             # API
             ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
             )
 
     for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
