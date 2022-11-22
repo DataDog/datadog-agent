@@ -17,8 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var expvarServer *http.Server
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config) error {
@@ -32,6 +35,20 @@ func StartServer(cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create system probe: %s", err)
 	}
+
+	// Setup prometheus server
+	port := cfg.DefaultSystemProbeExpVarPort
+	http.Handle("/telemetry", telemetry.Handler())
+	expvarServer := &http.Server{
+		Addr:    "127.0.0.1:" + port,
+		Handler: http.DefaultServeMux,
+	}
+	go func() {
+		err := expvarServer.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			log.Errorf("Error creating expvar server on port %v: %v", port, err)
+		}
+	}()
 
 	// Register stats endpoint
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
