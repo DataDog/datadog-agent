@@ -158,9 +158,9 @@ func (c *client) Reset(active map[string]*ConnectionStats) {
 		}
 
 		newStats[key] = st[:n+1]
-		if len(st) > maxCounterCookies {
+		if n+1 > maxCounterCookies {
 			log.WarnFunc(func() string {
-				return fmt.Sprintf("max number of counter sets (cookies) reached for connection %s, num cookies: %d", BeautifyKey(key), len(st))
+				return fmt.Sprintf("max number of counter sets (cookies) reached for connection %s, num cookies: %d", BeautifyKey(key), n+1)
 			})
 		}
 	}
