@@ -103,18 +103,19 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 
 type pid = uint32
 type inodeNumber = uint64
-type runningProcessesSet map[pid]struct{}
-type hookedBinariesMap map[inodeNumber]*hookedBinary
+type runningBinariesMap map[inodeNumber]*runningBinary
 
-// hookedBinary represents a binary currently being hooked
-type hookedBinary struct {
+// runningBinary represents a binary currently being hooked
+type runningBinary struct {
 	// IDs of the probes currently attached on the binary
 	probeIDs []manager.ProbeIdentificationPair
-	// Set containing the PIDs of running processes spawned from this binary
-	runningProcesses runningProcessesSet
 
-	// Modification time of the hooked binary, at the time of hooking
+	// Modification time of the hooked binary, at the time of hooking.
 	mTime syscall.Timespec
+
+	// Reference counter for the number of currently running processes for
+	// this binary.
+	processCount int32
 }
 
 type GoTLSProgram struct {
@@ -136,8 +137,8 @@ type GoTLSProgram struct {
 	// inodes.
 	offsetsDataMap *ebpf.Map
 
-	// hookedBinaries keeps track of the currently hooked binary.
-	hookedBinaries hookedBinariesMap
+	// runningBinaries keeps track of the currently hooked binary.
+	runningBinaries runningBinariesMap
 
 	// pidToIno keeps track of the inode numbers of the hooked binaries
 	// associated with running processes.
@@ -167,9 +168,9 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 	}
 
 	p := &GoTLSProgram{
-		procRoot:       c.ProcRoot,
-		hookedBinaries: make(hookedBinariesMap),
-		pidToIno:       make(map[pid]inodeNumber),
+		procRoot:        c.ProcRoot,
+		runningBinaries: make(runningBinariesMap),
+		pidToIno:        make(map[pid]inodeNumber),
 	}
 
 	p.procMonitor.done = make(chan struct{})
@@ -227,9 +228,9 @@ func (p *GoTLSProgram) Start() {
 
 				switch ev := event.Msg.(type) {
 				case *netlink.ExecProcEvent:
-					go p.handleProcessStart(ev.ProcessPid)
+					p.handleProcessStart(ev.ProcessPid)
 				case *netlink.ExitProcEvent:
-					go p.handleProcessStop(ev.ProcessPid)
+					p.unregisterProcess(ev.ProcessPid)
 
 					// No default case; the watcher has a
 					// lot of event types, some of which
@@ -289,61 +290,42 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		return
 	}
 
-	hookedBin := p.getHookedBinary(stat.Ino)
-	if hookedBin == nil {
-		hookedBin, err = p.hookNewBinary(binPath, stat.Ino)
+	oldProcCount, bin, err := p.registerProcess(stat.Ino, pid, stat.Mtim)
+	if err != nil {
+		log.Warnf("could not register new process (%d) with binary %q: %s", pid, binPath, err)
+		return
+	}
+
+	if oldProcCount == 0 {
+		// This is a slow process so let's not halt the watcher while we
+		// are doing this.
+		go p.hookNewBinary(binPath, stat.Ino, pid, bin)
+	}
+}
+
+func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber, pid pid, bin *runningBinary) {
+	var err error
+	defer func() {
 		if err != nil {
-			log.Debugf("could not hook new binary (%d): %s", pid, err)
+			log.Debugf("could not hook new binary %q for process %d: %s", binPath, pid, err)
+			p.unregisterProcess(pid)
 			return
 		}
-		hookedBin.mTime = stat.Mtim
-		p.setHookedBinary(stat.Ino, hookedBin)
-	} else if stat.Mtim != hookedBin.mTime {
-		log.Warnf("binary %q has been modified since it has been hooked, skipping process registration.", binPath)
-		return
-	}
+	}()
 
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	hookedBin.runningProcesses[pid] = struct{}{}
-	p.pidToIno[pid] = stat.Ino
-}
-
-func (p *GoTLSProgram) handleProcessStop(pid pid) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	ino, ok := p.pidToIno[pid]
-	if !ok {
-		return
-	}
-	delete(p.pidToIno, pid)
-
-	hookedBin, present := p.hookedBinaries[ino]
-	if !present {
-		log.Error("could not retrieve hooked binary")
-		return
-	}
-
-	delete(hookedBin.runningProcesses, pid)
-	if len(hookedBin.runningProcesses) == 0 {
-		log.Debugf("no processes left for ino %d", ino)
-		p.unhookBinary(ino)
-	}
-}
-
-func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBinary, error) {
 	start := time.Now()
 
 	f, err := os.Open(binPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not open file %s, %w", binPath, err)
+		err = fmt.Errorf("could not open file %s, %w", binPath, err)
+		return
 	}
 	defer f.Close()
 
 	elfFile, err := elf.NewFile(f)
 	if err != nil {
-		return nil, fmt.Errorf("file %s could not be parsed as an ELF file: %w", binPath, err)
+		err = fmt.Errorf("file %s could not be parsed as an ELF file: %w", binPath, err)
+		return
 	}
 
 	inspectionResult, err := bininspect.InspectNewProcessBinary(elfFile, functionsConfig, structFieldsLookupFunctions)
@@ -351,30 +333,76 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber) (*hookedBi
 		if !errors.Is(err, binversion.ErrNotGoExe) {
 			err = fmt.Errorf("error reading exe: %w", err)
 		}
-		return nil, err
+		return
 	}
 
 	p.lock.Lock()
 	defer p.lock.Unlock()
+
+	if bin.processCount == 0 {
+		err = fmt.Errorf("process exited before hooks could be attached")
+		return
+	}
+
 	if err = p.addInspectionResultToMap(inspectionResult, ino); err != nil {
-		return nil, err
+		return
 	}
 
 	probeIDs, err := p.attachHooks(inspectionResult, binPath)
 	if err != nil {
 		p.removeInspectionResultFromMap(ino)
-		return nil, fmt.Errorf("error while attaching hooks: %w", err)
+		err = fmt.Errorf("error while attaching hooks: %w", err)
+		return
 	}
+
+	bin.probeIDs = probeIDs
 
 	elapsed := time.Since(start)
 
 	p.binAnalysisMetric.Set(elapsed.Milliseconds())
 	log.Debugf("attached hooks on %s (%d) in %s", binPath, ino, elapsed)
+}
 
-	return &hookedBinary{
-		probeIDs:         probeIDs,
-		runningProcesses: make(runningProcessesSet),
-	}, nil
+func (p *GoTLSProgram) registerProcess(ino inodeNumber, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	bin := p.runningBinaries[ino]
+	if bin == nil {
+		bin = &runningBinary{
+			mTime: mTime,
+		}
+		p.runningBinaries[ino] = bin
+	} else if mTime != bin.mTime {
+		return 0, nil, fmt.Errorf("binary has been modified since it has been hooked.")
+	}
+
+	old := bin.processCount
+	bin.processCount += 1
+
+	p.pidToIno[pid] = ino
+
+	return old, bin, nil
+}
+
+func (p *GoTLSProgram) unregisterProcess(pid pid) {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+
+	ino, present := p.pidToIno[pid]
+	if !present {
+		return
+	}
+	delete(p.pidToIno, pid)
+
+	bin := p.runningBinaries[ino]
+	bin.processCount -= 1
+
+	if bin.processCount == 0 {
+		log.Debugf("no processes left for ino %d", ino)
+		delete(p.runningBinaries, ino)
+		p.unhookBinary(ino, bin)
+	}
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
@@ -457,14 +485,16 @@ func (p *GoTLSProgram) attachHooks(result *bininspect.Result, binPath string) (p
 
 	return
 }
-func (p *GoTLSProgram) unhookBinary(ino inodeNumber) {
-	bin := p.hookedBinaries[ino]
+func (p *GoTLSProgram) unhookBinary(ino inodeNumber, bin *runningBinary) {
+	if bin.probeIDs == nil {
+		// This binary was not hooked in the first place
+		return
+	}
 
 	p.detachHooks(bin.probeIDs)
 	p.removeInspectionResultFromMap(ino)
 
 	log.Debugf("detached hooks on ino %d", ino)
-	delete(p.hookedBinaries, ino)
 }
 
 func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
@@ -474,20 +504,6 @@ func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
 			log.Errorf("failed detaching hook %s: %s", probeID.UID, err)
 		}
 	}
-}
-
-func (p *GoTLSProgram) getHookedBinary(ino inodeNumber) *hookedBinary {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-
-	return p.hookedBinaries[ino]
-}
-
-func (p *GoTLSProgram) setHookedBinary(ino inodeNumber, bin *hookedBinary) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	p.hookedBinaries[ino] = bin
 }
 
 func (i *uprobeInfo) getIdentificationPair() manager.ProbeIdentificationPair {
