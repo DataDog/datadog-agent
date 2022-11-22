@@ -66,6 +66,7 @@ namespace WixSetup.Datadog
                 _agentCustomActions.ProcessDdAgentUserCredentials,
                 _agentCustomActions.DecompressPythonDistributions,
                 _agentCustomActions.ConfigureUser,
+                new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
