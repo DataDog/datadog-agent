@@ -213,24 +213,6 @@ func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor 
 	return keys
 }
 
-//func getErrStrTags() []string {
-//	var tags []string
-//	var tagStr string
-//	for i := 1; i < maxErrno+1; i++ {
-//		if i == maxErrno {
-//			tagStr = maxErrnoStr
-//		} else {
-//			tagStr = syscall.Errno(i).Error()
-//		}
-//
-//		tagStr = strings.ReplaceAll(tagStr, " ", "_")
-//		tagStr = strings.ReplaceAll(tagStr, "/", "_")
-//		tags = append(tags)
-//	}
-//
-//	return tags
-//}
-
 func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
 	z := new(MapErrTelemetry)
 	h := fnv.New64a()
