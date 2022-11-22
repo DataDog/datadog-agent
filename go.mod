@@ -179,7 +179,7 @@ require (
 	go.opentelemetry.io/collector v0.64.1
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.64.1
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.64.1
-	go.opentelemetry.io/collector/pdata v0.64.1
+	go.opentelemetry.io/collector/pdata v0.65.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.64.1
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.64.1
 	go.uber.org/atomic v1.10.0
@@ -196,7 +196,7 @@ require (
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/tools v0.3.0
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
-	google.golang.org/grpc v1.50.1
+	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
