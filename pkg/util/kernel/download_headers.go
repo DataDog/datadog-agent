@@ -60,6 +60,8 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 		return fmt.Errorf("failed to retrieve target information: %s", err)
 	}
 
+	log.Errorf("nikos target: %+v", target)
+
 	log.Infof("Downloading kernel headers for target distribution %s, release %s, kernel %s",
 		target.Distro.Display,
 		target.Distro.Release,
