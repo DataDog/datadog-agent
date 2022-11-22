@@ -155,7 +155,7 @@ namespace WixSetup.Datadog
                     {
                         Name = "Datadog Agent Manager",
                         Target = "[AGENT]ddtray.exe",
-                        Arguments = "&quot;-launch-gui&quot;",
+                        Arguments = "\"-launch-gui\"",
                         WorkingDirectory = "AGENT",
                     }
                 ),
@@ -294,7 +294,7 @@ namespace WixSetup.Datadog
             var traceAgentService = GenerateDependentServiceInstaller(new Id("ddagenttraceservice"), "datadog-trace-agent", "Datadog Trace Agent", "Send tracing metrics to Datadog", "[DDAGENTUSER_PROCESSED_FQ_NAME]", "[DDAGENTUSER_PROCESSED_PASSWORD]");
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
-            var targetBinFolder = new Dir("bin",
+            var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new File(_agentBinaries.Agent, agentService),
                 new EventSource
                 {
@@ -304,7 +304,7 @@ namespace WixSetup.Datadog
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                 },
                 new File(_agentBinaries.LibDatadogAgentThree),
-                new Dir("agent",
+                new Dir(new Id("AGENT"), "agent",
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
@@ -320,7 +320,7 @@ namespace WixSetup.Datadog
                     {
                         Name = "datadog-process-agent",
                         Log = "Application",
-                        EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
+                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     },
                     new File(_agentBinaries.SecurityAgent),
@@ -329,7 +329,7 @@ namespace WixSetup.Datadog
                     {
                         Name = "datadog-system-probe",
                         Log = "Application",
-                        EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.SystemProbe)}",
+                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     },
                     new File(_agentBinaries.TraceAgent, traceAgentService),
@@ -337,7 +337,7 @@ namespace WixSetup.Datadog
                     {
                         Name = "datadog-trace-agent",
                         Log = "Application",
-                        EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.TraceAgent)}",
+                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     }
                 )
