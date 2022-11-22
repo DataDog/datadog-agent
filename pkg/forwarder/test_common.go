@@ -22,6 +22,7 @@ type testTransaction struct {
 	mock.Mock
 	assertClient bool
 	processed    chan bool
+	pointCount   int
 }
 
 func newTestTransaction() *testTransaction {
@@ -72,7 +73,7 @@ func (t *testTransaction) SerializeTo(serializer transaction.TransactionsSeriali
 }
 
 func (t *testTransaction) GetPointCount() int {
-	return 0
+	return t.pointCount
 }
 
 // Compile-time checking to ensure that MockedForwarder implements Forwarder
