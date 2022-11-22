@@ -43,7 +43,7 @@ end
 
 # Agent >= 5.12.0 installs per-machine by default, but specifying ALLUSERS=1 shouldn't affect the install
 agent_install_options = node['dd-agent-install']['agent_install_options']
-install_options = "/log #{log_file_name} /norestart ALLUSERS=1  #{agent_install_options}"
+install_options = "/log #{log_file_name} /norestart ALLUSERS=1 #{agent_install_options}"
 
 # This fake package resource serves only to trigger the Datadog Agent uninstall.
 # If the checksum is not provided, assume we need to reinstall the Agent.
@@ -52,6 +52,10 @@ package 'Datadog Agent removal' do
   package_name 'Datadog Agent'
   action :remove
 end
+
+# When WIXFAILWHENDEFERRED is present, we expect the installer to fail.
+expected_msi_result_code = [0, 3010]
+expected_msi_result_code.append(1603) if agent_install_options.include?('WIXFAILWHENDEFERRED')
 
 windows_package 'Datadog Agent' do
   source source_url
@@ -63,6 +67,7 @@ windows_package 'Datadog Agent' do
   remote_file_attributes ({
     :path => temp_file
   })
+  returns expected_msi_result_code
 end
 
 # This runs during the converge phase and will return a non-zero exit
