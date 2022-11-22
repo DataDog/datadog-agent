@@ -44,10 +44,10 @@ namespace WixSetup.Datadog
                     new Id("ReadConfigCustomAction"),
                     ConfigCustomActions.ReadConfig,
                     Return.ignore,
-                    // Must execute after ReadRegistryProperties since we depend
-                    // on APPLICATIONDATADIRECTORY being set.
                     When.After,
-                    new Step(ReadRegistryProperties.Name),
+                    // Must execute after CostFinalize since we depend
+                    // on APPLICATIONDATADIRECTORY being set.
+                    Step.CostFinalize,
                     Condition.NOT_BeingRemoved,
                     // Run in either sequence so our CA is also run in non-UI installs
                     Sequence.InstallExecuteSequence | Sequence.InstallUISequence
