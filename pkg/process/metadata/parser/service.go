@@ -64,7 +64,7 @@ func (d *ServiceExtractor) Extract(p *procutil.Process) {
 	}
 	meta := extractServiceMetadata(p.Cmdline)
 	if meta != nil {
-		log.Debugf("detected service metadata: %v", meta)
+		log.Tracef("detected service metadata: %v", meta)
 	}
 
 	d.serviceByPID[p.Pid] = meta

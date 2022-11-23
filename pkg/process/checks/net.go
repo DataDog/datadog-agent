@@ -320,26 +320,14 @@ func batchConnections(
 
 			// tags remap
 			serviceTag := serviceExtractor.GetServiceTag(c.Pid)
+			tagsStr := convertTags(tags, c.Tags, serviceTag)
 
-			if len(c.Tags) > 0 || serviceTag != "" {
-				tagCount := len(c.Tags)
-				if serviceTag != "" {
-					tagCount += 2
-				}
-				tagsStr := make([]string, 0, tagCount)
-				for _, t := range c.Tags {
-					tagsStr = append(tagsStr, tags[t])
-				}
-
-				if serviceTag != "" {
-					tagsStr = append(tagsStr, "service_source:process", serviceTag)
-				}
+			if len(tagsStr) > 0 {
 				c.Tags = nil
 				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
 			} else {
 				c.TagsIdx = -1
 			}
-
 		}
 
 		// remap route indices
@@ -449,4 +437,17 @@ func connectionPIDs(conns []*model.Connection) []int32 {
 		pids = append(pids, pid)
 	}
 	return pids
+}
+
+func convertTags(tags []string, tagOffsets []uint32, serviceTag string) []string {
+	tagCount := len(tagOffsets) + len(serviceTag)
+	tagsStr := make([]string, 0, tagCount)
+	for _, t := range tagOffsets {
+		tagsStr = append(tagsStr, tags[t])
+	}
+	if serviceTag != "" {
+		tagsStr = append(tagsStr, "service_source:process", serviceTag)
+	}
+
+	return tagsStr
 }
