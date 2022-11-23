@@ -158,6 +158,7 @@ func purgeChan(in chan *message.Message) (result []*message.Message) {
 
 // Purge clears out all pipeline channels, returning a map of eventType to list of messages in that were removed from each channel
 func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
+	log.Info("calling ep forwarder Purge")
 	s.purgeMx.Lock()
 	defer s.purgeMx.Unlock()
 	result := make(map[string][]*message.Message)
