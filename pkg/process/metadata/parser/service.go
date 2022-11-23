@@ -45,7 +45,7 @@ type serviceMetadata struct {
 
 // NewServiceExtractor instantiates a new service discovery extractor
 func NewServiceExtractor() *ServiceExtractor {
-	enabled := ddconfig.Datadog.GetBool("service_monitoring_config.enable_process_service_inference")
+	enabled := ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.enabled")
 	return &ServiceExtractor{
 		Enabled:      enabled,
 		serviceByPID: make(map[int32]*serviceMetadata),

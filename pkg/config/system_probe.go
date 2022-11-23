@@ -177,7 +177,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_process_service_inference"), false, "DD_SYSTEM_PROBE_ENABLE_PROCESS_SERVICE_INFERENCE")
+	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enable"), false, "DD_SYSTEM_PROBE_ENABLE_PROCESS_SERVICE_INFERENCE")
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)

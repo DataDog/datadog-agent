@@ -74,7 +74,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				Cmdline: tt.cmdline,
 			}
 			mockConfig := ddconfig.Mock(t)
-			mockConfig.Set("service_monitoring_config.enable_process_service_inference", true)
+			mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 			se := NewServiceExtractor()
 
 			se.Extract(&proc)

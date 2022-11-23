@@ -619,7 +619,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 		Cmdline: []string{"./my-server.sh"},
 	}
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("service_monitoring_config.enable_process_service_inference", true)
+	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 	cfg := config.NewDefaultAgentConfig()
 	ex := parser.NewServiceExtractor()
