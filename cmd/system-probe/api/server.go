@@ -23,8 +23,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var expvarServer *http.Server
-
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
