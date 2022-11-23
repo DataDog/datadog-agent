@@ -18,22 +18,6 @@
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
     - test "$TEST_IMG" && docker run -v `pwd`/$BUILD_CONTEXT:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
     - docker push $TARGET_TAG
-    ## Mirror container to single-machine-performance to serve as 'baseline' and
-    ## 'comparison' targets.
-    # Setup AWS credentials for single-machine-performance AWS account
-    - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
-    - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set region us-west-2 --profile single-machine-performance
-    # Login to Single Machine Performance ECR
-    - aws ecr get-login-password --profile single-machine-performance | docker login --username "AWS" --password-stdin "$SMP_ECR_URL"
-    # Calculate SMP tag, note that it must be deterministic and able to be
-    # computed across pipeline executions.
-    - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
-    - SMP_TARGET_TAG=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}${TAG_SUFFIX}-${ARCH}
-    - docker tag ${TARGET_TAG} ${SMP_TARGET_TAG}
-    - docker push ${SMP_TARGET_TAG}
   # Workaround for temporary network failures
   retry: 2
 
@@ -143,50 +127,19 @@ docker_build_agent7:
     TEST_IMG: "true"
     BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
 
-# NOTE this is a temporary workaround and the method taken in #14438 is
-# preferred in the long-term.
-docker_build_agent7_single_machine_performance:
+single_machine_performance-amd64-a7:
+  extends: .docker_publish_job_definition
   stage: container_build
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["runner:docker"]
   rules:
     !reference [.on_a7]
   needs:
-    - job: agent_deb-x64-a7
-      artifacts: false
+    - docker_build_agent7
   variables:
-    BUILD_CONTEXT: Dockerfiles/agent
-    TAG_SUFFIX: -7
-    ARCH: amd64
-    TEST_IMG: "true"
-    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
-  script:
-    - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI Dockerfiles/agent
-    # Setup AWS credentials for single-machine-performance AWS account
-    - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
-    - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
-    - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
-    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set region us-west-2 --profile single-machine-performance
-    # Login to Single Machine Performance ECR
-    - aws ecr get-login-password --profile single-machine-performance | docker login --username "AWS" --password-stdin "$SMP_ECR_URL"
-    # Calculate SMP tag, note that it must be deterministic and able to be
-    # computed across pipeline executions.
-    - TARGET_TAG=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}${TAG_SUFFIX}-${ARCH}
-    # DockerHub login for build to limit rate limit when pulling base images
-    - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
-    # Pull base images
-    - inv -e docker.pull-base-images $BUILD_CONTEXT/$ARCH/Dockerfile
-    # Build image
-    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
-    # Squash image, test, and push to ECR
-    - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
-    - test "$TEST_IMG" && docker run -v `pwd`/$BUILD_CONTEXT:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
-    - docker push $TARGET_TAG
-  # Workaround for temporary network failures
-  retry: 2
+    IMG_REGISTRIES: internal-aws-smp
+  parallel:
+    matrix:
+      - IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64
+        IMG_DESTINATIONS: 850406765696.dkr.ecr.us-west-2.amazonaws.com/08450328-agent:${CI_COMMIT_SHA}-7-amd64
 
 docker_build_agent7_arm64:
   extends: .docker_build_job_definition_arm64
