@@ -259,12 +259,12 @@ int __attribute__((always_inline)) trace__sys_execveat(struct pt_regs *ctx, cons
         .type = EVENT_EXEC,
         .exec = {
             .args = {
-                .id = bpf_get_prandom_u32(),
+                .id = bpf_get_prandom_u32() | 0b1,
                 .array = argv,
                 .index = 0,
             },
             .envs = {
-                .id = bpf_get_prandom_u32(),
+                .id = bpf_get_prandom_u32() & (~(u32)0b1),
                 .array = env,
             }
         }
