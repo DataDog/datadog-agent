@@ -32,7 +32,7 @@ jobs:
     - name: Install python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.8.10'
+        python-version: '3.8.14'
     - name: Install python requirements.txt
       run: python3 -m pip install -r requirements.txt
     - name: Go mod tidy
