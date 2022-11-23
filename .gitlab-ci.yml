@@ -54,6 +54,7 @@ workflow:
     - if: $CI_COMMIT_TAG == null || $DEPLOY_AGENT == "true"
 
 stages:
+  - benchmarks
   - maintenance_jobs
   - deps_build
   - deps_fetch
@@ -85,7 +86,6 @@ stages:
   - functional_test_junit_upload
   - internal_kubernetes_deploy
   - notify
-  - benchmarks
 
 variables:
   #Do not change this - must be the repository name for Kubernetes runners to work
