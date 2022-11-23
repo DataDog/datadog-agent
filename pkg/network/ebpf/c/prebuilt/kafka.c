@@ -1,16 +1,16 @@
 #include "kconfig.h"
 #include "tracer.h"
-#include "bpf_telemetry.h"
+#include "bpf_helpers.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "sockfd.h"
-#include "protocols/tags-types.h"
-#include "sock.h"
-#include "port_range.h"
 #include "kafka/kafka-maps.h"
 #include "kafka/kafka-types.h"
 #include "kafka/kafka-buffer.h"
 #include "kafka/kafka.h"
+#include "sockfd.h"
+#include "tags-types.h"
+#include "sock.h"
+#include "port_range.h"
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
@@ -29,7 +29,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         log_debug("socket__kafka_filter: kafka_transaction state is NULL");
         return 0;
     }
-    bpf_memset(kafka, 0, sizeof(kafka_transaction_t));
+    __builtin_memset(kafka, 0, sizeof(kafka_transaction_t));
 
     if (!read_conn_tuple_skb(skb, &skb_info, &kafka->tup)) {
         return 0;

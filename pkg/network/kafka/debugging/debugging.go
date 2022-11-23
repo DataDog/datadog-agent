@@ -6,7 +6,7 @@
 package debugging
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 

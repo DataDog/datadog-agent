@@ -149,9 +149,8 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				m.telemetry.log()
+				// TODO: add the telemetry
 				reply <- m.statkeeper.GetAndResetAllStats()
-				//reply <- requestStatsMap
 			}
 		}
 	}()

@@ -83,7 +83,7 @@ static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction
         return;
     }
 
-    bpf_memcpy(&batch->txs[batch->pos], kafka_transaction, sizeof(kafka_transaction_t));
+    __builtin_memcpy(&batch->txs[batch->pos], kafka_transaction, sizeof(kafka_transaction_t));
     log_debug("kafka_enqueue: ktx=%llx path=%s\n", kafka_transaction, kafka_transaction->request_fragment);
     log_debug("kafka transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;
@@ -166,7 +166,7 @@ static __always_inline kafka_transaction_t *kafka_fetch_state(kafka_transaction_
 //        return bpf_map_lookup_elem(&http_in_flight, &http->tup);
 //    }
 
-    bpf_map_update_with_telemetry(kafka_in_flight, &kafka_transaction->tup, kafka_transaction, BPF_NOEXIST);
+    bpf_map_update_elem(&kafka_in_flight, &kafka_transaction->tup, kafka_transaction, BPF_NOEXIST);
     return bpf_map_lookup_elem(&kafka_in_flight, &kafka_transaction->tup);
 }
 
@@ -230,7 +230,7 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
         log_debug("Already seen this tcp sequence: %lu", *last_tcp_seq);
         return false;
     }
-    bpf_map_update_with_telemetry(kafka_last_tcp_seq_per_connection, &kafka->tup, &skb_info->tcp_seq, BPF_ANY);
+    bpf_map_update_elem(&kafka_last_tcp_seq_per_connection, &kafka->tup, &skb_info->tcp_seq, BPF_ANY);
     return true;
 }
 
