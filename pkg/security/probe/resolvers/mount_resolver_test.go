@@ -70,6 +70,37 @@ func TestMountResolver(t *testing.T) {
 			},
 		},
 		{
+			"insert_root",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       27,
+								GroupID:       0,
+								Device:        1,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 1,
+								FSType:        "ext4",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						27,
+						"/",
+						nil,
+					},
+				},
+			},
+		},
+		{
 			"insert_overlay",
 			args{
 				[]event{
@@ -83,7 +114,7 @@ func TestMountResolver(t *testing.T) {
 								ParentInode:   0,
 								RootMountID:   0,
 								RootInode:     0,
-								ParentMountID: 0,
+								ParentMountID: 27,
 								FSType:        "overlay",
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
@@ -180,7 +211,7 @@ func TestMountResolver(t *testing.T) {
 								RootInode:     0,
 								ParentMountID: 22,
 								FSType:        "tmpfs",
-								MountPointStr: "/sys/fs/cgroup",
+								MountPointStr: "/fs/cgroup",
 								RootStr:       "",
 							},
 						},
@@ -347,6 +378,60 @@ func TestMountResolver(t *testing.T) {
 				},
 			},
 		},
+		{
+			"identical_mountpoints",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       32,
+								ParentMountID: 638,
+								MountPointStr: "/",
+							},
+						},
+					},
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       41,
+								ParentMountID: 32,
+								MountPointStr: "/tmp",
+							},
+						},
+					},
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       42,
+								ParentMountID: 41,
+								MountPointStr: "/tmp",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						32,
+						"/",
+						nil,
+					},
+					{
+						41,
+						"/tmp",
+						nil,
+					},
+					{
+						42,
+						"/tmp/tmp",
+						nil,
+					},
+				},
+			},
+		},
 	}
 
 	// use pid 1 for the tests
@@ -422,17 +507,21 @@ func TestMountLoop(t *testing.T) {
 		mounts: map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
-				ParentMountID: 3,
-				MountPointStr: "/a",
+				MountPointStr: "/",
 			},
 			2: {
 				MountID:       2,
-				ParentMountID: 1,
-				MountPointStr: "/b",
+				ParentMountID: 4,
+				MountPointStr: "/a",
 			},
 			3: {
 				MountID:       3,
 				ParentMountID: 2,
+				MountPointStr: "/b",
+			},
+			4: {
+				MountID:       4,
+				ParentMountID: 3,
 				MountPointStr: "/c",
 			},
 		},
@@ -448,18 +537,21 @@ func BenchmarkGetParentPath(b *testing.B) {
 		mounts: make(map[uint32]*model.Mount),
 	}
 
-	var parentID uint32
-	for i := uint32(0); i != 100; i++ {
+	mr.mounts[1] = &model.Mount{
+		MountID:       1,
+		MountPointStr: "/",
+	}
+
+	for i := uint32(1); i != 100; i++ {
 		mr.mounts[i+1] = &model.Mount{
 			MountID:       i + 1,
-			ParentMountID: parentID,
+			ParentMountID: i,
 			MountPointStr: fmt.Sprintf("/%d", i+1),
 		}
-		parentID = i
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getMountPath(0)
+		_, _ = mr.getMountPath(100)
 	}
 }
