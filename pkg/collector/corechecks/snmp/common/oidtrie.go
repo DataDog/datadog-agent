@@ -26,8 +26,8 @@ func newOidTrie() *OidTrie {
 	return &OidTrie{}
 }
 
-// BuildTries builds the OidTrie from a list of OIDs
-func BuildTries(allOids []string) *OidTrie {
+// BuildOidTrie builds the OidTrie from a list of OIDs
+func BuildOidTrie(allOids []string) *OidTrie {
 	root := newOidTrie()
 	for _, oid := range allOids {
 		current := root

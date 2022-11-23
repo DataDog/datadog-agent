@@ -244,7 +244,7 @@ func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
-	root := common.BuildTries(fetchedOIDs)
+	root := common.BuildOidTrie(fetchedOIDs)
 	if log.ShouldLog(seelog.DebugLvl) {
 		root.DebugPrint()
 	}
