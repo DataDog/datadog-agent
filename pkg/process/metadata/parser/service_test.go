@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -67,10 +68,12 @@ func TestExtractServiceMetadata(t *testing.T) {
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
-			d := NewServiceExtractor()
+			mockConfig := ddconfig.Mock(t)
+			mockConfig.Set("service_monitoring_config.enable_process_service_inference", true)
+			se := NewServiceExtractor()
 
-			d.Extract(&proc)
-			assert.Equal(t, tt.expectedServiceTag, d.GetServiceTag(proc.Pid))
+			se.Extract(&proc)
+			assert.Equal(t, tt.expectedServiceTag, se.GetServiceTag(proc.Pid))
 		})
 	}
 }
