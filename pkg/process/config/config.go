@@ -80,9 +80,8 @@ type AgentConfig struct {
 	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
-	EnableSystemProbe             bool
-	SystemProbeAddress            string
-	EnableProcessServiceInference bool
+	EnableSystemProbe  bool
+	SystemProbeAddress string
 
 	// Orchestrator config
 	Orchestrator *oconfig.OrchestratorConfig
@@ -129,9 +128,8 @@ func NewDefaultAgentConfig() *AgentConfig {
 		ContainerHostType: model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
-		EnableSystemProbe:             false,
-		SystemProbeAddress:            defaultSystemProbeAddress,
-		EnableProcessServiceInference: false,
+		EnableSystemProbe:  false,
+		SystemProbeAddress: defaultSystemProbeAddress,
 
 		// Orchestrator config
 		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
@@ -211,7 +209,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 
 	if syscfg.Enabled {
 		cfg.EnableSystemProbe = true
-		cfg.EnableProcessServiceInference = syscfg.EnableProcessServiceInference
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}

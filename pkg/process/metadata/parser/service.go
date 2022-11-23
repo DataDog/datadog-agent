@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +39,8 @@ type serviceMetadata struct {
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
-func NewServiceExtractor(enabled bool) *ServiceExtractor {
+func NewServiceExtractor() *ServiceExtractor {
+	enabled := ddconfig.Datadog.GetBool("service_monitoring_config.enable_process_service_inference")
 	return &ServiceExtractor{
 		Enabled:      enabled,
 		serviceByPID: make(map[int32]*serviceMetadata),

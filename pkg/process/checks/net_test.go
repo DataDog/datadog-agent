@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -55,7 +56,7 @@ func TestDNSNameEncoding(t *testing.T) {
 		"1.1.2.5": {Names: nil},
 	}
 	cfg := config.NewDefaultAgentConfig()
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil, ex)
 	assert.Equal(t, len(chunks), 1)
 
@@ -121,7 +122,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 		cfg.MaxConnsPerMessage = tc.maxSize
 		ctm := map[string]int64{}
 		rctm := map[string]*model.RuntimeCompilationTelemetry{}
-		ex := parser.NewServiceExtractor(false)
+		ex := parser.NewServiceExtractor()
 		chunks := batchConnections(cfg, 0, tc.cur, map[string]*model.DNSEntry{}, "nid", ctm, rctm, nil, nil, nil, nil, ex)
 
 		assert.Len(t, chunks, tc.expectedChunks, "len %d", i)
@@ -162,7 +163,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, p, dns, "nid", nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -203,7 +204,7 @@ func TestBatchSimilarConnectionsTogether(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 2
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, p, map[string]*model.DNSEntry{}, "nid", nil, nil, nil, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 3)
@@ -288,7 +289,7 @@ func TestNetworkConnectionBatchingWithDomainsByQueryType(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -407,7 +408,7 @@ func TestNetworkConnectionBatchingWithDomains(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 1
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, conns, dnsmap, "nid", nil, nil, domains, nil, nil, nil, ex)
 
 	assert.Len(t, chunks, 4)
@@ -517,7 +518,7 @@ func TestNetworkConnectionBatchingWithRoutes(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 4
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, routes, nil, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -586,7 +587,7 @@ func TestNetworkConnectionTags(t *testing.T) {
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.MaxConnsPerMessage = 4
-	ex := parser.NewServiceExtractor(false)
+	ex := parser.NewServiceExtractor()
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil, ex)
 
 	assert.Len(t, chunks, 2)
@@ -617,9 +618,11 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 		Pid:     conns[0].Pid,
 		Cmdline: []string{"./my-server.sh"},
 	}
+	mockConfig := ddconfig.Mock(t)
+	mockConfig.Set("service_monitoring_config.enable_process_service_inference", true)
 
 	cfg := config.NewDefaultAgentConfig()
-	ex := parser.NewServiceExtractor(true)
+	ex := parser.NewServiceExtractor()
 	ex.Extract(&proc)
 
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil, ex)

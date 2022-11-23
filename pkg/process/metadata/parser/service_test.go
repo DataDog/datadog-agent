@@ -67,7 +67,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				Pid:     1,
 				Cmdline: tt.cmdline,
 			}
-			d := NewServiceExtractor(true)
+			d := NewServiceExtractor()
 
 			d.Extract(&proc)
 			assert.Equal(t, tt.expectedServiceTag, d.GetServiceTag(proc.Pid))

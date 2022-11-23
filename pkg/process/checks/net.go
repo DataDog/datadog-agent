@@ -85,7 +85,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	}
 	c.networkID = networkID
 	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor(cfg.EnableProcessServiceInference)
+	c.serviceExtractor = parser.NewServiceExtractor()
 }
 
 // Name returns the name of the ConnectionsCheck.
