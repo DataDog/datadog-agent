@@ -1098,7 +1098,7 @@ def build_cws_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
-        unit_test=with_unit_test,
+        with_unit_test=with_unit_test,
     )
 
 
