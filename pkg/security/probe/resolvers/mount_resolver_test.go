@@ -83,7 +83,7 @@ func TestMountResolver(t *testing.T) {
 								ParentInode:   0,
 								RootMountID:   0,
 								RootInode:     0,
-								ParentMountID: 27,
+								ParentMountID: 0,
 								FSType:        "overlay",
 								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
 								RootStr:       "",
