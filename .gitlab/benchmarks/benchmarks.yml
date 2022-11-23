@@ -10,7 +10,8 @@ benchmark:
   rules:
     !reference [.on_trace_agent_changes_or_manual]
   interruptible: true
-  tags: ["runner:apm-k8s-tweaked-metal"]
+  # tags: ["runner:apm-k8s-tweaked-metal"] # TODO: Commented out until we have the metal runners available in this repo
+  tags: ["runner:main"]
   script:
     - ./.gitlab/benchmarks/scripts/capture-hardware-software-info.sh
     - ./.gitlab/benchmarks/scripts/run-benchmarks.sh
