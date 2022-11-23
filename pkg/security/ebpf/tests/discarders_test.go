@@ -16,15 +16,37 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf"
 	"github.com/safchain/baloum/pkg/baloum"
-	"go.uber.org/zap"
 )
 
-func TestDiscarderRetention(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+type testLogger struct {
+	t *testing.T
+}
 
-	suggar := logger.Sugar()
+func (l *testLogger) Info(params ...interface{}) {
+	l.t.Log(params...)
+}
 
+func (l *testLogger) Infof(format string, params ...interface{}) {
+	l.t.Logf(format, params...)
+}
+
+func (l *testLogger) Debug(params ...interface{}) {
+	l.t.Log(params...)
+}
+
+func (l *testLogger) Debugf(format string, params ...interface{}) {
+	l.t.Logf(format, params...)
+}
+
+func (l *testLogger) Error(params ...interface{}) {
+	l.t.Error(params...)
+}
+
+func (l *testLogger) Errorf(format string, params ...interface{}) {
+	l.t.Errorf(format, params...)
+}
+
+func newVM(t *testing.T) *baloum.VM {
 	useSyscallWrapper, err := secebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		t.Fatal(err)
@@ -38,26 +60,33 @@ func TestDiscarderRetention(t *testing.T) {
 
 	spec, err := ebpf.LoadCollectionSpecFromReader(reader)
 	if err != nil {
-		suggar.Fatal(err)
+		t.Fatal(err)
 	}
-
-	tgid := uint64(33)
 
 	fncs := baloum.Fncs{
-		GetCurrentPidTgid: func(vm *baloum.VM) (uint64, error) {
-			return tgid, nil
-		},
-		TracePrintk: func(vm *baloum.VM, format string, args ...interface{}) {
-			suggar.Debugf(format, args...)
+		TracePrintk: func(vm *baloum.VM, format string, args ...interface{}) error {
+			t.Logf(format, args...)
+			return nil
 		},
 	}
 
-	vm := baloum.NewVM(spec, baloum.Opts{Fncs: fncs, Logger: suggar})
+	return baloum.NewVM(spec, baloum.Opts{Fncs: fncs, Logger: &testLogger{t: t}})
+}
 
+func TestDiscarderEventMask(t *testing.T) {
 	var ctx baloum.Context
 
-	code, err := vm.RunProgram(ctx, "test/discarders_retention")
+	code, err := newVM(t).RunProgram(ctx, "test/discarders_event_mask")
 	if err != nil || code != 0 {
-		suggar.Fatalf("unexpected error: %v, %d", err, code)
+		t.Errorf("unexpected error: %v, %d", err, code)
+	}
+}
+
+func TestDiscarderRetention(t *testing.T) {
+	var ctx baloum.Context
+
+	code, err := newVM(t).RunProgram(ctx, "test/discarders_retention")
+	if err != nil || code != 0 {
+		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }

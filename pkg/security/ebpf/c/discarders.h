@@ -43,9 +43,9 @@ struct bpf_map_def SEC("maps/discarders_revision") discarders_revision = {
 };
 
 u64 __attribute__((always_inline)) get_discarder_retention() {
-    u64 retention;
+    u64 retention = 0;
     LOAD_CONSTANT("discarder_retention", retention);
-    return retention;
+    return retention ? retention : SEC_TO_NS(5);
 }
 
 int __attribute__((always_inline)) monitor_discarder_added(u64 event_type) {

@@ -66,9 +66,9 @@ def ninja_define_windows_resources(ctx, nw, major_version):
     )
 
 
-def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None):
+def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None, with_unit_test=False):
     nw.variable("target", "-emit-llvm")
-    nw.variable("ebpfflags", get_ebpf_build_flags(True))
+    nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test))
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
 
     nw.rule(
@@ -353,6 +353,7 @@ def ninja_generate(
     debug=False,
     strip_object_files=False,
     kernel_release=None,
+    with_unit_test=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
     co_re_build_dir = os.path.join(build_dir, "co-re")
@@ -371,7 +372,7 @@ def ninja_generate(
             nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release)
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
@@ -397,6 +398,7 @@ def build(
     debug=False,
     strip_object_files=False,
     strip_binary=False,
+    with_unit_test=False
 ):
     """
     Build the system-probe
@@ -409,6 +411,7 @@ def build(
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
+        with_unit_test=with_unit_test,
     )
 
     build_sysprobe_binary(
@@ -893,7 +896,7 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
     return dirs
 
 
-def get_ebpf_build_flags(test=False):
+def get_ebpf_build_flags(unit_test=False):
     flags = []
     flags.extend(
         [
@@ -904,7 +907,7 @@ def get_ebpf_build_flags(test=False):
             '-DCOMPILE_PREBUILT',
         ]
     )
-    if test:
+    if unit_test:
         flags.extend(['-D__BALOUM__'])
     flags.extend(
         [
@@ -984,10 +987,11 @@ def run_ninja(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    with_unit_test=False,
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
+    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1044,6 +1048,7 @@ def build_object_files(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    with_unit_test=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
@@ -1071,6 +1076,7 @@ def build_object_files(
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
+        with_unit_test=with_unit_test,
     )
 
     if not windows:
@@ -1082,7 +1088,7 @@ def build_object_files(
 
 
 def build_cws_object_files(
-    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False, with_unit_test=False
 ):
     run_ninja(
         ctx,
@@ -1092,12 +1098,13 @@ def build_cws_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
+        unit_test=with_unit_test,
     )
 
 
 @task
-def object_files(ctx, kernel_release=None):
-    build_object_files(ctx, kernel_release=kernel_release)
+def object_files(ctx, kernel_release=None, with_unit_test=False):
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
 
 
 def clean_object_files(
