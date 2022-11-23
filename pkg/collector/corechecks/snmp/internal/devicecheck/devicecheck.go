@@ -255,13 +255,13 @@ func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
-				if root.NodeExist(metricConfig.Symbol.OID) {
+				if root.LeafExist(metricConfig.Symbol.OID) {
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
 				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
-					if root.NodeExist(symbol.OID) {
+					if root.NonLeafNodeExist(symbol.OID) {
 						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 					}
 				}

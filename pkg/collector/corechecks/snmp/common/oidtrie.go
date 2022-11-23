@@ -13,34 +13,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// OidTrie is a trie structure that represent OIDs as tree
+// OIDTrie is a trie structure that represent OIDs as tree
 // It's an efficient data structure for verifying if an OID is known or not.
-// The search complexity of NodeExist / LeafExist methods are O(n),
+// The search complexity of NonLeafNodeExist / LeafExist methods are O(n),
 // where n is the length of the OID (number of dot separated numbers).
 // The search complexity doesn't depend on the size of the trie.
-type OidTrie struct {
-	Children map[int]*OidTrie
+type OIDTrie struct {
+	Children map[int]*OIDTrie
 }
 
-func newOidTrie() *OidTrie {
-	return &OidTrie{}
+func newOidTrie() *OIDTrie {
+	return &OIDTrie{}
 }
 
-// BuildOidTrie builds the OidTrie from a list of OIDs
-func BuildOidTrie(allOids []string) *OidTrie {
+// BuildOidTrie builds the OIDTrie from a list of OIDs
+func BuildOidTrie(allOIDs []string) *OIDTrie {
 	root := newOidTrie()
-	for _, oid := range allOids {
+	for _, oid := range allOIDs {
 		current := root
-		oid = strings.TrimLeft(oid, ".")
-		digits := strings.Split(oid, ".")
-		for _, digit := range digits {
-			num, err := strconv.Atoi(digit)
-			if err != nil {
-				log.Debugf("error converting digit %s (oid=%s)", digit, oid)
-				break
-			}
+
+		numbers, err := oidToNumbers(oid)
+		if err != nil {
+			log.Debugf("error processing oid `%s`: %s", oid, err)
+			continue
+		}
+
+		for _, num := range numbers {
 			if current.Children == nil {
-				current.Children = make(map[int]*OidTrie)
+				current.Children = make(map[int]*OIDTrie)
 			}
 			if _, ok := current.Children[num]; !ok {
 				current.Children[num] = newOidTrie()
@@ -51,49 +51,64 @@ func BuildOidTrie(allOids []string) *OidTrie {
 	return root
 }
 
-func (o *OidTrie) exist(oid string, isLeaf bool) bool {
+func oidToNumbers(oid string) ([]int, error) {
+	oid = strings.TrimLeft(oid, ".")
+	strNumbers := strings.Split(oid, ".")
+	var numbers []int
+	for _, strNumber := range strNumbers {
+		num, err := strconv.Atoi(strNumber)
+		if err != nil {
+			return nil, fmt.Errorf("error converting digit %s (oid=%s)", strNumber, oid)
+		}
+		numbers = append(numbers, num)
+	}
+	return numbers, nil
+}
+
+func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 	current := o
 	oid = strings.TrimLeft(oid, ".")
 	digits := strings.Split(oid, ".")
 	for _, digit := range digits {
 		num, err := strconv.Atoi(digit)
 		if err != nil {
-			return false
+			return nil, fmt.Errorf("invalid OID: %s", err)
 		}
-
 		child, ok := current.Children[num]
 		if !ok {
-			return false
-		}
-		if len(child.Children) == 0 {
-			return true
+			return nil, fmt.Errorf("node `%s` not found in OIDTrie", oid)
 		}
 		current = child
 	}
-	if isLeaf {
-		return false
-	}
-	return true
+	return current, nil
 }
 
-// NodeExist checks if the oid is a known node
-func (o *OidTrie) NodeExist(oid string) bool {
-	return o.exist(oid, false)
+// NonLeafNodeExist checks if the oid is a known node (a node have at least one child)
+func (o *OIDTrie) NonLeafNodeExist(oid string) bool {
+	node, err := o.getNode(oid)
+	if err != nil {
+		return false
+	}
+	return len(node.Children) > 0
 }
 
 // LeafExist checks if the oid is a known leaf
-func (o *OidTrie) LeafExist(oid string) bool {
-	return o.exist(oid, true)
+func (o *OIDTrie) LeafExist(oid string) bool {
+	node, err := o.getNode(oid)
+	if err != nil {
+		return false
+	}
+	return len(node.Children) == 0
 }
 
 // DebugPrint is used to print the whole Trie for debugging purpose
-func (o *OidTrie) DebugPrint() {
+func (o *OIDTrie) DebugPrint() {
 	o.debugPrintRecursive("")
 }
 
 // debugPrintRecursive is used to print the whole Trie for debugging purpose
-func (o *OidTrie) debugPrintRecursive(prefix string) {
-	log.Infof("Print OidTrie")
+func (o *OIDTrie) debugPrintRecursive(prefix string) {
+	log.Infof("Print OIDTrie")
 	if len(o.Children) == 0 {
 		log.Infof("OID: %s", prefix)
 	}
