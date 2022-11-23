@@ -1,4 +1,5 @@
 Component,Origin,License,Copyright
+core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal,Apache-2.0,Copyright 2019 Google LLC
