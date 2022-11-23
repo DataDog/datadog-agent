@@ -236,7 +236,7 @@ func (p *GoTLSProgram) Start() {
 				case *netlink.ExecProcEvent:
 					p.handleProcessStart(ev.ProcessPid)
 				case *netlink.ExitProcEvent:
-					p.unregisterProcess(ev.ProcessPid)
+					p.handleProcessStop(ev.ProcessPid)
 
 					// No default case; the watcher has a
 					// lot of event types, some of which
@@ -307,6 +307,10 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		// are doing this.
 		go p.hookNewBinary(binPath, stat.Ino, pid, bin)
 	}
+}
+
+func (p *GoTLSProgram) handleProcessStop(pid pid) {
+	p.unregisterProcess(pid)
 }
 
 func (p *GoTLSProgram) hookNewBinary(binPath string, ino inodeNumber, pid pid, bin *runningBinary) {
