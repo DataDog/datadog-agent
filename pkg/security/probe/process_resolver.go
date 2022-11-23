@@ -219,11 +219,11 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 				pce.Ancestor.Release()
 			}
 
-			if pce.ArgsEntry != nil && pce.ArgsEntry.ArgsEnvsCacheEntry != nil {
-				pce.ArgsEntry.ArgsEnvsCacheEntry.Release()
+			if pce.ArgsEntry != nil {
+				pce.ArgsEntry.Release()
 			}
-			if pce.EnvsEntry != nil && pce.EnvsEntry.ArgsEnvsCacheEntry != nil {
-				pce.EnvsEntry.ArgsEnvsCacheEntry.Release()
+			if pce.EnvsEntry != nil {
+				pce.EnvsEntry.Release()
 			}
 
 			p.cacheSize.Dec()
@@ -868,7 +868,7 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
 		// the whole list will be released
-		pce.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+		pce.ArgsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
@@ -939,10 +939,10 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
 		// the whole list will be released
-		pce.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+		pce.EnvsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
-		p.argsEnvsCache.Remove(pce.ArgsID)
+		p.argsEnvsCache.Remove(pce.EnvsID)
 	}
 }
 
