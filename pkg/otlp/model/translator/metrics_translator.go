@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -128,6 +129,15 @@ func (t *Translator) mapNumberMetrics(
 	}
 }
 
+// TODO(songy23): consider changing this to a Translator start time that must be initialized
+// if the package-level variable causes any issue.
+var startTime = time.Now()
+
+// getProcessStartTime returns the start time of the Agent process in seconds since epoch
+func getProcessStartTime() uint64 {
+	return uint64(startTime.Unix())
+}
+
 // mapNumberMonotonicMetrics maps monotonic datapoints into Datadog metrics
 func (t *Translator) mapNumberMonotonicMetrics(
 	ctx context.Context,
@@ -155,6 +165,9 @@ func (t *Translator) mapNumberMonotonicMetrics(
 
 		if dx, ok := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val); ok {
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, dx)
+		} else if i == 0 && getProcessStartTime() < startTs {
+			// Report the first value if the timeseries started after the Datadog Agent process started.
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, val)
 		}
 	}
 }

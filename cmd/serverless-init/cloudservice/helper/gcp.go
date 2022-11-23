@@ -7,7 +7,7 @@ package helper
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -128,7 +128,7 @@ func getSingleMetadata(httpClient *http.Client, url string) string {
 		return "unknown"
 	}
 	defer res.Body.Close()
-	data, err := ioutil.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Error("unable to read metadata body, defaulting to unknown")
 		return "unknown"

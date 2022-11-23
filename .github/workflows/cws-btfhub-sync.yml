@@ -23,7 +23,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8.10'
+          python-version: '3.8.14'
           cache: 'pip'
 
       - name: Install go

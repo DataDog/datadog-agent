@@ -38,6 +38,8 @@ const (
 	ExpireInodeDiscarderOp
 	// ExpirePidDiscarderOp is used to expire a pid discarder
 	ExpirePidDiscarderOp
+	// BumpDiscardersRevision is used to bump the discarders revision
+	BumpDiscardersRevision
 )
 
 // ERPC defines a krpc object

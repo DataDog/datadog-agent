@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,40 +37,6 @@ func TestStart(t *testing.T) {
 func TestStartNoRemoteClient(t *testing.T) {
 	var h *RemoteConfigHandler
 	assert.NotPanics(t, h.Start)
-}
-
-func TestRemoteRates(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	remoteClient := NewMockRemoteClient(ctrl)
-	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient}
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
-	rareSampler := NewMockrareSampler(ctrl)
-
-	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
-
-	payload := apmsampling.APMSampling{
-		TargetTPS: []apmsampling.TargetTPS{{
-			Service:   "service-1",
-			Env:       "env-1",
-			Value:     42,
-			Rank:      1,
-			Mechanism: 1,
-		}},
-	}
-
-	raw, _ := payload.MarshalMsg(nil)
-
-	remoteRatesConfig := state.APMSamplingConfig{
-		Metadata: state.Metadata{Version: 42},
-		Config:   raw,
-	}
-
-	prioritySampler.EXPECT().UpdateRemoteRates([]sampler.RemoteRateUpdate{{Version: 42, Config: payload}}).Times(1)
-
-	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/dynamic_rates/config": remoteRatesConfig})
-
-	ctrl.Finish()
 }
 
 func TestPrioritySampler(t *testing.T) {

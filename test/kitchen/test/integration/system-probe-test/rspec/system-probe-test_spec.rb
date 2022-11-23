@@ -6,9 +6,14 @@ require 'rexml/document'
 
 GOLANG_TEST_FAILURE = /FAIL:/
 
+skip_prebuilt_tests = Array.[](
+  "pkg/collector/corechecks/ebpf/probe"
+)
+
 runtime_compiled_tests = Array.[](
   "pkg/network/tracer",
   "pkg/network/protocols/http",
+  "pkg/collector/corechecks/ebpf/probe"
 )
 
 co_re_tests = Array.[](
@@ -36,14 +41,14 @@ Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f
   FileUtils.chmod 0644, f, :verbose => true
 end
 
-shared_examples "passes" do |bundle, env, filter|
+shared_examples "passes" do |bundle, env, filter, filter_inclusive|
   after :context do
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
   end
 
   Dir.glob('/tmp/system-probe-tests/**/testsuite').each do |f|
     pkg = f.delete_prefix('/tmp/system-probe-tests/').delete_suffix('/testsuite')
-    next unless filter.nil? or filter.include? pkg
+    next unless (filter_inclusive and filter.include? pkg) or (!filter_inclusive and !filter.include? pkg)
 
     base_env = {
       "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/system-probe-tests/pkg/ebpf/bytecode/build",
@@ -96,7 +101,7 @@ describe "system-probe" do
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
-    include_examples "passes", "prebuilt", env
+    include_examples "passes", "prebuilt", env, skip_prebuilt_tests, false
   end
 
   context "runtime compiled" do
@@ -105,7 +110,7 @@ describe "system-probe" do
       "DD_ALLOW_PRECOMPILED_FALLBACK"=>"false",
       "DD_ENABLE_CO_RE"=>"false"
     }
-    include_examples "passes", "runtime", env, runtime_compiled_tests
+    include_examples "passes", "runtime", env, runtime_compiled_tests, true
   end
 
   context "CO-RE" do
@@ -114,6 +119,6 @@ describe "system-probe" do
       "DD_ENABLE_RUNTIME_COMPILER"=>"false",
       "DD_ALLOW_RUNTIME_COMPILED_FALLBACK"=>"false"
     }
-    include_examples "passes", "co-re", env, co_re_tests
+    include_examples "passes", "co-re", env, co_re_tests, true
   end
 end
