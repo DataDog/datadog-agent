@@ -216,11 +216,8 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		d.config.Metrics = []checkconfig.MetricsConfig{}
 		d.config.AddUptimeMetric()
 		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
-	} else {
-		if !d.config.AutodetectProfile {
-			return nil
-		}
-		// detect using profile
+	} else if d.config.AutodetectProfile {
+		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
