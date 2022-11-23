@@ -36,6 +36,7 @@ func BuildTries(allOids []string) *OidTrie {
 		for _, digit := range digits {
 			num, err := strconv.Atoi(digit)
 			if err != nil {
+				log.Debugf("error converting digit %s (oid=%s)", digit, oid)
 				break
 			}
 			if current.Children == nil {

@@ -52,3 +52,9 @@ func Test_oidTrie_NodeExist(t *testing.T) {
 	assert.Equal(t, true, trie.NodeExist("1.2"))
 	assert.Equal(t, false, trie.NodeExist("1.4"))
 }
+
+func Test_oidTrie_InvalidDigitIgnored(t *testing.T) {
+	trie := BuildTries([]string{"1.2.3", "1.3.9.A"})
+	assert.Equal(t, true, trie.NodeExist("1.2.3"))
+	assert.Equal(t, false, trie.NodeExist("1.4"))
+}
