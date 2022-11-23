@@ -1005,10 +1005,10 @@ func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
 }
 
 func (pan *ProcessActivityNode) retain() {
-	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.ArgsEntry != nil {
 		pan.Process.ArgsEntry.Retain()
 	}
-	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.EnvsEntry != nil {
 		pan.Process.EnvsEntry.Retain()
 	}
 }
@@ -1021,10 +1021,10 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolve
 	pan.Process.EnvsTruncated = envsTruncated
 	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
 
-	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.ArgsEntry != nil {
 		pan.Process.ArgsEntry.Release()
 	}
-	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.EnvsEntry != nil {
 		pan.Process.EnvsEntry.Release()
 	}
 	pan.Process.ArgsEntry = nil
