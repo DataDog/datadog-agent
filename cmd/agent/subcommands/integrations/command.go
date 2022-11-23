@@ -103,11 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runOneShot := func(callback interface{}) error {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
-			fx.Supply(core.BundleParams{
-				ConfFilePath:      globalParams.ConfFilePath,
-				ConfigLoadSecrets: false,
-				ConfigMissingOK:   true,
-			}),
+			fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigMissingOK(true))),
 			core.Bundle,
 		)
 	}
