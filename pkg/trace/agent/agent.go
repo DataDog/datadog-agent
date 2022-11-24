@@ -193,6 +193,7 @@ func (a *Agent) loop() {
 				a.obfuscator,
 				a.obfuscator,
 				a.cardObfuscator,
+				a.RemoteConfigHandler,
 			} {
 				stopper.Stop()
 			}

@@ -57,6 +57,14 @@ func (h *RemoteConfigHandler) Start() {
 	h.remoteClient.RegisterAPMUpdate(h.onUpdate)
 }
 
+func (h *RemoteConfigHandler) Stop() {
+	if h == nil {
+		return
+	}
+
+	h.remoteClient.Close()
+}
+
 func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig) {
 	if len(update) == 0 {
 		log.Debugf("no samplers configuration in remote config update payload")
