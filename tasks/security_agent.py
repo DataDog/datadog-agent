@@ -710,7 +710,7 @@ def kitchen_prepare(ctx):
 
 
 @task
-def run_ebpf_unit_tests(ctx, verbose=False):
+def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
         ctx,
         major_version='7',
@@ -723,4 +723,8 @@ def run_ebpf_unit_tests(ctx, verbose=False):
     if verbose:
         flags += " -test.v"
 
-    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/...")
+    args = '-args'
+    if trace:
+        args += " -trace"
+
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
