@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -1351,7 +1352,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
-			Value: getMountIDOffset(p),
+			Value: resolvers.GetMountIDOffset(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
@@ -1359,27 +1360,27 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_unlink_dentry_position",
-			Value: getVFSLinkDentryPosition(p),
+			Value: resolvers.GetVFSLinkDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_mkdir_dentry_position",
-			Value: getVFSMKDirDentryPosition(p),
+			Value: resolvers.GetVFSMKDirDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_link_target_dentry_position",
-			Value: getVFSLinkTargetDentryPosition(p),
+			Value: resolvers.GetVFSLinkTargetDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_setxattr_dentry_position",
-			Value: getVFSSetxattrDentryPosition(p),
+			Value: resolvers.GetVFSSetxattrDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_removexattr_dentry_position",
-			Value: getVFSRemovexattrDentryPosition(p),
+			Value: resolvers.GetVFSRemovexattrDentryPosition(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_rename_input_type",
-			Value: getVFSRenameInputType(p),
+			Value: resolvers.GetVFSRenameInputType(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",

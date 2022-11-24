@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,13 +26,13 @@ import (
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	probe             *Probe
+	MountResolver     *resolvers.MountResolver
+	ContainerResolver *resolvers.ContainerResolver
+	TimeResolver      *resolvers.TimeResolver
+	UserGroupResolver *resolvers.UserGroupResolver
+	TagsResolver      *resolvers.TagsResolver
 	DentryResolver    *DentryResolver
-	MountResolver     *MountResolver
-	ContainerResolver *ContainerResolver
-	TimeResolver      *TimeResolver
 	ProcessResolver   *ProcessResolver
-	UserGroupResolver *UserGroupResolver
-	TagsResolver      *TagsResolver
 	NamespaceResolver *NamespaceResolver
 }
 
@@ -42,17 +43,17 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	timeResolver, err := NewTimeResolver()
+	timeResolver, err := resolvers.NewTimeResolver()
 	if err != nil {
 		return nil, err
 	}
 
-	userGroupResolver, err := NewUserGroupResolver()
+	userGroupResolver, err := resolvers.NewUserGroupResolver()
 	if err != nil {
 		return nil, err
 	}
 
-	mountResolver, err := NewMountResolver(probe.statsdClient)
+	mountResolver, err := resolvers.NewMountResolver(probe.statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -64,12 +65,12 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 	resolvers := &Resolvers{
 		probe:             probe,
-		DentryResolver:    dentryResolver,
 		MountResolver:     mountResolver,
+		ContainerResolver: &resolvers.ContainerResolver{},
 		TimeResolver:      timeResolver,
-		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
-		TagsResolver:      NewTagsResolver(config),
+		TagsResolver:      resolvers.NewTagsResolver(config),
+		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 	}
 
@@ -77,7 +78,6 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	resolvers.ProcessResolver = processResolver
 
 	return resolvers, nil
@@ -216,7 +216,7 @@ func (r *Resolvers) Snapshot() error {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
 
-	if err := snapshotSELinux(selinuxStatusMap); err != nil {
+	if err := resolvers.SnapshotSELinux(selinuxStatusMap); err != nil {
 		return err
 	}
 
