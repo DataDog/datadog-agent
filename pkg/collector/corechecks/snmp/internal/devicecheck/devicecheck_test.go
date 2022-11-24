@@ -1087,7 +1087,7 @@ profiles:
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.16"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0"}).Return(session.CreateGetNextPacket("", gosnmp.EndOfMibView, nil), nil)
 
-	metricsConfigs := deviceCk.detectAvailableMetrics()
+	metricsConfigs, metricTagConfigs := deviceCk.detectAvailableMetrics()
 
 	expectedMetricsConfigs := []checkconfig.MetricsConfig{
 		{
@@ -1109,4 +1109,22 @@ profiles:
 		},
 	}
 	assert.Equal(t, expectedMetricsConfigs, metricsConfigs)
+
+	expectedMetricsTagConfigs := []checkconfig.MetricTagConfig{
+		{
+			OID:   "1.3.6.1.2.1.1.5.0",
+			Name:  "sysName",
+			Match: "(\\w)(\\w+)",
+			Tags: map[string]string{
+				"some_tag": "some_tag_value",
+				"prefix":   "\\1",
+				"suffix":   "\\2",
+			},
+		},
+		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+	}
+
+	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+
+	assert.Equal(t, expectedMetricsTagConfigs, metricTagConfigs)
 }

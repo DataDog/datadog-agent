@@ -211,11 +211,11 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		}
 		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricsRefreshInterval) * time.Second)
 
-		detectedMetrics := d.detectAvailableMetrics()
+		detectedMetrics, metricTagConfigs := d.detectAvailableMetrics()
 		log.Debugf("detected metrics: %v", detectedMetrics)
 		d.config.Metrics = []checkconfig.MetricsConfig{}
 		d.config.AddUptimeMetric()
-		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, nil, d.config.CollectTopology)
+		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, metricTagConfigs, d.config.CollectTopology)
 	} else if d.config.AutodetectProfile {
 		// detect using sysObjectID
 		sysObjectID, err := session.FetchSysObjectID(sess)
@@ -237,7 +237,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 	return nil
 }
 
-func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
+func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
 	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
@@ -247,6 +247,7 @@ func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 	}
 
 	var metricConfigs []checkconfig.MetricsConfig
+	var metricTagConfigs []checkconfig.MetricTagConfig
 
 	for _, profileDef := range d.config.Profiles {
 		for _, metricConfig := range profileDef.Metrics {
@@ -267,8 +268,13 @@ func (d *DeviceCheck) detectAvailableMetrics() []checkconfig.MetricsConfig {
 				}
 			}
 		}
+		for _, metricTag := range profileDef.MetricTags {
+			if metricTag.Index != 0 || metricTag.OID != "" || metricTag.Column.OID != "" {
+				metricTagConfigs = append(metricTagConfigs, metricTag)
+			}
+		}
 	}
-	return metricConfigs
+	return metricConfigs, metricTagConfigs
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
