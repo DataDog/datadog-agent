@@ -53,7 +53,6 @@ func (t *telemetry) aggregate(transactions []kafkaTX, err error) {
 		_ = transaction
 		topicName := transaction.TopicName()
 		if _, ok := t.topics[topicName]; !ok {
-			//t.topics[topicName] = [2]*libtelemetry.Metric{t.metricGroup.NewMetric("produce_count"), t.metricGroup.NewMetric("fetch_count")}
 			t.topics[topicName] = [2]*atomic.Int64{atomic.NewInt64(0), atomic.NewInt64(0)}
 		}
 
