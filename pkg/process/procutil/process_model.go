@@ -22,6 +22,7 @@ type Process struct {
 	Username string // (Windows only)
 	Uids     []int32
 	Gids     []int32
+	Ports    Ports
 
 	Stats *Stats
 }
@@ -48,6 +49,10 @@ func (p *Process) DeepCopy() *Process {
 	copy.Gids = make([]int32, len(p.Gids))
 	for i := range p.Gids {
 		copy.Gids[i] = p.Gids[i]
+	}
+	copy.Ports = make(Ports, len(p.Ports))
+	for i := range p.Ports {
+		copy.Ports[i] = p.Ports[i]
 	}
 	if p.Stats != nil {
 		copy.Stats = p.Stats.DeepCopy()
@@ -194,6 +199,9 @@ type NumCtxSwitchesStat struct {
 	Voluntary   int64
 	Involuntary int64
 }
+
+// Ports describes listening ports for a process
+type Ports []uint32
 
 // ConvertAllFilledProcesses takes a group of FilledProcess objects and convert them into Process
 func ConvertAllFilledProcesses(processes map[int32]*process.FilledProcess) map[int32]*Process {

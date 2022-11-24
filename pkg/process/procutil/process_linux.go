@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -269,6 +270,12 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 				WriteBytes: -1,
 			} // use -1 values to represent "no permission"
 		}
+		sockets := p.getFDSockets(pathForPID)
+		// spew.Dump(sockets)
+		proc.Ports = p.parseNetTCP(pathForPID, sockets)
+		// if len(proc.Ports) != 0 {
+		// 	spew.Dump(proc)
+		// }
 		procsByPID[pid] = proc
 	}
 
@@ -679,6 +686,70 @@ func (p *probe) parseStatm(pidPath string) *MemoryInfoExStat {
 	return memInfoEx
 }
 
+func (p *probe) parseNetTCP(pidPath string, sockets map[string]struct{}) Ports {
+	path := filepath.Join(pidPath, "net/tcp")
+	var (
+		err   error
+		ports Ports
+	)
+
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		return ports
+	}
+
+	lineStart := 0
+	for i, r := range content {
+		if r == '\n' {
+			if lineStart != 0 {
+				if port := p.parseNetTCPSocketLine(string(content[lineStart:i]), sockets); port != 0 {
+					ports = append(ports, port)
+				}
+			}
+			lineStart = i + 1
+		}
+	}
+
+	return ports
+}
+
+func (p *probe) parseNetTCPSocketLine(line string, sockets map[string]struct{}) uint32 {
+	fields := strings.Fields(string(line))
+
+	if len(fields) < 10 {
+		return 0
+	}
+
+	// 0 => sl - ignored
+
+	// 3 => st (0x0A for TCP_LISTEN - /usr/include/netinet/tcp.h
+	if st, err := strconv.ParseUint(fields[3], 16, 64); err != nil || st != 0x0A {
+		return 0
+	}
+
+	socket := "socket:[" + fields[9] + "]"
+	// lookup inode
+	if _, ok := sockets[socket]; !ok {
+		return 0
+	}
+
+	// local_address
+	l := strings.Split(fields[1], ":")
+	if len(l) != 2 {
+		return 0
+	}
+
+	// if line.LocalAddr, err = parseIP(l[0]); err != nil {
+	// 	return nil, err
+	// }
+	localPort, err := strconv.ParseUint(l[1], 16, 64)
+	if err != nil {
+		return 0
+	}
+
+	return uint32(localPort)
+}
+
 // getLinkWithAuthCheck fetches the destination of a symlink with permission check
 func (p *probe) getLinkWithAuthCheck(pidPath string, file string) string {
 	path := filepath.Join(pidPath, file)
@@ -725,6 +796,30 @@ func (p *probe) getFDCount(pidPath string) int32 {
 	}
 
 	return int32(count)
+}
+
+func (p *probe) getFDSockets(pidPath string) map[string]struct{} {
+	fdPath := filepath.Join(pidPath, "fd")
+
+	sockets := make(map[string]struct{})
+	if err := p.ensurePathReadable(fdPath); err != nil {
+		return sockets
+	}
+
+	fileSystem := os.DirFS(fdPath)
+
+	fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == "." {
+			return nil
+		}
+
+		if link, err := os.Readlink(filepath.Join(fdPath, path)); err == nil && strings.HasPrefix(link, "socket:") {
+			sockets[link] = struct{}{}
+		}
+		return nil
+	})
+
+	return sockets
 }
 
 // ensurePathReadable ensures that the current user is able to read the path before opening it.

@@ -333,6 +333,12 @@ func fmtProcesses(
 			ContainerId:            ctrByProc[int(fp.Pid)],
 			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
 		}
+
+		for _, port := range fp.Ports {
+			proc.ListeningAddrs = append(proc.ListeningAddrs, &model.ProcessListeningAddr{
+				Port: int32(port),
+			})
+		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {
 			procsByCtr[proc.ContainerId] = make([]*model.Process, 0)

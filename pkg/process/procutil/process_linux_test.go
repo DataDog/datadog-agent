@@ -1214,6 +1214,27 @@ func BenchmarkNativeReaddirnames(b *testing.B) {
 	}
 }
 
+func BenchmarkWalkdir(b *testing.B) {
+	dirPath := "/tmp/benchmark_dir/"
+	fileCount := 20000
+	makeBenchmarkDir(b, dirPath, fileCount)
+	defer os.RemoveAll(dirPath)
+
+	fileSystem := os.DirFS(fdPath)
+
+	count := 0
+	fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == "." {
+			return nil
+		}
+		count++
+
+		return nil
+	})
+
+	assert.Equal(b, fileCount, count)
+}
+
 func BenchmarkImprovedReaddirnames(b *testing.B) {
 	dirPath := "/tmp/benchmark_dir/"
 	fileCount := 20000

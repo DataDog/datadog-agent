@@ -34,4 +34,10 @@ Processes
     Read:  {{ io .ReadBytesRate }} B/s {{ io .ReadRate }} Ops/s
     Write: {{ io .WriteBytesRate }} B/s {{ io .WriteRate }} Ops/s
 {{- end }}
+{{- if .ListeningAddrs }}
+  Listening Ports:
+{{- range $process := .ListeningAddrs }}
+    TCP Port: {{ .Port }}
+{{- end }}
+{{- end }}
 {{- end }}
