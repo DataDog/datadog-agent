@@ -29,9 +29,10 @@ const (
 	readIndx int = iota
 	readUserIndx
 	readKernelIndx
+	skbLoadBytes
 )
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel"}
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
