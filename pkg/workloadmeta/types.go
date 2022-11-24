@@ -129,6 +129,10 @@ const (
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
+
+	// SourceRemoteWorkloadmeta represents entities detected by the remote
+	// workloadmeta.
+	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 )
 
 // ContainerRuntime is the container runtime used by a container.

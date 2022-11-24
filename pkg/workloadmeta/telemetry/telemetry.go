@@ -66,4 +66,14 @@ var (
 		"Number of notifications sent by workloadmeta to its subscribers",
 		commonOpts,
 	)
+
+	// RemoteClientErrors tracks the number of errors on the remote workloadmeta
+	// client while receiving events.
+	RemoteClientErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"remote_client_errors",
+		[]string{},
+		"Number of errors on the remote workloadmeta client while receiving events",
+		commonOpts,
+	)
 )
