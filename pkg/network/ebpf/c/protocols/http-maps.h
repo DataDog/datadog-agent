@@ -41,7 +41,7 @@ BPF_LRU_MAP(ssl_ctx_by_pid_tgid, __u64, void *, 1024)
 BPF_LRU_MAP(open_at_args, __u64, lib_path_t, 1024)
 
 // offsets_data map contains the information about the locations of structs in the inspected binary, mapped by the binary's inode number.
-BPF_HASH_MAP(offsets_data, __u64, tls_offsets_data_t, 1024)
+BPF_HASH_MAP(offsets_data, go_tls_offsets_data_key_t, tls_offsets_data_t, 1024)
 
 /* go_tls_read_args is used to get the read function info when running in the read-return uprobe.
    The key contains the go routine id and the pid. */

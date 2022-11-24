@@ -7,6 +7,7 @@
 #include <linux/sched.h>
 
 #include "bpf_builtins.h"
+#include "go-tls-types.h"
 #include "http-buffer.h"
 #include "http-types.h"
 #include "http-maps.h"
@@ -133,22 +134,34 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     struct mm_struct *mm;
     struct file *exe_file;
     struct inode *inode;
+    struct super_block *sb;
+    dev_t dev_id;
 
     bpf_probe_read(&mm, sizeof(mm), &t->mm);
     bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
     bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
-
     if (!inode) {
         log_debug("get_offsets_data: could not read inode struct pointer\n");
         return NULL;
     }
 
-    unsigned long ino;
-    bpf_probe_read(&ino, sizeof(ino), &inode->i_ino);
+    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
+    if (!sb) {
+        log_debug("get_offsets_data: could not read inode struct pointer\n");
+        return NULL;
+    }
 
-    log_debug("get_offsets_data: task binary inode number: %d\n", ino);
+    go_tls_offsets_data_key_t key;
 
-    return bpf_map_lookup_elem(&offsets_data, &ino);
+    bpf_probe_read(&key.ino, sizeof(key.ino), &inode->i_ino);
+    bpf_probe_read(&dev_id, sizeof(dev_id), &sb->s_dev);
+
+    key.device_id_major = MAJOR(dev_id);
+    key.device_id_minor = MINOR(dev_id);
+
+    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x\n", key.ino, key.device_id_major, key.device_id_minor);
+
+    return bpf_map_lookup_elem(&offsets_data, &key);
 }
 
 #endif
