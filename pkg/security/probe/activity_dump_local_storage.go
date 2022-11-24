@@ -21,7 +21,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -100,7 +100,7 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		for _, f := range files {
 			// check if the extension of the file is known
 			ext := filepath.Ext(f.Name())
-			if _, err = dump.ParseStorageFormat(ext); err != nil && ext != ".gz" {
+			if _, err = config.ParseStorageFormat(ext); err != nil && ext != ".gz" {
 				// ignore this file
 				continue
 			}
@@ -140,12 +140,12 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 }
 
 // GetStorageType returns the storage type of the ActivityDumpLocalStorage
-func (storage *ActivityDumpLocalStorage) GetStorageType() dump.StorageType {
-	return dump.LocalStorage
+func (storage *ActivityDumpLocalStorage) GetStorageType() config.StorageType {
+	return config.LocalStorage
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpLocalStorage) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (storage *ActivityDumpLocalStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	outputPath := request.GetOutputPath(ad.DumpMetadata.Name)
 
 	if request.Compression {

@@ -15,9 +15,9 @@ import (
 	"text/template"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
 var (
@@ -91,7 +91,7 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, data); err != nil {
-		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), dump.DOT, err)
+		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), config.DOT, err)
 	}
 	return raw, nil
 }

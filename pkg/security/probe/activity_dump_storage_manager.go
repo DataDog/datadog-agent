@@ -13,17 +13,17 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // ActivityDumpStorage defines the interface implemented by all activity dump storages
 type ActivityDumpStorage interface {
 	// GetStorageType returns the storage type
-	GetStorageType() dump.StorageType
+	GetStorageType() config.StorageType
 	// Persist saves the provided buffer to the persistent storage
-	Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
+	Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error
 	// SendTelemetry sends metrics using the provided metrics sender
 	SendTelemetry(sender aggregator.Sender)
 }
@@ -31,7 +31,7 @@ type ActivityDumpStorage interface {
 // ActivityDumpStorageManager is used to manage activity dump storages
 type ActivityDumpStorageManager struct {
 	probe    *Probe
-	storages map[dump.StorageType]ActivityDumpStorage
+	storages map[config.StorageType]ActivityDumpStorage
 
 	metricsSender aggregator.Sender
 }
@@ -39,7 +39,7 @@ type ActivityDumpStorageManager struct {
 // NewSecurityAgentStorageManager returns a new instance of ActivityDumpStorageManager
 func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 	manager := &ActivityDumpStorageManager{
-		storages: make(map[dump.StorageType]ActivityDumpStorage),
+		storages: make(map[config.StorageType]ActivityDumpStorage),
 	}
 
 	sender, err := aggregator.GetDefaultSender()
@@ -66,7 +66,7 @@ func NewActivityDumpStorageManager(p *Probe) (*ActivityDumpStorageManager, error
 	}
 
 	manager := &ActivityDumpStorageManager{
-		storages: make(map[dump.StorageType]ActivityDumpStorage),
+		storages: make(map[config.StorageType]ActivityDumpStorage),
 		probe:    p,
 	}
 	for _, factory := range storageFactory {
@@ -103,7 +103,7 @@ func (manager *ActivityDumpStorageManager) Persist(ad *ActivityDump) error {
 }
 
 // PersistRaw saves the provided dump to the requested storages
-func (manager *ActivityDumpStorageManager) PersistRaw(requests []dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	for _, request := range requests {
 		storage, ok := manager.storages[request.Type]
 		if !ok || storage == nil {

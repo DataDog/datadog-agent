@@ -14,8 +14,8 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -81,7 +81,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	// copy storage requests
 	for _, reqList := range ad.StorageRequests {
 		for _, req := range reqList {
-			newDump.AddStorageRequest(dump.NewStorageRequest(
+			newDump.AddStorageRequest(config.NewStorageRequest(
 				req.Type,
 				req.Format,
 				req.Compression,

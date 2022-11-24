@@ -38,9 +38,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -114,9 +114,9 @@ type ActivityDump struct {
 	Tags    []string `json:"-"`
 	DDTags  string   `json:"ddtags,omitempty"`
 
-	CookiesNode         map[uint32]*ProcessActivityNode              `json:"-"`
-	ProcessActivityTree []*ProcessActivityNode                       `json:"-"`
-	StorageRequests     map[dump.StorageFormat][]dump.StorageRequest `json:"-"`
+	CookiesNode         map[uint32]*ProcessActivityNode                  `json:"-"`
+	ProcessActivityTree []*ProcessActivityNode                           `json:"-"`
+	StorageRequests     map[config.StorageFormat][]config.StorageRequest `json:"-"`
 
 	// Dump metadata
 	DumpMetadata
@@ -150,7 +150,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
 		pathMergedCount:    atomic.NewUint64(0),
-		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
+		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 	}
 
 	// generate counters
@@ -249,17 +249,17 @@ func NewActivityDumpFromMessage(msg *api.ActivityDumpMessage) (*ActivityDump, er
 
 	// parse requests from message
 	for _, request := range msg.GetStorage() {
-		storageType, err := dump.ParseStorageType(request.GetType())
+		storageType, err := config.ParseStorageType(request.GetType())
 		if err != nil {
 			// invalid storage type, ignore
 			continue
 		}
-		storageFormat, err := dump.ParseStorageFormat(request.GetFormat())
+		storageFormat, err := config.ParseStorageFormat(request.GetFormat())
 		if err != nil {
 			// invalid storage format, ignore
 			continue
 		}
-		ad.StorageRequests[storageFormat] = append(ad.StorageRequests[storageFormat], dump.NewStorageRequest(
+		ad.StorageRequests[storageFormat] = append(ad.StorageRequests[storageFormat], config.NewStorageRequest(
 			storageType,
 			storageFormat,
 			request.GetCompression(),
@@ -277,12 +277,12 @@ func (ad *ActivityDump) SetState(state ActivityDumpStatus) {
 }
 
 // AddStorageRequest adds a storage request to an activity dump
-func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
+func (ad *ActivityDump) AddStorageRequest(request config.StorageRequest) {
 	ad.Lock()
 	defer ad.Unlock()
 
 	if ad.StorageRequests == nil {
-		ad.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
+		ad.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
 	}
 	ad.StorageRequests[request.Format] = append(ad.StorageRequests[request.Format], request)
 }
@@ -822,15 +822,15 @@ func (ad *ActivityDump) ToTranscodingRequestMessage() *api.TranscodingRequestMes
 }
 
 // Encode encodes an activity dump in the provided format
-func (ad *ActivityDump) Encode(format dump.StorageFormat) (*bytes.Buffer, error) {
+func (ad *ActivityDump) Encode(format config.StorageFormat) (*bytes.Buffer, error) {
 	switch format {
-	case dump.JSON:
+	case config.JSON:
 		return ad.EncodeJSON()
-	case dump.PROTOBUF:
+	case config.PROTOBUF:
 		return ad.EncodeProtobuf()
-	case dump.DOT:
+	case config.DOT:
 		return ad.EncodeDOT()
-	case dump.Profile:
+	case config.Profile:
 		return ad.EncodeProfile()
 	default:
 		return nil, fmt.Errorf("couldn't encode activity dump [%s] as [%s]: unknown format", ad.GetSelectorStr(), format)
@@ -847,7 +847,7 @@ func (ad *ActivityDump) EncodeProtobuf() (*bytes.Buffer, error) {
 
 	raw, err := pad.MarshalVT()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.PROTOBUF, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.PROTOBUF, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -867,7 +867,7 @@ func (ad *ActivityDump) EncodeJSON() (*bytes.Buffer, error) {
 
 	raw, err := opts.Marshal(pad)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't encode in %s: %v", dump.JSON, err)
+		return nil, fmt.Errorf("couldn't encode in %s: %v", config.JSON, err)
 	}
 	return bytes.NewBuffer(raw), nil
 }
@@ -914,7 +914,7 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 		ext = filepath.Ext(inputFile)
 	}
 
-	format, err := dump.ParseStorageFormat(ext)
+	format, err := config.ParseStorageFormat(ext)
 	if err != nil {
 		return err
 	}
@@ -929,9 +929,9 @@ func (ad *ActivityDump) Decode(inputFile string) error {
 }
 
 // DecodeFromReader decodes an activity dump from a reader with the provided format
-func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format dump.StorageFormat) error {
+func (ad *ActivityDump) DecodeFromReader(reader io.Reader, format config.StorageFormat) error {
 	switch format {
-	case dump.PROTOBUF:
+	case config.PROTOBUF:
 		return ad.DecodeProtobuf(reader)
 	default:
 		return fmt.Errorf("unsupported input format: %s", format)
