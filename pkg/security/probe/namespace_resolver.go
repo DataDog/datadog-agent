@@ -207,9 +207,9 @@ func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
 		state:   atomic.NewInt64(0),
 		probe:   probe,
-		client:  probe.statsdClient,
-		config:  probe.config,
-		manager: probe.manager,
+		client:  probe.StatsdClient,
+		config:  probe.Config,
+		manager: probe.Manager,
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
@@ -586,7 +586,7 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 				continue
 			}
 
-			ntl, err = nr.probe.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			ntl, err = nr.probe.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
 				links, err = ntl.Sock.LinkList()
 				if err == nil {

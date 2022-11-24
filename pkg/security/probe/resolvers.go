@@ -39,7 +39,7 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := resolvers.NewDentryResolver(probe.config, probe.statsdClient, probe.erpc)
+	dentryResolver, err := resolvers.NewDentryResolver(probe.Config, probe.StatsdClient, probe.Erpc)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.statsdClient)
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +75,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe.manager, probe.config, probe.statsdClient,
-		probe.scrubber, resolvers, NewProcessResolverOpts(probe.config.EnvsWithValue))
+	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, resolvers, NewProcessResolverOpts(probe.Config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.probe.manager); err != nil {
+	if err := r.DentryResolver.Start(r.probe.Manager); err != nil {
 		return err
 	}
 
@@ -213,7 +213,7 @@ func (r *Resolvers) Snapshot() error {
 	r.ProcessResolver.SetState(snapshotted)
 	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := managerhelper.Map(r.probe.manager, "selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.probe.Manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}

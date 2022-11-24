@@ -51,7 +51,7 @@ type LoadController struct {
 
 // NewLoadController instantiates a new load controller
 func NewLoadController(probe *Probe) (*LoadController, error) {
-	lru, err := simplelru.NewLRU[eventCounterLRUKey, *atomic.Uint64](probe.config.PIDCacheSize, nil)
+	lru, err := simplelru.NewLRU[eventCounterLRUKey, *atomic.Uint64](probe.Config.PIDCacheSize, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -63,9 +63,9 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 		eventsCounters:     lru,
 		pidDiscardersCount: atomic.NewInt64(0),
 
-		EventsCountThreshold: probe.config.LoadControllerEventsCountThreshold,
-		DiscarderTimeout:     probe.config.LoadControllerDiscarderTimeout,
-		ControllerPeriod:     probe.config.LoadControllerControlPeriod,
+		EventsCountThreshold: probe.Config.LoadControllerEventsCountThreshold,
+		DiscarderTimeout:     probe.Config.LoadControllerDiscarderTimeout,
+		ControllerPeriod:     probe.Config.LoadControllerControlPeriod,
 
 		NoisyProcessCustomEventRate: rate.NewLimiter(rate.Every(time.Second), defaultRateLimit),
 	}
@@ -76,7 +76,7 @@ func NewLoadController(probe *Probe) (*LoadController, error) {
 func (lc *LoadController) SendStats() error {
 	// send load_controller.pids_discarder metric
 	if count := lc.pidDiscardersCount.Swap(0); count > 0 {
-		if err := lc.probe.statsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
+		if err := lc.probe.StatsdClient.Count(metrics.MetricLoadControllerPidDiscarder, count, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send load_controller.pids_discarder metric: %w", err)
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 )
 
 //nolint:deadcode,unused
@@ -45,7 +46,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !sprobe.IsFakeInode(inode)
+	return !resolvers.IsFakeInode(inode)
 }
 
 //nolint:deadcode,unused

@@ -53,18 +53,18 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, fmt.Errorf("couldn't create the events statistics monitor: %w", err)
 	}
 
-	if p.config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p, p.config, p.statsdClient, p.resolvers, p.kernelVersion, p.scrubber, p.manager)
+	if p.Config.ActivityDumpEnabled {
+		m.activityDumpManager, err = NewActivityDumpManager(p, p.Config, p.StatsdClient, p.resolvers, p.kernelVersion, p.scrubber, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
 	}
 
-	if p.config.RuntimeMonitor {
-		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
+	if p.Config.RuntimeMonitor {
+		m.runtimeMonitor = NewRuntimeMonitor(p.StatsdClient)
 	}
 
-	m.discarderMonitor, err = NewDiscarderMonitor(p.manager, p.statsdClient)
+	m.discarderMonitor, err = NewDiscarderMonitor(p.Manager, p.StatsdClient)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
@@ -136,7 +136,7 @@ func (m *Monitor) SendStats() error {
 		}
 	}
 
-	if m.probe.config.RuntimeMonitor {
+	if m.probe.Config.RuntimeMonitor {
 		if err := m.runtimeMonitor.SendStats(); err != nil {
 			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
 		}
@@ -176,7 +176,7 @@ func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Er
 	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
 	report := RuleSetLoadedReport{Rule: r, Event: ev}
 
-	if err := m.probe.statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
+	if err := m.probe.StatsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
@@ -196,7 +196,7 @@ func (m *Monitor) ReportSelfTest(success []string, fails []string) {
 		fmt.Sprintf("success:%d", len(success)),
 		fmt.Sprintf("fails:%d", len(fails)),
 	}
-	if err := m.probe.statsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
+	if err := m.probe.StatsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send self_test metric: %w", err))
 	}
 
@@ -211,7 +211,7 @@ var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled
 
 // DumpActivity handles an activity dump request
 func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -221,7 +221,7 @@ func (m *Monitor) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 
 // ListActivityDumps returns the list of active dumps
 func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpListMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -231,7 +231,7 @@ func (m *Monitor) ListActivityDumps(params *api.ActivityDumpListParams) (*api.Ac
 
 // StopActivityDump stops an active activity dump
 func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.ActivityDumpStopMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled
@@ -241,7 +241,7 @@ func (m *Monitor) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 
 // GenerateTranscoding encodes an activity dump following the input parameters
 func (m *Monitor) GenerateTranscoding(params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
-	if !m.probe.config.ActivityDumpEnabled {
+	if !m.probe.Config.ActivityDumpEnabled {
 		return &api.TranscodingRequestMessage{
 			Error: ErrActivityDumpManagerDisabled.Error(),
 		}, ErrActivityDumpManagerDisabled

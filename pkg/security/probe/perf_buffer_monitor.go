@@ -90,8 +90,8 @@ type PerfBufferMonitor struct {
 func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 	pbm := PerfBufferMonitor{
 		probe:               p,
-		config:              p.config,
-		statsdClient:        p.statsdClient,
+		config:              p.Config,
+		statsdClient:        p.StatsdClient,
 		perfBufferStatsMaps: make(map[string]*lib.Map),
 		perfBufferSize:      make(map[string]float64),
 
@@ -118,7 +118,7 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 
 	// Select perf buffer statistics maps
 	for perfMapName, statsMapName := range pbm.perfBufferMapNameToStatsMapsName {
-		stats, ok, err := p.manager.GetMap(statsMapName)
+		stats, ok, err := p.Manager.GetMap(statsMapName)
 		if !ok {
 			return nil, fmt.Errorf("map %s not found", statsMapName)
 		}
@@ -135,12 +135,12 @@ func NewPerfBufferMonitor(p *Probe) (*PerfBufferMonitor, error) {
 		}
 	}
 
-	maps := make(map[string]int, len(p.manager.PerfMaps)+len(p.manager.RingBuffers))
-	for _, pm := range p.manager.PerfMaps {
+	maps := make(map[string]int, len(p.Manager.PerfMaps)+len(p.Manager.RingBuffers))
+	for _, pm := range p.Manager.PerfMaps {
 		maps[pm.Name] = pm.PerfRingBufferSize
 	}
 
-	for _, rb := range p.manager.RingBuffers {
+	for _, rb := range p.Manager.RingBuffers {
 		maps[rb.Name] = rb.RingBufferSize
 	}
 

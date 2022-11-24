@@ -68,7 +68,7 @@ func NewActivityDumpStorageManager(p *Probe) (*ActivityDumpStorageManager, error
 
 	manager := &ActivityDumpStorageManager{
 		storages:     make(map[config.StorageType]ActivityDumpStorage),
-		statsdClient: p.statsdClient,
+		statsdClient: p.StatsdClient,
 	}
 	for _, factory := range storageFactory {
 		storage, err := factory(p)

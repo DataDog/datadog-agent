@@ -67,7 +67,7 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 		return &ActivityDumpLocalStorage{}, nil
 	}
 
-	lru, err := simplelru.NewLRU(p.config.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
+	lru, err := simplelru.NewLRU(p.Config.ActivityDumpLocalStorageMaxDumpsCount, func(name string, files []string) {
 		if len(files) == 0 {
 			return
 		}
@@ -81,13 +81,13 @@ func NewActivityDumpLocalStorage(p *Probe) (ActivityDumpStorage, error) {
 	}
 
 	// snapshot the dumps in the default output directory
-	if len(p.config.ActivityDumpLocalStorageDirectory) > 0 {
+	if len(p.Config.ActivityDumpLocalStorageDirectory) > 0 {
 		// list all the files in the activity dump output directory
-		files, err := os.ReadDir(p.config.ActivityDumpLocalStorageDirectory)
+		files, err := os.ReadDir(p.Config.ActivityDumpLocalStorageDirectory)
 		if err != nil {
 			if os.IsNotExist(err) {
 				files = make([]os.DirEntry, 0)
-				if err = os.MkdirAll(p.config.ActivityDumpLocalStorageDirectory, 0400); err != nil {
+				if err = os.MkdirAll(p.Config.ActivityDumpLocalStorageDirectory, 0400); err != nil {
 					return nil, fmt.Errorf("couldn't create output directory for cgroup activity dumps: %w", err)
 				}
 			} else {
