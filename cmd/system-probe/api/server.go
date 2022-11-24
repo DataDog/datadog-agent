@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	gorilla "github.com/gorilla/mux"
 
@@ -22,6 +23,10 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
+
+func isValidPort(port int) bool {
+	return port > 0 && port < 65536
+}
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
 func StartServer(cfg *config.Config) error {
@@ -37,20 +42,20 @@ func StartServer(cfg *config.Config) error {
 	}
 
 	// Setup telemetry server
-	port := cfg.DefaultSystemProbeExpVarPort
-	if ddconfig.Datadog.GetBool("telemetry.enabled") {
+	port := cfg.SystemProbeExpVarPort
+	if ddconfig.Datadog.GetBool("telemetry.enabled") && isValidPort(port) {
 		http.Handle("/telemetry", telemetry.Handler())
-	}
-	expvarServer := &http.Server{
-		Addr:    "127.0.0.1:" + port,
-		Handler: http.DefaultServeMux,
-	}
-	go func() {
-		err := expvarServer.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
-			log.Errorf("error creating expvar server on port %v: %v", port, err)
+		expvarServer := &http.Server{
+			Addr:    "127.0.0.1:" + strconv.Itoa(port),
+			Handler: http.DefaultServeMux,
 		}
-	}()
+		go func() {
+			err := expvarServer.ListenAndServe()
+			if err != nil && err != http.ErrServerClosed {
+				log.Errorf("error creating expvar server on port %v: %v", port, err)
+			}
+		}()
+	}
 
 	// Register stats endpoint
 	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
