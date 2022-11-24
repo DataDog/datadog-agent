@@ -19,6 +19,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
@@ -133,7 +134,7 @@ func (lc *LoadController) discardNoisiestProcess() {
 		return
 	}
 
-	var erpcRequest ERPCRequest
+	var erpcRequest erpc.ERPCRequest
 
 	// push a temporary discarder on the noisiest process & event type tuple
 	seclog.Tracef("discarding events from pid %d for %s seconds", maxKey.Pid, lc.DiscarderTimeout)

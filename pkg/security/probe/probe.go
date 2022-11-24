@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -98,8 +99,8 @@ type Probe struct {
 	activityDumpHandler ActivityDumpHandler
 
 	// Approvers / discarders section
-	erpc                               *ERPC
-	erpcRequest                        *ERPCRequest
+	erpc                               *erpc.ERPC
+	erpcRequest                        *erpc.ERPCRequest
 	pidDiscarders                      *pidDiscarders
 	inodeDiscarders                    *inodeDiscarders
 	approvers                          map[eval.EventType]activeApprovers
@@ -1243,7 +1244,7 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
-	erpc, err := NewERPC()
+	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
 	}
@@ -1256,8 +1257,8 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		managerOptions:       ebpf.NewDefaultOptions(),
 		ctx:                  ctx,
 		cancelFnc:            cancel,
-		erpc:                 erpc,
-		erpcRequest:          &ERPCRequest{},
+		erpc:                 nerpc,
+		erpcRequest:          &erpc.ERPCRequest{},
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),

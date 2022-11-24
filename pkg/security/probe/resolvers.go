@@ -32,14 +32,14 @@ type Resolvers struct {
 	TimeResolver      *resolvers.TimeResolver
 	UserGroupResolver *resolvers.UserGroupResolver
 	TagsResolver      *resolvers.TagsResolver
-	DentryResolver    *DentryResolver
+	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := NewDentryResolver(probe.config, probe.statsdClient, probe.erpc)
+	dentryResolver, err := resolvers.NewDentryResolver(probe.config, probe.statsdClient, probe.erpc)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -637,7 +638,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.
 		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
@@ -647,7 +648,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.
 
 		p.pathErrStats.Inc()
 
-		return "", &ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
 	fileEvent.SetPathnameStr(pathnameStr)

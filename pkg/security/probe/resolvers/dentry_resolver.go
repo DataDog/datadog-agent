@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"errors"
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 )
 
@@ -57,11 +58,11 @@ type DentryResolver struct {
 	activeERPCStatsBuffer uint32
 	cache                 map[uint32]*lru.Cache[uint64, *PathEntry]
 	cacheGeneration       *atomic.Uint64
-	erpc                  *ERPC
+	erpc                  *erpc.ERPC
 	erpcSegment           []byte
 	erpcSegmentSize       int
 	useBPFProgWriteUser   bool
-	erpcRequest           ERPCRequest
+	erpcRequest           erpc.ERPCRequest
 	erpcStatsZero         []eRPCStats
 	numCPU                int
 
@@ -577,7 +578,7 @@ func (dr *DentryResolver) ResolveNameFromERPC(mountID uint32, inode uint64, path
 		resolution:     metrics.SegmentResolutionTag,
 	}
 
-	challenge, err := dr.requestResolve(ResolveSegmentOp, mountID, inode, pathID)
+	challenge, err := dr.requestResolve(erpc.ResolveSegmentOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[entry].Inc()
 		return "", fmt.Errorf("unable to get the name of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
@@ -629,7 +630,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 	}
 
 	// create eRPC request
-	challenge, err := dr.requestResolve(ResolvePathOp, mountID, inode, pathID)
+	challenge, err := dr.requestResolve(erpc.ResolvePathOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[entry].Inc()
 		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
@@ -744,7 +745,7 @@ func (dr *DentryResolver) ResolveParentFromERPC(mountID uint32, inode uint64, pa
 	}
 
 	// create eRPC request
-	challenge, err := dr.requestResolve(ResolveParentOp, mountID, inode, pathID)
+	challenge, err := dr.requestResolve(erpc.ResolveParentOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[entry].Inc()
 		return 0, 0, fmt.Errorf("unable to resolve the parent of mountID `%d` and inode `%d` with eRPC: %w", mountID, inode, err)
@@ -916,7 +917,7 @@ func (err ErrDentryPathKeyNotFound) Error() string {
 var errDentryPathKeyNotFound ErrDentryPathKeyNotFound
 
 // NewDentryResolver returns a new dentry resolver
-func NewDentryResolver(config *config.Config, statsdClient statsd.ClientInterface, erpc *ERPC) (*DentryResolver, error) {
+func NewDentryResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC) (*DentryResolver, error) {
 	hitsCounters := make(map[counterEntry]*atomic.Int64)
 	missCounters := make(map[counterEntry]*atomic.Int64)
 	for _, resolution := range metrics.AllResolutionsTags {
@@ -948,8 +949,8 @@ func NewDentryResolver(config *config.Config, statsdClient statsd.ClientInterfac
 		config:          config,
 		statsdClient:    statsdClient,
 		cache:           make(map[uint32]*lru.Cache[uint64, *PathEntry]),
-		erpc:            erpc,
-		erpcRequest:     ERPCRequest{},
+		erpc:            e,
+		erpcRequest:     erpc.ERPCRequest{},
 		erpcStatsZero:   make([]eRPCStats, numCPU),
 		hitsCounters:    hitsCounters,
 		missCounters:    missCounters,
