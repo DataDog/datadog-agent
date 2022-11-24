@@ -13,10 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
 )
 
 const (
 	workloadmetaStreamSendTimeout = 1 * time.Minute
+	workloadmetaKeepAliveInterval = 9 * time.Minute
 )
 
 func NewServer(store workloadmeta.Store) *Server {
@@ -39,15 +41,15 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 	workloadmetaEventsChannel := s.store.Subscribe("stream-client", workloadmeta.NormalPriority, filter)
 	defer s.store.Unsubscribe(workloadmetaEventsChannel)
 
-	// Note: In the tagger stream function, when there are no events for a few
-	// minutes, we send an empty list to keep the connection alive. We might
-	// need to do the same here depending on the implementation of the remote
-	// workloadmeta.
+	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case eventBundle := <-workloadmetaEventsChannel:
 			close(eventBundle.Ch)
+
+			ticker.Reset(workloadmetaKeepAliveInterval)
 
 			var protobufEvents []*pb.WorkloadmetaEvent
 
@@ -73,11 +75,31 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 
 				if err != nil {
 					log.Warnf("error sending workloadmeta event: %s", err)
+					telemetry.RemoteServerErrors.Inc()
 					return err
 				}
 			}
 		case <-out.Context().Done():
 			return nil
+
+		// The remote workloadmeta client has a timeout that closes the
+		// connection after some minutes of inactivity. In order to avoid
+		// closing the connection and having to open it again, the server will
+		// send an empty message from time to time as defined in the ticker. The
+		// goal is only to keep the connection alive without losing the
+		// protection against “half” closed connections brought by the timeout.
+		case <-ticker.C:
+			err = grpc.DoWithTimeout(func() error {
+				return out.Send(&pb.WorkloadmetaStreamResponse{
+					Events: []*pb.WorkloadmetaEvent{},
+				})
+			}, workloadmetaStreamSendTimeout)
+
+			if err != nil {
+				log.Warnf("error sending workloadmeta keep-alive: %s", err)
+				telemetry.RemoteServerErrors.Inc()
+				return err
+			}
 		}
 	}
 }

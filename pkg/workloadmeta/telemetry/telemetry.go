@@ -76,4 +76,14 @@ var (
 		"Number of errors on the remote workloadmeta client while receiving events",
 		commonOpts,
 	)
+
+	// RemoteServerErrors track the number of errors on the remote workloadmeta
+	// server while streaming events.
+	RemoteServerErrors = telemetry.NewCounterWithOpts(
+		subsystem,
+		"remote_server_errors",
+		[]string{},
+		"Number of errors on the remote workloadmeta server while streaming events",
+		commonOpts,
+	)
 )
