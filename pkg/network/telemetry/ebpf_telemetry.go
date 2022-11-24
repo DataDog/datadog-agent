@@ -30,9 +30,10 @@ const (
 	readUserIndx
 	readKernelIndx
 	skbLoadBytes
+	perfEventOutput
 )
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes"}
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.

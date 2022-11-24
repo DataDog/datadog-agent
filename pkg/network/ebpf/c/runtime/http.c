@@ -600,7 +600,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs *ctx) {
     bpf_memcpy(&lib_path, path, sizeof(lib_path));
 
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
+    bpf_perf_event_output_with_telemetry(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
