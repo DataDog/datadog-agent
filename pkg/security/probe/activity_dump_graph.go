@@ -111,8 +111,8 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) GraphID {
 	var args string
-	if ad.adm != nil && ad.adm.probe != nil {
-		if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+	if ad.adm != nil && ad.adm.resolvers != nil {
+		if argv, _ := ad.adm.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
 			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
 			args = strings.ReplaceAll(args, "\n", " ")
 			args = strings.ReplaceAll(args, ">", "\\>")

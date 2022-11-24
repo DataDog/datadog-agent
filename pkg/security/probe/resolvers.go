@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -38,7 +39,7 @@ type Resolvers struct {
 
 // NewResolvers creates a new instance of Resolvers
 func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
-	dentryResolver, err := NewDentryResolver(probe)
+	dentryResolver, err := NewDentryResolver(probe.config, probe.statsdClient, probe.erpc)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		NamespaceResolver: namespaceResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe, resolvers, NewProcessResolverOpts(probe.config.EnvsWithValue))
+	processResolver, err := NewProcessResolver(probe.manager, probe.config, probe.statsdClient,
+		probe.scrubber, resolvers, NewProcessResolverOpts(probe.config.EnvsWithValue))
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.probe); err != nil {
+	if err := r.DentryResolver.Start(r.probe.manager); err != nil {
 		return err
 	}
 
@@ -211,7 +213,7 @@ func (r *Resolvers) Snapshot() error {
 	r.ProcessResolver.SetState(snapshotted)
 	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := r.probe.Map("selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.probe.manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}

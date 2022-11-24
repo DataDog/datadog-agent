@@ -24,12 +24,14 @@ import (
 	"golang.org/x/sys/unix"
 
 	"strings"
+	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 )
 
 var (
@@ -800,32 +802,32 @@ func (dr *DentryResolver) BumpCacheGenerations() {
 }
 
 // Start the dentry resolver
-func (dr *DentryResolver) Start(probe *Probe) error {
-	pathnames, err := probe.Map("pathnames")
+func (dr *DentryResolver) Start(manager *manager.Manager) error {
+	pathnames, err := managerhelper.Map(manager, "pathnames")
 	if err != nil {
 		return err
 	}
 	dr.pathnames = pathnames
 
-	erpcStatsFB, err := probe.Map("dr_erpc_stats_fb")
+	erpcStatsFB, err := managerhelper.Map(manager, "dr_erpc_stats_fb")
 	if err != nil {
 		return err
 	}
 	dr.erpcStats[0] = erpcStatsFB
 
-	erpcStatsBB, err := probe.Map("dr_erpc_stats_bb")
+	erpcStatsBB, err := managerhelper.Map(manager, "dr_erpc_stats_bb")
 	if err != nil {
 		return err
 	}
 	dr.erpcStats[1] = erpcStatsBB
 
-	bufferSelector, err := probe.Map("buffer_selector")
+	bufferSelector, err := managerhelper.Map(manager, "buffer_selector")
 	if err != nil {
 		return err
 	}
 	dr.bufferSelector = bufferSelector
 
-	erpcBuffer, err := probe.Map("dr_erpc_buffer")
+	erpcBuffer, err := managerhelper.Map(manager, "dr_erpc_buffer")
 	if err != nil {
 		return err
 	}
@@ -914,7 +916,7 @@ func (err ErrDentryPathKeyNotFound) Error() string {
 var errDentryPathKeyNotFound ErrDentryPathKeyNotFound
 
 // NewDentryResolver returns a new dentry resolver
-func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
+func NewDentryResolver(config *config.Config, statsdClient statsd.ClientInterface, erpc *ERPC) (*DentryResolver, error) {
 	hitsCounters := make(map[counterEntry]*atomic.Int64)
 	missCounters := make(map[counterEntry]*atomic.Int64)
 	for _, resolution := range metrics.AllResolutionsTags {
@@ -943,10 +945,10 @@ func NewDentryResolver(probe *Probe) (*DentryResolver, error) {
 	}
 
 	return &DentryResolver{
-		config:          probe.config,
-		statsdClient:    probe.statsdClient,
+		config:          config,
+		statsdClient:    statsdClient,
 		cache:           make(map[uint32]*lru.Cache[uint64, *PathEntry]),
-		erpc:            probe.erpc,
+		erpc:            erpc,
 		erpcRequest:     ERPCRequest{},
 		erpcStatsZero:   make([]eRPCStats, numCPU),
 		hitsCounters:    hitsCounters,

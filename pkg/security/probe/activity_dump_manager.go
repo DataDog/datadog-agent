@@ -18,12 +18,17 @@ import (
 	"github.com/cilium/ebpf"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {
@@ -33,7 +38,14 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	probe                  *Probe
+	probe         *Probe
+	config        *config.Config
+	statsdClient  statsd.ClientInterface
+	resolvers     *Resolvers
+	kernelVersion *kernel.Version
+	scrubber      *pconfig.DataScrubber
+	manager       *manager.Manager
+
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
 	tracedCgroupsMap       *ebpf.Map
@@ -56,13 +68,13 @@ func (adm *ActivityDumpManager) Start(ctx context.Context, wg *sync.WaitGroup) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ticker := time.NewTicker(adm.probe.config.ActivityDumpCleanupPeriod)
+	ticker := time.NewTicker(adm.config.ActivityDumpCleanupPeriod)
 	defer ticker.Stop()
 
-	tagsTicker := time.NewTicker(adm.probe.config.ActivityDumpTagsResolutionPeriod)
+	tagsTicker := time.NewTicker(adm.config.ActivityDumpTagsResolutionPeriod)
 	defer tagsTicker.Stop()
 
-	loadControlTicker := time.NewTicker(adm.probe.config.ActivityDumpLoadControlPeriod)
+	loadControlTicker := time.NewTicker(adm.config.ActivityDumpLoadControlPeriod)
 	defer loadControlTicker.Stop()
 
 	for {
@@ -109,7 +121,7 @@ func (adm *ActivityDumpManager) cleanup() {
 	var timestamp uint64
 
 	for iterator.Next(&containerIDB, &timestamp) {
-		if time.Now().After(adm.probe.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
+		if time.Now().After(adm.resolvers.TimeResolver.ResolveMonotonicTimestamp(timestamp)) {
 			if err := adm.cgroupWaitList.Delete(&containerIDB); err != nil {
 				seclog.Errorf("couldn't delete cgroup_wait_list entry for (%s): %v", string(containerIDB), err)
 			}
@@ -156,45 +168,31 @@ func (adm *ActivityDumpManager) resolveTags() {
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
-	tracedPIDs, found, err := p.manager.GetMap("traced_pids")
+func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd.ClientInterface, resolvers *Resolvers,
+	kernelVersion *kernel.Version, scrubber *pconfig.DataScrubber, manager *manager.Manager) (*ActivityDumpManager, error) {
+	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {
 		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_pids map")
 	}
 
-	tracedComms, found, err := p.manager.GetMap("traced_comms")
+	tracedComms, err := managerhelper.Map(manager, "traced_comms")
 	if err != nil {
 		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_comms map")
 	}
 
-	tracedCgroupsMap, found, err := p.manager.GetMap("traced_cgroups")
+	tracedCgroupsMap, err := managerhelper.Map(manager, "traced_cgroups")
 	if err != nil {
 		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find traced_cgroups map")
 	}
 
-	activityDumpsConfigMap, found, err := p.manager.GetMap("activity_dumps_config")
+	activityDumpsConfigMap, err := managerhelper.Map(manager, "activity_dumps_config")
 	if err != nil {
 		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find activity_dumps_config map")
 	}
 
-	cgroupWaitList, found, err := p.manager.GetMap("cgroup_wait_list")
+	cgroupWaitList, err := managerhelper.Map(manager, "cgroup_wait_list")
 	if err != nil {
 		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("couldn't find cgroup_wait_list map")
 	}
 
 	storageManager, err := NewActivityDumpStorageManager(p)
@@ -203,7 +201,12 @@ func NewActivityDumpManager(p *Probe) (*ActivityDumpManager, error) {
 	}
 
 	adm := &ActivityDumpManager{
-		probe:                  p,
+		config:                 config,
+		statsdClient:           statsdClient,
+		resolvers:              resolvers,
+		kernelVersion:          kernelVersion,
+		scrubber:               scrubber,
+		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
 		tracedCgroupsMap:       tracedCgroupsMap,
@@ -278,7 +281,7 @@ func (adm *ActivityDumpManager) insertActivityDump(newDump *ActivityDump) error 
 	}
 
 	// loop through the process cache entry tree and push traced pids if necessary
-	adm.probe.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
+	adm.resolvers.ProcessResolver.Walk(adm.SearchTracedProcessCacheEntryCallback(newDump))
 
 	// Delay the activity dump snapshot to reduce the overhead on the main goroutine
 	select {
@@ -308,26 +311,26 @@ func (adm *ActivityDumpManager) HandleCgroupTracingEvent(event *model.CgroupTrac
 
 	newDump := NewActivityDump(adm, func(ad *ActivityDump) {
 		ad.DumpMetadata.ContainerID = event.ContainerContext.ID
-		ad.DumpMetadata.DifferentiateArgs = adm.probe.config.ActivityDumpCgroupDifferentiateArgs
+		ad.DumpMetadata.DifferentiateArgs = adm.config.ActivityDumpCgroupDifferentiateArgs
 		ad.SetLoadConfig(event.ConfigCookie, event.Config)
 	})
 
 	// add local storage requests
-	for _, format := range adm.probe.config.ActivityDumpLocalStorageFormats {
+	for _, format := range adm.config.ActivityDumpLocalStorageFormats {
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.LocalStorage,
 			format,
-			adm.probe.config.ActivityDumpLocalStorageCompression,
-			adm.probe.config.ActivityDumpLocalStorageDirectory,
+			adm.config.ActivityDumpLocalStorageCompression,
+			adm.config.ActivityDumpLocalStorageDirectory,
 		))
 	}
 
 	// add remote storage requests
-	for _, format := range adm.probe.config.ActivityDumpRemoteStorageFormats {
+	for _, format := range adm.config.ActivityDumpRemoteStorageFormats {
 		newDump.AddStorageRequest(config.NewStorageRequest(
 			config.RemoteStorage,
 			format,
-			adm.probe.config.ActivityDumpRemoteStorageCompression,
+			adm.config.ActivityDumpRemoteStorageCompression,
 			"",
 		))
 	}
@@ -505,7 +508,7 @@ func (adm *ActivityDumpManager) SendStats() error {
 	}
 
 	activeDumps := float64(len(adm.activeDumps))
-	if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumps, activeDumps, []string{}, 1.0); err != nil {
+	if err := adm.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumps, activeDumps, []string{}, 1.0); err != nil {
 		seclog.Errorf("couldn't send MetricActivityDumpActiveDumps metric: %v", err)
 	}
 	return nil
@@ -618,11 +621,11 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 		dumpSize := ad.ComputeInMemorySize()
 
 		// send dump size in memory metric
-		if err := adm.probe.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{fmt.Sprintf("dump_index:%d", i)}, 1); err != nil {
+		if err := adm.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{fmt.Sprintf("dump_index:%d", i)}, 1); err != nil {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 
-		if dumpSize >= int64(adm.probe.config.ActivityDumpMaxDumpSize()) {
+		if dumpSize >= int64(adm.config.ActivityDumpMaxDumpSize()) {
 			toDelete = append([]int{i}, toDelete...)
 			dumps = append(dumps, ad)
 			adm.ignoreFromSnapshot[ad.DumpMetadata.ContainerID] = true

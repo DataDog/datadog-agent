@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ActivityDumpStorage defines the interface implemented by all activity dump storages
@@ -30,8 +31,8 @@ type ActivityDumpStorage interface {
 
 // ActivityDumpStorageManager is used to manage activity dump storages
 type ActivityDumpStorageManager struct {
-	probe    *Probe
-	storages map[config.StorageType]ActivityDumpStorage
+	statsdClient statsd.ClientInterface
+	storages     map[config.StorageType]ActivityDumpStorage
 
 	metricsSender aggregator.Sender
 }
@@ -66,8 +67,8 @@ func NewActivityDumpStorageManager(p *Probe) (*ActivityDumpStorageManager, error
 	}
 
 	manager := &ActivityDumpStorageManager{
-		storages: make(map[config.StorageType]ActivityDumpStorage),
-		probe:    p,
+		storages:     make(map[config.StorageType]ActivityDumpStorage),
+		statsdClient: p.statsdClient,
 	}
 	for _, factory := range storageFactory {
 		storage, err := factory(p)
@@ -117,10 +118,10 @@ func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageR
 		}
 
 		// send dump metric
-		if manager.probe != nil {
+		if manager.statsdClient != nil {
 			if size := len(raw.Bytes()); size > 0 {
 				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
-				if err := manager.probe.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(size), tags, 1.0); err != nil {
+				if err := manager.statsdClient.Gauge(metrics.MetricActivityDumpSizeInBytes, float64(size), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 				}
 			}

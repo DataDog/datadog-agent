@@ -54,7 +54,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	}
 
 	if p.config.ActivityDumpEnabled {
-		m.activityDumpManager, err = NewActivityDumpManager(p)
+		m.activityDumpManager, err = NewActivityDumpManager(p, p.config, p.statsdClient, p.resolvers, p.kernelVersion, p.scrubber, p.manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
@@ -64,7 +64,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		m.runtimeMonitor = NewRuntimeMonitor(p.statsdClient)
 	}
 
-	m.discarderMonitor, err = NewDiscarderMonitor(p)
+	m.discarderMonitor, err = NewDiscarderMonitor(p.manager, p.statsdClient)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}

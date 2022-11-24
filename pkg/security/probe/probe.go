@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
-	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/vishvananda/netlink"
@@ -40,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -120,20 +120,6 @@ type Probe struct {
 // GetResolvers returns the resolvers of Probe
 func (p *Probe) GetResolvers() *Resolvers {
 	return p.resolvers
-}
-
-// Map returns a map by its name
-func (p *Probe) Map(name string) (*lib.Map, error) {
-	if p.manager == nil {
-		return nil, fmt.Errorf("failed to get map '%s', manager is null", name)
-	}
-	m, ok, err := p.manager.GetMap(name)
-	if err != nil {
-		return nil, err
-	} else if !ok {
-		return nil, fmt.Errorf("failed to get map '%s'", name)
-	}
-	return m, nil
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -865,7 +851,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
 func (p *Probe) ApplyFilterPolicy(eventType eval.EventType, mode PolicyMode, flags PolicyFlag) error {
 	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table, err := p.Map("filter_policy")
+	table, err := managerhelper.Map(p.manager, "filter_policy")
 	if err != nil {
 		return fmt.Errorf("unable to find policy table: %w", err)
 	}
@@ -890,14 +876,14 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		return nil
 	}
 
-	newApprovers, err := handler(p, approvers)
+	newApprovers, err := handler(approvers)
 	if err != nil {
 		seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", PolicyModeAccept, eventType, err)
 	}
 
 	for _, newApprover := range newApprovers {
 		seclog.Tracef("Applying approver %+v", newApprover)
-		if err := newApprover.Apply(p); err != nil {
+		if err := newApprover.Apply(p.manager); err != nil {
 			return err
 		}
 	}
@@ -906,7 +892,7 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 		previousApprovers.Sub(newApprovers)
 		for _, previousApprover := range previousApprovers {
 			seclog.Tracef("Removing previous approver %+v", previousApprover)
-			if err := previousApprover.Remove(p); err != nil {
+			if err := previousApprover.Remove(p.manager); err != nil {
 				return err
 			}
 		}
@@ -1004,7 +990,7 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 		}
 	}
 
-	enabledEventsMap, err := p.Map("enabled_events")
+	enabledEventsMap, err := managerhelper.Map(p.manager, "enabled_events")
 	if err != nil {
 		return err
 	}
@@ -1042,22 +1028,22 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 func (p *Probe) DumpDiscarders() (string, error) {
 	seclog.Debugf("Dumping discarders")
 
-	inodeMap, err := p.Map("inode_discarders")
+	inodeMap, err := managerhelper.Map(p.manager, "inode_discarders")
 	if err != nil {
 		return "", err
 	}
 
-	pidMap, err := p.Map("pid_discarders")
+	pidMap, err := managerhelper.Map(p.manager, "pid_discarders")
 	if err != nil {
 		return "", err
 	}
 
-	statsFB, err := p.Map("discarder_stats_fb")
+	statsFB, err := managerhelper.Map(p.manager, "discarder_stats_fb")
 	if err != nil {
 		return "", err
 	}
 
-	statsBB, err := p.Map("discarder_stats_bb")
+	statsBB, err := managerhelper.Map(p.manager, "discarder_stats_bb")
 	if err != nil {
 		return "", err
 	}
@@ -1348,7 +1334,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
-			Value: getDoForkInput(p),
+			Value: getDoForkInput(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "mount_id_offset",
@@ -1356,7 +1342,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
-			Value: getAttr2(p),
+			Value: getAttr2(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "vfs_unlink_dentry_position",
@@ -1384,7 +1370,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		},
 		manager.ConstantEditor{
 			Name:  "check_helper_call_input",
-			Value: getCheckHelperCallInputType(p),
+			Value: getCheckHelperCallInputType(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
