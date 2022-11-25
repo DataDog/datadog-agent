@@ -533,7 +533,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			_, mountPath, _, err := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
+			mountPath, _, err := p.resolvers.MountResolver.ResolveMountPaths(event.Mount.MountID, event.PIDContext.Pid)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
