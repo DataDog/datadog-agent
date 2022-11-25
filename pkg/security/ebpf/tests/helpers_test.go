@@ -12,6 +12,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	secebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
@@ -72,9 +73,19 @@ func newVM(t *testing.T) *baloum.VM {
 		t.Fatal(err)
 	}
 
+	var now time.Time
+
 	fncs := baloum.Fncs{
 		TracePrintk: func(vm *baloum.VM, format string, args ...interface{}) error {
 			t.Logf(format, args...)
+			return nil
+		},
+		// fake the time duration to speed up the tests
+		KtimeGetNS: func(vm *baloum.VM) (uint64, error) {
+			return uint64(now.UnixNano()), nil
+		},
+		Sleep: func(vm *baloum.VM, duration time.Duration) error {
+			now = now.Add(duration)
 			return nil
 		},
 	}
