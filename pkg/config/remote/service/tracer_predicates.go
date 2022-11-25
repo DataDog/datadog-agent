@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
-// ConfigFileMetaCustom is the custom metadata of a config 
+// ConfigFileMetaCustom is the custom metadata of a config
 type ConfigFileMetaCustom struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 	Expires    int64                  `json:"expires"`
