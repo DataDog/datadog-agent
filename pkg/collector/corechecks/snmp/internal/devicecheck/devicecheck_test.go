@@ -311,7 +311,7 @@ func TestDetectMetricsToCollect(t *testing.T) {
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
-detect_metrics_enabled: true
+experimental_detect_metrics_enabled: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -607,8 +607,8 @@ func TestDetectMetricsToCollect_detectMetricsToMonitor_nextAutodetectMetrics(t *
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
 community_string: public
-detect_metrics_enabled: true
-detect_metrics_refresh_interval: 600 # 10min
+experimental_detect_metrics_enabled: true
+experimental_detect_metrics_refresh_interval: 600 # 10min
 `)
 	// language=yaml
 	rawInitConfig := []byte(`

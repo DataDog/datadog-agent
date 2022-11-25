@@ -1295,7 +1295,7 @@ community_string: "abc"
 	// language=yaml
 	rawInitConfig = []byte(`
 oid_batch_size: 10
-detect_metrics_enabled: true
+experimental_detect_metrics_enabled: true
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
@@ -1305,7 +1305,7 @@ detect_metrics_enabled: true
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
-detect_metrics_enabled: true
+experimental_detect_metrics_enabled: true
 `)
 	// language=yaml
 	rawInitConfig = []byte(`
@@ -1319,12 +1319,12 @@ oid_batch_size: 10
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
-detect_metrics_enabled: false
+experimental_detect_metrics_enabled: false
 `)
 	// language=yaml
 	rawInitConfig = []byte(`
 oid_batch_size: 10
-detect_metrics_enabled: true
+experimental_detect_metrics_enabled: true
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
@@ -1353,7 +1353,7 @@ community_string: "abc"
 	// language=yaml
 	rawInitConfig = []byte(`
 oid_batch_size: 10
-detect_metrics_refresh_interval: 10
+experimental_detect_metrics_refresh_interval: 10
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
@@ -1363,7 +1363,7 @@ detect_metrics_refresh_interval: 10
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
-detect_metrics_refresh_interval: 10
+experimental_detect_metrics_refresh_interval: 10
 `)
 	// language=yaml
 	rawInitConfig = []byte(`
@@ -1377,12 +1377,12 @@ oid_batch_size: 20
 	rawInstanceConfig = []byte(`
 ip_address: 1.2.3.4
 community_string: "abc"
-detect_metrics_refresh_interval: 20
+experimental_detect_metrics_refresh_interval: 20
 `)
 	// language=yaml
 	rawInitConfig = []byte(`
 oid_batch_size: 10
-detect_metrics_refresh_interval: 30
+experimental_detect_metrics_refresh_interval: 30
 `)
 	config, err = NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)

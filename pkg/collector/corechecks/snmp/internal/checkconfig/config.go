@@ -70,8 +70,8 @@ type InitConfig struct {
 	UseDeviceIDAsHostname        Boolean          `yaml:"use_device_id_as_hostname"`
 	MinCollectionInterval        int              `yaml:"min_collection_interval"`
 	Namespace                    string           `yaml:"namespace"`
-	DetectMetricsEnabled         Boolean          `yaml:"detect_metrics_enabled"`
-	DetectMetricsRefreshInterval int              `yaml:"detect_metrics_refresh_interval"`
+	DetectMetricsEnabled         Boolean          `yaml:"experimental_detect_metrics_enabled"`
+	DetectMetricsRefreshInterval int              `yaml:"experimental_detect_metrics_refresh_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -128,8 +128,8 @@ type InstanceConfig struct {
 
 	// When DetectMetricsEnabled is enabled, instead of using profile detection using sysObjectID
 	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
-	DetectMetricsEnabled         *Boolean `yaml:"detect_metrics_enabled"`
-	DetectMetricsRefreshInterval int      `yaml:"detect_metrics_refresh_interval"`
+	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
+	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
