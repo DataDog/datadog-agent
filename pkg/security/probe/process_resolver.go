@@ -25,7 +25,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -114,7 +114,7 @@ type ProcessResolver struct {
 	envsSize       *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU
+	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
 
 	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
@@ -344,8 +344,7 @@ func (p *ProcessResolver) SendStats() error {
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
-	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		list := e.(*model.ArgsEnvsCacheEntry)
+	if list, found := p.argsEnvsCache.Get(event.ID); found {
 		list.Append(entry)
 	} else {
 		p.argsEnvsCache.Add(event.ID, entry)
@@ -853,12 +852,11 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
-	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
+	if entry, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		if pce.ArgsTruncated {
 			p.argsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
 		p.argsSize.Add(int64(entry.TotalSize))
 
 		pce.ArgsEntry = &model.ArgsEntry{
@@ -924,12 +922,11 @@ func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, b
 
 // SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
-	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
+	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
 		p.envsSize.Add(int64(entry.TotalSize))
 
 		pce.EnvsEntry = &model.EnvsEntry{
@@ -1273,7 +1270,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU(maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}
