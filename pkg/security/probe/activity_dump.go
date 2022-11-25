@@ -20,7 +20,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -102,9 +101,7 @@ type ActivityDump struct {
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
 
-	shouldMergePaths bool
-	pathMergedCount  *atomic.Uint64
-	nodeStats        ActivityDumpNodeStats
+	nodeStats ActivityDumpNodeStats
 
 	// standard attributes used by the intake
 	Host    string   `json:"host,omitempty"`
@@ -148,7 +145,6 @@ func NewEmptyActivityDump() *ActivityDump {
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
-		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[dump.StorageFormat][]dump.StorageRequest),
 	}
 
@@ -182,7 +178,6 @@ func NewActivityDump(adm *ActivityDumpManager, options ...WithDumpOption) *Activ
 	ad.Host = adm.hostname
 	ad.Source = ActivityDumpSource
 	ad.adm = adm
-	ad.shouldMergePaths = adm.probe.config.ActivityDumpPathMergeEnabled
 
 	// set load configuration to initial defaults
 	ad.LoadConfig = NewActivityDumpLoadConfig(
@@ -722,12 +717,6 @@ func (ad *ActivityDump) SendStats() error {
 			if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
-		}
-	}
-
-	if value := ad.pathMergedCount.Swap(0); value > 0 {
-		if err := ad.adm.probe.statsdClient.Count(metrics.MetricActivityDumpPathMergeCount, int64(value), nil, 1.0); err != nil {
-			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpPathMergeCount, err)
 		}
 	}
 
@@ -1469,10 +1458,6 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 			break
 		}
 
-		if ad.shouldMergePaths && len(currentFan.Children) >= 10 {
-			currentFan.Children = ad.combineChildren(currentFan.Children)
-		}
-
 		child, ok := currentFan.Children[parent]
 		if ok {
 			currentFan = child
@@ -1496,101 +1481,6 @@ func (ad *ActivityDump) InsertFileEventInFile(fan *FileActivityNode, fileEvent *
 	}
 
 	return somethingChanged
-}
-
-func (ad *ActivityDump) combineChildren(children map[string]*FileActivityNode) map[string]*FileActivityNode {
-	if len(children) == 0 {
-		return children
-	}
-
-	type inner struct {
-		pair utils.StringPair
-		fan  *FileActivityNode
-	}
-
-	inputs := make([]inner, 0, len(children))
-	for k, v := range children {
-		inputs = append(inputs, inner{
-			pair: utils.NewStringPair(k),
-			fan:  v,
-		})
-	}
-
-	current := []inner{inputs[0]}
-
-	for _, a := range inputs[1:] {
-		next := make([]inner, 0, len(current))
-		shouldAppend := true
-		for _, b := range current {
-			if !areCompatibleFans(a.fan, b.fan) {
-				next = append(next, b)
-				continue
-			}
-
-			sp, similar := utils.BuildGlob(a.pair, b.pair, 4)
-			if similar {
-				spGlob, _ := sp.ToGlob()
-				merged, ok := mergeFans(spGlob, a.fan, b.fan)
-				if !ok {
-					next = append(next, b)
-					continue
-				}
-
-				if ad.nodeStats.fileNodes > 0 { // should not happen, but just to be sure
-					ad.nodeStats.fileNodes--
-				}
-				next = append(next, inner{
-					pair: sp,
-					fan:  merged,
-				})
-				shouldAppend = false
-			}
-		}
-
-		if shouldAppend {
-			next = append(next, a)
-		}
-		current = next
-	}
-
-	mergeCount := len(inputs) - len(current)
-	ad.pathMergedCount.Add(uint64(mergeCount))
-
-	res := make(map[string]*FileActivityNode)
-	for _, n := range current {
-		glob, isPattern := n.pair.ToGlob()
-		n.fan.Name = glob
-		n.fan.IsPattern = isPattern
-		res[glob] = n.fan
-	}
-
-	return res
-}
-
-func areCompatibleFans(a *FileActivityNode, b *FileActivityNode) bool {
-	return reflect.DeepEqual(a.Open, b.Open)
-}
-
-func mergeFans(name string, a *FileActivityNode, b *FileActivityNode) (*FileActivityNode, bool) {
-	newChildren := make(map[string]*FileActivityNode)
-	for k, v := range a.Children {
-		newChildren[k] = v
-	}
-	for k, v := range b.Children {
-		if _, present := newChildren[k]; present {
-			return nil, false
-		}
-		newChildren[k] = v
-	}
-
-	return &FileActivityNode{
-		Name:           name,
-		File:           a.File,
-		GenerationType: a.GenerationType,
-		FirstSeen:      a.FirstSeen,
-		Open:           a.Open, // if the 2 fans are compatible, a.Open should be equal to b.Open
-		Children:       newChildren,
-	}, true
 }
 
 // nolint: unused
