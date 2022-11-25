@@ -147,7 +147,7 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
 
     bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
     if (!sb) {
-        log_debug("get_offsets_data: could not read inode struct pointer\n");
+        log_debug("get_offsets_data: could not read superblock struct pointer\n");
         return NULL;
     }
 
