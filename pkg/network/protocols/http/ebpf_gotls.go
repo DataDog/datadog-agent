@@ -161,7 +161,7 @@ func supportedArch(arch string) bool {
 }
 
 func newGoTLSProgram(c *config.Config) *GoTLSProgram {
-	if !c.EnableHTTPMonitoring || !c.EnableGoTLSSupport {
+	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
 		return nil
 	}
 

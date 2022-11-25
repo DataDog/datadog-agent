@@ -613,6 +613,7 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = true
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
 	tr, err := NewTracer(cfg)
