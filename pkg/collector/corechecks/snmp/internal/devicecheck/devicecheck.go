@@ -269,7 +269,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 			}
 		}
 		for _, metricTag := range profileDef.MetricTags {
-			if metricTag.Index != 0 || metricTag.OID != "" || metricTag.Column.OID != "" {
+			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
 				metricTagConfigs = append(metricTagConfigs, metricTag)
 			}
 		}

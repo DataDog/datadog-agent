@@ -334,7 +334,7 @@ community_string: abc
 
 	assert.Equal(t, metrics, config.Metrics)
 	assert.Equal(t, metricsTags, config.MetricTags)
-	assert.Equal(t, 1, len(config.Profiles))
+	assert.Equal(t, 2, len(config.Profiles))
 	assert.Equal(t, fixtureProfileDefinitionMap()["f5-big-ip"].Metrics, config.Profiles["f5-big-ip"].Metrics)
 }
 
