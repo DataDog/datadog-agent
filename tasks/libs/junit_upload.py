@@ -131,7 +131,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
-        print(f"Submitted results for {filecount} JUnit XML files from {tgz}")
+        print(f"Submitted results for {count} JUnit XML files from {tgz}")
         if count == 0:
             empty_tgzs.append(tgz)
 
