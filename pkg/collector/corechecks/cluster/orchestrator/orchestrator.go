@@ -47,7 +47,13 @@ type OrchestratorInstance struct {
 	// collectors:
 	//   - nodes
 	//   - services
-	Collectors              []string `yaml:"collectors"`
+	Collectors []string `yaml:"collectors"`
+	// CRDCollectors defines the crd resources type collectors
+	// Example: Enable services and nodes collectors.
+	// crd_collectors:
+	//   - datadoghq.com/v1alpha1/datadogmetrics
+	//   - stable.example.com/v1/crontabs
+	CRDCollectors           []string `yaml:"crd_collectors"`
 	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
 }
 

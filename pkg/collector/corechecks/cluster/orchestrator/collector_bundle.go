@@ -82,6 +82,13 @@ func (cb *CollectorBundle) prepare() {
 
 // prepareCollectors initializes the bundle collector list.
 func (cb *CollectorBundle) prepareCollectors() {
+	// we still need to collect non crd resources except if otherwise configured
+	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
+		if cb.check.instance.Collectors != nil && len(cb.check.instance.Collectors) == 0 {
+			return
+		}
+	}
+
 	if ok := cb.importCollectorsFromCheckConfig(); ok {
 		return
 	}
@@ -102,22 +109,32 @@ func (cb *CollectorBundle) prepareCollectors() {
 //   - <collector_name> (e.g "cronjobs")
 //   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
 //
-// ## CRD
-// CRDs are handled special with the crd prefix
-//   - crd/<apigroup_and_version>/<collector_name> (e.g. "crd/datadoghq.com/v1alpha1/DatadogMetric")
-// Once CRDs are collected the agent will collect the CRD and the related CR
-func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
+// ## CRDs
+// The following configuration keys are accepted:
+//   - <apigroup_and_version>/<collector_name> (e.g. "batch/v1/cronjobs")
+func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bool) {
 	var (
 		collector collectors.Collector
 		err       error
 	)
 
-	if strings.HasPrefix(collectorName, "crd/") {
-		collector, err = cb.crdDiscovery.VerifyForInventory(strings.TrimPrefix(collectorName, "crd/"))
+	if isCRD {
+		idx := strings.LastIndex(collectorName, "/")
+		if idx == -1 {
+			_ = cb.check.Warnf("Unsupported crd collector definition: %s. Definition needs to be of <apigroup_and_version>/<collector_name> (e.g. \"batch/v1/cronjobs\")", collectorName)
+			return
+		}
+		groupVersion := collectorName[:idx]
+		resource := collectorName[idx+1:]
+		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
+			_ = cb.check.Warnf("Unsupported collecting a crd resource which is already collected by default. To fix please remove %s", collectorName)
+			return
+		}
+		collector, err = cb.crdDiscovery.VerifyForInventory(resource, groupVersion)
 	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
-		version := collectorName[:idx]
+		groupVersion := collectorName[:idx]
 		name := collectorName[idx+1:]
-		collector, err = cb.inventory.CollectorForVersion(name, version)
+		collector, err = cb.inventory.CollectorForVersion(name, groupVersion)
 	} else {
 		collector, err = cb.inventory.CollectorForDefaultVersion(collectorName)
 	}
@@ -134,7 +151,7 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string) {
 		return
 	}
 
-	if !collector.Metadata().IsStable {
+	if !collector.Metadata().IsStable && !isCRD {
 		_ = cb.check.Warnf("Using unstable collector: %s", collector.Metadata().FullName())
 	}
 
@@ -150,7 +167,20 @@ func (cb *CollectorBundle) importCollectorsFromCheckConfig() bool {
 		return false
 	}
 	for _, c := range cb.check.instance.Collectors {
-		cb.addCollectorFromConfig(c)
+		cb.addCollectorFromConfig(c, false)
+	}
+	return true
+}
+
+// importCRDCollectorsFromCheckConfig tries to fill the crd bundle with the list of
+// collectors specified in the orchestrator crd check configuration. Returns true if
+// at least one collector was set, false otherwise.
+func (cb *CollectorBundle) importCRDCollectorsFromCheckConfig() bool {
+	if len(cb.check.instance.CRDCollectors) == 0 {
+		return false
+	}
+	for _, c := range cb.check.instance.CRDCollectors {
+		cb.addCollectorFromConfig(c, true)
 	}
 	return true
 }

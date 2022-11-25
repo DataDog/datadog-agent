@@ -10,13 +10,11 @@ package k8s
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 
@@ -25,13 +23,13 @@ import (
 )
 
 // NewCRCollectorVersions builds the group of collector versions.
-func NewCRCollectorVersions(grv string) (*CRCollector, error) {
-	return NewCRCollector(grv)
+func NewCRCollectorVersions(resource string, groupVersion string) (*CRCollector, error) {
+	return NewCRCollector(resource, groupVersion)
 }
 
 // CRCollector is a collector for Kubernetes CRs.
 type CRCollector struct {
-	grv       string
+	gvr       schema.GroupVersionResource
 	informer  informers.GenericInformer
 	lister    cache.GenericLister
 	metadata  *collectors.CollectorMetadata
@@ -40,13 +38,8 @@ type CRCollector struct {
 
 // NewCRCollector creates a new collector for the Kubernetes CR
 // resource.
-func NewCRCollector(grv string) (*CRCollector, error) {
-	grvSplit := strings.Split(grv, "/")
-	if len(grvSplit) < 3 {
-		return nil, fmt.Errorf("GRV needs to be of the following format: <apigroup_and_version>/<collector_name")
-	}
-	version := fmt.Sprintf("%s/%s", grvSplit[0], grvSplit[1])
-	_, err := schema.ParseGroupVersion(version)
+func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
+	gv, err := schema.ParseGroupVersion(groupVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +47,11 @@ func NewCRCollector(grv string) (*CRCollector, error) {
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
 			IsStable:         false,
-			Name:             fmt.Sprintf("%s", grvSplit[2]),
+			Name:             fmt.Sprintf("%s", name),
 			NodeType:         orchestrator.K8sCR,
-			Version:          version,
+			Version:          groupVersion,
 		},
-		grv:       grv,
+		gvr:       gv.WithResource(name),
 		processor: processors.NewProcessor(new(k8sProcessors.CRHandlers)),
 	}, nil
 }
@@ -69,11 +62,7 @@ func (c *CRCollector) Informer() cache.SharedInformer {
 }
 
 func (c *CRCollector) getGRV() schema.GroupVersionResource {
-	version, err := schema.ParseGroupVersion(c.metadata.Version)
-	if err != nil {
-		_ = log.Warnf("unable to parse group version out of given cr version: %s", c.metadata.Version)
-	}
-	return version.WithResource(c.metadata.Name)
+	return c.gvr
 }
 
 // Init is used to initialize the collector.

@@ -38,15 +38,15 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 }
 
-func (d *DiscoveryCollector) VerifyForInventory(collectorName string) (collectors.Collector, error) {
-	collector, err := d.DiscoverCRDResource(collectorName)
+func (d *DiscoveryCollector) VerifyForInventory(resource string, groupVersion string) (collectors.Collector, error) {
+	collector, err := d.DiscoverCRDResource(resource, groupVersion)
 	if err != nil {
 		return nil, err
 	}
 	return collector, nil
 }
 
-func (d *DiscoveryCollector) DiscoverCRDResource(grv string) (*k8sCollectors.CRCollector, error) {
+func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion string) (*k8sCollectors.CRCollector, error) {
 	if !d.cache.filled {
 		var err error
 		d.cache.groups, d.cache.resources, err = GetServerGroupsAndResources()
@@ -69,7 +69,7 @@ func (d *DiscoveryCollector) DiscoverCRDResource(grv string) (*k8sCollectors.CRC
 		d.cache.filled = true
 	}
 
-	collector, err := k8sCollectors.NewCRCollectorVersions(grv)
+	collector, err := k8sCollectors.NewCRCollectorVersions(resource, groupVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -79,5 +79,5 @@ func (d *DiscoveryCollector) DiscoverCRDResource(grv string) (*k8sCollectors.CRC
 	}]; ok {
 		return collector, nil
 	}
-	return nil, fmt.Errorf("failed to discover resource collectorName: %s", grv)
+	return nil, fmt.Errorf("failed to discover resource resource: %s", resource)
 }
