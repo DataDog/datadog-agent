@@ -178,17 +178,24 @@ func addCWSDDFile(id string, version int64, file []byte, targets *data.Targets) 
 }
 
 func newAPMSamplingFile() []byte {
-	apmConfig := apmsampling.APMSampling{
-		TargetTPS: []apmsampling.TargetTPS{{
-			Service:   "test service",
-			Env:       "test env",
-			Value:     0.5,
-			Rank:      0,
-			Mechanism: apmsampling.SamplingMechanism(6),
-		}},
+	tps := float64(42)
+	enabled := true
+	samplerConfig := apmsampling.SamplerConfig{
+		AllEnvs: apmsampling.SamplerEnvConfig{
+			PrioritySamplerTargetTPS: &tps,
+			ErrorsSamplerTargetTPS:   &tps,
+			RareSamplerEnabled:       &enabled,
+		},
+		ByEnv: []apmsampling.EnvAndConfig{
+			{Env: "some-env", Config: apmsampling.SamplerEnvConfig{
+				PrioritySamplerTargetTPS: &tps,
+				ErrorsSamplerTargetTPS:   &tps,
+				RareSamplerEnabled:       &enabled,
+			}},
+		},
 	}
 
-	raw, _ := apmConfig.MarshalMsg(nil)
+	raw, _ := json.Marshal(samplerConfig)
 
 	return raw
 }
