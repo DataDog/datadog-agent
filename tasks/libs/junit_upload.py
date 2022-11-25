@@ -7,6 +7,8 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
+from invoke.exceptions import Exit
+
 from ..flavor import AgentFlavor
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
@@ -103,6 +105,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
+    xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
@@ -118,10 +121,22 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
         # for each unpacked xml file, split it and submit all parts
         # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
+        xmls = 0
         for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
                 upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
+        xmlcounts[junit_tgz] = xmls
+
+    empty_tgzs = []
+    for tgz, count in xmlcounts.items():
+        print(f"Submitted results for {filecount} JUnit XML files from {tgz}")
+        if count == 0:
+            empty_tgzs.append(tgz)
+
+    if empty_tgzs:
+        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
 def _normalize_architecture(architecture):
