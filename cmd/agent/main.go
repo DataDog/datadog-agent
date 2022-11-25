@@ -11,6 +11,8 @@ package main
 import (
 	"os"
 
+	_ "github.com/DataDog/datadog-agent/pkg/mallochook"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"

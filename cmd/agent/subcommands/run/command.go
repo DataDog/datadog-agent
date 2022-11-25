@@ -263,6 +263,7 @@ func startAgent(cliParams *cliParams) error {
 	expvarPort := pkgconfig.Datadog.GetString("expvar_port")
 	if pkgconfig.Datadog.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetryHandler)
+		setupMallochookReporter()
 	}
 	go func() {
 		common.ExpvarServer = &http.Server{
