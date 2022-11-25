@@ -410,6 +410,9 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	delete(p.processes, pid)
 
 	bin, found := p.binaries[binID]
+	if !found {
+		return
+	}
 	bin.processCount -= 1
 
 	if bin.processCount == 0 {
