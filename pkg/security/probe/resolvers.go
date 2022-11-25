@@ -95,7 +95,7 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDCon
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID, ctx.Pid)
+	mountPath, rootPath, mountErr := r.MountResolver.ResolveMountPaths(e.MountID, ctx.Pid)
 	if mountErr != nil {
 		return pathStr, mountErr
 	}

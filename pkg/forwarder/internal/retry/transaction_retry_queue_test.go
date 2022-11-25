@@ -32,7 +32,7 @@ func TestTransactionRetryQueueAdd(t *testing.T) {
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
 	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"), NewPointDroppedSenderMock())
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 100, 0.6, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// When adding the last element `15`, the buffer becomes full and the first 3
 	// transactions are flushed to the disk as 10 + 20 + 30 >= 100 * 0.6
@@ -60,7 +60,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 	a := assert.New(t)
 	q := newOnDiskRetryQueueTest(t, a)
 
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointDroppedSenderMock())
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	// Flush to disk when adding `40`
 	for _, payloadSize := range []int{9, 10, 11, 40} {
@@ -80,7 +80,7 @@ func TestTransactionRetryQueueSeveralFlushToDisk(t *testing.T) {
 func TestTransactionRetryQueueNoTransactionStorage(t *testing.T) {
 	a := assert.New(t)
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointDroppedSenderMock())
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), nil, 50, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	for _, payloadSize := range []int{9, 10, 11} {
 		dropCount, err := container.Add(createTransactionWithPayloadSize(payloadSize))
@@ -105,7 +105,7 @@ func TestTransactionRetryQueueZeroMaxMemSizeInBytes(t *testing.T) {
 
 	maxMemSizeInBytes := 0
 	pointDropped := transactionContainerPointDroppedCountTelemetry.expvar.Value()
-	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointDroppedSenderMock())
+	container := NewTransactionRetryQueue(createDropPrioritySorter(), q, maxMemSizeInBytes, 0.1, NewTransactionRetryQueueTelemetry("domain"), NewPointCountTelemetryMock())
 
 	inMemTrDropped, err := container.Add(createTransactionWithPayloadSize(10))
 	a.NoError(err)
@@ -159,7 +159,7 @@ func newOnDiskRetryQueueTest(t *testing.T, a *assert.Assertions) *onDiskRetryQue
 		path,
 		diskUsageLimit,
 		newOnDiskRetryQueueTelemetry("domain"),
-		NewPointDroppedSenderMock())
+		NewPointCountTelemetryMock())
 	a.NoError(err)
 	return q
 }

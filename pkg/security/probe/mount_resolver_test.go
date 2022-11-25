@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -328,7 +328,7 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				_, p, _, err := mr.GetMountPath(testC.mountID, 0)
+				p, _, err := mr.ResolveMountPaths(testC.mountID, 0)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -344,7 +344,7 @@ func TestMountResolver(t *testing.T) {
 }
 
 func TestMountGetParentPath(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +374,7 @@ func TestMountGetParentPath(t *testing.T) {
 }
 
 func TestMountLoop(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,7 +406,7 @@ func TestMountLoop(t *testing.T) {
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
