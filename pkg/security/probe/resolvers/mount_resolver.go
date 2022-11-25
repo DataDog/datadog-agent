@@ -11,7 +11,6 @@ package resolvers
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -110,11 +109,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
-		pErr, ok := err.(*os.PathError)
-		if !ok {
-			return err
-		}
-		return pErr
+		return err
 	}
 
 	for _, mnt := range mnts {
@@ -127,7 +122,7 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 			return err
 		}
 
-		mr.insert(*e)
+		mr.insert(e)
 	}
 
 	return nil
@@ -186,12 +181,12 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
-// GetFilesystem returns the name of the filesystem
-func (mr *MountResolver) GetFilesystem(mountID, pid uint32) (string, error) {
+// ResolveFilesystem returns the name of the filesystem
+func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, pid)
+	mount, err := mr.resolveMountEvent(mountID, pid)
 	if err != nil {
 		return "", err
 	}
@@ -199,16 +194,16 @@ func (mr *MountResolver) GetFilesystem(mountID, pid uint32) (string, error) {
 	return mount.GetFSType(), nil
 }
 
-// Get returns a mount event from the mount id
-func (mr *MountResolver) Get(mountID, pid uint32) (*model.MountEvent, error) {
+// ResolveMount returns a mount event from the mount id
+func (mr *MountResolver) ResolveMount(mountID, pid uint32) (*model.MountEvent, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(mountID, pid)
+	return mr.resolveMountEvent(mountID, pid)
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e model.MountEvent) error {
+func (mr *MountResolver) Insert(e *model.MountEvent) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -217,7 +212,7 @@ func (mr *MountResolver) Insert(e model.MountEvent) error {
 	return nil
 }
 
-func (mr *MountResolver) insert(e model.MountEvent) {
+func (mr *MountResolver) insert(e *model.MountEvent) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[e.MountID]; ok {
 		mr.delete(prev)
@@ -241,9 +236,8 @@ func (mr *MountResolver) insert(e model.MountEvent) {
 		deviceMounts = make(map[uint32]*model.MountEvent)
 		mr.devices[e.Device] = deviceMounts
 	}
-	deviceMounts[e.MountID] = &e
-
-	mr.mounts[e.MountID] = &e
+	deviceMounts[e.MountID] = e
+	mr.mounts[e.MountID] = e
 }
 
 func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (string, error) {
@@ -343,25 +337,22 @@ func (mr *MountResolver) Start(ctx context.Context) {
 	}()
 }
 
-func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, error) {
+func (mr *MountResolver) resolveMountEvent(mountID, pid uint32) (*model.MountEvent, error) {
 	if mountID == 0 {
 		return nil, ErrMountUndefined
 	}
 
 	mount, ok := mr.mounts[mountID]
-
 	if !ok {
 		mr.cacheMissStats.Inc()
-		if pid != 0 {
-			if err := mr.syncCache(pid); err != nil {
-				return nil, err
-			}
-			mount = mr.mounts[mountID]
-			if mount != nil {
-				mr.procHitsStats.Inc()
-			} else {
-				mr.procMissStats.Inc()
-			}
+		if err := mr.syncCache(pid); err != nil {
+			return nil, err
+		}
+		mount = mr.mounts[mountID]
+		if mount != nil {
+			mr.procHitsStats.Inc()
+		} else {
+			mr.procMissStats.Inc()
 		}
 	} else {
 		// stats
@@ -377,11 +368,15 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, e
 
 // ResolveMountPaths returns the path of a mount identified by its mount ID.
 // The first parameter is the mount point path, and the third parameter is the root path.
-func (mr *MountResolver) ResolveMountPaths(mountID, pid uint32) (string, string, error) {
+func (mr *MountResolver) ResolveMountPaths_(mountID, pid uint32) (string, string, error) {
+	if mountID == 0 {
+		return "", "", ErrMountUndefined
+	}
+
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, pid)
+	mount, err := mr.resolveMountEvent(mountID, pid)
 	if err != nil {
 		return "", "", ErrMountNotFound
 	}

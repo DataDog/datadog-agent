@@ -131,7 +131,7 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
 	if f.Filesystem == "" {
-		fs, err := ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+		fs, err := ev.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 		if err != nil {
 			ev.SetPathResolutionError(err)
 		}

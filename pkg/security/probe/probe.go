@@ -514,8 +514,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		// Insert new mount point in cache
-		if err = p.resolvers.MountResolver.Insert(event.Mount); err != nil {
+		// Insert new mount point in cache. Insert a copy to not corrupt the entry with the next event
+		me := event.Mount
+		if err = p.resolvers.MountResolver.Insert(&me); err != nil {
 			seclog.Errorf("failed to insert mount event: %v", err)
 			return
 		}
@@ -537,7 +538,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
+		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
