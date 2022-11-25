@@ -117,7 +117,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             job_url = jf.read()
 
         # for each unpacked xml file, split it and submit all parts
-        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml"):
+        # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
+        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
                 upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
