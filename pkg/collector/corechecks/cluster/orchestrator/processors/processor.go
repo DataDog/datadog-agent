@@ -152,9 +152,12 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			continue
 		}
 
-		// Execute code after marshalling.
-		if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
-			continue
+		// Stop sending yaml if manifest collecion is enabled
+		if ctx.Cfg.IsManifestCollectionEnabled {
+			// Execute code after marshalling.
+			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
+				continue
+			}
 		}
 
 		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
