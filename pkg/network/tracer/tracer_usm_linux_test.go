@@ -610,10 +610,9 @@ func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
 	})
 	defer closeServer()
 
-	cfg := config.New()
+	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = true
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPSMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
 	tr, err := NewTracer(cfg)

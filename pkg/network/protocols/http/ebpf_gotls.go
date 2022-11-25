@@ -76,7 +76,6 @@ var functionToProbes = map[string]uprobesInfo{
 			ebpfFunctionName: "uprobe__crypto_tls_Conn_Close",
 			ebpfSection:      "uprobe/crypto/tls.(*Conn).Close",
 		},
-		returnInfo: nil,
 	},
 }
 
@@ -105,14 +104,12 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 
 type pid = uint32
 
-type process struct {
-	bin *runningBinary
-}
+type binaryID = gotls.TlsBinaryId
 
 // runningBinary represents a binary currently being hooked
 type runningBinary struct {
 	// Inode number of the binary
-	ino gotls.TlsBinaryId
+	binID binaryID
 
 	// IDs of the probes currently attached on the binary
 	probeIDs []manager.ProbeIdentificationPair
@@ -145,11 +142,11 @@ type GoTLSProgram struct {
 	offsetsDataMap *ebpf.Map
 
 	// binaries keeps track of the currently hooked binary.
-	binaries map[gotls.TlsBinaryId]*runningBinary
+	binaries map[binaryID]*runningBinary
 
 	// processes keeps track of the inode numbers of the hooked binaries
 	// associated with running processes.
-	processes map[pid]*process
+	processes map[pid]binaryID
 
 	// binAnalysisMetric handles telemetry on the time spent doing binary
 	// analysis
@@ -159,8 +156,12 @@ type GoTLSProgram struct {
 // Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &GoTLSProgram{}
 
+func supportedArch(arch string) bool {
+	return arch == string(bininspect.GoArchX86_64)
+}
+
 func newGoTLSProgram(c *config.Config) *GoTLSProgram {
-	if !c.EnableHTTPSMonitoring || !c.EnableGoTLSSupport {
+	if !c.EnableHTTPMonitoring || !c.EnableGoTLSSupport {
 		return nil
 	}
 
@@ -176,8 +177,8 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 
 	p := &GoTLSProgram{
 		procRoot:  c.ProcRoot,
-		binaries:  make(map[gotls.TlsBinaryId]*runningBinary),
-		processes: make(map[pid]*process),
+		binaries:  make(map[binaryID]*runningBinary),
+		processes: make(map[pid]binaryID),
 	}
 
 	p.procMonitor.done = make(chan struct{})
@@ -204,6 +205,20 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 }
 
 func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {}
+
+func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
+	for _, probeInfo := range functionToProbes {
+		if probeInfo.functionInfo != nil {
+			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
+		}
+
+		if probeInfo.returnInfo != nil {
+			probeList = append(probeList, probeInfo.returnInfo.getIdentificationPair())
+		}
+	}
+
+	return
+}
 
 func (p *GoTLSProgram) Start() {
 	if p == nil {
@@ -257,30 +272,12 @@ func (p *GoTLSProgram) Start() {
 	}()
 }
 
-func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
-	for _, probeInfo := range functionToProbes {
-		if probeInfo.functionInfo != nil {
-			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
-		}
-
-		if probeInfo.returnInfo != nil {
-			probeList = append(probeList, probeInfo.returnInfo.getIdentificationPair())
-		}
-	}
-
-	return
-}
-
 func (p *GoTLSProgram) Stop() {
 	if p == nil {
 		return
 	}
 
 	close(p.procMonitor.done)
-}
-
-func supportedArch(arch string) bool {
-	return arch == string(bininspect.GoArchX86_64)
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {
@@ -296,7 +293,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 		log.Debugf("could not stat binary path %s: %s", binPath, err)
 		return
 	}
-	binID := gotls.TlsBinaryId{
+	binID := binaryID{
 		Id_major: unix.Major(stat.Dev),
 		Id_minor: unix.Minor(stat.Dev),
 		Ino:      stat.Ino,
@@ -311,7 +308,7 @@ func (p *GoTLSProgram) handleProcessStart(pid pid) {
 	if oldProcCount == 0 {
 		// This is a slow process so let's not halt the watcher while we
 		// are doing this.
-		go p.hookNewBinary(binPath, binID, pid, bin)
+		go p.hookNewBinary(binID, binPath, pid, bin)
 	}
 }
 
@@ -319,7 +316,7 @@ func (p *GoTLSProgram) handleProcessStop(pid pid) {
 	p.unregisterProcess(pid)
 }
 
-func (p *GoTLSProgram) hookNewBinary(binPath string, binID gotls.TlsBinaryId, pid pid, bin *runningBinary) {
+func (p *GoTLSProgram) hookNewBinary(binID binaryID, binPath string, pid pid, bin *runningBinary) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -360,7 +357,7 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, binID gotls.TlsBinaryId, pi
 		return
 	}
 
-	if err = p.addInspectionResultToMap(inspectionResult, binID); err != nil {
+	if err = p.addInspectionResultToMap(binID, inspectionResult); err != nil {
 		return
 	}
 
@@ -376,17 +373,17 @@ func (p *GoTLSProgram) hookNewBinary(binPath string, binID gotls.TlsBinaryId, pi
 	elapsed := time.Since(start)
 
 	p.binAnalysisMetric.Set(elapsed.Milliseconds())
-	log.Debugf("attached hooks on %s (%d) in %s", binPath, binID, elapsed)
+	log.Debugf("attached hooks on %s (%v) in %s", binPath, binID, elapsed)
 }
 
-func (p *GoTLSProgram) registerProcess(binID gotls.TlsBinaryId, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
+func (p *GoTLSProgram) registerProcess(binID binaryID, pid pid, mTime syscall.Timespec) (int32, *runningBinary, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	bin := p.binaries[binID]
-	if bin == nil {
+	bin, found := p.binaries[binID]
+	if !found {
 		bin = &runningBinary{
-			ino:   binID,
+			binID: binID,
 			mTime: mTime,
 		}
 		p.binaries[binID] = bin
@@ -397,7 +394,7 @@ func (p *GoTLSProgram) registerProcess(binID gotls.TlsBinaryId, pid pid, mTime s
 	old := bin.processCount
 	bin.processCount += 1
 
-	p.processes[pid] = &process{bin}
+	p.processes[pid] = binID
 
 	return old, bin, nil
 }
@@ -406,25 +403,25 @@ func (p *GoTLSProgram) unregisterProcess(pid pid) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
-	proc := p.processes[pid]
-	if proc == nil {
+	binID, found := p.processes[pid]
+	if !found {
 		return
 	}
 	delete(p.processes, pid)
 
-	bin := proc.bin
+	bin, found := p.binaries[binID]
 	bin.processCount -= 1
 
-	if proc.bin.processCount == 0 {
-		log.Debugf("no processes left for ino %d", bin.ino)
-		delete(p.binaries, bin.ino)
+	if bin.processCount == 0 {
+		log.Debugf("no processes left for binID %v", bin.binID)
 		p.unhookBinary(bin)
+		delete(p.binaries, binID)
 	}
 }
 
 // addInspectionResultToMap runs a binary inspection and adds the result to the
 // map that's being read by the probes, indexed by the binary's inode number `ino`.
-func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binID gotls.TlsBinaryId) error {
+func (p *GoTLSProgram) addInspectionResultToMap(binID binaryID, result *bininspect.Result) error {
 	offsetsData, err := inspectionResultToProbeData(result)
 	if err != nil {
 		return fmt.Errorf("error while parsing inspection result: %w", err)
@@ -432,16 +429,16 @@ func (p *GoTLSProgram) addInspectionResultToMap(result *bininspect.Result, binID
 
 	err = p.offsetsDataMap.Put(binID, offsetsData)
 	if err != nil {
-		return fmt.Errorf("could not write binary inspection result to map for ino %d: %w", binID, err)
+		return fmt.Errorf("could not write binary inspection result to map for binID %v: %w", binID, err)
 	}
 
 	return nil
 }
 
-func (p *GoTLSProgram) removeInspectionResultFromMap(binID gotls.TlsBinaryId) {
+func (p *GoTLSProgram) removeInspectionResultFromMap(binID binaryID) {
 	err := p.offsetsDataMap.Delete(binID)
 	if err != nil {
-		log.Errorf("could not remove inspection result from map for ino %d: %s", binID, err)
+		log.Errorf("could not remove inspection result from map for ino %v: %s", binID, err)
 	}
 }
 
@@ -509,9 +506,9 @@ func (p *GoTLSProgram) unhookBinary(bin *runningBinary) {
 	}
 
 	p.detachHooks(bin.probeIDs)
-	p.removeInspectionResultFromMap(bin.ino)
+	p.removeInspectionResultFromMap(bin.binID)
 
-	log.Debugf("detached hooks on ino %d", bin.ino)
+	log.Debugf("detached hooks on ino %v", bin.binID)
 }
 
 func (p *GoTLSProgram) detachHooks(probeIDs []manager.ProbeIdentificationPair) {
