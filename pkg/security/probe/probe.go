@@ -1427,14 +1427,14 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
+	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
+
 	resolvers, err := NewResolvers(config, p)
 	if err != nil {
 		return nil, err
 	}
 	p.resolvers = resolvers
-
-	p.scrubber = pconfig.NewDefaultDataScrubber()
-	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	p.event = NewEvent(p.resolvers, p.scrubber, p)
 
