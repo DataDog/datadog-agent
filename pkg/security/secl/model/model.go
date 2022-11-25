@@ -522,6 +522,7 @@ type MountEvent struct {
 	RootMountID   uint32
 	RootInode     uint64
 	RootStr       string
+	Path          string
 
 	FSTypeRaw [16]byte
 }
