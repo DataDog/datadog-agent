@@ -105,7 +105,7 @@ func StatusFromPath(path string) (status int) {
 }
 
 func CurDir() (string, error) {
-	_, file, _, ok := runtime.Caller(0)
+	_, file, _, ok := runtime.Caller(1)
 	if !ok {
 		return "", fmt.Errorf("unable to get current file build path")
 	}
