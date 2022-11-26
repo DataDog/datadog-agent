@@ -346,21 +346,6 @@ static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
     return id;
 }
 
-struct bpf_map_def SEC("maps/flushing_discarders") flushing_discarders = {
-    .type = BPF_MAP_TYPE_ARRAY,
-    .key_size = sizeof(u32),
-    .value_size = sizeof(u32),
-    .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
-};
-
-static __attribute__((always_inline)) u32 is_flushing_discarders(void) {
-    u32 key = 0;
-    u32 *prev_id = bpf_map_lookup_elem(&flushing_discarders, &key);
-    return prev_id != NULL && *prev_id;
-}
-
 struct perf_map_stats_t {
     u64 bytes;
     u64 count;
@@ -426,7 +411,8 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
 })
 
 // implemented in the discarder.h file
-int __attribute__((always_inline)) bump_inode_discarder_revision(u32 mount_id);
+void __attribute__((always_inline)) set_config_timestamp();
+int __attribute__((always_inline)) bump_mount_discarder_revision(u32 mount_id);
 
 struct mount_released_event_t {
     struct kevent_t event;
@@ -471,7 +457,7 @@ static __attribute__((always_inline)) void dec_mount_ref(struct pt_regs *ctx, u3
         return;
     }
 
-    bump_inode_discarder_revision(mount_id);
+    bump_mount_discarder_revision(mount_id);
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,
@@ -492,7 +478,7 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
         }
     }
 
-    bump_inode_discarder_revision(mount_id);
+    bump_mount_discarder_revision(mount_id);
 
     struct mount_released_event_t event = {
         .mount_id = mount_id,

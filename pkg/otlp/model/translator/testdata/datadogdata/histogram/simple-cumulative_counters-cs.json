@@ -1,0 +1,47 @@
+{
+  "Sketches": null,
+  "TimeSeries": [
+    {
+      "Name": "doubleHist.test.count",
+      "Tags": [],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420925,
+      "Value": 30
+    },
+    {
+      "Name": "doubleHist.test.sum",
+      "Tags": [],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420925,
+      "Value": 20
+    },
+    {
+      "Name": "doubleHist.test.bucket",
+      "Tags": [
+        "lower_bound:-inf",
+        "upper_bound:0"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420925,
+      "Value": 11
+    },
+    {
+      "Name": "doubleHist.test.bucket",
+      "Tags": [
+        "lower_bound:0",
+        "upper_bound:inf"
+      ],
+      "Host": "hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420925,
+      "Value": 19
+    }
+  ]
+}

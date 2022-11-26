@@ -18,7 +18,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -26,10 +25,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/vishvananda/netlink"
-	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
+	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -102,7 +101,6 @@ type Probe struct {
 	erpcRequest                        *ERPCRequest
 	pidDiscarders                      *pidDiscarders
 	inodeDiscarders                    *inodeDiscarders
-	flushingDiscarders                 *atomic.Bool
 	approvers                          map[eval.EventType]activeApprovers
 	discarderRateLimiter               *rate.Limiter
 	notifyDiscarderPushedCallbacks     []NotifyDiscarderPushedCallback
@@ -283,18 +281,8 @@ func (p *Probe) Init() error {
 		return fmt.Errorf("failed to init manager: %w", err)
 	}
 
-	pidDiscardersMap, err := p.Map("pid_discarders")
-	if err != nil {
-		return err
-	}
-	p.pidDiscarders = newPidDiscarders(pidDiscardersMap, p.erpc)
-
-	inodeDiscardersMap, err := p.Map("inode_discarders")
-	if err != nil {
-		return err
-	}
-
-	p.inodeDiscarders = newInodeDiscarders(inodeDiscardersMap, p.erpc, p.resolvers.DentryResolver)
+	p.pidDiscarders = newPidDiscarders(p.erpc)
+	p.inodeDiscarders = newInodeDiscarders(p.erpc, p.resolvers.DentryResolver)
 
 	if err := p.resolvers.Start(p.ctx); err != nil {
 		return err
@@ -545,7 +533,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			_, mountPath, _, err := p.resolvers.MountResolver.GetMountPath(event.Mount.MountID, event.PIDContext.Pid)
+			mountPath, _, err := p.resolvers.MountResolver.ResolveMountPaths(event.Mount.MountID, event.PIDContext.Pid)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -847,10 +835,6 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 		return nil
 	}
 
-	if p.flushingDiscarders.Load() {
-		return nil
-	}
-
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(event.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
@@ -1057,176 +1041,55 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 func (p *Probe) DumpDiscarders() (string, error) {
 	seclog.Debugf("Dumping discarders")
 
-	dump, err := os.CreateTemp("/tmp", "discarder-dump-")
+	inodeMap, err := p.Map("inode_discarders")
 	if err != nil {
 		return "", err
 	}
-	defer dump.Close()
 
-	if err := os.Chmod(dump.Name(), 0400); err != nil {
+	pidMap, err := p.Map("pid_discarders")
+	if err != nil {
 		return "", err
 	}
 
-	fmt.Fprintf(dump, "Discarder Dump\n%s\n", time.Now().UTC().String())
-
-	fmt.Fprintf(dump, `
-Legend:
-Discarder Count: Discardee Info
-Discarder Count: Discardee Parameters
-`)
-
-	fmt.Fprintf(dump, "\nInode Discarders\n")
-
-	discardedInodeCount := 0
-	inodeDiscardersInfo, inodeDiscardersErr := p.inodeDiscarders.Info()
-	if inodeDiscardersErr != nil {
-		seclog.Errorf("could not get info about inode discarders: %s", inodeDiscardersErr)
-	} else {
-		var inode inodeDiscarderMapEntry
-		var inodeParams inodeDiscarderParams
-		maxInodeDiscarders := int(inodeDiscardersInfo.MaxEntries)
-
-		for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, &inodeParams); {
-			discardedInodeCount++
-			fields := model.FileFields{MountID: inode.PathKey.MountID, Inode: inode.PathKey.Inode, PathID: inode.PathKey.PathID}
-			path, err := p.resolvers.resolveFileFieldsPath(&fields, &model.PIDContext{Pid: 1, Tid: 1})
-			if err != nil {
-				path = err.Error()
-			}
-			printDiscardee(dump, fmt.Sprintf("%s %+v", path, inode), fmt.Sprintf("%+v", inodeParams), discardedInodeCount)
-			if discardedInodeCount == maxInodeDiscarders {
-				seclog.Infof("Discarded inode count has reached max discarder map size")
-				break
-			}
-		}
+	statsFB, err := p.Map("discarder_stats_fb")
+	if err != nil {
+		return "", err
 	}
 
-	fmt.Fprintf(dump, "\nProcess Discarders\n")
-
-	discardedPIDCount := 0
-	pidDiscardersInfo, pidDiscardersErr := p.pidDiscarders.Info()
-	if pidDiscardersErr != nil {
-		seclog.Errorf("could not get info about PID discarders: %s", pidDiscardersErr)
-	} else {
-		var pid uint32
-		var pidParams pidDiscarderParams
-		maxPIDDiscarders := int(pidDiscardersInfo.MaxEntries)
-
-		for entries := p.pidDiscarders.Iterate(); entries.Next(&pid, &pidParams); {
-			discardedPIDCount++
-			printDiscardee(dump, fmt.Sprintf("%+v", pid), fmt.Sprintf("%+v", pidParams), discardedPIDCount)
-			if discardedPIDCount == maxPIDDiscarders {
-				seclog.Infof("Discarded PID count has reached max discarder map size")
-				break
-			}
-		}
+	statsBB, err := p.Map("discarder_stats_bb")
+	if err != nil {
+		return "", err
 	}
 
-	fmt.Fprintf(dump, "\nDiscarder Stats - Front Buffer\n")
-	frontBufferPrintErr := p.printDiscarderStats(dump, frontBufferDiscarderStatsMapName)
-	if frontBufferPrintErr != nil {
-		seclog.Errorf("could not dump discarder stats map %s: %s", frontBufferDiscarderStatsMapName, frontBufferPrintErr)
+	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	if err != nil {
+		return "", err
 	}
 
-	fmt.Fprintf(dump, "\nDiscarder Stats - Back Buffer\n")
-	backBufferPrintErr := p.printDiscarderStats(dump, backBufferDiscarderStatsMapName)
-	if backBufferPrintErr != nil {
-		seclog.Errorf("could not dump discarder stats map %s: %s", backBufferDiscarderStatsMapName, backBufferPrintErr)
+	fp, err := os.CreateTemp("/tmp", "discarder-dump-")
+	if err != nil {
+		return "", err
+	}
+	defer fp.Close()
+
+	if err := os.Chmod(fp.Name(), 0400); err != nil {
+		return "", err
 	}
 
-	fmt.Fprintf(dump, "\nEnd Discarder Dump\n")
+	encoder := yaml.NewEncoder(fp)
+	defer encoder.Close()
 
-	seclog.Infof("%d inode discarders found, %d pid discarders found", discardedInodeCount, discardedPIDCount)
-	return dump.Name(), nil
+	if err := encoder.Encode(dump); err != nil {
+		return "", err
+	}
+
+	return fp.Name(), nil
 }
 
-// FlushDiscarders removes all the discarders
+// FlushDiscarders invalidates all the discarders
 func (p *Probe) FlushDiscarders() error {
-	seclog.Debugf("Freezing discarders")
-
-	flushingMap, err := p.Map("flushing_discarders")
-	if err != nil {
-		return err
-	}
-
-	if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(1)); err != nil {
-		return fmt.Errorf("failed to set flush_discarders flag: %w", err)
-	}
-
-	unfreezeDiscarders := func() {
-		p.flushingDiscarders.Store(false)
-
-		if err := flushingMap.Put(ebpf.ZeroUint32MapItem, uint32(0)); err != nil {
-			seclog.Errorf("Failed to reset flush_discarders flag: %s", err)
-		}
-
-		seclog.Debugf("Unfreezing discarders")
-	}
-	defer unfreezeDiscarders()
-
-	if p.flushingDiscarders.Swap(true) {
-		return errors.New("already flushing discarders")
-	}
-	// Sleeping a bit to avoid races with executing kprobes and setting discarders
-	time.Sleep(time.Second)
-
-	var discardedInodes []inodeDiscarderMapEntry
-	var mapValue [256]byte
-
-	var inode inodeDiscarderMapEntry
-	for entries := p.inodeDiscarders.Iterate(); entries.Next(&inode, unsafe.Pointer(&mapValue[0])); {
-		discardedInodes = append(discardedInodes, inode)
-	}
-
-	var discardedPids []uint32
-	for pid, entries := uint32(0), p.pidDiscarders.Iterate(); entries.Next(&pid, unsafe.Pointer(&mapValue[0])); {
-		discardedPids = append(discardedPids, pid)
-	}
-
-	discarderCount := len(discardedInodes) + len(discardedPids)
-	if discarderCount == 0 {
-		seclog.Debugf("No discarder found")
-		return nil
-	}
-
-	flushWindow := time.Second * time.Duration(p.config.FlushDiscarderWindow)
-	delay := flushWindow / time.Duration(discarderCount)
-
-	flushDiscarders := func() {
-		seclog.Debugf("Flushing discarders")
-
-		var req ERPCRequest
-
-		for _, inode := range discardedInodes {
-			if err := p.inodeDiscarders.expireInodeDiscarder(&req, inode.PathKey.MountID, inode.PathKey.Inode); err != nil {
-				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
-			}
-
-			discarderCount--
-			if discarderCount > 0 {
-				time.Sleep(delay)
-			}
-		}
-
-		for _, pid := range discardedPids {
-			if err := p.pidDiscarders.expirePidDiscarder(&req, pid); err != nil {
-				seclog.Tracef("Failed to flush discarder for inode %d: %s", inode, err)
-			}
-
-			discarderCount--
-			if discarderCount > 0 {
-				time.Sleep(delay)
-			}
-		}
-	}
-
-	if p.config.FlushDiscarderWindow != 0 {
-		go flushDiscarders()
-	} else {
-		flushDiscarders()
-	}
-
-	return nil
+	seclog.Debugf("Flushing discarders")
+	return bumpDiscardersRevision(p.erpc)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -1411,7 +1274,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		statsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		flushingDiscarders:   atomic.NewBool(false),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
 	}
 

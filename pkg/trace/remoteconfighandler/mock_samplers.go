@@ -4,125 +4,112 @@
 package remoteconfighandler
 
 import (
-        reflect "reflect"
+	reflect "reflect"
 
-        sampler "github.com/DataDog/datadog-agent/pkg/trace/sampler"
-        gomock "github.com/golang/mock/gomock"
+	gomock "github.com/golang/mock/gomock"
 )
 
 // MockprioritySampler is a mock of prioritySampler interface.
 type MockprioritySampler struct {
-        ctrl     *gomock.Controller
-        recorder *MockprioritySamplerMockRecorder
+	ctrl     *gomock.Controller
+	recorder *MockprioritySamplerMockRecorder
 }
 
 // MockprioritySamplerMockRecorder is the mock recorder for MockprioritySampler.
 type MockprioritySamplerMockRecorder struct {
-        mock *MockprioritySampler
+	mock *MockprioritySampler
 }
 
 // NewMockprioritySampler creates a new mock instance.
 func NewMockprioritySampler(ctrl *gomock.Controller) *MockprioritySampler {
-        mock := &MockprioritySampler{ctrl: ctrl}
-        mock.recorder = &MockprioritySamplerMockRecorder{mock}
-        return mock
+	mock := &MockprioritySampler{ctrl: ctrl}
+	mock.recorder = &MockprioritySamplerMockRecorder{mock}
+	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockprioritySampler) EXPECT() *MockprioritySamplerMockRecorder {
-        return m.recorder
-}
-
-// UpdateRemoteRates mocks base method.
-func (m *MockprioritySampler) UpdateRemoteRates(updates []sampler.RemoteRateUpdate) {
-        m.ctrl.T.Helper()
-        m.ctrl.Call(m, "UpdateRemoteRates", updates)
-}
-
-// UpdateRemoteRates indicates an expected call of UpdateRemoteRates.
-func (mr *MockprioritySamplerMockRecorder) UpdateRemoteRates(updates interface{}) *gomock.Call {
-        mr.mock.ctrl.T.Helper()
-        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRemoteRates", reflect.TypeOf((*MockprioritySampler)(nil).UpdateRemoteRates), updates)
+	return m.recorder
 }
 
 // UpdateTargetTPS mocks base method.
 func (m *MockprioritySampler) UpdateTargetTPS(targetTPS float64) {
-        m.ctrl.T.Helper()
-        m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
 }
 
 // UpdateTargetTPS indicates an expected call of UpdateTargetTPS.
 func (mr *MockprioritySamplerMockRecorder) UpdateTargetTPS(targetTPS interface{}) *gomock.Call {
-        mr.mock.ctrl.T.Helper()
-        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockprioritySampler)(nil).UpdateTargetTPS), targetTPS)
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockprioritySampler)(nil).UpdateTargetTPS), targetTPS)
 }
 
 // MockerrorsSampler is a mock of errorsSampler interface.
 type MockerrorsSampler struct {
-        ctrl     *gomock.Controller
-        recorder *MockerrorsSamplerMockRecorder
+	ctrl     *gomock.Controller
+	recorder *MockerrorsSamplerMockRecorder
 }
 
 // MockerrorsSamplerMockRecorder is the mock recorder for MockerrorsSampler.
 type MockerrorsSamplerMockRecorder struct {
-        mock *MockerrorsSampler
+	mock *MockerrorsSampler
 }
 
 // NewMockerrorsSampler creates a new mock instance.
 func NewMockerrorsSampler(ctrl *gomock.Controller) *MockerrorsSampler {
-        mock := &MockerrorsSampler{ctrl: ctrl}
-        mock.recorder = &MockerrorsSamplerMockRecorder{mock}
-        return mock
+	mock := &MockerrorsSampler{ctrl: ctrl}
+	mock.recorder = &MockerrorsSamplerMockRecorder{mock}
+	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockerrorsSampler) EXPECT() *MockerrorsSamplerMockRecorder {
-        return m.recorder
+	return m.recorder
 }
 
 // UpdateTargetTPS mocks base method.
 func (m *MockerrorsSampler) UpdateTargetTPS(targetTPS float64) {
-        m.ctrl.T.Helper()
-        m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
 }
 
 // UpdateTargetTPS indicates an expected call of UpdateTargetTPS.
 func (mr *MockerrorsSamplerMockRecorder) UpdateTargetTPS(targetTPS interface{}) *gomock.Call {
-        mr.mock.ctrl.T.Helper()
-        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockerrorsSampler)(nil).UpdateTargetTPS), targetTPS)
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockerrorsSampler)(nil).UpdateTargetTPS), targetTPS)
 }
 
 // MockrareSampler is a mock of rareSampler interface.
 type MockrareSampler struct {
-        ctrl     *gomock.Controller
-        recorder *MockrareSamplerMockRecorder
+	ctrl     *gomock.Controller
+	recorder *MockrareSamplerMockRecorder
 }
 
 // MockrareSamplerMockRecorder is the mock recorder for MockrareSampler.
 type MockrareSamplerMockRecorder struct {
-        mock *MockrareSampler
+	mock *MockrareSampler
 }
 
 // NewMockrareSampler creates a new mock instance.
 func NewMockrareSampler(ctrl *gomock.Controller) *MockrareSampler {
-        mock := &MockrareSampler{ctrl: ctrl}
-        mock.recorder = &MockrareSamplerMockRecorder{mock}
-        return mock
+	mock := &MockrareSampler{ctrl: ctrl}
+	mock.recorder = &MockrareSamplerMockRecorder{mock}
+	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockrareSampler) EXPECT() *MockrareSamplerMockRecorder {
-        return m.recorder
+	return m.recorder
 }
 
 // SetEnabled mocks base method.
 func (m *MockrareSampler) SetEnabled(enabled bool) {
-        m.ctrl.T.Helper()
-        m.ctrl.Call(m, "SetEnabled", enabled)
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetEnabled", enabled)
 }
 
 // SetEnabled indicates an expected call of SetEnabled.
 func (mr *MockrareSamplerMockRecorder) SetEnabled(enabled interface{}) *gomock.Call {
-        mr.mock.ctrl.T.Helper()
-        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockrareSampler)(nil).SetEnabled), enabled)
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockrareSampler)(nil).SetEnabled), enabled)
 }

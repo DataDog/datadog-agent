@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -38,6 +39,10 @@ func (l *libPath) Bytes() []byte {
 // this is to ensure that we remove/deregister the shared libraries that are no
 // longer mapped into memory.
 const soSyncInterval = 5 * time.Minute
+
+// check if a process is still alive, if not unregister his hook
+// when attaching a uprobe the kernel modifiy the elf and lock the file, so the filesystem can't be unmounted
+const soCheckProcessAliveInterval = 10 * time.Second
 
 type soRule struct {
 	re           *regexp.Regexp
@@ -73,8 +78,9 @@ func newSOWatcher(procRoot string, perfHandler *ddebpf.PerfHandler, rules ...soR
 		rules:      rules,
 		loadEvents: perfHandler,
 		registry: &soRegistry{
-			byPath:  make(map[string]*soRegistration),
-			byInode: make(map[uint64]*soRegistration),
+			procRoot: procRoot,
+			byPath:   make(map[string]*soRegistration),
+			byInode:  make(map[uint64]*soRegistration),
 		},
 	}
 }
@@ -86,6 +92,8 @@ func (w *soWatcher) Start() {
 	go func() {
 		ticker := time.NewTicker(soSyncInterval)
 		defer ticker.Stop()
+		tickerProcess := time.NewTicker(soCheckProcessAliveInterval)
+		defer tickerProcess.Stop()
 		thisPID, _ := util.GetRootNSPID()
 
 		for {
@@ -93,6 +101,11 @@ func (w *soWatcher) Start() {
 			case <-ticker.C:
 				seen = make(map[seenKey]struct{})
 				w.sync()
+			case <-tickerProcess.C:
+				if w.checkProcessDone() {
+					/* if we done some cleanup, flush the cache */
+					seen = make(map[seenKey]struct{})
+				}
 			case event, ok := <-w.loadEvents.DataChannel:
 				if !ok {
 					return
@@ -133,7 +146,7 @@ func (w *soWatcher) Start() {
 					}
 
 					libPath = w.canonicalizePath(libPath)
-					w.registry.register(libPath, r)
+					w.registry.register(libPath, int(lib.Pid), r)
 					break
 				}
 
@@ -167,7 +180,14 @@ func (w *soWatcher) sync() {
 			if r.re.MatchString(path) {
 				// new library detected
 				// register it
-				w.registry.register(path, r)
+				for _, pidPath := range lib.PidsPath {
+					pid, err := extractPID(pidPath)
+					if err != nil {
+						log.Errorf("extractPID '%s' failed : %s", pidPath, err)
+						continue
+					}
+					w.registry.register(path, pid, r)
+				}
 				break
 			}
 		}
@@ -176,6 +196,44 @@ func (w *soWatcher) sync() {
 	for path := range toUnregister {
 		w.registry.unregister(path)
 	}
+}
+
+func (w *soWatcher) checkProcessDone() (updated bool) {
+	regsToBeRemoved := make(map[*soRegistration]struct{})
+	pathsToBeRemoved := make(map[string]struct{})
+
+	for libpath, registration := range w.registry.byPath {
+		if _, ok := regsToBeRemoved[registration]; ok {
+			// this is possible because a library (represented by a given inode)
+			// can be registered through multiple paths
+			pathsToBeRemoved[libpath] = struct{}{}
+			continue
+		}
+
+		if len(registration.pids) == 0 || registration.unregisterCB == nil {
+			// this library doesn't require liveness checks
+			continue
+		}
+
+		for pid := range registration.pids {
+			if !isProcessAlive(pid) {
+				delete(registration.pids, pid)
+			}
+		}
+
+		if len(registration.pids) == 0 {
+			// all processes are gone, so schedule this for removal
+			pathsToBeRemoved[libpath] = struct{}{}
+			regsToBeRemoved[registration] = struct{}{}
+			updated = true
+		}
+	}
+
+	for libpath := range pathsToBeRemoved {
+		w.registry.unregister(libpath)
+	}
+
+	return updated
 }
 
 func (w *soWatcher) canonicalizePath(path string) string {
@@ -187,18 +245,28 @@ func (w *soWatcher) canonicalizePath(path string) string {
 }
 
 type soRegistration struct {
+	// set of pid paths (eg. /host/proc/123) that are used for liveness checks
+	// this is done to unregister shared libraries as soon as all processes
+	// referencing it terminate. This is required when the shared library is
+	// located in a volume where mount propagation is enabled, so containers
+	// don't get stuck during termination.
+	pids map[string]struct{}
+
 	inode        uint64
 	refcount     int
 	unregisterCB func(string) error
 }
 
 type soRegistry struct {
-	byPath  map[string]*soRegistration
-	byInode map[uint64]*soRegistration
+	procRoot string
+	byPath   map[string]*soRegistration
+	byInode  map[uint64]*soRegistration
 }
 
-func (r *soRegistry) register(libPath string, rule soRule) {
-	if _, ok := r.byPath[libPath]; ok {
+func (r *soRegistry) register(libPath string, pid int, rule soRule) {
+	pidPath := fmt.Sprintf("%s/%d", r.procRoot, pid)
+	if registration, ok := r.byPath[libPath]; ok {
+		registration.pids[pidPath] = struct{}{}
 		return
 	}
 
@@ -210,6 +278,7 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 	if registration, ok := r.byInode[inode]; ok {
 		registration.refcount++
 		r.byPath[libPath] = registration
+		registration.pids[pidPath] = struct{}{}
 		log.Debugf("registering library=%s", libPath)
 		return
 	}
@@ -231,6 +300,7 @@ func (r *soRegistry) register(libPath string, rule soRule) {
 
 	log.Debugf("registering library=%s", libPath)
 	registration := newRegistration(inode, rule.unregisterCB)
+	registration.pids[pidPath] = struct{}{}
 	r.byPath[libPath] = registration
 	r.byInode[inode] = registration
 }
@@ -258,11 +328,13 @@ func (r *soRegistry) unregister(libPath string) {
 }
 
 func newRegistration(inode uint64, unregisterCB func(string) error) *soRegistration {
-	return &soRegistration{
+	r := &soRegistration{
+		pids:         make(map[string]struct{}),
 		inode:        inode,
 		unregisterCB: unregisterCB,
 		refcount:     1,
 	}
+	return r
 }
 
 func followSymlink(path string) string {
@@ -285,4 +357,24 @@ func getInode(path string) (uint64, error) {
 	}
 
 	return stat.Ino, nil
+}
+
+func extractPID(pidPath string) (int, error) {
+	pidPathArray := strings.Split(pidPath, string(os.PathSeparator))
+	if len(pidPathArray) == 0 {
+		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
+	}
+
+	pidStr := pidPathArray[len(pidPathArray)-1]
+	pid, err := strconv.Atoi(pidStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid PID path: %s", pidPath)
+	}
+
+	return pid, nil
+}
+
+func isProcessAlive(pidPath string) bool {
+	fi, err := os.Stat(pidPath)
+	return err == nil && fi.IsDir()
 }
