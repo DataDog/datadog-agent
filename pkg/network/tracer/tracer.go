@@ -389,7 +389,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		network.MonotonicConnsClosed:      t.closedConns.Load(),
 	}
 
-	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats)
+	stats, err := t.getStats(conntrackStats, dnsStats, epbfStats, httpStats, stateStats, kafkaStats)
 	if err != nil {
 		return nil
 	}
@@ -418,6 +418,15 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 
 	if ms, ok := httpStats["misses"]; ok {
 		tm[network.HTTPRequestsMissed] = ms.(int64)
+	}
+
+	kafkaStats := stats["kafka"].(map[string]interface{})
+	if ds, ok := kafkaStats["dropped"]; ok {
+		tm[network.KafkaRequestsDropped] = ds.(int64)
+	}
+
+	if ms, ok := kafkaStats["misses"]; ok {
+		tm[network.KafkaRequestsMissed] = ms.(int64)
 	}
 
 	ebpfStats := stats["ebpf"].(map[string]int64)
@@ -598,6 +607,7 @@ const (
 	kprobesStats
 	stateStats
 	tracerStats
+	kafkaStats
 )
 
 var allStats = []statsComp{
@@ -641,6 +651,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			tracerStats := atomicstats.Report(t)
 			tracerStats["runtime"] = runtime.Tracer.GetTelemetry()
 			ret["tracer"] = tracerStats
+		case kafkaStats:
+			ret["kafka"] = t.kafkaMonitor.GetStats()
 		}
 	}
 

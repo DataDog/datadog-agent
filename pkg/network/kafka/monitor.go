@@ -26,8 +26,8 @@ import (
 // * requestsStats which are the kafka data stats
 // * telemetry which are telemetry stats
 type MonitorStats struct {
-	//requestStats map[Key]*RequestStats
-	//telemetry    telemetry
+	requestStats map[Key]*RequestStats
+	telemetry    telemetry
 }
 
 // Monitor is responsible for:
@@ -42,9 +42,9 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
-	// telemetrySnapshot      *telemetry
-	pollRequests chan chan map[Key]*RequestStats
-	statkeeper   *kafkaStatKeeper
+	telemetrySnapshot      *telemetry
+	pollRequests           chan chan MonitorStats
+	statkeeper             *kafkaStatKeeper
 
 	// termination
 	mux           sync.Mutex
@@ -106,7 +106,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		batchManager:           batchManager,
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
-		pollRequests:           make(chan chan map[Key]*RequestStats),
+		telemetrySnapshot:      nil,
+		pollRequests:           make(chan chan MonitorStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
 	}, nil
@@ -149,8 +150,12 @@ func (m *Monitor) Start() error {
 				transactions := m.batchManager.GetPendingTransactions()
 				m.process(transactions, nil)
 
-				// TODO: add the telemetry
-				reply <- m.statkeeper.GetAndResetAllStats()
+				delta := m.telemetry.reset()
+
+				reply <- MonitorStats{
+					requestStats: m.statkeeper.GetAndResetAllStats(),
+					telemetry:    delta,
+				}
 			}
 		}
 	}()
@@ -171,32 +176,33 @@ func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
 		return nil
 	}
 
-	reply := make(chan map[Key]*RequestStats, 1)
+	reply := make(chan MonitorStats, 1)
 	defer close(reply)
 	m.pollRequests <- reply
-	return <-reply
+	stats := <-reply
+	m.telemetrySnapshot = &stats.telemetry
+	return stats.requestStats
 }
 
-//
-//// GetStats returns the telemetry
-//func (m *Monitor) GetStats() map[string]interface{} {
-//	empty := map[string]interface{}{}
-//	if m == nil {
-//		return empty
-//	}
-//
-//	m.mux.Lock()
-//	defer m.mux.Unlock()
-//	if m.stopped {
-//		return empty
-//	}
-//
-//	if m.telemetrySnapshot == nil {
-//		return empty
-//	}
-//
-//	return m.telemetrySnapshot.report()
-//}
+// GetStats returns the telemetry
+func (m *Monitor) GetStats() map[string]interface{} {
+	empty := map[string]interface{}{}
+	if m == nil {
+		return empty
+	}
+
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if m.stopped {
+		return empty
+	}
+
+	if m.telemetrySnapshot == nil {
+		return empty
+	}
+
+	return m.telemetrySnapshot.report()
+}
 
 // Stop HTTP monitoring
 func (m *Monitor) Stop() {
