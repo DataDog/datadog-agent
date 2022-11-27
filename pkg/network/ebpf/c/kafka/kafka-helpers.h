@@ -14,12 +14,24 @@ static __inline int32_t read_big_endian_int32(const char* buf) {
     return bpf_ntohl(val);
 }
 
-    static __inline int16_t read_big_endian_int16(const char* buf) {
-        int16_t val;
-        // De-Referencing buf causes misalignment verifier error for unknown reason, so using bpf_probe_read_kernel as a workaround
-        bpf_probe_read_kernel(&val, 2, (void*)buf);
-        return bpf_ntohs(val);
-    }
+static __inline int16_t read_big_endian_int16(const char* buf) {
+    int16_t val;
+    // De-Referencing buf causes misalignment verifier error for unknown reason, so using bpf_probe_read_kernel as a workaround
+    bpf_probe_read_kernel(&val, 2, (void*)buf);
+    return bpf_ntohs(val);
+}
+
+static __inline int32_t kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction) {
+    const int32_t value = read_big_endian_int32(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
+    kafka_transaction->current_offset_in_request_fragment += 4;
+    return value;
+}
+
+static __inline int16_t kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction) {
+    const int16_t value = read_big_endian_int16(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
+    kafka_transaction->current_offset_in_request_fragment += 2;
+    return value;
+}
 
 // Checking if the buffer represents kafka message
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
@@ -28,12 +40,13 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         return false;
     }
 
-    const int32_t message_size = read_big_endian_int32(request_fragment);
+    const int32_t message_size = kafka_read_big_endian_int32(kafka_transaction);
+    log_debug("message_size: %d", message_size);
     if (message_size <= 0) {
         return false;
     }
 
-    const int16_t request_api_key = read_big_endian_int16(request_fragment + 4);
+    const int16_t request_api_key = kafka_read_big_endian_int16(kafka_transaction);
     log_debug("request_api_key: %d", request_api_key);
     if (request_api_key < 0 || request_api_key > KAFKA_MAX_VERSION) {
         log_debug("request_api_key < 0 || request_api_key > KAFKA_MAX_VERSION");
@@ -41,7 +54,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->request_api_key = request_api_key;
 
-    const int16_t request_api_version = read_big_endian_int16(request_fragment + 6);
+    const int16_t request_api_version = kafka_read_big_endian_int16(kafka_transaction);
     log_debug("request_api_version: %d", request_api_version);
     if (request_api_version < 0 || request_api_version > KAFKA_MAX_API) {
         log_debug("request_api_version < 0 || request_api_version > KAFKA_MAX_API");
@@ -49,19 +62,19 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     }
     kafka_transaction->request_api_version = request_api_version;
 
-    const int32_t correlation_id = read_big_endian_int32(request_fragment + 8);
+    const int32_t correlation_id = kafka_read_big_endian_int32(kafka_transaction);
     log_debug("correlation_id: %d", correlation_id);
     if (correlation_id < 0) {
         log_debug("correlation_id < 0");
         return false;
     }
-     kafka_transaction->correlation_id = correlation_id;
+    kafka_transaction->correlation_id = correlation_id;
 
     const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
     __builtin_memset(kafka_transaction->client_id, 0, sizeof(kafka_transaction->client_id));
     uint16_t client_id_size_final = 0;
     if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
-        const int16_t client_id_size = read_big_endian_int16(request_fragment + 12);
+        const int16_t client_id_size = kafka_read_big_endian_int16(kafka_transaction);
         kafka_transaction->current_offset_in_request_fragment += client_id_size;
         log_debug("client_id_size: %d", client_id_size);
 
@@ -73,15 +86,11 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         if (client_id_size <= 0 || client_id_size > max_size_of_client_id_string) {
             log_debug("client_id <= 0 || client_id_size > MAX_LENGTH_FOR_CLIENT_ID_STRING");
         } else {
-            const char* client_id_in_buf = request_fragment + 14;
+            const char* client_id_in_buf = request_fragment + kafka_transaction->current_offset_in_request_fragment;
             bpf_probe_read_kernel(kafka_transaction->client_id, client_id_size_final, (void*)client_id_in_buf);
             log_debug("client_id: %s", kafka_transaction->client_id);
         }
     }
-
-    // Setting the offset for the next function to know where the actual request starts
-    // TODO: should be done in a more clean way
-    kafka_transaction->current_offset_in_request_fragment += 14;
 
     // TODO: Support request header v0?
     // TODO: need to check what is TAG_BUFFER that can appear in a v2 request header
