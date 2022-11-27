@@ -4,9 +4,9 @@
 #include "kafka-types.h"
 
 // Forward declaration
-static __always_inline bool try_parse_produce_request(char *request_fragment, kafka_transaction_t *kafka_transaction);
-static __always_inline bool try_parse_fetch_request(char *request_fragment, kafka_transaction_t *kafka_transaction);
-static __always_inline bool extract_and_set_first_topic_name(char *request_fragment, kafka_transaction_t *kafka_transaction);
+static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction);
+static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction);
+static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction);
 
 static __inline int32_t read_big_endian_int32(const char* buf) {
     int32_t val;
@@ -91,10 +91,6 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
             log_debug("client_id: %s", kafka_transaction->client_id);
         }
     }
-
-    // TODO: Support request header v0?
-    // TODO: need to check what is TAG_BUFFER that can appear in a v2 request header
-
     return true;
 }
 
@@ -111,10 +107,10 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
 
     switch (kafka_transaction->request_api_key) {
         case KAFKA_PRODUCE:
-            return try_parse_produce_request(request_fragment, kafka_transaction);
+            return try_parse_produce_request(kafka_transaction);
             break;
         case KAFKA_FETCH:
-            return try_parse_fetch_request(request_fragment, kafka_transaction);
+            return try_parse_fetch_request(kafka_transaction);
             break;
         default:
             log_debug("Got unsupported request_api_key: %d", kafka_transaction->request_api_key);
@@ -122,16 +118,14 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
     }
 }
 
-static __always_inline bool try_parse_produce_request(char *request_fragment, kafka_transaction_t *kafka_transaction) {
+static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction) {
     log_debug("Trying to parse produce request");
     if (kafka_transaction->request_api_version < 3 || kafka_transaction->request_api_version > 8) {
-        // TODO: Support all protocol versions, currently supporting only version 3-8
         return false;
     }
 
-    int16_t transactional_id_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
+    const int16_t transactional_id_size = kafka_read_big_endian_int16(kafka_transaction);
     log_debug("transactional_id_size: %d", transactional_id_size);
-    kafka_transaction->current_offset_in_request_fragment += 2;
     if (transactional_id_size > 0) {
         kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
     }
@@ -151,13 +145,12 @@ static __always_inline bool try_parse_produce_request(char *request_fragment, ka
     }
 
     // TODO: Taking only the first topic for now
-    return extract_and_set_first_topic_name(request_fragment, kafka_transaction);
+    return extract_and_set_first_topic_name(kafka_transaction);
 }
 
-static __always_inline bool try_parse_fetch_request(char *request_fragment, kafka_transaction_t *kafka_transaction) {
+static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction) {
     log_debug("Trying to parse fetch request");
     if (kafka_transaction->request_api_version != 4 && kafka_transaction->request_api_version < 7) {
-        // TODO: Support all protocol versions, currently supporting only version 4, 7+ for the testing env
         log_debug("request_api_version != 4 and < 7 not supported: %d", kafka_transaction->request_api_version);
         return false;
     }
@@ -179,18 +172,16 @@ static __always_inline bool try_parse_fetch_request(char *request_fragment, kafk
         kafka_transaction->current_offset_in_request_fragment += 8;
     }
 
-    // TODO: Taking only the first topic for now
-    return extract_and_set_first_topic_name(request_fragment, kafka_transaction);
+    return extract_and_set_first_topic_name(kafka_transaction);
 }
 
-static __always_inline bool extract_and_set_first_topic_name(char *request_fragment, kafka_transaction_t *kafka_transaction) {
-    const int16_t topic_name_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
+static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction) {
+    const int16_t topic_name_size = kafka_read_big_endian_int16(kafka_transaction);
     log_debug("extract_and_set_first_topic_name: offset=%d", kafka_transaction->current_offset_in_request_fragment);
     log_debug("topic_name_size: %d", topic_name_size);
     if (topic_name_size <= 0) {
         return false;
     }
-    kafka_transaction->current_offset_in_request_fragment += 2;
     __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
     if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
         return false;
@@ -202,8 +193,8 @@ static __always_inline bool extract_and_set_first_topic_name(char *request_fragm
     bpf_probe_read_kernel(
         kafka_transaction->topic_name,
         topic_name_size_final,
-        (void*)(request_fragment + kafka_transaction->current_offset_in_request_fragment));
-    log_debug("topic_name: %s", request_fragment + kafka_transaction->current_offset_in_request_fragment);
+        (void*)(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment));
+    log_debug("topic_name: %s", kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
     return true;
 }
 
