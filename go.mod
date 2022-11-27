@@ -410,6 +410,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
+require github.com/segmentio/kafka-go v0.4.29
+
 require (
 	github.com/avast/retry-go/v4 v4.1.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
