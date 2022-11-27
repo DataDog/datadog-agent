@@ -21,9 +21,6 @@ type telemetry struct {
 	then    *atomic.Int64
 	elapsed *atomic.Int64
 
-	// Topic name -> Array[produce_count][fetch_count]
-	topics map[string][2]*atomic.Int64
-
 	totalHits    *atomic.Int64
 	misses       *atomic.Int64 // this happens when we can't cope with the rate of events
 	dropped      *atomic.Int64 // this happens when httpStatKeeper reaches capacity
@@ -36,7 +33,6 @@ func newTelemetry() (*telemetry, error) {
 	t := &telemetry{
 		then:         atomic.NewInt64(time.Now().Unix()),
 		elapsed:      atomic.NewInt64(0),
-		topics:       map[string][2]*atomic.Int64{},
 		totalHits:    atomic.NewInt64(0),
 		misses:       atomic.NewInt64(0),
 		dropped:      atomic.NewInt64(0),
@@ -49,25 +45,7 @@ func newTelemetry() (*telemetry, error) {
 }
 
 func (t *telemetry) aggregate(transactions []kafkaTX, err error) {
-	for _, transaction := range transactions {
-		_ = transaction
-		topicName := transaction.TopicName()
-		if _, ok := t.topics[topicName]; !ok {
-			t.topics[topicName] = [2]*atomic.Int64{atomic.NewInt64(0), atomic.NewInt64(0)}
-		}
-
-		switch transaction.APIKey() {
-		case ProduceAPIKey:
-			t.topics[topicName][0].Add(1)
-			break
-		case FetchAPIKey:
-			t.topics[topicName][1].Add(1)
-			break
-		default:
-			log.Debugf("Unknown API key: %d", transaction.APIKey())
-		}
-		t.totalHits.Add(1)
-	}
+	t.totalHits.Add(int64(len(transactions)))
 
 	if err == errLostBatch {
 		t.misses.Add(int64(len(transactions)))
@@ -88,7 +66,7 @@ func (t *telemetry) reset() telemetry {
 
 	log.Debugf(
 		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
-		delta.totalHits,
+		delta.totalHits.Load(),
 		float64(delta.totalHits.Load())/float64(delta.elapsed.Load()),
 		delta.misses.Load(),
 		float64(delta.misses.Load())/float64(delta.elapsed.Load()),

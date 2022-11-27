@@ -39,12 +39,6 @@ const (
 	kafkaSocketFilter     = "socket/kafka_filter"
 	kafkaProgsMap         = "kafka_progs"
 
-	// maxActive configures the maximum number of instances of the
-	// kretprobe-probed functions handled simultaneously.  This value should be
-	// enough for typical workloads (e.g. some amount of processes blocked on
-	// the accept syscall).
-	//maxActive = 128
-
 	// size of the channel containing completed kafka_notification_objects
 	batchNotificationsChanSize = 100
 
@@ -128,13 +122,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 }
 
 func (e *ebpfProgram) Init() error {
-	var undefinedProbes []manager.ProbeIdentificationPair
-
 	defer e.bytecode.Close()
-
-	for _, tc := range tailCalls {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
 
 	onlineCPUs, err := cpupossible.Get()
 	if err != nil {
@@ -172,13 +160,6 @@ func (e *ebpfProgram) Init() error {
 					UID:          probeUID,
 				},
 			},
-			//&manager.ProbeSelector{
-			//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			//		EBPFSection:  string(probes.TCPSendMsg),
-			//		EBPFFuncName: "kprobe__tcp_sendmsg",
-			//		UID:          probeUID,
-			//	},
-			//},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFSection:  "tracepoint/net/netif_receive_skb",
