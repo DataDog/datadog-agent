@@ -1752,7 +1752,7 @@ func TestClosedMergingWithAddressColision(t *testing.T) {
 		// these two connections will be treated as distinct and won't be aggregated.
 		// also pass in an active connection with the same (non-nat) tuple; this
 		// should aggregated into the first closed connection c1 only
-		delta := state.GetDelta(client, latestEpochTime(), []ConnectionStats{active}, nil, nil)
+		delta := state.GetDelta(client, latestEpochTime(), []ConnectionStats{active}, nil, nil, nil)
 		connections := delta.Conns
 
 		assert.Len(t, delta.Conns, 2)
@@ -1788,12 +1788,12 @@ func TestClosedMergingWithAddressColision(t *testing.T) {
 		// *limitation* in our connection tracking code and should be revisited
 		// once we find a way to reliably get the NAT translation the *first*
 		// time a connection is seen
-		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil)
+		_ = state.GetDelta(client, latestEpochTime(), []ConnectionStats{c1}, nil, nil, nil)
 		c2.Monotonic[0].Cookie = c1.Monotonic[0].Cookie
 		state.StoreClosedConnections([]ConnectionStats{c2})
 
 		// assert that the value returned by the second call to `GetDelta` represents c2 - c1
-		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil)
+		delta := state.GetDelta(client, latestEpochTime(), nil, nil, nil, nil)
 		assert.Len(t, delta.Conns, 1)
 		assert.Equal(t, uint64(50), delta.Conns[0].Last.SentBytes)
 	})
