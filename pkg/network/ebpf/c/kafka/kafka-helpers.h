@@ -22,7 +22,6 @@ static __inline int32_t read_big_endian_int32(const char* buf) {
     }
 
 // Checking if the buffer represents kafka message
-//static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
 static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_transaction) {
     char *request_fragment = kafka_transaction->request_fragment;
     if (request_fragment == NULL) {
@@ -144,32 +143,6 @@ static __always_inline bool try_parse_produce_request(char *request_fragment, ka
 
     // TODO: Taking only the first topic for now
     return extract_and_set_first_topic_name(request_fragment, kafka_transaction);
-
-//    const int16_t topic_name_size = read_big_endian_int16(request_fragment + kafka_transaction->current_offset_in_request_fragment);
-////    log_debug("topic_name_size: %d", topic_name_size);
-//        if (topic_name_size <= 0) {
-////        log_debug("topic_name_size <= 0");
-//        return false;
-//    }
-//    kafka_transaction->current_offset_in_request_fragment += 2;
-//    bpf_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
-////    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
-////            return false;
-////    }
-//    if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
-//        return false;
-//    }
-//    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
-//        return false;
-//    }
-//    uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
-//    bpf_probe_read_kernel_with_telemetry(
-//        kafka_transaction->topic_name,
-////        topic_name_size,
-//        topic_name_size_final,
-//        (void*)(request_fragment + kafka_transaction->current_offset_in_request_fragment));
-//    log_debug("topic_name: %s", request_fragment + kafka_transaction->current_offset_in_request_fragment);
-//    return true;
 }
 
 static __always_inline bool try_parse_fetch_request(char *request_fragment, kafka_transaction_t *kafka_transaction) {
@@ -206,14 +179,10 @@ static __always_inline bool extract_and_set_first_topic_name(char *request_fragm
     log_debug("extract_and_set_first_topic_name: offset=%d", kafka_transaction->current_offset_in_request_fragment);
     log_debug("topic_name_size: %d", topic_name_size);
     if (topic_name_size <= 0) {
-    //        log_debug("topic_name_size <= 0");
         return false;
     }
     kafka_transaction->current_offset_in_request_fragment += 2;
     __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
-//    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
-//            return false;
-//    }
     if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
         return false;
     }
@@ -223,7 +192,6 @@ static __always_inline bool extract_and_set_first_topic_name(char *request_fragm
     uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
     bpf_probe_read_kernel(
         kafka_transaction->topic_name,
-//        topic_name_size,
         topic_name_size_final,
         (void*)(request_fragment + kafka_transaction->current_offset_in_request_fragment));
     log_debug("topic_name: %s", request_fragment + kafka_transaction->current_offset_in_request_fragment);
