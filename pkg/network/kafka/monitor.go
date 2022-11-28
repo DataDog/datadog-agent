@@ -32,9 +32,9 @@ type MonitorStats struct {
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
-// * Polling a perf buffer that contains notifications about HTTP transaction batches ready to be read;
+// * Polling a perf buffer that contains notifications about Kafka transaction batches ready to be read;
 // * Querying these batches by doing a map lookup;
-// * Aggregating and emitting metrics based on the received HTTP transactions;
+// * Aggregating and emitting metrics based on the received Kafka transactions;
 type Monitor struct {
 	handler func([]kafkaTX)
 
@@ -57,11 +57,11 @@ type Monitor struct {
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
 	mgr, err := newEBPFProgram(c, offsets, sockFD)
 	if err != nil {
-		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
+		return nil, fmt.Errorf("error setting up kafka ebpf program: %s", err)
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: kafkaSocketFilterStub, EBPFFuncName: "socket__kafka_filter_entry", UID: probeUID})
@@ -71,7 +71,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 
 	closeFilterFn, err := filterpkg.HeadlessSocketFilter(c, filter)
 	if err != nil {
-		return nil, fmt.Errorf("error enabling HTTP traffic inspection: %s", err)
+		return nil, fmt.Errorf("error enabling Kafka traffic inspection: %s", err)
 	}
 
 	batchMap, _, err := mgr.GetMap(kafkaBatchesMap)
@@ -204,7 +204,7 @@ func (m *Monitor) GetStats() map[string]interface{} {
 	return m.telemetrySnapshot.report()
 }
 
-// Stop HTTP monitoring
+// Stop Kafka monitoring
 func (m *Monitor) Stop() {
 	if m == nil {
 		return
