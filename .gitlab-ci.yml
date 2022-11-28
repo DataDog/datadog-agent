@@ -596,6 +596,7 @@ variables:
     when: never
   - <<: *if_not_stable_repo_branch
     when: manual
+    allow_failure: true
   - when: on_success
 
 .on_deploy_stable_repo_branch_a7_manual:
