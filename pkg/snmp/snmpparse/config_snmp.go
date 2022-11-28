@@ -65,7 +65,6 @@ func ParseConfigSnmpMain() []SNMPConfig {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
-	// we get: unable to get snmp config from snmp_listener: '' expected a map, got 'slice'
 	//so for each result of the Unmarshal key we storre the result in a tmp SNMPConfig{} object
 	err := config.Datadog.UnmarshalKey("snmp_listener.configs", &configs)
 	if err != nil {
