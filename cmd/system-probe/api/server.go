@@ -42,7 +42,7 @@ func StartServer(cfg *config.Config) error {
 	}
 
 	// Setup telemetry server
-	port := cfg.SystemProbeExpVarPort
+	port := cfg.ExpVarPort
 	if ddconfig.Datadog.GetBool("telemetry.enabled") && isValidPort(port) {
 		http.Handle("/telemetry", telemetry.Handler())
 		expvarServer := &http.Server{

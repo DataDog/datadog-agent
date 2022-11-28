@@ -63,9 +63,9 @@ type Config struct {
 	LogLevel  string
 	DebugPort int
 
-	StatsdHost            string
-	StatsdPort            int
-	SystemProbeExpVarPort int
+	StatsdHost string
+	StatsdPort int
+	ExpVarPort int
 
 	// Settings for profiling, or nil if not enabled
 	ProfilingSettings *profiling.Settings
@@ -171,9 +171,9 @@ func load(configPath string) (*Config, error) {
 		LogLevel:  cfg.GetString(key(spNS, "log_level")),
 		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
 
-		StatsdHost:            aconfig.GetBindHost(),
-		StatsdPort:            cfg.GetInt("dogstatsd_port"),
-		SystemProbeExpVarPort: cfg.GetInt(key(spNS, "expvar_port")),
+		StatsdHost: aconfig.GetBindHost(),
+		StatsdPort: cfg.GetInt("dogstatsd_port"),
+		ExpVarPort: cfg.GetInt(key(spNS, "expvar_port")),
 
 		ProfilingSettings: profSettings,
 	}
