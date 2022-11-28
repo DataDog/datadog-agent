@@ -59,9 +59,23 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "service:flask",
 		},
 		{
+			name: "python flask in single argument",
+			cmdline: []string{
+				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
+			},
+			expectedServiceTag: "service:flask",
+		},
+		{
+			name: "python - module hello",
+			cmdline: []string{
+				"python3", "-m", "hello",
+			},
+			expectedServiceTag: "service:hello",
+		},
+		{
 			name: "ruby - td-agent",
 			cmdline: []string{
-				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid ",
+				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
 			expectedServiceTag: "service:td-agent",
 		},
