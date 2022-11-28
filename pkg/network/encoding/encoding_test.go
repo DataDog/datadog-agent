@@ -401,6 +401,8 @@ func TestSerialization(t *testing.T) {
 		defer restoreGlobalConfig()
 		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
+		// Adapt the expected result to the protobuf serialization
+		out.CORETelemetryByAsset = nil
 
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/protobuf")
@@ -421,6 +423,8 @@ func TestSerialization(t *testing.T) {
 		config.Datadog.Set("system_probe_config.collect_dns_domains", false)
 		config.Datadog.Set("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
+		// Adapt the expected result to the protobuf serialization
+		out.CORETelemetryByAsset = nil
 
 		assert := assert.New(t)
 		marshaler := GetMarshaler("application/protobuf")
