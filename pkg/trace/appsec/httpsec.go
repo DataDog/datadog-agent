@@ -21,6 +21,9 @@ type (
 		Trace        bool                   `json:"trace"`
 		ExtraTags    *spanTags              `json:"extra_tags"`
 		SecAddresses map[string]interface{} `json:"sec_addresses"`
+		TraceID      uint64                 `json:"trace_id"`
+		ParentID     uint64                 `json:"parent_id"`
+		Resource     string                 `json:"resource"`
 	}
 
 	spanTags struct {
@@ -53,6 +56,14 @@ func NewHTTPSecHandler(handle *waf.Handle) http.Handler {
 			writeErrorResponse(w, errors.Wrap(err, "appsec: couldn't parse the request body into json:"))
 			return
 		}
+
+		sp := startHTTPRequestSpan(reqPayload.TraceID, reqPayload.ParentID, reqPayload.Resource)
+		sp.Meta = reqPayload.ExtraTags.Meta
+		sp.Metrics = reqPayload.ExtraTags.Metrics
+		defer func() {
+			sp.finish()
+			// TODO: add the span into the trace queue of the trace agent
+		}()
 
 		wafCtx := waf.NewContext(handle)
 		if wafCtx == nil {
