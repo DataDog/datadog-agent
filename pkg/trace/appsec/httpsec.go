@@ -24,6 +24,8 @@ type (
 		TraceID      uint64                 `json:"trace_id"`
 		ParentID     uint64                 `json:"parent_id"`
 		Resource     string                 `json:"resource"`
+		Headers      map[string][]string    `json:"headers"`
+		RemoteAddr   string                 `json:"remote_addr"`
 	}
 
 	spanTags struct {
@@ -60,6 +62,8 @@ func NewHTTPSecHandler(handle *waf.Handle) http.Handler {
 		sp := startHTTPRequestSpan(reqPayload.TraceID, reqPayload.ParentID, reqPayload.Resource)
 		sp.Meta = reqPayload.ExtraTags.Meta
 		sp.Metrics = reqPayload.ExtraTags.Metrics
+		setAppSecEnabledTags(sp.span)
+		setClientIPTags(sp, reqPayload.RemoteAddr, reqPayload.Headers)
 		defer func() {
 			sp.finish()
 			// TODO: add the span into the trace queue of the trace agent
@@ -80,6 +84,10 @@ func NewHTTPSecHandler(handle *waf.Handle) http.Handler {
 			return
 		}
 		log.Debug("appsec: httpsec api: matches=%s actions=%v", string(matches), actions)
+
+		if len(matches) > 0 {
+			setSecurityEventsTags(sp, matches, nil, nil)
+		}
 
 		if err := json.NewEncoder(w).Encode(responsePayload{
 			Type:    "waf_response",
