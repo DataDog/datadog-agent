@@ -19,7 +19,7 @@ type (
 	requestPayload struct {
 		Type         string                 `json:"type"`
 		Trace        bool                   `json:"trace"`
-		ExtraTags    *spanTags              `json:"extra_tags"`
+		ExtraTags    spanTags               `json:"extra_tags"`
 		SecAddresses map[string]interface{} `json:"sec_addresses"`
 		TraceID      uint64                 `json:"trace_id"`
 		ParentID     uint64                 `json:"parent_id"`
