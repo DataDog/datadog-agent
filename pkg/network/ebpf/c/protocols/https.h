@@ -1,10 +1,15 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#include <linux/dcache.h>
+#include <linux/fs.h>
+#include <linux/mm_types.h>
+#include <linux/sched.h>
+
 #include "bpf_builtins.h"
+#include "go-tls-types.h"
 #include "http-buffer.h"
 #include "http-types.h"
-#include "http-maps.h"
 #include "http-maps.h"
 #include "http.h"
 #include "port_range.h"
@@ -118,6 +123,45 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+}
+
+/**
+ * get_offsets_data retrieves the result of binary analysis for the
+ * current task binary's inode number.
+ */
+static __always_inline tls_offsets_data_t* get_offsets_data() {
+    struct task_struct *t = (struct task_struct *) bpf_get_current_task();
+    struct mm_struct *mm;
+    struct file *exe_file;
+    struct inode *inode;
+    struct super_block *sb;
+    dev_t dev_id;
+
+    bpf_probe_read(&mm, sizeof(mm), &t->mm);
+    bpf_probe_read(&exe_file, sizeof(exe_file), &mm->exe_file);
+    bpf_probe_read(&inode, sizeof(inode), &exe_file->f_inode);
+    if (!inode) {
+        log_debug("get_offsets_data: could not read inode struct pointer\n");
+        return NULL;
+    }
+
+    bpf_probe_read(&sb, sizeof(sb), &inode->i_sb);
+    if (!sb) {
+        log_debug("get_offsets_data: could not read superblock struct pointer\n");
+        return NULL;
+    }
+
+    go_tls_offsets_data_key_t key;
+
+    bpf_probe_read(&key.ino, sizeof(key.ino), &inode->i_ino);
+    bpf_probe_read(&dev_id, sizeof(dev_id), &sb->s_dev);
+
+    key.device_id_major = MAJOR(dev_id);
+    key.device_id_minor = MINOR(dev_id);
+
+    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x\n", key.ino, key.device_id_major, key.device_id_minor);
+
+    return bpf_map_lookup_elem(&offsets_data, &key);
 }
 
 #endif
