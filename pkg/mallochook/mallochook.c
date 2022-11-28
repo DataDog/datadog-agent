@@ -21,9 +21,21 @@
 #include <dlfcn.h>
 #include <malloc.h>
 #include <string.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#if __GNUC__ > 4
+#  include <stdatomic.h>
+#  define mallochook_cnt_t atomic_size_t
+#  define mallochook_inc(a, v) a += v
+#  define mallochook_dec(a, v) a -= v
+#  define mallochook_get(a) a
+#else
+#  define mallochook_cnt_t unsigned long
+#  define mallochook_inc(a, v) __sync_fetch_and_add(&a, v)
+#  define mallochook_dec(a, v) __sync_fetch_and_sub(&a, v)
+#  define mallochook_get(a) __sync_fetch_and_add(&a, 0)
+#endif
 
 static void *(*mallochook_malloc)(size_t size);
 static void *(*mallochook_calloc)(size_t nmemb, size_t size);
@@ -38,21 +50,21 @@ static void *(*mallochook_valloc)(size_t size);
 static void *(*mallochook_memalign)(size_t alignment, size_t size);
 static void *(*mallochook_pvalloc)(size_t size);
 
-static atomic_size_t mallochook_heap_inuse;
-static atomic_size_t mallochook_heap_alloc;
+static mallochook_cnt_t mallochook_heap_inuse;
+static mallochook_cnt_t mallochook_heap_alloc;
 
 static void mallochook_track_alloc(void *ptr) {
     if (ptr != NULL) {
         size_t usable = malloc_usable_size(ptr);
-        mallochook_heap_inuse += usable;
-        mallochook_heap_alloc += usable;
+        mallochook_inc(mallochook_heap_inuse, usable);
+        mallochook_inc(mallochook_heap_alloc, usable);
     }
 }
 
 static void mallochook_track_free(void *ptr) {
     if (ptr != NULL) {
         size_t usable = malloc_usable_size(ptr);
-        mallochook_heap_inuse -= usable;
+        mallochook_dec(mallochook_heap_inuse, usable);
     }
 }
 
