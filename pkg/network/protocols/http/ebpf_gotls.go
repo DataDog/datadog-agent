@@ -272,7 +272,7 @@ func (p *GoTLSProgram) Start() {
 		}
 	}()
 
-	util.WithAllProcs(p.procRoot, func(pid int) error {
+	_ = util.WithAllProcs(p.procRoot, func(pid int) error {
 		p.handleProcessStart(uint32(pid))
 		return nil
 	})
