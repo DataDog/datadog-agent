@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package mallochook
 
 // #cgo CFLAGS: -O3
@@ -12,9 +10,12 @@ package mallochook
 // #include "mallochook.h"
 import "C"
 
-// Supported returns true if the current mallochook is supported on the current platform
-func Supported() bool {
-	return true
+// Stats contains statistics about allocations
+type Stats struct {
+	// Inuse is the number of bytes currently in use (allocated, but not freed)
+	Inuse uint
+	// Alloc is the total number of bytes allocated so far
+	Alloc uint
 }
 
 // GetStats returns a snapshot of memory allocation statistics

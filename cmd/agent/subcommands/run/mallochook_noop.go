@@ -3,12 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package mallochook
+//go:build !linux
 
-// Stats contains statistics about allocations
-type Stats struct {
-	// Inuse is the number of bytes currently in use (allocated, but not freed)
-	Inuse uint
-	// Alloc is the total number of bytes allocated so far
-	Alloc uint
-}
+package run
+
+func setupMallochookReporter() {}
