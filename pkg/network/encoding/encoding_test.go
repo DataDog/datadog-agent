@@ -129,7 +129,8 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			TsmEnabled: false,
 		},
-		Tags: network.GetStaticTags(1),
+		Tags:                 network.GetStaticTags(1),
+		CORETelemetryByAsset: map[string]model.COREResult{},
 	}
 	if runtime.GOOS == "linux" {
 		out.Conns[1].Tags = []uint32{0}
