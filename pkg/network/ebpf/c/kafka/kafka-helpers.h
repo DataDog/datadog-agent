@@ -144,7 +144,6 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         return false;
     }
 
-    // TODO: Taking only the first topic for now
     return extract_and_set_first_topic_name(kafka_transaction);
 }
 

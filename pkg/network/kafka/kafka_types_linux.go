@@ -48,6 +48,4 @@ const (
 	KAFKABufferSize = 0xa0
 
 	kafkaProg = 0x0
-
-	libPathMaxSize = 0x78
 )

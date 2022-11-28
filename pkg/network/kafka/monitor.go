@@ -9,11 +9,9 @@
 package kafka
 
 import (
-	"errors"
 	"fmt"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"strings"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -63,12 +61,6 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}
 
 	if err := mgr.Init(); err != nil {
-		err2 := errors.Unwrap(err)
-		err3 := errors.Unwrap(err2)
-		err4 := errors.Unwrap(err3)
-		lines := err4.(*ebpf.VerifierError).Log
-
-		fmt.Println(strings.Join(lines[len(lines)-100:len(lines)-1], "\n"))
 		return nil, fmt.Errorf("error initializing kafka ebpf program: %s", err)
 	}
 

@@ -15,12 +15,12 @@ BPF_LRU_MAP(kafka_in_flight, conn_tuple_t, kafka_transaction_t, 0)
    */
 BPF_HASH_MAP(kafka_last_tcp_seq_per_connection, conn_tuple_t, __u32, 0)
 
-/* This map used for flush complete HTTP batches to userspace */
+/* This map used for flush complete Kafka batches to userspace */
 BPF_PERF_EVENT_ARRAY_MAP(kafka_batch_events, __u32, 0)
 BPF_PERF_EVENT_ARRAY_MAP(kafka_events, __u32, 0)
 
 /*
-  This map stores finished KAFKA transactions in batches so they can be consumed by userspace
+  This map stores finished Kafka transactions in batches so they can be consumed by userspace
   Size is set dynamically during runtime and must be equal to CPUs*KAFKA_BATCH_PAGES
  */
 BPF_HASH_MAP(kafka_batches, kafka_batch_key_t, kafka_batch_t, 0)

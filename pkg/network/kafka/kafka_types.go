@@ -33,6 +33,4 @@ const (
 	KAFKABufferSize = C.KAFKA_BUFFER_SIZE
 
 	kafkaProg = C.KAFKA_PROG
-
-	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )
