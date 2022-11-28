@@ -13,13 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/DataDog/datadog-agent/pkg/network/etw"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-const (
-	defaultMaxTrackedConnections = 65536
 )
 
 // Monitor is the interface to HTTP monitoring
@@ -106,10 +101,10 @@ func (m *WindowsMonitor) Start() {
 	return
 }
 
-func (m *WindowsMonitor) processEtw(transactionBatch []etw.Http, err error) {
+func (m *WindowsMonitor) processEtw(transactionBatch []WinHttpTransaction, err error) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
-		transactions[i] = &etwHttpTX{Http: &transactionBatch[i]}
+		transactions[i] = &transactionBatch[i]
 	}
 
 	m.mux.Lock()
@@ -118,7 +113,7 @@ func (m *WindowsMonitor) processEtw(transactionBatch []etw.Http, err error) {
 	m.telemetry.aggregate(transactions, err)
 	m.statkeeper.Process(transactions)
 }
-func (m *WindowsMonitor) process(transactionBatch []FullHttpTransaction, err error) {
+func (m *WindowsMonitor) process(transactionBatch []WinHttpTransaction, err error) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = &transactionBatch[i]

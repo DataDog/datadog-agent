@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -48,7 +48,7 @@ func TestMountResolver(t *testing.T) {
 							MountID:       127,
 							GroupID:       71,
 							Device:        52,
-							ParentMountID: 27,
+							ParentMountID: 0,
 							ParentInode:   0,
 							FSType:        "overlay",
 							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
@@ -68,7 +68,7 @@ func TestMountResolver(t *testing.T) {
 					{
 						0,
 						"",
-						nil,
+						ErrMountNotFound,
 					},
 					{
 						27,
@@ -328,12 +328,12 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				_, p, _, err := mr.GetMountPath(testC.mountID, 0)
+				p, _, err := mr.ResolveMountPaths(testC.mountID, 0)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
 					} else {
-						t.Fatal(err)
+						t.Fatalf("case %v: %v", testC, err)
 					}
 					continue
 				}
@@ -343,8 +343,38 @@ func TestMountResolver(t *testing.T) {
 	}
 }
 
-func TestGetParentPath(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+func TestMountGetParentPath(t *testing.T) {
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mr := &MountResolver{
+		mounts: map[uint32]*model.MountEvent{
+			1: {
+				MountID:       1,
+				MountPointStr: "/a",
+			},
+			2: {
+				MountID:       2,
+				ParentMountID: 1,
+				MountPointStr: "/b",
+			},
+			3: {
+				MountID:       3,
+				ParentMountID: 2,
+				MountPointStr: "/c",
+			},
+		},
+		parentPathCache: parentPathCache,
+	}
+
+	parentPath, _ := mr.getParentPath(3)
+	assert.Equal(t, "/a/b/c", parentPath)
+}
+
+func TestMountLoop(t *testing.T) {
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -370,12 +400,13 @@ func TestGetParentPath(t *testing.T) {
 		parentPathCache: parentPathCache,
 	}
 
-	parentPath := mr.getParentPath(3)
-	assert.Equal(t, "/a/b/c", parentPath)
+	parentPath, err := mr.getParentPath(3)
+	assert.Equal(t, ErrMountLoop, err)
+	assert.Equal(t, "", parentPath)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
-	parentPathCache, err := simplelru.NewLRU(256, nil)
+	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -397,6 +428,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = mr.getParentPath(0)
+		_, _ = mr.getParentPath(0)
 	}
 }

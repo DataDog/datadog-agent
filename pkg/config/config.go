@@ -652,6 +652,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.discovery_allowed_failures")
 	config.SetKnown("snmp_listener.collect_device_metadata")
+	config.SetKnown("snmp_listener.collect_topology")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
@@ -724,6 +725,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
+	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -769,6 +771,11 @@ func InitConfig(config Config) {
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
+
+	// Cloud Foundry Container Tagger
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.shell_path", "/bin/sh")
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_count", 10)
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_interval", 10)
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
@@ -1037,6 +1044,8 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1365,9 +1374,8 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		// these variables are used by serverless, but not via the Config struct
 		"DD_SERVICE":            {},
 		"DD_DOTNET_TRACER_HOME": {},
-		// these variables are used by system-probe, but not via the Config struct
+		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
-		"DD_TESTS_CO_RE":            {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

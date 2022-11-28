@@ -495,11 +495,11 @@ func (pbm *PerfBufferMonitor) collectAndSendKernelStats(client statsd.ClientInte
 				}
 				if tmpCount = pbm.swapKernelLostCount(evtType, perfMapName, cpu, stats.Lost.Load()); tmpCount <= stats.Lost.Load() {
 					stats.Lost.Sub(tmpCount)
-				}
 
-				// purge dentry resolver generation if needed
-				if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
-					pbm.shouldBumpGeneration.Store(true)
+					// purge dentry resolver generation if needed
+					if evtType == model.FileRenameEventType || evtType == model.FileUnlinkEventType || evtType == model.FileRmdirEventType {
+						pbm.shouldBumpGeneration.Store(true)
+					}
 				}
 
 				if client != nil {

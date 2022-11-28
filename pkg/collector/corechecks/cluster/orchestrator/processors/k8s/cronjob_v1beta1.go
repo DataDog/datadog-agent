@@ -46,7 +46,7 @@ func (h *CronJobV1Beta1Handlers) BuildMessageBody(ctx *processors.ProcessorConte
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		CronJobs:    models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

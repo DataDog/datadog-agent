@@ -220,25 +220,6 @@ func TestAddEventDefaultValues(t *testing.T) {
 	assert.Equal(t, "custom_source_type", event2.SourceTypeName)
 }
 
-func TestSetHostname(t *testing.T) {
-	// this test IS USING globals
-	// -
-
-	agg := getAggregator()
-	agg.checkSamplers = make(map[check.ID]*CheckSampler)
-
-	assert.Equal(t, "hostname", agg.hostname)
-	sender, err := GetSender(checkID1)
-	require.NoError(t, err)
-	checkSender, ok := sender.(*checkSender)
-	require.True(t, ok)
-	assert.Equal(t, "hostname", checkSender.defaultHostname)
-
-	agg.SetHostname("different-hostname")
-	assert.Equal(t, "different-hostname", agg.hostname)
-	assert.Equal(t, "different-hostname", checkSender.defaultHostname)
-}
-
 func TestDefaultData(t *testing.T) {
 	// this test IS USING globals (tagsetTlm) but a local aggregator
 	// -

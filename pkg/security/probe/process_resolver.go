@@ -25,7 +25,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/gopsutil/process"
 	lib "github.com/cilium/ebpf"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -114,7 +114,7 @@ type ProcessResolver struct {
 	envsSize       *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU
+	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
 
 	argsEnvsPool          *ArgsEnvsPool
 	processCacheEntryPool *ProcessCacheEntryPool
@@ -124,7 +124,7 @@ type ProcessResolver struct {
 
 // ArgsEnvsPool defines a pool for args/envs allocations
 type ArgsEnvsPool struct {
-	lock sync.RWMutex
+	lock sync.Mutex
 	pool *sync.Pool
 
 	// entries that wont be release to the pool
@@ -135,8 +135,8 @@ type ArgsEnvsPool struct {
 
 // Get returns a cache entry
 func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
 	// first try from resident pool
 	if el := a.freeResidents.Front(); el != nil {
@@ -150,9 +150,6 @@ func (a *ArgsEnvsPool) Get() *model.ArgsEnvsCacheEntry {
 
 // GetFrom returns a new entry with value from the given entry
 func (a *ArgsEnvsPool) GetFrom(event *model.ArgsEnvsEvent) *model.ArgsEnvsCacheEntry {
-	a.lock.RLock()
-	defer a.lock.RUnlock()
-
 	entry := a.Get()
 
 	entry.Size = event.ArgsEnvs.Size
@@ -222,11 +219,11 @@ func NewProcessCacheEntryPool(p *ProcessResolver) *ProcessCacheEntryPool {
 				pce.Ancestor.Release()
 			}
 
-			if pce.ArgsEntry != nil && pce.ArgsEntry.ArgsEnvsCacheEntry != nil {
-				pce.ArgsEntry.ArgsEnvsCacheEntry.Release()
+			if pce.ArgsEntry != nil {
+				pce.ArgsEntry.Release()
 			}
-			if pce.EnvsEntry != nil && pce.EnvsEntry.ArgsEnvsCacheEntry != nil {
-				pce.EnvsEntry.ArgsEnvsCacheEntry.Release()
+			if pce.EnvsEntry != nil {
+				pce.EnvsEntry.Release()
 			}
 
 			p.cacheSize.Dec()
@@ -347,8 +344,7 @@ func (p *ProcessResolver) SendStats() error {
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 	entry := p.argsEnvsPool.GetFrom(event)
-	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		list := e.(*model.ArgsEnvsCacheEntry)
+	if list, found := p.argsEnvsCache.Get(event.ID); found {
 		list.Append(entry)
 	} else {
 		p.argsEnvsCache.Add(event.ID, entry)
@@ -407,7 +403,10 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	if err != nil {
+		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
+	}
 
 	entry.ExecTime = time.Unix(0, filledProc.CreateTime*int64(time.Millisecond))
 	entry.ForkTime = entry.ExecTime
@@ -667,12 +666,16 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 }
 
 // SetProcessFilesystem resolves process file system
-func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) string {
+func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		entry.FileEvent.Filesystem = p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		if err != nil {
+			return "", err
+		}
+		entry.FileEvent.Filesystem = fs
 	}
 
-	return entry.FileEvent.Filesystem
+	return entry.FileEvent.Filesystem, nil
 }
 
 // ApplyBootTime realign timestamp from the boot time
@@ -719,14 +722,14 @@ func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheE
 
 	p.SetProcessArgs(entry)
 	p.SetProcessEnvs(entry)
-	p.SetProcessFilesystem(entry)
 	p.SetProcessTTY(entry)
 	p.SetProcessUsersGroups(entry)
 	p.ApplyBootTime(entry)
-
 	p.SetProcessSymlink(entry)
 
-	return nil
+	_, err := p.SetProcessFilesystem(entry)
+
+	return err
 }
 
 // ResolveFromKernelMaps resolves the entry from the kernel maps
@@ -849,12 +852,11 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 
 // SetProcessArgs set arguments to cache entry
 func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
-	if e, found := p.argsEnvsCache.Get(pce.ArgsID); found {
+	if entry, found := p.argsEnvsCache.Get(pce.ArgsID); found {
 		if pce.ArgsTruncated {
 			p.argsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
 		p.argsSize.Add(int64(entry.TotalSize))
 
 		pce.ArgsEntry = &model.ArgsEntry{
@@ -864,7 +866,7 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
 		// the whole list will be released
-		pce.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+		pce.ArgsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
@@ -920,12 +922,11 @@ func (p *ProcessResolver) GetProcessScrubbedArgv(pr *model.Process) ([]string, b
 
 // SetProcessEnvs set envs to cache entry
 func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
-	if e, found := p.argsEnvsCache.Get(pce.EnvsID); found {
+	if entry, found := p.argsEnvsCache.Get(pce.EnvsID); found {
 		if pce.EnvsTruncated {
 			p.envsTruncated.Inc()
 		}
 
-		entry := e.(*model.ArgsEnvsCacheEntry)
 		p.envsSize.Add(int64(entry.TotalSize))
 
 		pce.EnvsEntry = &model.EnvsEntry{
@@ -935,10 +936,10 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
 		// the whole list will be released
-		pce.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+		pce.EnvsEntry.Retain()
 
 		// no need to keep it in LRU now as attached to a process
-		p.argsEnvsCache.Remove(pce.ArgsID)
+		p.argsEnvsCache.Remove(pce.EnvsID)
 	}
 }
 
@@ -1269,7 +1270,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU(maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}

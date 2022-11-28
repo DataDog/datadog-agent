@@ -179,6 +179,7 @@ type seclField struct {
 	skipADResolution    bool
 	lengthField         bool
 	weight              int64
+	check               string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -208,6 +209,8 @@ func parseFieldDef(def string) (seclField, error) {
 				field.weight = weight
 			case "iterator":
 				field.iterator = value
+			case "check":
+				field.check = value
 			case "opts":
 				for _, opt := range strings.Split(value, "|") {
 					switch opt {
@@ -317,6 +320,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							IsOrigTypePtr: isPointer,
 							IsArray:       isArray,
 							Constants:     constants,
+							Check:         seclField.check,
 						}
 
 						if iterator := seclField.iterator; iterator != "" {
@@ -333,6 +337,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								Constants:           constants,
 								CachelessResolution: seclField.cachelessResolution,
 								SkipADResolution:    seclField.skipADResolution,
+								Check:               seclField.check,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -361,6 +366,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								CachelessResolution: seclField.cachelessResolution,
 								SkipADResolution:    seclField.skipADResolution,
 								IsOrigTypePtr:       isPointer,
+								Check:               seclField.check,
 							}
 
 							if seclField.lengthField {
@@ -580,6 +586,42 @@ func override(str string, mock bool) string {
 	return str
 }
 
+func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
+	idx := strings.LastIndex(field.Name, ".")
+	if idx == -1 {
+		return nil
+	}
+	name := field.Name[:idx]
+	return allFields[name]
+}
+
+func getChecks(allFields map[string]*common.StructField, field *common.StructField) []string {
+	var checks []string
+
+	name := field.Name
+	for name != "" {
+		field := allFields[name]
+		if field == nil {
+			break
+		}
+
+		if field.Check != "" {
+			if holder := getHolder(allFields, field); holder != nil {
+				check := fmt.Sprintf(`%s.%s`, holder.Name, field.Check)
+				checks = append([]string{check}, checks...)
+			}
+		}
+
+		idx := strings.LastIndex(name, ".")
+		if idx == -1 {
+			break
+		}
+		name = name[:idx]
+	}
+
+	return checks
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":       strings.TrimPrefix,
 	"TrimSuffix":       strings.TrimSuffix,
@@ -587,6 +629,7 @@ var funcMap = map[string]interface{}{
 	"Override":         override,
 	"GetFieldResolver": getFieldResolver,
 	"FieldADPrint":     fieldADPrint,
+	"GetChecks":        getChecks,
 }
 
 //go:embed accessors.tmpl

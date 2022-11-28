@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"mime"
@@ -99,7 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		containerIDProvider: NewIDProvider("/proc"),
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -519,7 +518,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()

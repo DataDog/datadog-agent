@@ -174,7 +174,7 @@ type systemPooltag struct {
 }
 type systemPooltagInformation struct {
 	count    uint32
-	padding  uint32
+	_        uint32 // padding
 	poolTags []systemPooltag
 }
 

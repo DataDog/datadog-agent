@@ -24,20 +24,34 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const (
-	httpReadBufferCount = 100
-)
+///const (
+///	httpReadBufferCount = 100
+///)
 
-type FullHttpTransaction struct {
+type WinHttpTransaction struct {
 	Txn             driver.HttpTransactionType
 	RequestFragment []byte
+
+	// ... plus some extra that's only valid when it's an ETW transactoin
+	AppPool string
+
+	// <<<MORE ETW HttpService DETAILS>>>
+	// We can track FULL url and few other attributes. However it will require much memory.
+	// Search for <<<MORE ETW HttpService DETAILS>>> top find all places to be uncommented
+	// if such tracking is desired
+	//
+	// Url           string
+	SiteID   uint32
+	SiteName string
+	// HeaderLength  uint32
+	// ContentLength uint32
 }
 type httpDriverInterface struct {
 	driverHTTPHandle  driver.Handle
 	driverEventHandle windows.Handle
 
 	readMux     sync.Mutex
-	dataChannel chan []FullHttpTransaction
+	dataChannel chan []WinHttpTransaction
 	eventLoopWG sync.WaitGroup
 	closed      bool
 	// configuration entries
@@ -57,7 +71,7 @@ func newDriverInterface(c *config.Config, dh driver.Handle) (*httpDriverInterfac
 		return nil, err
 	}
 
-	d.dataChannel = make(chan []FullHttpTransaction)
+	d.dataChannel = make(chan []WinHttpTransaction)
 	return d, nil
 }
 
@@ -84,7 +98,7 @@ func (di *httpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 	}
 	log.Infof("Enabled http in driver")
 
-	u16eventname, err := windows.UTF16PtrFromString("Global\\DDNPMHttpTxnReadyEvent")
+	u16eventname, _ := windows.UTF16PtrFromString("Global\\DDNPMHttpTxnReadyEvent")
 	di.driverEventHandle, err = windows.CreateEvent(nil, 1, 0, u16eventname)
 	if err != nil {
 		if err != windows.ERROR_ALREADY_EXISTS || di.driverEventHandle == windows.Handle(0) {
@@ -123,7 +137,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 		defer di.eventLoopWG.Done()
 
 		for {
-			windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
+			_, _ = windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
 			if di.closed {
 				break
 			}
@@ -133,7 +147,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 }
 
 //func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
-func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction, error) {
+func (di *httpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, error) {
 	var (
 		bytesRead uint32
 		buf       = make([]byte, (driver.HttpTransactionTypeSize+di.maxRequestFragment)*di.maxTransactions)
@@ -153,10 +167,10 @@ func (di *httpDriverInterface) readPendingTransactions() ([]FullHttpTransaction,
 	if bytesRead == 0 {
 		return nil, nil
 	}
-	transactionBatch := make([]FullHttpTransaction, 0)
+	transactionBatch := make([]WinHttpTransaction, 0)
 
 	for i := uint32(0); i < bytesRead; {
-		var tx FullHttpTransaction
+		var tx WinHttpTransaction
 		tx.Txn = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf[i]))
 		tx.RequestFragment = make([]byte, tx.Txn.MaxRequestFragment)
 		i += driver.HttpTransactionTypeSize

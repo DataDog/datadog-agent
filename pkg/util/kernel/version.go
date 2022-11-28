@@ -10,7 +10,7 @@ package kernel
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -50,7 +50,7 @@ func HostVersion() (Version, error) {
 		return hostVersion, nil
 	}
 
-	if procVersion, err := ioutil.ReadFile("/proc/version_signature"); err == nil {
+	if procVersion, err := os.ReadFile("/proc/version_signature"); err == nil {
 		v, err := parseUbuntuVersion(string(procVersion))
 		if err != nil {
 			return 0, fmt.Errorf("error parsing ubuntu kernel version: %s", err)

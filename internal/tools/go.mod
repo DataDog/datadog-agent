@@ -9,7 +9,7 @@ require (
 	github.com/goware/modvendor v0.5.0
 	github.com/mgechev/revive v1.2.4
 	github.com/stormcat24/protodep v0.0.0-20210106175019-c95189bc461b
-	github.com/vektra/mockery/v2 v2.12.3
+	github.com/vektra/mockery/v2 v2.14.1
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
 	gotest.tools/gotestsum v1.8.2
@@ -149,7 +149,7 @@ require (
 	github.com/quasilyte/gogrep v0.0.0-20220120141003-628d8b3623b5 // indirect
 	github.com/quasilyte/regex/syntax v0.0.0-20200407221936-30656e2c4a95 // indirect
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect
-	github.com/rs/zerolog v1.26.1 // indirect
+	github.com/rs/zerolog v1.27.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryancurrah/gomodguard v1.2.4 // indirect
 	github.com/ryanrolds/sqlclosecheck v0.3.0 // indirect

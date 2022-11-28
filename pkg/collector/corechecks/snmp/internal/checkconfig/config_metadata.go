@@ -86,6 +86,74 @@ var LegacyMetadataConfig = MetadataConfig{
 	},
 }
 
+var TopologyMetadataConfig = MetadataConfig{
+	"lldp_remote": {
+		Fields: map[string]MetadataField{
+			"chassis_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.4",
+					Name: "lldpRemChassisIdSubtype",
+				},
+			},
+			"chassis_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.5",
+					Name: "lldpRemChassisId",
+				},
+			},
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.6",
+					Name: "lldpRemPortIdSubtype",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.7",
+					Name: "lldpRemPortId",
+				},
+			},
+			"interface_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.8",
+					Name: "lldpRemPortDesc",
+				},
+			},
+			"device_name": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.9",
+					Name: "lldpRemSysName",
+				},
+			},
+			"device_desc": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.4.1.1.10",
+					Name: "lldpRemSysDesc",
+				},
+			},
+			// TODO: Implement later lldpRemSysCapSupported and lldpRemSysCapEnabled
+			//   - 1.0.8802.1.1.2.1.4.1.1.11 lldpRemSysCapSupported
+			//   - 1.0.8802.1.1.2.1.4.1.1.12  lldpRemSysCapEnabled
+		},
+	},
+	"lldp_local": {
+		Fields: map[string]MetadataField{
+			"interface_id_type": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.3.7.1.2",
+					Name: "lldpLocPortIdSubtype",
+				},
+			},
+			"interface_id": {
+				Symbol: SymbolConfig{
+					OID:  "1.0.8802.1.1.2.1.3.7.1.3",
+					Name: "lldpLocPortID",
+				},
+			},
+		},
+	},
+}
+
 // MetadataConfig holds configs per resource type
 type MetadataConfig map[string]MetadataResourceConfig
 
@@ -113,16 +181,22 @@ func IsMetadataResourceWithScalarOids(resource string) bool {
 	return resource == common.MetadataDeviceResource
 }
 
-// updateMetadataDefinitionWithLegacyFallback will add metadata config for resources
+// updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
-func updateMetadataDefinitionWithLegacyFallback(config MetadataConfig) MetadataConfig {
-	if config == nil {
-		config = MetadataConfig{}
+func updateMetadataDefinitionWithDefaults(metadataConfig MetadataConfig, collectTopology bool) MetadataConfig {
+	newConfig := make(MetadataConfig)
+	mergeMetadata(newConfig, metadataConfig)
+	mergeMetadata(newConfig, LegacyMetadataConfig)
+	if collectTopology {
+		mergeMetadata(newConfig, TopologyMetadataConfig)
 	}
-	for resourceName, resourceConfig := range LegacyMetadataConfig {
-		if _, ok := config[resourceName]; !ok {
-			config[resourceName] = resourceConfig
+	return newConfig
+}
+
+func mergeMetadata(metadataConfig MetadataConfig, extraMetadata MetadataConfig) {
+	for resourceName, resourceConfig := range extraMetadata {
+		if _, ok := metadataConfig[resourceName]; !ok {
+			metadataConfig[resourceName] = resourceConfig
 		}
 	}
-	return config
 }

@@ -129,8 +129,6 @@ var (
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
-	tlmHostnameUpdate = telemetry.NewCounter("aggregator", "hostname_update",
-		nil, "Count of hostname update")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "Count the number of dogstatsd contexts in the aggregator")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
@@ -376,13 +374,6 @@ func (agg *BufferedAggregator) IsInputQueueEmpty() bool {
 // GetBufferedChannels returns a channel which can be subsequently used to send Event or ServiceCheck.
 func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
 	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
-}
-
-// SetHostname sets the hostname that the aggregator uses by default on all the data it sends
-// Blocks until the main aggregator goroutine has finished handling the update
-func (agg *BufferedAggregator) SetHostname(hostname string) {
-	agg.hostnameUpdate <- hostname
-	<-agg.hostnameUpdateDone
 }
 
 func (agg *BufferedAggregator) registerSender(id check.ID) error {
@@ -756,12 +747,6 @@ func (agg *BufferedAggregator) run() {
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
-		case h := <-agg.hostnameUpdate:
-			aggregatorHostnameUpdate.Add(1)
-			tlmHostnameUpdate.Inc()
-			agg.hostname = h
-			changeAllSendersDefaultHostname(h)
-			agg.hostnameUpdateDone <- struct{}{}
 		case orchestratorMetadata := <-agg.orchestratorMetadataIn:
 			aggregatorOrchestratorMetadata.Add(1)
 			// each resource has its own payload so we cannot aggregate

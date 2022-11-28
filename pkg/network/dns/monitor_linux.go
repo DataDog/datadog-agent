@@ -76,7 +76,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 	}
 	defer ns.Close()
 
-	err = util.WithNS(cfg.ProcRoot, ns, func() error {
+	err = util.WithNS(ns, func() error {
 		packetSrc, srcErr = filterpkg.NewPacketSource(filter, bpfFilter)
 		return srcErr
 	})

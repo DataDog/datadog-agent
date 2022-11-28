@@ -12,20 +12,20 @@ import (
 	"os/user"
 	"strconv"
 
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // UserGroupResolver resolves user and group ids to names
 type UserGroupResolver struct {
-	userCache  *lru.Cache
-	groupCache *lru.Cache
+	userCache  *lru.Cache[int, string]
+	groupCache *lru.Cache[int, string]
 }
 
 // ResolveUser resolves a user id to a username
 func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
 	cachedEntry, found := r.userCache.Get(uid)
 	if found {
-		return cachedEntry.(string), nil
+		return cachedEntry, nil
 	}
 
 	var username string
@@ -41,7 +41,7 @@ func (r *UserGroupResolver) ResolveUser(uid int) (string, error) {
 func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
 	cachedEntry, found := r.groupCache.Get(gid)
 	if found {
-		return cachedEntry.(string), nil
+		return cachedEntry, nil
 	}
 
 	var groupname string
@@ -55,12 +55,12 @@ func (r *UserGroupResolver) ResolveGroup(gid int) (string, error) {
 
 // NewUserGroupResolver instantiates a new user and group resolver
 func NewUserGroupResolver() (*UserGroupResolver, error) {
-	userCache, err := lru.New(64)
+	userCache, err := lru.New[int, string](64)
 	if err != nil {
 		return nil, err
 	}
 
-	groupCache, err := lru.New(64)
+	groupCache, err := lru.New[int, string](64)
 	if err != nil {
 		return nil, err
 	}

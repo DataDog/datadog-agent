@@ -81,7 +81,8 @@
                 "ubuntu-16-04": "bento/ubuntu-16.04"
             },
             "arm64": {
-                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64"
+                "ubuntu-20-04": "bytesguy/ubuntu-server-20.04-arm64",
+                "ubuntu-22-04": "brycekahle/ubuntu-22.04-arm64"
             }
         }
     },
