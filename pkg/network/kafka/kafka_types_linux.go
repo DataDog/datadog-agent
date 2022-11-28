@@ -29,8 +29,6 @@ type ebpfKafkaTx struct {
 	Request_fragment                   [160]byte
 	Client_id                          [80]int8
 	Topic_name                         [80]int8
-	Owned_by_src_port                  uint16
-	Pad_cgo_0                          [6]byte
 }
 type kafkaBatch struct {
 	Idx uint64

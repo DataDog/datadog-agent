@@ -57,14 +57,7 @@ typedef struct {
     __u32 current_offset_in_request_fragment;
     char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
     char client_id[CLIENT_ID_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
-    // TODO: Support UTF8
     char topic_name[TOPIC_NAME_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
-
-    // this field is used exclusively in the kernel side to prevent a TCP segment
-    // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the "original" (pre-normalization) source port number of
-    // the TCP segment containing the beginning of a given HTTP request
-    __u16 owned_by_src_port;
 
 } kafka_transaction_t;
 
