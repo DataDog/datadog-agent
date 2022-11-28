@@ -479,6 +479,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
+	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
+		// the span attribute "peer.service" takes precedence over any resource attributes,
+		// in the same way that "service.name" does as part of setMetaOTLP
+		span.Service = svc.Str()
+	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
@@ -531,11 +536,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		span.Name = name
 	}
 	if span.Service == "" {
-		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else {
-			span.Service = "OTLPResourceNoServiceName"
-		}
+		span.Service = "OTLPResourceNoServiceName"
 	}
 	if span.Resource == "" {
 		if r := resourceFromTags(span.Meta); r != "" {
