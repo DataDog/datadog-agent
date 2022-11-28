@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -40,6 +41,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
+	google_grpc "google.golang.org/grpc"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
@@ -204,19 +207,7 @@ func Run(ctx context.Context) {
 		},
 	})
 
-	{
-		appsecHandler, err := appsec.NewHTTPHandler()
-		if err != nil {
-			log.Errorf("appsec: could not create the http api handler: %v", err)
-		} else {
-			api.AttachEndpoint(api.Endpoint{
-				Pattern: "/httpsec",
-				Handler: func(r *api.HTTPReceiver) http.Handler {
-					return appsecHandler
-				},
-			})
-		}
-	}
+	initASM()
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
@@ -245,6 +236,48 @@ func Run(ctx context.Context) {
 			log.Error("Could not write memory profile: ", err)
 		}
 		f.Close()
+	}
+}
+
+func initASM() {
+	wafHandle, err := appsec.NewWAFHandle()
+	if err != nil {
+		tracelog.Errorf("appsec: unexpected error while instantiating the waf: %v", err)
+	}
+
+	// HTTP API
+	{
+		httpsecAPI := appsec.NewHTTPSecHandler(wafHandle)
+		if err != nil {
+			log.Errorf("appsec: could not create the http api handler: %v", err)
+		} else {
+			api.AttachEndpoint(api.Endpoint{
+				Pattern: "/httpsec",
+				Handler: func(r *api.HTTPReceiver) http.Handler {
+					return httpsecAPI
+				},
+			})
+			log.Info("appsec: httpsec api ready on localhost:8126/httpsec")
+		}
+	}
+
+	// gRPC server serving the envoy auth api
+	{
+		srv := google_grpc.NewServer()
+		service := appsec.NewEnvoyAuthorizationServer(wafHandle)
+		envoy_service_auth_v3.RegisterAuthorizationServer(srv, service)
+		addr := "0.0.0.0:42424"
+		lis, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Errorf("appsec: could not listen on the grpc server address %s: %v", addr, err)
+		} else {
+			log.Infof("appsec: grpc server listening on %s", addr)
+			go func() {
+				if err := srv.Serve(lis); err != nil {
+					log.Errorf("appsec: grpc server error: %v", err)
+				}
+			}()
+		}
 	}
 }
 
