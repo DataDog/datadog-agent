@@ -64,13 +64,16 @@ static void* mallochook_loadsym(const char *name) {
         if (err == NULL) {
             err = "symbol is defined, but null";
         }
-        const char *reloc_err = "error patching symbol ";
         // printf calls malloc, but we may have just failed to load one
-        write(2, reloc_err, strlen(reloc_err));
-        write(2, name, strlen(name));
-        write(2, ": ", 2);
-        write(2, err, strlen(err));
-        write(2, "\n", 1);
+        const char *reloc_err = "error patching symbol ";
+        // not much we can do about errors or partial writes here, but this
+        // keeps the -Werror happy.
+        int n = 0;
+        n += write(2, reloc_err, strlen(reloc_err));
+        n += write(2, name, strlen(name));
+        n += write(2, ": ", 2);
+        n += write(2, err, strlen(err));
+        n += write(2, "\n", 1);
     }
     return ptr;
 }
