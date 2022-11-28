@@ -200,8 +200,7 @@ namespace WixSetup.Datadog
             var targetBinFolder = CreateBinFolder();
             var binFolder =
                 new Dir(new Id("%ProgramFiles%"),
-                    new Dir(new Id("PROJECTLOCATION"), "Datadog",
-                        new InstallDir("Datadog Agent",
+                    new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent\\Datadog",
                             targetBinFolder,
                             new Dir("LICENSES",
                                 new Files($@"{InstallerSource}\LICENSES\*")
