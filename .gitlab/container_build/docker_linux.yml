@@ -130,6 +130,9 @@ docker_build_agent7:
 # NOTE this is a temporary workaround and the method taken in #14438 is
 # preferred in the long-term.
 docker_build_agent7_single_machine_performance:
+  stage: container_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["runner:docker"]
   rules:
     !reference [.on_a7]
   needs:
