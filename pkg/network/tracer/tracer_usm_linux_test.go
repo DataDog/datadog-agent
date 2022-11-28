@@ -681,7 +681,6 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 		}
 
 		clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
-		t.Cleanup(func() { os.RemoveAll(clientBin) })
 
 		go func() {
 			defer close(done)
