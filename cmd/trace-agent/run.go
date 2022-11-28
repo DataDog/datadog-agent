@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -202,6 +203,20 @@ func Run(ctx context.Context) {
 			return cmdconfig.SetHandler()
 		},
 	})
+
+	{
+		appsecHandler, err := appsec.NewHTTPHandler()
+		if err != nil {
+			log.Errorf("appsec: could not create the http api handler: %v", err)
+		} else {
+			api.AttachEndpoint(api.Endpoint{
+				Pattern: "/httpsec",
+				Handler: func(r *api.HTTPReceiver) http.Handler {
+					return appsecHandler
+				},
+			})
+		}
+	}
 
 	agnt := agent.NewAgent(ctx, cfg)
 	log.Infof("Trace agent running on host %s", cfg.Hostname)

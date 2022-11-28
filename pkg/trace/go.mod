@@ -16,6 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
+	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/gogo/protobuf v1.3.2
