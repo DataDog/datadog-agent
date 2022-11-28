@@ -73,6 +73,10 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	return s.applySampleRate(root, rate)
 }
 
+func (e *ErrorsSampler) UpdateTargetTPS(targetTPS float64) {
+	e.ScoreSampler.Sampler.updateTargetTPS(targetTPS)
+}
+
 func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
 	initialRate := GetGlobalRate(root)
 	newRate := initialRate * rate

@@ -8,7 +8,7 @@ package api
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -69,7 +69,7 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 		require.NotNil(t, proxy)
 
 		rec := httptest.NewRecorder()
-		body := ioutil.NopCloser(bytes.NewBufferString("users.online:1|c|@0.5|#country:china"))
+		body := io.NopCloser(bytes.NewBufferString("users.online:1|c|@0.5|#country:china"))
 		proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
 		require.Equal(t, http.StatusOK, rec.Code)
 	})
@@ -103,7 +103,7 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 	payloads := [][]byte{[]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"), []byte("_e{21,36}:An exception occurred|Cannot parse CSV file from\\n10.0.0.17|t:warning|#err_type:bad_file")}
 	sep := []byte("\n")
 	msg := bytes.Join(payloads, sep)
-	body := ioutil.NopCloser(bytes.NewBuffer(msg))
+	body := io.NopCloser(bytes.NewBuffer(msg))
 	proxy.ServeHTTP(rec, httptest.NewRequest("POST", "/", body))
 	require.Equal(t, http.StatusOK, rec.Code)
 

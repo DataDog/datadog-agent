@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	mock "github.com/DataDog/datadog-agent/pkg/security/tests"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func compareListOfDumps(t *testing.T, out, expectedOut []*ActivityDump) {
@@ -350,7 +350,7 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 			adm := &ActivityDumpManager{
 				activeDumps: tt.fields.activeDumps,
 				probe: &Probe{
-					statsdClient: mock.NewStatsdClient(),
+					statsdClient: &statsd.NoOpClient{},
 					config: &config.Config{
 						ActivityDumpMaxDumpSize: func() int {
 							return 2048

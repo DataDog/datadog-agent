@@ -45,6 +45,7 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
+	api.UnimplementedSecurityModuleServer
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
 	activityDumps        chan *api.ActivityDumpStreamMessage

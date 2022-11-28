@@ -12,7 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"sort"
@@ -107,7 +107,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	var profile flare.ProfileData
 
 	if r.Body != http.NoBody {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
 			return
@@ -225,7 +225,7 @@ func streamLogs(w http.ResponseWriter, r *http.Request) {
 	var filters diagnostic.Filters
 
 	if r.Body != http.NoBody {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
 			return

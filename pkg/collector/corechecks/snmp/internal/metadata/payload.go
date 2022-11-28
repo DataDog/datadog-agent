@@ -19,13 +19,26 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
+type IDType string
+
+const (
+	// IDTypeNDM is used as IDType value for topology data
+	// to indicate the ID uses NDM internal type
+	// e.g. interfaceID of `ndm` type is in this format: `<NAMESPACE>:<DEVICE_IP>:<INTERFACE_INDEX>`
+	IDTypeNDM = "ndm"
+
+	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
+	IDTypeMacAddress = "mac_address"
+)
+
 // NetworkDevicesMetadata contains network devices metadata
 type NetworkDevicesMetadata struct {
-	Subnet           string              `json:"subnet"`
-	Namespace        string              `json:"namespace"`
-	Devices          []DeviceMetadata    `json:"devices,omitempty"`
-	Interfaces       []InterfaceMetadata `json:"interfaces,omitempty"`
-	CollectTimestamp int64               `json:"collect_timestamp"`
+	Subnet           string                 `json:"subnet"`
+	Namespace        string                 `json:"namespace"`
+	Devices          []DeviceMetadata       `json:"devices,omitempty"`
+	Interfaces       []InterfaceMetadata    `json:"interfaces,omitempty"`
+	Links            []TopologyLinkMetadata `json:"links,omitempty"`
+	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
 // DeviceMetadata contains device metadata
@@ -62,4 +75,31 @@ type InterfaceMetadata struct {
 	MacAddress  string   `json:"mac_address,omitempty"`
 	AdminStatus int32    `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
 	OperStatus  int32    `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
+}
+
+// TopologyLinkDevice contain device link data
+type TopologyLinkDevice struct {
+	ID          string `json:"id,omitempty"`
+	IDType      string `json:"id_type,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// TopologyLinkInterface contain interface link data
+type TopologyLinkInterface struct {
+	ID          string `json:"id"`
+	IDType      string `json:"id_type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// TopologyLinkSide contain data for remote or local side of the link
+type TopologyLinkSide struct {
+	Device    *TopologyLinkDevice    `json:"device,omitempty"`
+	Interface *TopologyLinkInterface `json:"interface,omitempty"`
+}
+
+// TopologyLinkMetadata contains topology interface to interface links metadata
+type TopologyLinkMetadata struct {
+	Local  *TopologyLinkSide `json:"local,omitempty"`
+	Remote *TopologyLinkSide `json:"remote,omitempty"`
 }

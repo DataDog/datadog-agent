@@ -22,12 +22,7 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
 	// ViewsPath holds the path to the folder containing the GUI support files
-	viewsPath   string
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
+	viewsPath string
 )
 
 var (

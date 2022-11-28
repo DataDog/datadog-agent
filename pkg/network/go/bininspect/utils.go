@@ -13,6 +13,7 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,12 +54,12 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
 	regularSymbols, regularSymbolsErr := elfFile.Symbols()
 	if regularSymbolsErr != nil {
-		log.Warnf("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
+		log.Debugf("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
 	}
 
 	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
 	if dynamicSymbolsErr != nil {
-		log.Warnf("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
+		log.Debugf("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
 	}
 
 	// Only if we failed getting both regular and dynamic symbols - then we abort.

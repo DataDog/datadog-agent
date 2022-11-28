@@ -80,7 +80,7 @@ This simply uses ValidateApp to check that all dependencies are satisfied when g
 ```go
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
-		fx.Supply(core.BundleParams{}),
+		fx.Supply(core.CreateBundleParams()),
 		core.Bundle,
 		fx.Supply(autodiscovery.BundleParams{}),
 		autodiscovery.Bundle,

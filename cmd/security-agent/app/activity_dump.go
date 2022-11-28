@@ -22,6 +22,8 @@ import (
 type activityDumpCliParams struct {
 	*common.GlobalParams
 
+	name                     string
+	containerID              string
 	comm                     string
 	file                     string
 	timeout                  int
@@ -72,6 +74,18 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		},
 	}
 
+	activityDumpStopCmd.Flags().StringVar(
+		&cliParams.name,
+		"name",
+		"",
+		"an activity dump name can be used to filter the activity dump.",
+	)
+	activityDumpStopCmd.Flags().StringVar(
+		&cliParams.containerID,
+		"containerID",
+		"",
+		"an containerID can be used to filter the activity dump.",
+	)
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.comm,
 		"comm",
@@ -376,7 +390,7 @@ func stopActivityDump(activityDumpArgs *activityDumpCliParams) error {
 	}
 	defer client.Close()
 
-	output, err := client.StopActivityDump(activityDumpArgs.comm)
+	output, err := client.StopActivityDump(activityDumpArgs.name, activityDumpArgs.containerID, activityDumpArgs.comm)
 	if err != nil {
 		return fmt.Errorf("unable send request to system-probe: %w", err)
 	}

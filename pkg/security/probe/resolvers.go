@@ -85,7 +85,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 // resolveBasename resolves the inode to a filename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
-	return r.DentryResolver.GetName(e.MountID, e.Inode, e.PathID)
+	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
 // resolveFileFieldsPath resolves the inode to a full path
@@ -95,11 +95,12 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDCon
 		return pathStr, err
 	}
 
-	_, mountPath, rootPath, mountErr := r.MountResolver.GetMountPath(e.MountID, ctx.Pid)
+	mountPath, rootPath, mountErr := r.MountResolver.ResolveMountPaths(e.MountID, ctx.Pid)
 	if mountErr != nil {
 		return pathStr, mountErr
 	}
 
+	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
 	}

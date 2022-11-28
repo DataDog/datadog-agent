@@ -182,8 +182,8 @@ type Config struct {
 	EventStreamBufferSize int
 }
 
-// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
-func (c *Config) IsEnabled() bool {
+// IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
+func (c *Config) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
@@ -285,29 +285,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	return c, nil
 }
 
-// sanitize ensures that the configuration is properly setup
-func (c *Config) sanitize() error {
-	// if runtime is enabled then we force fim
-	if c.RuntimeEnabled {
-		c.FIMEnabled = true
-	}
-
-	if !c.IsEnabled() {
-		return nil
-	}
-
-	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
-		c.EnableApprovers = true
-	}
-
-	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_discarders") && c.EnableKernelFilters {
-		c.EnableDiscarders = true
-	}
-
-	if !c.EnableApprovers && !c.EnableDiscarders {
-		c.EnableKernelFilters = false
-	}
-
+// sanitize global config parameters, process monitoring + runtime security
+func (c *Config) globalSanitize() error {
+	// place here everything that could be necessary for process monitoring
 	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
 	}
@@ -330,8 +310,50 @@ func (c *Config) sanitize() error {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
+	return nil
+}
+
+// sanitize runtime specific config parameters
+func (c *Config) sanitizeRuntime() error {
+	// if runtime is enabled then we force fim
+	if c.RuntimeEnabled {
+		c.FIMEnabled = true
+	}
+
+	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
+		c.EnableApprovers = true
+	}
+
+	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_discarders") && c.EnableKernelFilters {
+		c.EnableDiscarders = true
+	}
+
+	if !c.EnableApprovers && !c.EnableDiscarders {
+		c.EnableKernelFilters = false
+	}
+
 	c.sanitizeRuntimeSecurityConfigNetwork()
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
+}
+
+// disable all the runtime features
+func (c *Config) disableRuntime() {
+	c.ActivityDumpEnabled = false
+}
+
+// sanitize ensures that the configuration is properly setup
+func (c *Config) sanitize() error {
+	if err := c.globalSanitize(); err != nil {
+		return err
+	}
+
+	// the following config params
+	if !c.IsRuntimeEnabled() {
+		c.disableRuntime()
+		return nil
+	}
+
+	return c.sanitizeRuntime()
 }
 
 // sanitizeNetworkConfiguration ensures that runtime_security_config.network is properly configured
