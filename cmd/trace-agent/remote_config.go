@@ -118,8 +118,6 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 func normalize(configsRequest *pbgo.ClientGetConfigsRequest) {
 	// err is explicitly ignored as it is not an actual error and the expected normalized service
 	// is returned regardless.
-	service, _ := traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
-	env := traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
-	configsRequest.Client.ClientTracer.Env = env
-	configsRequest.Client.ClientTracer.Service = service
+	configsRequest.Client.ClientTracer.Service, _ = traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
+	configsRequest.Client.ClientTracer.Env = traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
 }
