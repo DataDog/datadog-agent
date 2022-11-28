@@ -11,7 +11,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -39,9 +38,7 @@ import (
 // avoid double counting traffic represented similar to flows (1) and (2)
 func TestProxyFiltering(t *testing.T) {
 	proxyFilter := NewDockerProxy()
-	pmp := metadata.NewProcessMetadataProvider()
-	pmp.Register(proxyFilter)
-	pmp.Extract(processData())
+	proxyFilter.Extract(processData())
 
 	// (1) This represents the *outgoing* connection from redis client to redis rerver (via host IP)
 	// It should be *kept*

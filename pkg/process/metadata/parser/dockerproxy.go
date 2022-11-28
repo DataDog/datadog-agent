@@ -16,7 +16,6 @@ import (
 )
 
 // DockerProxy keeps track of every docker-proxy instance and filters network traffic going through them
-// TODO: Add a mechanism to clean up the maps
 type DockerProxy struct {
 	proxyByTarget map[model.ContainerAddr]*proxy
 	// This "secondary index" is used only during the proxy IP discovery process
@@ -41,25 +40,33 @@ func (d *DockerProxy) Type() string {
 	return "dockerProxy"
 }
 
-func (d *DockerProxy) Extract(p *procutil.Process) {
-	if _, seen := d.proxyByPID[p.Pid]; seen {
-		return
+func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
+	proxyByPID := make(map[int32]*proxy)
+	proxyByTarget := make(map[model.ContainerAddr]*proxy)
+
+	for _, p := range processes {
+		if proxy, seen := d.proxyByPID[p.Pid]; seen {
+			proxyByPID[p.Pid] = proxy
+			proxyByTarget[proxy.target] = proxy
+			continue
+		}
+
+		if proxy := extractProxyTarget(p); proxy != nil {
+			log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
+				proxy.pid,
+				proxy.target.Ip,
+				proxy.target.Port,
+				proxy.target.Protocol,
+			)
+
+			// Add proxy to cache
+			proxyByPID[p.Pid] = proxy
+			proxyByTarget[proxy.target] = proxy
+		}
 	}
 
-	if proxy := extractProxyTarget(p); proxy != nil {
-		log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
-			proxy.pid,
-			proxy.target.Ip,
-			proxy.target.Port,
-			proxy.target.Protocol,
-		)
-
-		// Add proxy to cache
-		d.proxyByPID[p.Pid] = proxy
-		d.proxyByTarget[proxy.target] = proxy
-	} else {
-		d.proxyByPID[p.Pid] = nil
-	}
+	d.proxyByPID = proxyByPID
+	d.proxyByTarget = proxyByTarget
 }
 
 // Filter all connections that have a docker-proxy at one end

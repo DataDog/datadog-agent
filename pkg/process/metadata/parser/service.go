@@ -56,26 +56,33 @@ func (d *ServiceExtractor) Type() string {
 	return "serviceExtractor"
 }
 
-func (d *ServiceExtractor) Extract(p *procutil.Process) {
+func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.Enabled {
 		return
 	}
 
-	if meta, seen := d.serviceByPID[p.Pid]; seen {
-		// check the service metadata is for the same process
-		if len(p.Cmdline) == len(meta.cmdline) {
-			if len(p.Cmdline) == 0 || p.Cmdline[0] == meta.cmdline[0] {
-				return
+	serviceByPID := make(map[int32]*serviceMetadata)
+
+	for _, proc := range processes {
+		if meta, seen := d.serviceByPID[proc.Pid]; seen {
+			// check the service metadata is for the same process
+			if len(proc.Cmdline) == len(meta.cmdline) {
+				if len(proc.Cmdline) == 0 || proc.Cmdline[0] == meta.cmdline[0] {
+					serviceByPID[proc.Pid] = meta
+					continue
+				}
 			}
 		}
-	}
-	meta := extractServiceMetadata(p.Cmdline)
-	if meta != nil {
-		log.Tracef("detected service metadata: %v", meta)
+		meta := extractServiceMetadata(proc.Cmdline)
+		if meta != nil {
+			log.Tracef("detected service metadata: %v", meta)
+		}
+		serviceByPID[proc.Pid] = meta
 	}
 
-	d.serviceByPID[p.Pid] = meta
+	d.serviceByPID = serviceByPID
 }
+
 func (d *ServiceExtractor) GetServiceTag(pid int32) string {
 	if !d.Enabled {
 		return ""

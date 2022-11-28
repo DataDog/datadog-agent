@@ -54,6 +54,7 @@ type ConnectionsCheck struct {
 	probe            procutil.Probe
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
+	processData      *ProcessData
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -86,6 +87,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.networkID = networkID
 	c.dockerFilter = parser.NewDockerProxy()
 	c.serviceExtractor = parser.NewServiceExtractor()
+	c.processData = ProcData
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -115,14 +117,10 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	procs, err := c.probe.ProcessesByPID(time.Now(), false)
+	err = c.processData.Fetch()
 	if err != nil {
-		log.Warnf("error collecting processes for proxy filter: %s", err)
+		log.Warnf("error collecting processes for filter and extraction: %s", err)
 	} else {
-		for _, p := range procs {
-			c.dockerFilter.Extract(p)
-			c.serviceExtractor.Extract(p)
-		}
 		c.dockerFilter.Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers

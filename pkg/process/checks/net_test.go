@@ -614,16 +614,18 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 
 	expectedTags := []string{"tag0", "service_source:process", "service:my-server"}
 
-	proc := procutil.Process{
-		Pid:     conns[0].Pid,
-		Cmdline: []string{"./my-server.sh"},
+	procsByPid := map[int32]*procutil.Process{
+		conns[0].Pid: {
+			Pid:     conns[0].Pid,
+			Cmdline: []string{"./my-server.sh"},
+		},
 	}
 	mockConfig := ddconfig.Mock(t)
 	mockConfig.Set("service_monitoring_config.process_service_inference.enabled", true)
 
 	cfg := config.NewDefaultAgentConfig()
 	ex := parser.NewServiceExtractor()
-	ex.Extract(&proc)
+	ex.Extract(procsByPid)
 
 	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil, ex)
 
