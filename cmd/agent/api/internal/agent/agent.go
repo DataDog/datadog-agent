@@ -44,10 +44,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type contextKey struct {
-	key string
-}
-
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
