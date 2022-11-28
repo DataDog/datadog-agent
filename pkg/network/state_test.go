@@ -659,7 +659,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.EqualValues(t, uint64(2), conns[0].Monotonic.SentBytes)
 		// should not hold on to active connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
 		conn2.Monotonic.SentBytes++
 		conn.LastUpdateEpoch = latestEpochTime()
@@ -717,7 +717,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 3
@@ -740,7 +740,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
 		// should not hold on to closed connection stats
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn3.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
 
 		// Store the connection as closed
 		conn3.Monotonic.SentBytes += 2
@@ -786,7 +786,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn.Cookie)
 
 		// Store the connection as closed
 		conn2 := conn
@@ -870,7 +870,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
 		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
 		// Store the connection as an opened connection
 		conn2.Monotonic.SentBytes++
@@ -883,7 +883,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
-		assert.Contains(t, state.clients["d"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["d"].stats, conn2.Cookie)
 
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 2
@@ -905,7 +905,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 1, int(conns[1].Monotonic.SentBytes))
 		assert.Equal(t, 1, int(conns[1].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn3.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
 
 		// Store the connection again
 		conn3.Monotonic.SentBytes++
@@ -920,7 +920,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
 		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
-		assert.Contains(t, state.clients["d"].stats, string(conn3.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["d"].stats, conn3.Cookie)
 
 		// Store the connection as closed
 		conn3.Monotonic.SentBytes++
@@ -1011,7 +1011,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 2, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 2, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["e"].stats, 1)
-		assert.Contains(t, state.clients["e"].stats, string(conn.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["e"].stats, conn.Cookie)
 
 		// Store the connection as closed
 		conn.Monotonic.SentBytes++
@@ -1047,7 +1047,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 2, int(conns[1].Monotonic.SentBytes))
 		assert.Equal(t, 2, int(conns[1].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn2.Cookie)
 
 		// Store the connection as an opened connection
 		conn2.Monotonic.SentBytes++
@@ -1060,7 +1060,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
-		assert.Contains(t, state.clients["d"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["d"].stats, conn2.Cookie)
 
 		// Store the connection as closed
 		conn2.Monotonic.SentBytes += 2
@@ -1114,7 +1114,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn.Cookie)
 
 		conn2 := conn
 		conn2.Monotonic.SentBytes++
@@ -1126,7 +1126,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 4, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["d"].stats, 1)
-		assert.Contains(t, state.clients["d"].stats, string(conn2.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["d"].stats, conn2.Cookie)
 
 		conn3 := conn2
 		conn3.Monotonic.SentBytes += 3
@@ -1138,7 +1138,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 7, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 4, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn3.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn3.Cookie)
 
 		conn4 := conn3
 		conn4.Monotonic.SentBytes += 2
@@ -1150,7 +1150,7 @@ func TestSameKeyEdgeCases(t *testing.T) {
 		assert.Equal(t, 9, int(conns[0].Monotonic.SentBytes))
 		assert.Equal(t, 5, int(conns[0].Last.SentBytes))
 		assert.Len(t, state.clients["c"].stats, 1)
-		assert.Contains(t, state.clients["c"].stats, string(conn4.ByteKey(state.buf)))
+		assert.Contains(t, state.clients["c"].stats, conn4.Cookie)
 	})
 }
 
