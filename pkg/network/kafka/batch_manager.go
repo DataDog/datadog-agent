@@ -103,10 +103,6 @@ func (m *batchManager) GetPendingTransactions() []kafkaTX {
 			}
 
 			if krnStatePos == KAFKABatchSize {
-				// We detected a full batch before the http_notification_t was processed.
-				// In this case we update the userspace state accordingly and try to
-				// preemptively read the next batch in order to return as many
-				// completed HTTP transactions as possible
 				usrState.idx++
 				usrState.pos = 0
 				continue

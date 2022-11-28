@@ -41,7 +41,6 @@ int socket__http_filter(struct __sk_buff* skb) {
     normalize_tuple(&http.tup);
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
-    log_debug("hola %s\n", http.request_fragment);
     http_process(&http, &skb_info, NO_TAGS);
     return 0;
 }

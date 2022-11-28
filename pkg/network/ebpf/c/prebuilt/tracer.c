@@ -94,7 +94,6 @@ int kretprobe__tcp_sendmsg(struct pt_regs* ctx) {
         return 0;
     }
 
-
     handle_tcp_stats(&t, skp, 0);
 
     __u32 packets_in = 0;

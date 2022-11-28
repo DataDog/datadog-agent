@@ -60,6 +60,7 @@ type ebpfProgram struct {
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
+
 type subprogram interface {
 	ConfigureManager(*manager.Manager)
 	ConfigureOptions(*manager.Options)

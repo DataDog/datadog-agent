@@ -145,7 +145,7 @@ func TestKafkaIDCollisionRegression(t *testing.T) {
 
 	kafkaEncoder := newKafkaEncoder(in)
 
-	// assert that the first connection matching the HTTP data will get
+	// assert that the first connection matching the Kafka data will get
 	// back a non-nil result
 	aggregations := kafkaEncoder.GetKafkaAggregations(connections[0])
 	assert.NotNil(aggregations)
@@ -155,7 +155,7 @@ func TestKafkaIDCollisionRegression(t *testing.T) {
 	assert.Equal(uint32(2), aggregations.KafkaFetchAggregations.Stats[0].Count)
 
 	// assert that the other connections sharing the same (source,destination)
-	// addresses but different PIDs *won't* be associated with the HTTP stats
+	// addresses but different PIDs *won't* be associated with the Kafka stats
 	// object
 	aggregations = kafkaEncoder.GetKafkaAggregations(connections[1])
 	assert.Nil(aggregations)

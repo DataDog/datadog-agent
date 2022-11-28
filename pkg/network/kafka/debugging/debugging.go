@@ -13,16 +13,10 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client Address
-	Server Address
-	//DNS         string
-	//Path        string
-	//Method      string
-	//ByStatus    map[int]Stats
+	Client       Address
+	Server       Address
 	ByRequestAPI map[string]int
 	TopicName    string
-	//StaticTags  uint64
-	//DynamicTags []string
 }
 
 // Address represents represents a IP:Port
@@ -34,8 +28,6 @@ type Address struct {
 // Stats consolidates request count and latency information for a certain status code
 type Stats struct {
 	Count int
-	//FirstLatencySample float64
-	//LatencyP50         float64
 }
 
 // Kafka returns a debug-friendly representation of map[kafka.Key]kafka.RequestStats
@@ -59,27 +51,9 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 				Port: key.DstPort,
 			},
 
-			//DNS:      getDNS(dns, serverAddr),
-			//Path:     k.Path.Content,
-			//Method:   k.Method.String(),
 			ByRequestAPI: byRequestAPI,
 			TopicName:    key.TopicName,
 		}
-
-		//for status := 100; status <= 500; status += 100 {
-		//	if !v.HasStats(status) {
-		//		continue
-		//	}
-		//	stat := v.Stats(status)
-		//	debug.StaticTags = stat.StaticTags
-		//	debug.DynamicTags = stat.DynamicTags
-		//
-		//	debug.ByStatus[status] = Stats{
-		//		Count:              stat.Count,
-		//		FirstLatencySample: stat.FirstLatencySample,
-		//		LatencyP50:         getSketchQuantile(stat.Latencies, 0.5),
-		//	}
-		//}
 
 		all = append(all, debug)
 	}
@@ -89,7 +63,7 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 
 func formatIP(low, high uint64) util.Address {
 	// TODO: this is  not correct, but we don't have socket family information
-	// for HTTP at the moment, so given this is purely debugging code I think it's fine
+	// for Kafka at the moment, so given this is purely debugging code I think it's fine
 	// to assume for now that it's only IPv6 if higher order bits are set.
 	if high > 0 || (low>>32) > 0 {
 		return util.V6Address(low, high)
