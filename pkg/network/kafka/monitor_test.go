@@ -27,10 +27,10 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+// This test loads the Kafka binary, produce and fetch kafka messages and verifies that we capture them
 func TestSanity(t *testing.T) {
+	t.Skip("We cannot set up a Kafka cluster in the test environment because of dockerhub rate limiter")
 	skipTestIfKernelNotSupported(t)
-
-	// Assuming a kafka cluster is up and running
 
 	cfg := config.New()
 	cfg.BPFDebug = true
@@ -39,6 +39,8 @@ func TestSanity(t *testing.T) {
 	err = monitor.Start()
 	require.NoError(t, err)
 	defer monitor.Stop()
+
+	// Assuming a kafka cluster is up and running
 
 	// to produce/consume messages
 	topic := "my-topic"
@@ -89,4 +91,17 @@ func TestSanity(t *testing.T) {
 		// TODO: need to add the kafka_seen_before so we won't get too much requests
 		require.True(t, kafkaStatIsOK)
 	}
+}
+
+// This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
+func TestLoadKafkaBinary(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	cfg := config.New()
+	cfg.BPFDebug = true
+	monitor, err := NewMonitor(cfg, nil, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
 }
