@@ -80,7 +80,7 @@ func TestConfigEndpoint(t *testing.T) {
 	}
 }
 
-func TestTags(t *testing.T) {
+func TestUpstreamRequest(t *testing.T) {
 
 	var tcs = []struct {
 		name                    string
@@ -118,6 +118,12 @@ func TestTags(t *testing.T) {
 			name:                    "no tracer",
 			tracerReq:               `{"client":{"id":"test_client"}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
+			cfg:                     &config.AgentConfig{},
+		},
+		{
+			name:                    "tracer service and env are normalized",
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test ww w@","env":"test@ww","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test_ww_w","env":"test_ww","tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 	}
