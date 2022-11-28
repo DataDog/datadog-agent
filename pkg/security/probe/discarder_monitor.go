@@ -67,8 +67,6 @@ func (d *DiscarderMonitor) SendStats() error {
 			}
 		}
 
-		fmt.Printf("%v: %d\n", tags, int64(stats.DiscarderAdded))
-
 		_ = d.statsdClient.Count(metrics.MetricDiscarderAdded, int64(stats.DiscarderAdded), tags, 1.0)
 		_ = d.statsdClient.Count(metrics.MetricEventDiscarded, int64(stats.EventDiscarded), tags, 1.0)
 
