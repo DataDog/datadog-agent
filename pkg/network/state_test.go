@@ -588,11 +588,9 @@ func TestSameKeyEdgeCases(t *testing.T) {
 
 		// Second get, we should have monotonic and last stats = 8
 		conns = state.GetDelta(client, latestEpochTime(), nil, nil, nil).Conns
-		assert.Equal(t, 2, len(conns))
-		assert.Equal(t, 3, int(conns[0].Monotonic.SentBytes))
-		assert.Equal(t, 3, int(conns[0].Last.SentBytes))
-		assert.Equal(t, 5, int(conns[1].Monotonic.SentBytes))
-		assert.Equal(t, 5, int(conns[1].Last.SentBytes))
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, 8, int(conns[0].Monotonic.SentBytes))
+		assert.Equal(t, 8, int(conns[0].Last.SentBytes))
 
 		// should not hold on to closed connection stats
 		assert.Empty(t, state.clients["c"].stats)

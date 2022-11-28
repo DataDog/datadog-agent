@@ -110,7 +110,7 @@ func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats) (*mo
 	keyTuples := network.HTTPKeyTuplesFromConn(c)
 	for _, key := range keyTuples {
 		if aggregation := e.aggregations[key]; aggregation != nil {
-			return e.aggregations[key].ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
+			return aggregation.ValueFor(c), e.staticTags[key], e.dynamicTagsSet[key]
 		}
 	}
 	return nil, 0, nil

@@ -31,7 +31,7 @@ const (
 	DNSResponseCodeNoError = 0
 
 	// ConnectionByteKeyMaxLen represents the maximum size in bytes of a connection byte key
-	ConnectionByteKeyMaxLen = 45
+	ConnectionByteKeyMaxLen = 41
 )
 
 // State takes care of handling the logic for:
@@ -131,6 +131,11 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 	c.stats = newStats
 }
 
+type aggrConnectionStats struct {
+	*ConnectionStats
+	count uint32
+}
+
 type networkState struct {
 	sync.Mutex
 
@@ -139,6 +144,7 @@ type networkState struct {
 	telemetry     telemetry // Monotonic state telemetry
 	lastTelemetry telemetry // Old telemetry state; used for logging
 
+	buf             []byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
@@ -159,6 +165,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
+		buf:            make([]byte, ConnectionByteKeyMaxLen),
 	}
 }
 
@@ -489,6 +496,23 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	client := ns.clients[id]
 	client.lastFetch = now
 
+	// connections aggregated by nat-ed tuple
+	aggrConns := make(map[string]*aggrConnectionStats, len(client.closedConnections))
+	addAggrConn := func(c *ConnectionStats) {
+		natKey := string(c.ByteKeyNAT(ns.buf))
+		ac, ok := aggrConns[natKey]
+		if !ok {
+			aggrConns[natKey] = &aggrConnectionStats{
+				ConnectionStats: c,
+				count:           1,
+			}
+
+			return
+		}
+
+		aggregateConnections(ac, c)
+	}
+
 	closed := client.closedConnections
 	for i := range closed {
 		closedConn := &closed[i]
@@ -505,9 +529,21 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 			continue
 		}
 
-		*buffer.Next() = *closedConn
+		addAggrConn(closedConn)
 	}
 
+	// put the aggregated closed connections in the buffer
+	outputAggrConns := func(aggrConns map[string]*aggrConnectionStats) {
+		for _, c := range aggrConns {
+			c.RTT /= uint32(c.count)
+			c.RTTVar /= uint32(c.count)
+			*buffer.Next() = *c.ConnectionStats
+		}
+	}
+
+	outputAggrConns(aggrConns)
+
+	aggrConns = make(map[string]*aggrConnectionStats, len(active))
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
@@ -516,8 +552,11 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		if c.Last.IsZero() {
 			continue
 		}
-		*buffer.Next() = *c
+
+		addAggrConn(c)
 	}
+
+	outputAggrConns(aggrConns)
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats, isClosed bool) {
@@ -690,6 +729,16 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 			// in system-probe.
 			conn.IPTranslation = nil
 		}
+	}
+}
+
+func aggregateConnections(aggrConn *aggrConnectionStats, c *ConnectionStats) {
+	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
+	aggrConn.Last = aggrConn.Last.Add(c.Last)
+	aggrConn.RTT += c.RTT
+	aggrConn.RTTVar += c.RTTVar
+	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
+		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
 	}
 }
 

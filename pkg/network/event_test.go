@@ -59,7 +59,7 @@ func TestBeautifyKey(t *testing.T) {
 		},
 	} {
 		bk := c.ByteKey(buf)
-		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type, c.Cookie)
+		expected := fmt.Sprintf(keyFmt, c.Pid, c.Source.String(), c.SPort, c.Dest.String(), c.DPort, c.Family, c.Type)
 		assert.Equal(t, expected, BeautifyKey(string(bk)))
 	}
 }

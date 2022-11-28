@@ -306,7 +306,7 @@ func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
-const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d|c:%d"
+const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
 // it should be in sync with ByteKey
@@ -340,10 +340,7 @@ func BeautifyKey(key string) string {
 	source := bytesToAddress(raw[9 : 9+addrSize])
 	dest := bytesToAddress(raw[9+addrSize : 9+2*addrSize])
 
-	// cookie
-	cookie := binary.LittleEndian.Uint32(raw[9+2*addrSize : 9+2*addrSize+4])
-
-	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ, cookie)
+	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
 
 // ConnectionSummary returns a string summarizing a connection
@@ -441,10 +438,6 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
-
-	// Cookie, 4 bytes
-	binary.LittleEndian.PutUint32(buf[n:], c.Cookie)
-	n += 4
 
 	return buf[:n]
 }
