@@ -180,7 +180,7 @@ type seclField struct {
 	skipADResolution       bool
 	lengthField            bool
 	weight                 int64
-	check               string
+	check                  string
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 }
 
