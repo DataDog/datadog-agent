@@ -30,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -196,11 +195,6 @@ func StartSystemProbe() error {
 
 	if err := statsd.Configure(cfg.StatsdHost, cfg.StatsdPort); err != nil {
 		return log.Criticalf("Error configuring statsd: %s", err)
-	}
-
-	// Expose telemetry endpoint
-	if ddconfig.Datadog.GetBool("telemetry.enabled") {
-		http.Handle("/telemetry", telemetry.Handler())
 	}
 
 	// if a debug port is specified, we expose the default handler to that port
