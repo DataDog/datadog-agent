@@ -158,7 +158,7 @@ docker_build_agent7_single_machine_performance:
     # Pull base images
     - inv -e docker.pull-base-images Dockerfiles/agent/amd64/Dockerfile
     # Build image
-    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb --file $BUILD_CONTEXT/$ARCH/Dockerfile --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
+    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb --file Dockerifles/agent/amd64/Dockerfile --tag ${TARGET_TAG}-unsquashed Dockerfiles/agent
     # Squash image, test, and push to ECR
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
     - test "true" && docker run -v `pwd`/Dockerfiles/agent:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
