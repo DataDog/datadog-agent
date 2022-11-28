@@ -115,12 +115,12 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			if err != nil {
 				return
 			}
-			assertLibConfig(t, tt.pod, tt.image, tt.expectedEnvKey, tt.expectedEnvVal)
+			assertLibReq(t, tt.pod, tt.image, tt.expectedEnvKey, tt.expectedEnvVal)
 		})
 	}
 }
 
-func assertLibConfig(t *testing.T, pod *corev1.Pod, image, envKey, envVal string) {
+func assertLibReq(t *testing.T, pod *corev1.Pod, image, envKey, envVal string) {
 	// Empty dir volume
 	volumeFound := false
 	for _, volume := range pod.Spec.Volumes {
@@ -217,6 +217,61 @@ func TestExtractLibInfo(t *testing.T) {
 			require.Equal(t, tt.expectedLangauge, lang)
 			require.Equal(t, tt.expectedImage, image)
 			require.Equal(t, tt.expectedShouldInject, shouldInject)
+		})
+	}
+}
+
+func TestInjectLibConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		pod          *corev1.Pod
+		lang         language
+		wantErr      bool
+		expectedEnvs []corev1.EnvVar
+	}{
+		{
+			name:    "nominal case",
+			pod:     fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":1,"service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
+			lang:    java,
+			wantErr: false,
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_RUNTIME_METRICS_ENABLED",
+					Value: "true",
+				},
+				{
+					Name:  "DD_TRACE_RATE_LIMIT",
+					Value: "50",
+				},
+			},
+		},
+		{
+			name:         "invalid json",
+			pod:          fakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
+			lang:         java,
+			wantErr:      true,
+			expectedEnvs: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := injectLibConfig(tt.pod, tt.lang)
+			require.False(t, (err != nil) != tt.wantErr)
+			if err != nil {
+				return
+			}
+			container := tt.pod.Spec.Containers[0]
+			envCount := 0
+			for _, expectEnv := range tt.expectedEnvs {
+				for _, contEnv := range container.Env {
+					if expectEnv.Name == contEnv.Name {
+						require.Equal(t, expectEnv.Value, contEnv.Value)
+						envCount++
+						break
+					}
+				}
+			}
+			require.Equal(t, len(tt.expectedEnvs), envCount)
 		})
 	}
 }
