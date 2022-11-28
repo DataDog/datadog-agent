@@ -35,6 +35,7 @@ type ListenerConfig struct {
 	AllowedFailures       int      `mapstructure:"discovery_allowed_failures"`
 	Loader                string   `mapstructure:"loader"`
 	CollectDeviceMetadata bool     `mapstructure:"collect_device_metadata"`
+	CollectTopology       bool     `mapstructure:"collect_topology"`
 	MinCollectionInterval uint     `mapstructure:"min_collection_interval"`
 	Namespace             string   `mapstructure:"namespace"`
 	UseDeviceISAsHostname bool     `mapstructure:"use_device_id_as_hostname"`
@@ -65,6 +66,8 @@ type Config struct {
 	Loader                      string          `mapstructure:"loader"`
 	CollectDeviceMetadataConfig *bool           `mapstructure:"collect_device_metadata"`
 	CollectDeviceMetadata       bool
+	CollectTopologyConfig       *bool `mapstructure:"collect_topology"`
+	CollectTopology             bool
 	UseDeviceIDAsHostnameConfig *bool `mapstructure:"use_device_id_as_hostname"`
 	UseDeviceIDAsHostname       bool
 	Namespace                   string   `mapstructure:"namespace"`
@@ -102,6 +105,7 @@ func NewListenerConfig() (ListenerConfig, error) {
 	)
 	// Set defaults before unmarshalling
 	snmpConfig.CollectDeviceMetadata = true
+	snmpConfig.CollectTopology = false // TODO: Set this to `true` when GA
 	if err := coreconfig.Datadog.UnmarshalKey("snmp_listener", &snmpConfig, opt); err != nil {
 		return snmpConfig, err
 	}
@@ -127,6 +131,11 @@ func NewListenerConfig() (ListenerConfig, error) {
 			config.CollectDeviceMetadata = *config.CollectDeviceMetadataConfig
 		} else {
 			config.CollectDeviceMetadata = snmpConfig.CollectDeviceMetadata
+		}
+		if config.CollectTopologyConfig != nil {
+			config.CollectTopology = *config.CollectTopologyConfig
+		} else {
+			config.CollectTopology = snmpConfig.CollectTopology
 		}
 
 		if config.UseDeviceIDAsHostnameConfig != nil {

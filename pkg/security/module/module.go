@@ -45,11 +45,6 @@ const (
 	statsdPoolSize = 64
 )
 
-// Opts define module options
-type Opts struct {
-	StatsdClient statsd.ClientInterface
-}
-
 // Module represents the system-probe module for the runtime security agent
 type Module struct {
 	sync.RWMutex
@@ -74,6 +69,7 @@ type Module struct {
 	selfTester       *selftests.SelfTester
 	policyMonitor    *PolicyMonitor
 	sendStatsChan    chan chan bool
+	eventSender      EventSender
 }
 
 // Register the runtime security agent module
@@ -110,6 +106,7 @@ func (m *Module) Init() error {
 	}()
 
 	// start api server
+	sapi.RegisterVTCodec()
 	m.apiServer.Start(m.ctx)
 
 	// monitor policies
@@ -155,7 +152,7 @@ func (m *Module) Start() error {
 	}
 
 	// runtime security is disabled but might be used by other component like process
-	if !m.config.IsEnabled() {
+	if !m.config.IsRuntimeEnabled() {
 		if m.config.EventMonitoring {
 			// Currently select process related event type.
 			// TODO external monitors should be allowed to select the event types
@@ -189,6 +186,15 @@ func (m *Module) Start() error {
 		macroFilters = append(macroFilters, agentVersionFilter)
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
+
+	kv, err := m.probe.GetKernelVersion()
+	if err != nil {
+		seclog.Errorf("failed to create rule filter model: %v", err)
+	}
+	ruleFilterModel := NewRuleFilterModel(kv)
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+	macroFilters = append(macroFilters, seclRuleFilter)
+	ruleFilters = append(ruleFilters, seclRuleFilter)
 
 	m.policyOpts = rules.PolicyLoaderOpts{
 		MacroFilters: macroFilters,
@@ -437,10 +443,9 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if sendLoadedReport {
 		// report that a new policy was loaded
 		monitor := m.probe.GetMonitor()
-		ruleSetLoadedReport := monitor.PrepareRuleSetLoadedReport(ruleSet, loadApproversErrs)
-		monitor.ReportRuleSetLoaded(ruleSetLoadedReport)
+		monitor.ReportRuleSetLoaded(ruleSet, loadApproversErrs)
 
-		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadErrs)
+		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
 	}
 
 	return nil
@@ -448,6 +453,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 // Close the module
 func (m *Module) Close() {
+	signal.Stop(m.sigupChan)
 	close(m.sigupChan)
 
 	for _, provider := range m.policyProviders {
@@ -505,7 +511,7 @@ func (m *Module) HandleEvent(event *sprobe.Event) {
 
 // HandleCustomEvent is called by the probe when an event should be sent to Datadog but doesn't need evaluation
 func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
-	m.SendEvent(rule, event, func() []string { return nil }, "")
+	m.eventSender.SendEvent(rule, event, func() []string { return nil }, "")
 }
 
 // RuleMatch is called by the ruleset when a rule matches
@@ -536,7 +542,7 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 
 	// send if not selftest related events
 	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event) {
-		m.SendEvent(rule, event, extTagsCb, service)
+		m.eventSender.SendEvent(rule, event, extTagsCb, service)
 	}
 }
 
@@ -697,6 +703,12 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		sendStatsChan:  make(chan chan bool, 1),
 	}
 	m.apiServer.module = m
+
+	if len(opts) > 0 && opts[0].EventSender != nil {
+		m.eventSender = opts[0].EventSender
+	} else {
+		m.eventSender = m
+	}
 
 	seclog.SetPatterns(cfg.LogPatterns...)
 	seclog.SetTags(cfg.LogTags...)

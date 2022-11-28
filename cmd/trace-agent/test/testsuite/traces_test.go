@@ -58,8 +58,10 @@ func TestTraces(t *testing.T) {
 		}, nil)
 		for i := 0; i < 2; i++ {
 			// user reject two traces
+			// unset any error so they aren't grabbed by error sampler
 			for _, span := range p[i] {
 				span.Metrics["_sampling_priority_v1"] = -1
+				span.Error = 0
 			}
 		}
 		if err := r.Post(p); err != nil {

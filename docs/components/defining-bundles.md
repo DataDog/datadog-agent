@@ -16,14 +16,11 @@ The package must have the following defined in `bundle.go`:
  * A team-name comment of the form `// team: <teamname>`.
    This is used to generate CODEOWNERS information.
 
- * `componentName` -- the Go path of the component, relative to the repository root, e.g., `comp/core/health`.
-   This is set with the `computil.GetComponentName` utility.
-
  * `BundleParams` -- the type of the bundle's parameters (see below).
    This item should have a formulaic doc string like `// BundleParams defines the parameters for this bundle.`
 
  * `Bundle` -- an `fx.Option` that can be included in an `fx.App` to make this bundle's components available.
-   To assist with debugging, use `fx.Module(componentName, ..)`.
+   To assist with debugging, use `fxutil.Bundle(options...)`.
    Use `fx.Invoke(func(componentpkg.Component) {})` to instantiate components automatically.
    This item should have a formulaic doc string like `// Module defines the fx options for this component.`
 
@@ -54,10 +51,15 @@ type BundleParams struct {
 ```go
 // --- comp/<bundleName>/bundle.go ---
 import ".../comp/<bundleName>/internal"
+import ".../comp/<bundleName>/foo"
 // ...
 
 // BundleParams defines the parameters for this bundle.
 type BundleParams = internal.BundleParams
+
+var Bundle = fxutil.Bundle(
+    foo.Module,
+)
 ```
 
 Components within the bundle can then require `internal.BundleParams` and modify their behavior appropriately:
@@ -78,7 +80,7 @@ This simply uses ValidateApp to check that all dependencies are satisfied when g
 ```go
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
-		fx.Supply(core.BundleParams{}),
+		fx.Supply(core.CreateBundleParams()),
 		core.Bundle,
 		fx.Supply(autodiscovery.BundleParams{}),
 		autodiscovery.Bundle,

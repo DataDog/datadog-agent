@@ -22,7 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
+
+func TestMain(m *testing.M) {
+	// setting the hostname cache saves about 1s when starting the metric agent
+	cacheKey := cache.BuildAgentKey("hostname")
+	cache.Cache.Set(cacheKey, hostname.Data{}, cache.NoExpiration)
+	os.Exit(m.Run())
+}
 
 func TestStartDoesNotBlock(t *testing.T) {
 	config.DetectFeatures()
@@ -31,8 +40,6 @@ func TestStartDoesNotBlock(t *testing.T) {
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Demux)
 	assert.True(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
 type ValidMetricConfigMocked struct {
@@ -54,8 +61,6 @@ func TestStartInvalidConfig(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(100 * time.Millisecond)
 }
 
 type MetricDogStatsDMocked struct {
@@ -70,8 +75,6 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
-	// allow some time to stop to avoid 'can't listen: listen udp 127.0.0.1:8125: bind: address already in use'
-	time.Sleep(1 * time.Second)
 }
 
 func TestStartWithProxy(t *testing.T) {
@@ -79,8 +82,7 @@ func TestStartWithProxy(t *testing.T) {
 	defer config.Datadog.Set(statsDMetricBlocklistKey, originalValues)
 	config.Datadog.Set(statsDMetricBlocklistKey, []string{})
 
-	os.Setenv(proxyEnabledEnvVar, "true")
-	defer os.Unsetenv(proxyEnabledEnvVar)
+	t.Setenv(proxyEnabledEnvVar, "true")
 
 	metricAgent := &ServerlessMetricAgent{}
 	defer metricAgent.Stop()
@@ -208,7 +210,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
 			conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(10 * time.Nanosecond)
 		}
 		finish.Done()
 	}(finish)

@@ -359,11 +359,6 @@ SYSCALL_KRETPROBE(bpf) {
     return sys_bpf_ret(ctx, (int)PT_REGS_RC(ctx));
 }
 
-SEC("tracepoint/syscalls/sys_exit_bpf")
-int tracepoint_syscalls_sys_exit_bpf(struct tracepoint_syscalls_sys_exit_t *args) {
-    return sys_bpf_ret(args, args->ret);
-}
-
 SEC("kprobe/security_bpf_map")
 int kprobe_security_bpf_map(struct pt_regs *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
@@ -445,6 +440,11 @@ int kprobe_check_helper_call(struct pt_regs *ctx) {
         syscall->bpf.helpers[0] |= (u64) 1 << (func_id);
     }
     return 0;
+}
+
+SEC("tracepoint/handle_sys_bpf_exit")
+int tracepoint_handle_sys_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_bpf_ret(args, args->ret);
 }
 
 #endif

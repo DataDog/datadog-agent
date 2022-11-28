@@ -7,7 +7,7 @@ package flare
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -20,5 +20,5 @@ func QueryDCAMetrics() ([]byte, error) {
 		return nil, err
 	}
 	defer r.Body.Close()
-	return ioutil.ReadAll(r.Body)
+	return io.ReadAll(r.Body)
 }

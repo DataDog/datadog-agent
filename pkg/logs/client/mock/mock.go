@@ -6,7 +6,7 @@
 package mock
 
 import (
-	"io/ioutil"
+	"io"
 	"net"
 	"testing"
 )
@@ -28,7 +28,7 @@ func NewMockLogsIntake(t *testing.T) net.Listener {
 		defer conn.Close()
 
 		for {
-			_, err := ioutil.ReadAll(conn)
+			_, err := io.ReadAll(conn)
 			if err != nil {
 				break
 			}

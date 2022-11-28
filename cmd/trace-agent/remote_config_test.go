@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,7 +71,7 @@ func TestConfigEndpoint(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
@@ -146,15 +146,13 @@ func TestUpstreamRequest(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			req.Header.Set("Datadog-Container-ID", "cid")
 			resp, err := http.DefaultClient.Do(req)
-			assert.NoError(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			assert.Nil(err)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			assert.NoError(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
-
 		})
-
 	}
 }
 

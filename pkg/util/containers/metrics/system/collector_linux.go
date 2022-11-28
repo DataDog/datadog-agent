@@ -41,9 +41,10 @@ func init() {
 }
 
 type systemCollector struct {
-	reader         *cgroups.Reader
-	procPath       string
-	baseController string
+	reader              *cgroups.Reader
+	procPath            string
+	baseController      string
+	hostCgroupNamespace bool
 }
 
 func newSystemCollector() (*systemCollector, error) {
@@ -80,6 +81,16 @@ func newSystemCollector() (*systemCollector, error) {
 	// Set base controller for cgroupV1 (remains empty for cgroupV2)
 	if reader.CgroupVersion() == 1 {
 		systemCollector.baseController = cgroupV1BaseController
+	}
+
+	// Check if we are in host cgroup namespace or not. Will be useful to determine the best way to retrieve self container ID.
+	cgroupInode, err := systemutils.GetProcessNamespaceInode("/proc", "self", "cgroup")
+	if err != nil {
+		log.Warn("Unable to determine cgroup namespace id in system collector")
+	} else {
+		if isCgroupHost := cgroups.IsProcessHostCgroupNamespace(procPath, cgroupInode); isCgroupHost != nil {
+			systemCollector.hostCgroupNamespace = *isCgroupHost
+		}
 	}
 
 	return systemCollector, nil
@@ -138,8 +149,7 @@ func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Durat
 }
 
 func (c *systemCollector) GetSelfContainerID() (string, error) {
-	containerID, err := cgroups.IdentiferFromCgroupReferences("/proc", "self", c.baseController, cgroups.ContainerFilter)
-	return containerID, err
+	return getSelfContainerID(c.hostCgroupNamespace, c.reader.CgroupVersion(), c.baseController)
 }
 
 func (c *systemCollector) getCgroup(containerID string, cacheValidity time.Duration) (cgroups.Cgroup, error) {
@@ -261,21 +271,20 @@ func computeCPULimitPct(cgs *cgroups.CPUStats, parentCPUStatsRetriever func(pare
 
 func computeCgroupCPULimitPct(cgs *cgroups.CPUStats) *float64 {
 	// Limit is computed using min(CPUSet, CFS CPU Quota)
-	var limitPct float64
-	if cgs.CPUCount != nil {
-		limitPct = float64(*cgs.CPUCount) * 100
+	var limitPct *float64
+
+	if cgs.CPUCount != nil && *cgs.CPUCount != uint64(systemutils.HostCPUCount()) {
+		limitPct = pointer.UIntToFloatPtr(*cgs.CPUCount * 100)
 	}
+
 	if cgs.SchedulerQuota != nil && cgs.SchedulerPeriod != nil {
 		quotaLimitPct := 100 * (float64(*cgs.SchedulerQuota) / float64(*cgs.SchedulerPeriod))
-		if quotaLimitPct < limitPct {
-			limitPct = quotaLimitPct
+		if limitPct == nil || quotaLimitPct < *limitPct {
+			limitPct = &quotaLimitPct
 		}
 	}
 
-	if limitPct != 0 {
-		return &limitPct
-	}
-	return nil
+	return limitPct
 }
 
 func buildPIDStats(cgs *cgroups.PIDStats) *provider.ContainerPIDStats {

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -27,6 +26,9 @@ const (
 	validPathSymbols            = "/_-+"
 	validPathQueryStringSymbols = "/_-+@?&=.:\""
 )
+
+// allowedHeaders contains the headers that the proxy will forward. All others will be cleared.
+var allowedHeaders = [...]string{"Content-Type", "User-Agent", "DD-CI-PROVIDER-NAME"}
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -50,12 +52,12 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	return endpoints
 }
 
-func (r *HTTPReceiver) evpProxyHandler() http.Handler {
+func (r *HTTPReceiver) evpProxyHandler(apiVersion int) http.Handler {
 	if !r.conf.EVPProxy.Enabled {
 		return evpProxyErrorHandler("Has been disabled in config")
 	}
 	handler := evpProxyForwarder(r.conf)
-	return http.StripPrefix("/evp_proxy/v1", handler)
+	return http.StripPrefix(fmt.Sprintf("/evp_proxy/v%d", apiVersion), handler)
 }
 
 // evpProxyErrorHandler returns an HTTP handler that will always return
@@ -116,8 +118,6 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
 	containerID := req.Header.Get(headerContainerID)
-	contentType := req.Header.Get("Content-Type")
-	userAgent := req.Header.Get("User-Agent")
 	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset
@@ -139,19 +139,28 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		return nil, fmt.Errorf("EVPProxy: ApplicationKey needed but not set")
 	}
 
-	// We don't want to forward arbitrary headers, clear them
+	// We don't want to forward arbitrary headers, create a copy of the input headers and clear them
+	inputHeaders := req.Header
 	req.Header = http.Header{}
 
 	// Set standard headers
+	req.Header.Set("User-Agent", "") // Set to empty string so Go doesn't set its default
 	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", t.conf.AgentVersion))
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
+
+	// Copy allowed headers from the input request
+	for _, header := range allowedHeaders {
+		val := inputHeaders.Get(header)
+		if val != "" {
+			req.Header.Set(header, val)
+		}
 	}
-	req.Header.Set("User-Agent", userAgent) // Set even if an empty string so Go doesn't set its default
 
 	// Set Datadog headers, except API key which is set per-endpoint
-	if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
-		req.Header.Set("X-Datadog-Container-Tags", ctags)
+	if containerID != "" {
+		req.Header.Set(headerContainerID, containerID)
+		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
+			req.Header.Set("X-Datadog-Container-Tags", ctags)
+		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
@@ -178,7 +187,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	// There's more than one destination endpoint
 	var slurp []byte
 	if req.Body != nil {
-		body, err := ioutil.ReadAll(req.Body)
+		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +196,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	for i, endpointDomain := range t.endpoints {
 		newreq := req.Clone(req.Context())
 		if slurp != nil {
-			newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		}
 		setTarget(newreq, endpointDomain.Host, endpointDomain.APIKey)
 		if i == 0 {
@@ -199,7 +208,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 		if resp, err := t.transport.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

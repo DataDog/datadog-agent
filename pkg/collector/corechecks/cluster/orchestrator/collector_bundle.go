@@ -36,6 +36,7 @@ type CollectorBundle struct {
 	inventory          *inventory.CollectorInventory
 	stopCh             chan struct{}
 	runCfg             *collectors.CollectorRunConfig
+	manifestBuffer     *ManifestBuffer
 }
 
 // NewCollectorBundle creates a new bundle from the check configuration.
@@ -59,7 +60,8 @@ func NewCollectorBundle(chk *OrchestratorCheck) *CollectorBundle {
 			Config:      chk.orchestratorConfig,
 			MsgGroupRef: chk.groupID,
 		},
-		stopCh: make(chan struct{}),
+		stopCh:         make(chan struct{}),
+		manifestBuffer: NewManifestBuffer(chk),
 	}
 
 	bundle.prepare()
@@ -219,6 +221,13 @@ func (cb *CollectorBundle) Initialize() error {
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender aggregator.Sender) {
+
+	// Start a thread to buffer manifests and kill it when the check is finished.
+	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+		cb.manifestBuffer.Start(sender)
+		defer cb.manifestBuffer.Stop()
+	}
+
 	for _, collector := range cb.collectors {
 		runStartTime := time.Now()
 
@@ -234,7 +243,12 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), collector.Metadata().NodeType)
 		sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(collector.Metadata().NodeType))
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled {
+				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
+			} else {
+				// We don't buffer manifests for the pod check
+				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
+			}
 		}
 	}
 }

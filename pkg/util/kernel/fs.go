@@ -9,6 +9,7 @@
 package kernel
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/moby/sys/mountinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 )
 
 // MountInfoPidPath returns the path to the mountinfo file of a pid in /proc
@@ -85,10 +87,13 @@ func IsDebugFSMounted() (bool, error) {
 		return false, fmt.Errorf("kprobe_events mount point(%s): wrong fs type(%s)", mi.Mountpoint, mi.FSType)
 	}
 
-	options := strings.Split(mi.Options, ",")
-	for _, option := range options {
-		if option == "ro" {
-			return false, fmt.Errorf("kprobe_events mount point(%s) is in read-only mode", mi.Mountpoint)
+	// on fargate, kprobe_events is mounted as ro
+	if !fargate.IsFargateInstance(context.Background()) {
+		options := strings.Split(mi.Options, ",")
+		for _, option := range options {
+			if option == "ro" {
+				return false, fmt.Errorf("kprobe_events mount point(%s) is in read-only mode", mi.Mountpoint)
+			}
 		}
 	}
 

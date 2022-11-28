@@ -22,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const (
+	// Minimum value for runtime_security_config.activity_dump.max_dump_size
+	MinMaxDumSize = 100
+)
+
 // Policy represents a policy file in the configuration file
 type Policy struct {
 	Name  string   `mapstructure:"name"`
@@ -110,8 +115,6 @@ type Config struct {
 	ActivityDumpTagsResolutionPeriod time.Duration
 	// ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
 	ActivityDumpLoadControlPeriod time.Duration
-	// ActivityDumpMaxDumpSize defines the maximum size of a dump
-	ActivityDumpMaxDumpSize int
 	// ActivityDumpPathMergeEnabled defines if path merge should be enabled
 	ActivityDumpPathMergeEnabled bool
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
@@ -147,6 +150,9 @@ type Config struct {
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
 	// process.
 	ActivityDumpSyscallMonitorPeriod time.Duration
+	// # Dynamic configuration fields:
+	// ActivityDumpMaxDumpSize defines the maximum size of a dump
+	ActivityDumpMaxDumpSize func() int
 
 	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
 	RuntimeMonitor bool
@@ -176,8 +182,8 @@ type Config struct {
 	EventStreamBufferSize int
 }
 
-// IsEnabled returns true if any feature is enabled. Has to be applied in config package too
-func (c *Config) IsEnabled() bool {
+// IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
+func (c *Config) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
@@ -249,7 +255,6 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpCleanupPeriod:             time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.cleanup_period")) * time.Second,
 		ActivityDumpTagsResolutionPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.tags_resolution_period")) * time.Second,
 		ActivityDumpLoadControlPeriod:         time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.load_controller_period")) * time.Minute,
-		ActivityDumpMaxDumpSize:               coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size") * (1 << 10),
 		ActivityDumpPathMergeEnabled:          coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.path_merge.enabled"),
 		ActivityDumpTracedCgroupsCount:        coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
 		ActivityDumpTracedEventTypes:          model.ParseEventTypeStringSlice(coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
@@ -262,6 +267,14 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		ActivityDumpLocalStorageCompression:   coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.local_storage.compression"),
 		ActivityDumpRemoteStorageCompression:  coreconfig.Datadog.GetBool("runtime_security_config.activity_dump.remote_storage.compression"),
 		ActivityDumpSyscallMonitorPeriod:      time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.syscall_monitor.period")) * time.Second,
+		// activity dump dynamic fields
+		ActivityDumpMaxDumpSize: func() int {
+			mds := coreconfig.Datadog.GetInt("runtime_security_config.activity_dump.max_dump_size")
+			if mds < MinMaxDumSize {
+				mds = MinMaxDumSize
+			}
+			return mds * (1 << 10)
+		},
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -272,29 +285,9 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 	return c, nil
 }
 
-// sanitize ensures that the configuration is properly setup
-func (c *Config) sanitize() error {
-	// if runtime is enabled then we force fim
-	if c.RuntimeEnabled {
-		c.FIMEnabled = true
-	}
-
-	if !c.IsEnabled() {
-		return nil
-	}
-
-	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
-		c.EnableApprovers = true
-	}
-
-	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_discarders") && c.EnableKernelFilters {
-		c.EnableDiscarders = true
-	}
-
-	if !c.EnableApprovers && !c.EnableDiscarders {
-		c.EnableKernelFilters = false
-	}
-
+// sanitize global config parameters, process monitoring + runtime security
+func (c *Config) globalSanitize() error {
+	// place here everything that could be necessary for process monitoring
 	if !c.ERPCDentryResolutionEnabled && !c.MapDentryResolutionEnabled {
 		c.MapDentryResolutionEnabled = true
 	}
@@ -317,8 +310,50 @@ func (c *Config) sanitize() error {
 		return fmt.Errorf("runtime_security_config.event_stream.buffer_size must be a power of 2 and a multiple of %d", os.Getpagesize())
 	}
 
+	return nil
+}
+
+// sanitize runtime specific config parameters
+func (c *Config) sanitizeRuntime() error {
+	// if runtime is enabled then we force fim
+	if c.RuntimeEnabled {
+		c.FIMEnabled = true
+	}
+
+	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_approvers") && c.EnableKernelFilters {
+		c.EnableApprovers = true
+	}
+
+	if !coreconfig.Datadog.IsSet("runtime_security_config.enable_discarders") && c.EnableKernelFilters {
+		c.EnableDiscarders = true
+	}
+
+	if !c.EnableApprovers && !c.EnableDiscarders {
+		c.EnableKernelFilters = false
+	}
+
 	c.sanitizeRuntimeSecurityConfigNetwork()
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
+}
+
+// disable all the runtime features
+func (c *Config) disableRuntime() {
+	c.ActivityDumpEnabled = false
+}
+
+// sanitize ensures that the configuration is properly setup
+func (c *Config) sanitize() error {
+	if err := c.globalSanitize(); err != nil {
+		return err
+	}
+
+	// the following config params
+	if !c.IsRuntimeEnabled() {
+		c.disableRuntime()
+		return nil
+	}
+
+	return c.sanitizeRuntime()
 }
 
 // sanitizeNetworkConfiguration ensures that runtime_security_config.network is properly configured

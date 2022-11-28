@@ -162,7 +162,6 @@ func NewEmptyActivityDump() *ActivityDump {
 }
 
 // WithDumpOption can be used to configure an ActivityDump
-//msgp:ignore WithDumpOption
 type WithDumpOption func(ad *ActivityDump)
 
 // NewActivityDump returns a new instance of an ActivityDump
@@ -288,7 +287,7 @@ func (ad *ActivityDump) AddStorageRequest(request dump.StorageRequest) {
 }
 
 func (ad *ActivityDump) checkInMemorySize() {
-	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize) {
+	if ad.computeInMemorySize() < int64(ad.adm.probe.config.ActivityDumpMaxDumpSize()) {
 		return
 	}
 
@@ -342,6 +341,11 @@ func (ad *ActivityDump) updateTracedPid(pid uint32) {
 // commMatches returns true if the ActivityDump comm matches the provided comm
 func (ad *ActivityDump) commMatches(comm string) bool {
 	return ad.DumpMetadata.Comm == comm
+}
+
+// nameMatches returns true if the ActivityDump name matches the provided name
+func (ad *ActivityDump) nameMatches(name string) bool {
+	return ad.DumpMetadata.Name == name
 }
 
 // containerIDMatches returns true if the ActivityDump container ID matches the provided container ID
@@ -500,13 +504,12 @@ func (ad *ActivityDump) debug(w io.Writer) {
 }
 
 func (ad *ActivityDump) isEventTypeTraced(event *Event) bool {
-	var traced bool
 	for _, evtType := range ad.LoadConfig.TracedEventTypes {
 		if evtType == event.GetEventType() {
-			traced = true
+			return true
 		}
 	}
-	return traced
+	return false
 }
 
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
@@ -1005,10 +1008,10 @@ func (pan *ProcessActivityNode) debug(w io.Writer, prefix string) {
 }
 
 func (pan *ProcessActivityNode) retain() {
-	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.ArgsEntry != nil {
 		pan.Process.ArgsEntry.Retain()
 	}
-	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.EnvsEntry != nil {
 		pan.Process.EnvsEntry.Retain()
 	}
 }
@@ -1021,10 +1024,10 @@ func (pan *ProcessActivityNode) scrubAndReleaseArgsEnvs(resolver *ProcessResolve
 	pan.Process.EnvsTruncated = envsTruncated
 	pan.Process.Argv0, _ = resolver.GetProcessArgv0(&pan.Process)
 
-	if pan.Process.ArgsEntry != nil && pan.Process.ArgsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.ArgsEntry != nil {
 		pan.Process.ArgsEntry.Release()
 	}
-	if pan.Process.EnvsEntry != nil && pan.Process.EnvsEntry.ArgsEnvsCacheEntry != nil {
+	if pan.Process.EnvsEntry != nil {
 		pan.Process.EnvsEntry.Release()
 	}
 	pan.Process.ArgsEntry = nil
@@ -1092,7 +1095,14 @@ func extractFirstParent(path string) (string, int) {
 // InsertFileEventInProcess inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileEvent *model.FileEvent, event *Event, generationType NodeGenerationType) bool {
-	parent, nextParentIndex := extractFirstParent(event.ResolveFilePath(fileEvent))
+	var filePath string
+	if generationType != Snapshot {
+		filePath = event.ResolveFilePath(fileEvent)
+	} else {
+		filePath = fileEvent.PathnameStr
+	}
+
+	parent, nextParentIndex := extractFirstParent(filePath)
 	if nextParentIndex == 0 {
 		return false
 	}
@@ -1133,7 +1143,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 		return nil
 	}
 
-	for _, eventType := range ad.adm.probe.config.ActivityDumpTracedEventTypes {
+	for _, eventType := range ad.LoadConfig.TracedEventTypes {
 		switch eventType {
 		case model.FileOpenEventType:
 			if err = pan.snapshotFiles(p, ad); err != nil {

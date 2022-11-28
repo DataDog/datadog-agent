@@ -37,6 +37,14 @@ type BundleParams struct {
 	// the component's config data.
 	ConfigLoadSysProbe bool
 
+	// SecurityAgentConfigFilePaths are the paths at which to look for security-aegnt
+	// configuration, usually given by the --cfgpath command-line flag.
+	SecurityAgentConfigFilePaths []string
+
+	// ConfigLoadSecurityAgent determines whether to read the config from
+	// SecurityAgentConfigFilePaths or from ConfFilePath.
+	ConfigLoadSecurityAgent bool
+
 	// ConfigLoadSecrets determines whether secrets in the configuration file
 	// should be evaluated.  This is typically false for one-shot commands.
 	ConfigLoadSecrets bool
@@ -47,6 +55,14 @@ type BundleParams struct {
 
 	// LoggerName is the name that appears in the logfile
 	LoggerName string
+
+	// ExcludeDefaultConfPath determines whether the default config path must be excluded.
+	ExcludeDefaultConfPath bool
+
+	// DefaultConfPath determines the default configuration path.
+	// if DefaultConfPath is empty, then the default configuration path of the Agent is used.
+	// if ExcludeDefaultConfPath is true this field is ignored.
+	DefaultConfPath string
 
 	// LogLevelFn returns the log level. This field is set by methods on this
 	// type.

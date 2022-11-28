@@ -11,44 +11,29 @@ package app
 import (
 	"fmt"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/commands/config"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-func init() {
-	SecurityAgentCmd.AddCommand(cmdconfig.Config(getSettingsClient))
+func ConfigCommands(globalParams *common.GlobalParams) []*cobra.Command {
+	cmd := cmdconfig.Config(getSettingsClient)
+	return []*cobra.Command{cmd}
 }
 
 func setupConfig(cmd *cobra.Command) error {
-	if flagNoColor {
-		color.NoColor = true
-	}
-
-	// Read configuration files received from the command line arguments '-c'
-	err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed)
-	if err != nil {
-		return err
-	}
-
-	err = config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err
 	}
 
-	err = util.SetAuthToken()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return util.SetAuthToken()
 }
 
 func getSettingsClient(cmd *cobra.Command, _ []string) (settings.Client, error) {

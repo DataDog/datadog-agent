@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
@@ -23,15 +22,14 @@ import (
 
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
-	TracedEventTypesReductionOrder = []model.EventType{model.FileOpenEventType, model.SyscallsEventType, model.DNSEventType, model.BindEventType}
+	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 	// MinDumpTimeout is the shortest timeout for a dump
 	MinDumpTimeout = 10 * time.Minute
 )
 
 // ActivityDumpLoadController is a load controller allowing dynamic change of Activity Dump configuration
 type ActivityDumpLoadController struct {
-	rateLimiter *rate.Limiter
-	adm         *ActivityDumpManager
+	adm *ActivityDumpManager
 
 	// eBPF maps
 	activityDumpConfigDefaults *ebpf.Map
@@ -48,8 +46,6 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 	}
 
 	return &ActivityDumpLoadController{
-		// 1 every timeout, otherwise we do not have time to see real effects from the reduction
-		rateLimiter:                rate.NewLimiter(rate.Every(adm.probe.config.ActivityDumpCgroupDumpTimeout), 1),
 		activityDumpConfigDefaults: activityDumpConfigDefaultsMap,
 		adm:                        adm,
 	}, nil
@@ -69,15 +65,6 @@ func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	defaults.WaitListTimestampRaw = uint64(lc.adm.probe.config.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
-	}
-	return nil
-}
-
-// reduceConfig reduces the configuration of the load controller.
-// nolint: unused
-func (lc *ActivityDumpLoadController) reduceConfig() error {
-	if !lc.rateLimiter.Allow() {
-		return nil
 	}
 	return nil
 }
@@ -119,13 +106,13 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
+	if timeToThreshold < MinDumpTimeout/2 && ad.LoadConfig.Timeout > MinDumpTimeout {
 		if err := lc.reduceDumpTimeout(newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/10 {
+	if timeToThreshold < MinDumpTimeout/4 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}

@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -97,6 +97,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 
 				RouteIdx:         0,
 				HttpAggregations: httpOutBlob,
+				Protocol: &model.ProtocolStack{
+					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP},
+				},
 			},
 			{
 				Laddr: &model.Addr{Ip: "10.1.1.1", Port: int32(1000)},
@@ -112,6 +115,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				DnsSuccessfulResponses:      1, // TODO: verify why this was needed
 
 				RouteIdx: -1,
+				Protocol: &model.ProtocolStack{
+					Stack: []model.ProtocolType{model.ProtocolType_protocolHTTP2},
+				},
 			},
 		},
 		Dns: map[string]*model.DNSEntry{
@@ -182,6 +188,7 @@ func TestSerialization(t *testing.T) {
 							Alias: "subnet-foo",
 						},
 					},
+					Protocol: network.ProtocolHTTP,
 				},
 				{
 					Source:    util.AddressFromString("10.1.1.1"),
@@ -192,6 +199,7 @@ func TestSerialization(t *testing.T) {
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Tags:      uint64(1),
+					Protocol:  network.ProtocolHTTP2,
 				},
 			},
 		},
@@ -227,6 +235,8 @@ func TestSerialization(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{
@@ -473,6 +483,8 @@ func TestHTTPSerializationWithLocalhostTraffic(t *testing.T) {
 			): &httpReqStats,
 		},
 	}
+	// ignore "declared but not used"
+	_ = httpReqStats
 
 	httpOut := &model.HTTPAggregations{
 		EndpointAggregations: []*model.HTTPStats{

@@ -16,8 +16,8 @@
     # use tmpdir to prevent git remote capture by clang build
     - mkdir /tmp/clangbuild && cd /tmp/clangbuild
     - CLANG_MAJOR_VER=$(echo "${CLANG_LLVM_VER}" | cut -d '.' -f 1)
-    - CLANG_SHA256SUM=2b5847b6a63118b9efe5c85548363c81ffe096b66c3b3675e953e26342ae4031
-    - LLVM_SHA256SUM=050922ecaaca5781fdf6631ea92bc715183f202f9d2f15147226f023414f619a
+    - CLANG_SHA256SUM=6e912133bcf56e9cfe6a346fa7e5c52c2cde3e4e48b7a6cc6fcc7c75047da45f
+    - LLVM_SHA256SUM=7d9a8405f557cefc5a21bf5672af73903b64749d9bc3a50322239f56f34ffddf
     - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/clang-${CLANG_LLVM_VER}.src.tar.xz -O clang.src.tar.xz
     - wget ${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/llvm/llvm-${CLANG_LLVM_VER}.src.tar.xz -O llvm.src.tar.xz
     - echo -e "${LLVM_SHA256SUM} llvm.src.tar.xz\n${CLANG_SHA256SUM} clang.src.tar.xz" | sha256sum --check -
@@ -127,3 +127,45 @@ build_vcpkg_deps:
     - if (Test-Path build-out) { remove-item -recurse -force build-out }
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl},readwrite" 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} C:\mnt\tasks\winbuildscripts\build_vcpkg_deps.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
+build_processed_btfhub_archive:
+  rules:
+    !reference [.manual]
+  stage: deps_build
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
+  tags: ["runner:main"]
+  script:
+    - git clone https://github.com/aquasecurity/btfhub-archive.git
+    - cd btfhub-archive
+    # Flatten btfhub-archive directories & separate arm/x64 btfs into separate directories
+    - dirs=("amzn/2" "centos/7" "centos/8" "debian/9" "debian/10" "fedora/29" "fedora/30" "fedora/31" "oracle-linux/ol7")
+    - |
+      for dir in ${dirs[@]}; do                                         \
+        platform=${dir%%/*}                                           &&\
+        mkdir -p "btfs-amd64/${platform}" "btfs-arm64/${platform}"    &&\
+        eval "mv ${dir}/x86_64/*.btf.tar.xz btfs-amd64/${platform}/"  &&\
+        eval "mv ${dir}/arm64/*.btf.tar.xz btfs-arm64/${platform}/";    \
+      done
+    # Handle the amzn/1 directory separately because it doesn't have an arm64 version
+    - mv amzn/1/x86_64/* btfs-amd64/amzn/
+    # Handle ubuntu separately because we want to keep the btfs separated by ubuntu version
+    - mkdir -p btfs-amd64/ubuntu/18.04 btfs-amd64/ubuntu/20.04 btfs-arm64/ubuntu/18.04 btfs-arm64/ubuntu/20.04
+    - mv ubuntu/18.04/x86_64/*.btf.tar.xz btfs-amd64/ubuntu/18.04/
+    - mv ubuntu/20.04/x86_64/*.btf.tar.xz btfs-amd64/ubuntu/20.04/
+    - mv ubuntu/18.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/18.04/
+    - mv ubuntu/20.04/arm64/*.btf.tar.xz btfs-arm64/ubuntu/20.04/
+    # Clean up platform names to match the names we get at runtime from gopsutil
+    - mv btfs-amd64/amzn btfs-amd64/amazon
+    - mv btfs-arm64/amzn btfs-arm64/amazon
+    - mv btfs-amd64/oracle-linux btfs-amd64/oracle
+    - mv btfs-arm64/oracle-linux btfs-arm64/oracle
+    # Store results in S3
+    - tar -czf btfs-arm64.tar.gz btfs-arm64
+    - tar -czf btfs-amd64.tar.gz btfs-amd64
+    - $S3_CP_CMD btfs-arm64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-arm64.tar.gz
+    - $S3_CP_CMD btfs-amd64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-amd64.tar.gz
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - btfhub-archive/btfs-arm64.tar.gz
+      - btfhub-archive/btfs-amd64.tar.gz
