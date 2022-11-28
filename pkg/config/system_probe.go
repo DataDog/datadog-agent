@@ -71,7 +71,6 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
-	cfg.BindEnvAndSetDefault(join(spNS, "expvar_port"), 5020, "DD_SYSTEM_PROBE_EXPVAR_PORT")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")

@@ -65,7 +65,6 @@ type Config struct {
 
 	StatsdHost string
 	StatsdPort int
-	ExpVarPort int
 
 	// Settings for profiling, or nil if not enabled
 	ProfilingSettings *profiling.Settings
@@ -173,7 +172,6 @@ func load(configPath string) (*Config, error) {
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
-		ExpVarPort: cfg.GetInt(key(spNS, "expvar_port")),
 
 		ProfilingSettings: profSettings,
 	}
