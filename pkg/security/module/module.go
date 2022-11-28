@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/vulnprobe"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -129,6 +130,10 @@ func (m *Module) Init() error {
 
 	// policy loader
 	m.policyLoader = rules.NewPolicyLoader()
+
+	if err := vulnprobe.Init(); err != nil {
+		return fmt.Errorf("failed to init vulnprobe: %w", err)
+	}
 
 	return nil
 }
