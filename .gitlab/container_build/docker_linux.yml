@@ -138,6 +138,12 @@ docker_build_agent7_single_machine_performance:
   needs:
     - job: agent_deb-x64-a7
       artifacts: false
+  variables:
+    BUILD_CONTEXT: Dockerfiles/agent
+    TAG_SUFFIX: -7
+    ARCH: amd64
+    TEST_IMG: "true"
+    BUILD_ARG: --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb
   script:
     - aws s3 sync --only-show-errors $S3_ARTIFACTS_URI Dockerfiles/agent
     # Setup AWS credentials for single-machine-performance AWS account
@@ -151,17 +157,17 @@ docker_build_agent7_single_machine_performance:
     - aws ecr get-login-password --profile single-machine-performance | docker login --username "AWS" --password-stdin "$SMP_ECR_URL"
     # Calculate SMP tag, note that it must be deterministic and able to be
     # computed across pipeline executions.
-    - TARGET_TAG=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
+    - TARGET_TAG=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}${TAG_SUFFIX}-${ARCH}
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
-    - inv -e docker.pull-base-images Dockerfiles/agent/amd64/Dockerfile
+    - inv -e docker.pull-base-images $BUILD_CONTEXT/$ARCH/Dockerfile
     # Build image
-    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} --target release --build-arg PYTHON_VERSION=3 --build-arg DD_AGENT_ARTIFACT=datadog-agent_7*_amd64.deb --file Dockerifles/agent/amd64/Dockerfile --tag ${TARGET_TAG}-unsquashed Dockerfiles/agent
+    - docker build --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/$ARCH/Dockerfile --tag ${TARGET_TAG}-unsquashed $BUILD_CONTEXT
     # Squash image, test, and push to ECR
     - docker-squash ${TARGET_TAG}-unsquashed -t ${TARGET_TAG}
-    - test "true" && docker run -v `pwd`/Dockerfiles/agent:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
+    - test "$TEST_IMG" && docker run -v `pwd`/$BUILD_CONTEXT:/tmp/build ${TARGET_TAG} python /tmp/build/test_image_contents.py
     - docker push $TARGET_TAG
   # Workaround for temporary network failures
   retry: 2
