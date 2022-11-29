@@ -133,7 +133,8 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 
 type aggrConnectionStats struct {
 	*ConnectionStats
-	count uint32
+	rtt, rttVar uint64
+	count       uint32
 }
 
 type networkState struct {
@@ -504,6 +505,8 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		if !ok {
 			aggrConns[natKey] = &aggrConnectionStats{
 				ConnectionStats: c,
+				rtt:             uint64(c.RTT),
+				rttVar:          uint64(c.RTTVar),
 				count:           1,
 			}
 
@@ -535,8 +538,8 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	// put the aggregated closed connections in the buffer
 	outputAggrConns := func(aggrConns map[string]*aggrConnectionStats) {
 		for _, c := range aggrConns {
-			c.RTT /= uint32(c.count)
-			c.RTTVar /= uint32(c.count)
+			c.RTT = uint32(c.rtt / uint64(c.count))
+			c.RTTVar = uint32(c.rttVar / uint64(c.count))
 			*buffer.Next() = *c.ConnectionStats
 		}
 	}
@@ -735,8 +738,9 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 func aggregateConnections(aggrConn *aggrConnectionStats, c *ConnectionStats) {
 	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
 	aggrConn.Last = aggrConn.Last.Add(c.Last)
-	aggrConn.RTT += c.RTT
-	aggrConn.RTTVar += c.RTTVar
+	aggrConn.rtt += uint64(c.RTT)
+	aggrConn.rttVar += uint64(c.RTTVar)
+	aggrConn.count++
 	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
 		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
 	}
