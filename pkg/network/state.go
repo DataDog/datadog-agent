@@ -479,7 +479,7 @@ func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats)
 	}
 }
 
-// storeHTTPStats stores the latest Kafka stats for all clients
+// storeKafkaStats stores the latest Kafka stats for all clients
 func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
 	if len(ns.clients) == 1 {
 		for _, client := range ns.clients {

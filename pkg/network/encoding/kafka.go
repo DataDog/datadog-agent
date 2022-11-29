@@ -27,7 +27,7 @@ type kafkaAggregationWrapper struct {
 	*model.DataStreamsAggregations
 
 	// we keep track of the source and destination ports of the first
-	// `ConnectionStats` to claim this `HTTPAggregations` object
+	// `ConnectionStats` to claim this `DataStreamsAggregations` object
 	sport, dport uint16
 }
 
@@ -50,13 +50,13 @@ func (a *kafkaAggregationWrapper) ValueFor(c network.ConnectionStats) *model.Dat
 		// legit scenario where we're dealing with the opposite ends of the
 		// same connection, which means both server and client are in the same host.
 		// In this particular case it is correct to have both connections
-		// (client:server and server:client) referencing the same HTTP data.
+		// (client:server and server:client) referencing the same Kafka data.
 		return a.DataStreamsAggregations
 	}
 
 	// Return nil otherwise. This is to prevent multiple `ConnectionStats` with
 	// exactly the same source and destination addresses but different PIDs to
-	// "bind" to the same HTTPAggregations object, which would result in a
+	// "bind" to the same DataStreamsAggregations object, which would result in a
 	// overcount problem. (Note that this is due to the fact that
 	// `kafka.KeyTuple` doesn't have a PID field.) This happens mostly in the
 	// context of pre-fork web servers, where multiple worker proceses share the
@@ -74,7 +74,7 @@ func newKafkaEncoder(payload *network.Connections) *kafkaEncoder {
 	}
 
 	// pre-populate aggregation map with keys for all existent connections
-	// this allows us to skip encoding orphan HTTP objects that can't be matched to a connection
+	// this allows us to skip encoding orphan Kafka objects that can't be matched to a connection
 	for _, conn := range payload.Conns {
 		for _, key := range network.KafkaKeyTuplesFromConn(conn) {
 			encoder.aggregations[key] = nil
@@ -113,7 +113,7 @@ func (e *kafkaEncoder) buildAggregations(payload *network.Connections) {
 	for key, stats := range payload.Kafka {
 		aggregation, ok := e.aggregations[key.KeyTuple]
 		if !ok {
-			// if there is no matching connection don't even bother to serialize HTTP data
+			// if there is no matching connection don't even bother to serialize Kafka data
 			e.orphanEntries++
 			continue
 		}
