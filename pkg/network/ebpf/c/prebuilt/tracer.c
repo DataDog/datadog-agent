@@ -119,7 +119,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 
     // Should actually delete something only if the connection never got established & increment counter
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        increment_telemetry_count(tcp_failed_connects);
+        increment_telemetry_count(tcp_failed_connect);
     }
 
     clear_sockfd_maps(sk);
