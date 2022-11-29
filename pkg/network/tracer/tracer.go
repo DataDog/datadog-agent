@@ -426,12 +426,12 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 		tm[network.MonotonicPerfLost] = pl
 	}
 
-	stateStats := stats["state"].(map[string]int64)
+	stateStats := stats["state"].(map[string]interface{})
 	if ccd, ok := stateStats["closed_conn_dropped"]; ok {
-		tm[network.MonotonicClosedConnDropped] = ccd
+		tm[network.MonotonicClosedConnDropped] = ccd.(int64)
 	}
 	if cd, ok := stateStats["conn_dropped"]; ok {
-		tm[network.MonotonicConnDropped] = cd
+		tm[network.MonotonicConnDropped] = cd.(int64)
 	}
 
 	return tm
