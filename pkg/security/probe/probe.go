@@ -520,6 +520,19 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert mount event: %v", err)
 			return
 		}
+
+		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
+		if event.Mount.GetFSType() == "nsfs" {
+			nsid := uint32(event.Mount.RootInode)
+			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
+			if err != nil {
+				seclog.Debugf("failed to get mount path: %v", err)
+			} else {
+				mountNetNSPath := utils.NetNSPathFromPath(mountPath)
+				_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
+			}
+		}
+
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -527,7 +540,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ProcessContext.ContainerID)
+		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {

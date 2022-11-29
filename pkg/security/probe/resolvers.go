@@ -59,11 +59,19 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, resolvers.MountResolverOpts{UseProcFS: true, NamespaceResolver: namespaceResolver})
+	cgroupsResolver, err := resolvers.NewCgroupsResolver()
 	if err != nil {
 		return nil, err
 	}
 
+<<<<<<< HEAD
+=======
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, cgroupsResolver, resolvers.MountResolverOpts{UseProcFS: true})
+	if err != nil {
+		return nil, err
+	}
+
+>>>>>>> ca86c0b96d... use cgroups as fallback
 	resolvers := &Resolvers{
 		probe:             probe,
 		MountResolver:     mountResolver,

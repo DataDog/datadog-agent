@@ -11,7 +11,6 @@ package resolvers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -25,8 +24,6 @@ import (
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -88,18 +85,18 @@ type deleteRequest struct {
 
 // MountResolverOpts defines mount resolver options
 type MountResolverOpts struct {
-	UseProcFS         bool
-	NamespaceResolver *NamespaceResolver
+	UseProcFS bool
 }
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
-	opts         MountResolverOpts
-	statsdClient statsd.ClientInterface
-	lock         sync.RWMutex
-	mounts       map[uint32]*model.MountEvent
-	devices      map[uint32]map[uint32]*model.MountEvent
-	deleteQueue  []deleteRequest
+	opts            MountResolverOpts
+	cgroupsResolver *CgroupsResolver
+	statsdClient    statsd.ClientInterface
+	lock            sync.RWMutex
+	mounts          map[uint32]*model.MountEvent
+	devices         map[uint32]map[uint32]*model.MountEvent
+	deleteQueue     []deleteRequest
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -117,6 +114,10 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 }
 
 func (mr *MountResolver) syncCache(pid uint32, containerID string) error {
+	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		pid = pid1
+	}
+
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
 		return err
@@ -226,17 +227,6 @@ func (mr *MountResolver) insert(e *model.MountEvent, pid uint32, containerID str
 	}
 	deviceMounts[e.MountID] = e
 	mr.mounts[e.MountID] = e
-
-	if e.GetFSType() == "nsfs" && mr.opts.NamespaceResolver != nil {
-		nsid := uint32(e.RootInode)
-		mountPath, err := mr.resolveMountPath(e.MountID, pid, containerID)
-		if err != nil {
-			seclog.Debugf("failed to get mount path: %v", err)
-		} else {
-			mountNetNSPath := utils.NetNSPathFromPath(mountPath)
-			_, _ = mr.opts.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
-		}
-	}
 }
 
 func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
@@ -347,8 +337,6 @@ func (mr *MountResolver) resolveMountRoot(mountID, pid uint32, containerID strin
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
 func (mr *MountResolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
-
-	fmt.Printf("HEHEHEHEHEHE: %s\n", containerID)
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -423,7 +411,8 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 	return nil, ErrMountNotFound
 }
 
-func getMountIDOffset(kernelVersion *kernel.Version) uint64 {
+// GetMountIDOffset returns the mount id offset
+func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	offset := uint64(284)
 
 	switch {
@@ -521,16 +510,17 @@ func (mr *MountResolver) SendStats() error {
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver(statsdClient statsd.ClientInterface, opts MountResolverOpts) (*MountResolver, error) {
+func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *CgroupsResolver, opts MountResolverOpts) (*MountResolver, error) {
 	return &MountResolver{
-		opts:           opts,
-		statsdClient:   statsdClient,
-		lock:           sync.RWMutex{},
-		devices:        make(map[uint32]map[uint32]*model.MountEvent),
-		mounts:         make(map[uint32]*model.MountEvent),
-		cacheHitsStats: atomic.NewInt64(0),
-		procHitsStats:  atomic.NewInt64(0),
-		cacheMissStats: atomic.NewInt64(0),
-		procMissStats:  atomic.NewInt64(0),
+		opts:            opts,
+		statsdClient:    statsdClient,
+		cgroupsResolver: cgroupsResolver,
+		lock:            sync.RWMutex{},
+		devices:         make(map[uint32]map[uint32]*model.MountEvent),
+		mounts:          make(map[uint32]*model.MountEvent),
+		cacheHitsStats:  atomic.NewInt64(0),
+		procHitsStats:   atomic.NewInt64(0),
+		cacheMissStats:  atomic.NewInt64(0),
+		procMissStats:   atomic.NewInt64(0),
 	}, nil
 }

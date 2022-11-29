@@ -341,8 +341,10 @@ func TestMountResolver(t *testing.T) {
 	// use pid 1 for the tests
 	var pid uint32 = 1
 
+	cr, _ := NewCgroupsResolver()
+
 	// Create mount resolver
-	mr, _ := NewMountResolver(nil, MountResolverOpts{})
+	mr, _ := NewMountResolver(nil, cr, MountResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
