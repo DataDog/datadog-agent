@@ -19,8 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/vishvananda/netlink"
@@ -28,9 +26,6 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
@@ -51,6 +46,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // ActivityDumpHandler represents an handler for the activity dumps sent by the probe
@@ -267,7 +264,7 @@ func (p *Probe) Init() error {
 	}
 
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors...)
-	if p.config.AgentMonitoringEvents {
+	if p.Config.AgentMonitoringEvents {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.GetSelectorsPerEventType()["*"]...)
 
 	}

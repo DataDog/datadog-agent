@@ -15,7 +15,6 @@ import (
 	"github.com/twmb/murmur3"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -57,7 +56,6 @@ func FormatConnection(
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.PidCreateTime = conn.PidExecTime
 	c.Laddr = formatAddr(conn.Source, conn.SPort, conn.ContainerID, ipc)
 	c.Raddr = formatAddr(conn.Dest, conn.DPort, "", ipc)
 	c.Family = formatFamily(conn.Family)
