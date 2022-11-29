@@ -1173,7 +1173,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 }
 
 func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
+	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe.tcResolver)
 	evt.Event.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
@@ -1315,7 +1315,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			continue
 		}
 
-		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
+		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe.tcResolver)
 		evt.Event.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)

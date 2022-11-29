@@ -1092,7 +1092,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber, p)
+		return NewEvent(p.resolvers, p.scrubber, p.tcResolver)
 	}
 	opts.WithLogger(seclog.DefaultLogger)
 
@@ -1360,11 +1360,11 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.event = NewEvent(p.resolvers, p.scrubber, p)
+	p.event = NewEvent(p.resolvers, p.scrubber, p.tcResolver)
 
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
-	eventZero.probe = p
+	eventZero.tcResolver = p.tcResolver
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
