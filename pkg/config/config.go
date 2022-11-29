@@ -1159,8 +1159,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.event_stream.use_ring_buffer", false)
 	config.BindEnv("runtime_security_config.event_stream.buffer_size")
 	config.BindEnvAndSetDefault("runtime_security_config.envs_with_value", []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
-	config.BindEnvAndSetDefault("runtime_security_config.vulnprobe.enabled", false)
-	config.BindEnvAndSetDefault("runtime_security_config.vulnprobe.policy.path", "/etc/datadog-agent/vulnprobe/default.policy")
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)
