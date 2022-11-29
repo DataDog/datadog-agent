@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    Add service tag extraction based on a process's commandline args for service monitoring.
+    Add service tag extraction based on a process's command line args for service monitoring.
