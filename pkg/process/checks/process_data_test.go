@@ -67,7 +67,7 @@ func TestProcessDataFetch(t *testing.T) {
 
 			if tc.wantErr {
 				probe.On("ProcessesByPID", mock.Anything, mock.Anything).
-					Return(nil, fmt.Errorf("unable to retreive process data"))
+					Return(nil, fmt.Errorf("unable to retrieve process data"))
 				assert.Error(t, p.Fetch())
 			} else {
 				probe.On("ProcessesByPID", mock.Anything, mock.Anything).
