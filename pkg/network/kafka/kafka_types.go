@@ -17,16 +17,10 @@ import "C"
 type kafkaConnTuple C.conn_tuple_t
 type kafkaBatchState C.kafka_batch_state_t
 
-//type sslSock C.ssl_sock_t
-//type sslReadArgs C.ssl_read_args_t
-//
 type ebpfKafkaTx C.kafka_transaction_t
 type kafkaBatch C.kafka_batch_t
 type kafkaBatchKey C.kafka_batch_key_t
 
-//
-//type libPath C.lib_path_t
-//
 const (
 	KAFKABatchSize  = C.KAFKA_BATCH_SIZE
 	KAFKABatchPages = C.KAFKA_BATCH_PAGES

@@ -65,7 +65,7 @@ func (t *telemetry) reset() telemetry {
 	delta.elapsed.Store(now - then)
 
 	log.Debugf(
-		"http stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
+		"kafka stats summary: requests_processed=%d(%.2f/s) requests_missed=%d(%.2f/s) requests_dropped=%d(%.2f/s) requests_rejected=%d(%.2f/s) requests_malformed=%d(%.2f/s) aggregations=%d",
 		delta.totalHits.Load(),
 		float64(delta.totalHits.Load())/float64(delta.elapsed.Load()),
 		delta.misses.Load(),

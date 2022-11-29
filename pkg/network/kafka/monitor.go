@@ -11,7 +11,6 @@ package kafka
 import (
 	"fmt"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -86,10 +85,9 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	if err != nil {
 		return nil, err
 	}
-	statkeeper := newKAFKAStatkeeper(c, telemetry)
+	statkeeper := newKafkaStatkeeper(c, telemetry)
 
 	handler := func(transactions []kafkaTX) {
-		log.Debug("in handler")
 		if statkeeper != nil {
 			statkeeper.Process(transactions)
 		}
@@ -113,7 +111,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	}, nil
 }
 
-// Start consuming KAFKA events
+// Start consuming Kafka events
 func (m *Monitor) Start() error {
 	if m == nil {
 		return nil
@@ -152,6 +150,10 @@ func (m *Monitor) Start() error {
 
 				delta := m.telemetry.reset()
 
+				// For now, we still want to report the telemetry as it contains more information than what
+				// we're extracting via network tracer.
+				delta.report()
+
 				reply <- MonitorStats{
 					requestStats: m.statkeeper.GetAndResetAllStats(),
 					telemetry:    delta,
@@ -164,7 +166,7 @@ func (m *Monitor) Start() error {
 }
 
 // GetKafkaStats returns a map of Kafka stats stored in the following format:
-// [source, dest tuple, request path] -> RequestStats object
+// [source, dest tuple, TopicName] -> RequestStats object
 func (m *Monitor) GetKafkaStats() map[Key]*RequestStats {
 	if m == nil {
 		return nil
@@ -229,32 +231,6 @@ func (m *Monitor) process(transactions []kafkaTX, err error) {
 	if m.handler != nil && len(transactions) > 0 {
 		m.handler(transactions)
 	}
-
-	//var requestStatsMap map[Key]*RequestStats
-	//for _, transaction := range transactions {
-	//	key := Key{
-	//		KeyTuple: KeyTuple{
-	//			SrcIPHigh: transaction.SrcIPHigh(),
-	//			SrcIPLow:  transaction.SrcIPLow(),
-	//			SrcPort:   transaction.SrcPort(),
-	//			DstIPHigh: transaction.DstIPHigh(),
-	//			DstIPLow:  transaction.DstIPLow(),
-	//			DstPort:   transaction.DstPort(),
-	//		},
-	//		TopicName: transaction.TopicName(),
-	//	}
-	//	requestStats, ok := requestStatsMap[key]
-	//	if !ok {
-	//		// TODO: Should limit the size of requestStatsMap?
-	//		requestStats = new(RequestStats)
-	//		requestStatsMap[key] = requestStats
-	//	}
-	//	requestStats.data[ProduceAPIKey].Count++
-	//}
-
-	//if m.handler != nil && len(transactions) > 0 {
-	//	m.handler(transactions)
-	//}
 }
 
 // DumpMaps dumps the maps associated with the monitor

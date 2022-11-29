@@ -523,6 +523,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		httpStatsDelta:        map[http.Key]*http.RequestStats{},
 		lastTelemetries:       make(map[ConnTelemetryType]int64),
 	}
+
 	ns.clients[clientID] = c
 	return c
 }

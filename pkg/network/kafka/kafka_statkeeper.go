@@ -18,7 +18,7 @@ type kafkaStatKeeper struct {
 	telemetry  *telemetry
 }
 
-func newKAFKAStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
+func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper {
 	return &kafkaStatKeeper{
 		stats:      make(map[Key]*RequestStats),
 		maxEntries: c.MaxHTTPStatsBuffered,
