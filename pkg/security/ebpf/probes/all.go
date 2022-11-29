@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/vulnprobe"
 )
 
 const (
@@ -86,6 +87,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getBindProbes()...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getPipeProbes()...)
+	allProbes = append(allProbes, vulnprobe.GetVulncheckProbe())
 
 	allProbes = append(allProbes,
 		&manager.Probe{
