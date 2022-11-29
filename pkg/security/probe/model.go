@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -63,13 +64,6 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
 	return &Event{}
-}
-
-// NetDeviceKey is used to uniquely identify a network device
-type NetDeviceKey struct {
-	IfIndex          uint32
-	NetNS            uint32
-	NetworkDirection manager.TrafficType
 }
 
 // Event describes a probe event
@@ -611,21 +605,13 @@ func bestGuessServiceTag(serviceValues []string) string {
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
 func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
 	if len(device.IfName) == 0 && ev.probe != nil {
-		key := NetDeviceKey{
+		key := resolvers.NetDeviceKey{
 			NetNS:            device.NetNS,
 			IfIndex:          device.IfIndex,
 			NetworkDirection: manager.Egress,
 		}
 
-		ev.probe.tcProgramsLock.RLock()
-		defer ev.probe.tcProgramsLock.RUnlock()
-
-		tcProbe, ok := ev.probe.tcPrograms[key]
-		if !ok {
-			key.NetworkDirection = manager.Ingress
-			tcProbe = ev.probe.tcPrograms[key]
-		}
-
+		tcProbe := ev.probe.tcResolver.GetTCProbeForKey(key)
 		if tcProbe != nil {
 			device.IfName = tcProbe.IfName
 		}
