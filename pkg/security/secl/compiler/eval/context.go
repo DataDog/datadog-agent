@@ -21,6 +21,8 @@ type Context struct {
 	Cache map[string]unsafe.Pointer
 
 	now time.Time
+
+	MatchingAncestors []int
 }
 
 // Now return and cache the `now` timestamp

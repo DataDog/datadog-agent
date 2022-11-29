@@ -455,9 +455,13 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		}
 	}
 
-	op := func(a string, b []string, cmp func(a, b string) bool) bool {
-		for _, bs := range b {
+	arrayB := b
+	op := func(a string, b []string, cmp func(a, b string) bool, ctx *Context) bool {
+		for index, bs := range b {
 			if cmp(a, bs) {
+				if ctx != nil && arrayB.IsRelatedToAncestors {
+					ctx.MatchingAncestors = append(ctx.MatchingAncestors, index)
+				}
 				return true
 			}
 		}
@@ -491,7 +495,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb(ctx), cmp)
+			return op(ea(ctx), eb(ctx), cmp, ctx)
 		}
 
 		return &BoolEvaluator{
@@ -505,7 +509,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		ea, eb := a.Value, b.Values
 
 		return &BoolEvaluator{
-			Value:           op(ea, eb, cmp),
+			Value:           op(ea, eb, cmp, nil),
 			Weight:          a.Weight + InArrayWeight*len(eb),
 			isDeterministic: isDc,
 		}, nil
@@ -515,7 +519,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return op(ea(ctx), eb, cmp)
+			return op(ea(ctx), eb, cmp, ctx)
 		}
 
 		return &BoolEvaluator{
@@ -528,7 +532,7 @@ func StringArrayContains(a *StringEvaluator, b *StringArrayEvaluator, state *Sta
 	ea, eb := a.Value, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return op(ea, eb(ctx), cmp)
+		return op(ea, eb(ctx), cmp, ctx)
 	}
 
 	return &BoolEvaluator{
@@ -623,9 +627,13 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		return nil, err
 	}
 
-	arrayOp := func(a []string, b *StringValues) bool {
-		for _, as := range a {
+	arrayA := a
+	arrayOp := func(a []string, b *StringValues, ctx *Context) bool {
+		for index, as := range a {
 			if b.Matches(as) {
+				if ctx != nil && arrayA.IsRelatedToAncestors {
+					ctx.MatchingAncestors = append(ctx.MatchingAncestors, index)
+				}
 				return true
 			}
 		}
@@ -636,7 +644,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		ea, eb := a.EvalFnc, b.EvalFnc
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), eb(ctx))
+			return arrayOp(ea(ctx), eb(ctx), ctx)
 		}
 
 		return &BoolEvaluator{
@@ -650,7 +658,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		ea, eb := a.Values, b.Values
 
 		return &BoolEvaluator{
-			Value:           arrayOp(ea, &eb),
+			Value:           arrayOp(ea, &eb, nil),
 			Weight:          a.Weight + InArrayWeight*len(eb.fieldValues),
 			isDeterministic: isDc,
 		}, nil
@@ -660,7 +668,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 		ea, eb := a.EvalFnc, b.Values
 
 		evalFnc := func(ctx *Context) bool {
-			return arrayOp(ea(ctx), &eb)
+			return arrayOp(ea(ctx), &eb, ctx)
 		}
 
 		return &BoolEvaluator{
@@ -673,7 +681,7 @@ func StringArrayMatches(a *StringArrayEvaluator, b *StringValuesEvaluator, state
 	ea, eb := a.Values, b.EvalFnc
 
 	evalFnc := func(ctx *Context) bool {
-		return arrayOp(ea, eb(ctx))
+		return arrayOp(ea, eb(ctx), ctx)
 	}
 
 	return &BoolEvaluator{

@@ -10,6 +10,7 @@ import (
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // RuleID - ID of a Rule
@@ -66,6 +67,8 @@ func (r *RuleEvaluator) GetFields() []Field {
 
 // Eval - Evaluates
 func (r *Rule) Eval(ctx *Context) bool {
+	seclog.Warnf("HELLO COUCOU")
+
 	return r.evaluator.Eval(ctx)
 }
 

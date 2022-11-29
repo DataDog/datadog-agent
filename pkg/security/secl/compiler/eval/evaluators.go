@@ -150,6 +150,9 @@ type StringArrayEvaluator struct {
 
 	// used during compilation of partial
 	isDeterministic bool
+
+	// TODO(paulcacheux): fix this hack
+	IsRelatedToAncestors bool
 }
 
 // Eval returns the result of the evaluation
