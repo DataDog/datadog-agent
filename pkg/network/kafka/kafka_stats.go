@@ -7,6 +7,11 @@ package kafka
 
 import "github.com/DataDog/datadog-agent/pkg/process/util"
 
+const (
+	ProduceAPIKey = 0
+	FetchAPIKey   = 1
+)
+
 // KeyTuple represents the network tuple for a group of Kafka transactions
 type KeyTuple struct {
 	SrcIPHigh uint64

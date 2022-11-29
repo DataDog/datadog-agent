@@ -3,12 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package kafka
+//go:build (windows && npm) || linux_bpf
+// +build windows,npm linux_bpf
 
-const (
-	ProduceAPIKey = 0
-	FetchAPIKey   = 1
-)
+package kafka
 
 type kafkaTX interface {
 	ReqFragment() []byte
