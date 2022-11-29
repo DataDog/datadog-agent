@@ -165,7 +165,7 @@ func (nn *NetworkNamespace) dequeueNetworkDevices(probe *Probe) {
 	defer handle.Close()
 
 	for _, queuedDevice := range nn.networkDevicesQueue {
-		_ = probe.tcResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, probe.Manager)
+		_ = probe.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(queuedDevice, handle, probe.Manager)
 	}
 	nn.flushNetworkDevicesQueue()
 }
@@ -214,7 +214,7 @@ func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 
 	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
 		nr.flushNetworkNamespace(value)
-		nr.probe.tcResolver.FlushNetworkNamespaceID(value.nsID, nr.probe.Manager)
+		nr.probe.resolvers.TCResolver.FlushNetworkNamespaceID(value.nsID, nr.probe.Manager)
 	})
 	if err != nil {
 		return nil, err
@@ -326,7 +326,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 			NetNS:   netns.nsID,
 		}
 
-		if err = nr.probe.tcResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.probe.Manager); err == nil {
+		if err = nr.probe.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, nr.probe.Manager); err == nil {
 			// ignore interfaces that are lazily deleted
 			if !nr.IsLazyDeletionInterface(device.Name) && attrs.HardwareAddr.String() != "" {
 				attachedDeviceCountNoLazyDeletion++
@@ -406,7 +406,7 @@ func (nr *NamespaceResolver) flushNamespaces(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			probesCount := nr.probe.tcResolver.FlushInactiveProbes(nr.probe.Manager, nr.IsLazyDeletionInterface)
+			probesCount := nr.probe.resolvers.TCResolver.FlushInactiveProbes(nr.probe.Manager, nr.IsLazyDeletionInterface)
 
 			// There is a possible race condition if we lose all network device creations but do notice the new network
 			// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
@@ -472,7 +472,7 @@ func (nr *NamespaceResolver) preventNetworkNamespaceDrift(probesCount map[uint32
 				deviceCountNoLoopbackNoDummy := nr.snapshotNetworkDevices(netns)
 				if deviceCountNoLoopbackNoDummy == 0 {
 					nr.flushNetworkNamespace(netns)
-					nr.probe.tcResolver.FlushNetworkNamespaceID(netns.nsID, nr.probe.Manager)
+					nr.probe.resolvers.TCResolver.FlushNetworkNamespaceID(netns.nsID, nr.probe.Manager)
 					netns.Unlock()
 					continue
 				}

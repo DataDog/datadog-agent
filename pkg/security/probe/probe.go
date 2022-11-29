@@ -110,9 +110,6 @@ type Probe struct {
 	constantOffsets map[string]uint64
 	runtimeCompiled bool
 
-	// network section
-	tcResolver *resolvers.TCResolver
-
 	isRuntimeDiscarded bool
 }
 
@@ -358,7 +355,7 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
-	p.tcResolver.SendTCProgramsStats(p.StatsdClient)
+	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
 	return p.monitor.SendStats()
 }
@@ -929,7 +926,7 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 		}
 	}
 
-	activatedProbes = append(activatedProbes, p.tcResolver.SelectTCProbes())
+	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// Add syscall monitor probes
 	if p.Config.ActivityDumpEnabled {
@@ -1092,7 +1089,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber, p.tcResolver)
+		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.WithLogger(seclog.DefaultLogger)
 
@@ -1123,7 +1120,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
 	defer handle.Close()
-	return p.tcResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
+	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1132,7 +1129,7 @@ func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
 	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.tcResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
+	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
 }
 
 func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
@@ -1173,8 +1170,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	tcResolver := resolvers.NewTCResolver(config)
-
 	p := &Probe{
 		Config:               config,
 		approvers:            make(map[eval.EventType]activeApprovers),
@@ -1183,7 +1178,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		cancelFnc:            cancel,
 		Erpc:                 nerpc,
 		erpcRequest:          &erpc.ERPCRequest{},
-		tcResolver:           tcResolver,
 		StatsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
@@ -1360,11 +1354,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.event = NewEvent(p.resolvers, p.scrubber, p.tcResolver)
+	p.event = NewEvent(p.resolvers, p.scrubber)
 
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
-	eventZero.tcResolver = p.tcResolver
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
