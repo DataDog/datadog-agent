@@ -275,11 +275,13 @@ func (p *GoTLSProgram) Start() {
 		}
 	}()
 
-	_ = util.WithAllProcs(p.procRoot, func(pid int) error {
-		p.handleProcessStart(uint32(pid))
-		return nil
-	})
-	close(startDone)
+	go func() {
+		_ = util.WithAllProcs(p.procRoot, func(pid int) error {
+			p.handleProcessStart(uint32(pid))
+			return nil
+		})
+		close(startDone)
+	}()
 }
 
 func (p *GoTLSProgram) Stop() {
