@@ -10,5 +10,4 @@ import "github.com/DataDog/datadog-agent/pkg/process/procutil"
 // Extractor is common interface for extracting metadata from processes
 type Extractor interface {
 	Extract(procs map[int32]*procutil.Process)
-	Type() string
 }

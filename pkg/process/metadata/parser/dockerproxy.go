@@ -36,10 +36,6 @@ func NewDockerProxy() *DockerProxy {
 	}
 }
 
-func (d *DockerProxy) Type() string {
-	return "dockerProxy"
-}
-
 func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
 	proxyByPID := make(map[int32]*proxy)
 	proxyByTarget := make(map[model.ContainerAddr]*proxy)

@@ -34,7 +34,7 @@ var _ metadata.Extractor = &ServiceExtractor{}
 
 // ServiceExtractor infers a service tag by extracting it from a process
 type ServiceExtractor struct {
-	Enabled      bool
+	enabled      bool
 	serviceByPID map[int32]*serviceMetadata
 }
 
@@ -47,17 +47,13 @@ type serviceMetadata struct {
 func NewServiceExtractor() *ServiceExtractor {
 	enabled := ddconfig.Datadog.GetBool("service_monitoring_config.process_service_inference.enabled")
 	return &ServiceExtractor{
-		Enabled:      enabled,
+		enabled:      enabled,
 		serviceByPID: make(map[int32]*serviceMetadata),
 	}
 }
 
-func (d *ServiceExtractor) Type() string {
-	return "serviceExtractor"
-}
-
 func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
-	if !d.Enabled {
+	if !d.enabled {
 		return
 	}
 
@@ -84,7 +80,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 }
 
 func (d *ServiceExtractor) GetServiceTag(pid int32) string {
-	if !d.Enabled {
+	if !d.enabled {
 		return ""
 	}
 	if meta, ok := d.serviceByPID[pid]; ok {

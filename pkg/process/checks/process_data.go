@@ -19,14 +19,13 @@ var ProcData = NewProcessData()
 // This is currently used for metadata extraction from processes. This is a starting point for providing
 // process data across all checks as part of the migration to components.
 type ProcessData struct {
-	probe            procutil.Probe
-	extractorsByType map[string]metadata.Extractor
+	probe      procutil.Probe
+	extractors []metadata.Extractor
 }
 
 func NewProcessData() *ProcessData {
 	return &ProcessData{
-		probe:            newProcessProbe(),
-		extractorsByType: make(map[string]metadata.Extractor),
+		probe: newProcessProbe(),
 	}
 }
 
@@ -38,17 +37,17 @@ func (p *ProcessData) Fetch() error {
 		return err
 	}
 
-	notifyExtractors(procs, p.extractorsByType)
+	notifyExtractors(procs, p.extractors)
 
 	return nil
 }
 
 // Register adds an Extractor which will be notified for metadata extraction
 func (p *ProcessData) Register(e metadata.Extractor) {
-	p.extractorsByType[e.Type()] = e
+	p.extractors = append(p.extractors, e)
 }
 
-func notifyExtractors(procs map[int32]*procutil.Process, extractors map[string]metadata.Extractor) {
+func notifyExtractors(procs map[int32]*procutil.Process, extractors []metadata.Extractor) {
 	for _, extractor := range extractors {
 		extractor.Extract(procs)
 	}
