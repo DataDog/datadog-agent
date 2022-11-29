@@ -22,6 +22,7 @@ import (
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -578,6 +579,46 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 	}
 
 	return device.IfName
+}
+
+func (ev *Event) ResolveUProbePath(e *model.UProbeEvent) string {
+	if e.Desc == nil {
+		e.Desc = uprobe.GetUProbeDesc(e.ID)
+		if e.Desc == nil {
+			return ""
+		}
+	}
+	return e.Desc.Path
+}
+
+func (ev *Event) ResolveUProbeVersion(e *model.UProbeEvent) string {
+	if e.Desc == nil {
+		e.Desc = uprobe.GetUProbeDesc(e.ID)
+		if e.Desc == nil {
+			return ""
+		}
+	}
+	return e.Desc.Version
+}
+
+func (ev *Event) ResolveUProbeFunctionName(e *model.UProbeEvent) string {
+	if e.Desc == nil {
+		e.Desc = uprobe.GetUProbeDesc(e.ID)
+		if e.Desc == nil {
+			return ""
+		}
+	}
+	return e.Desc.FunctionName
+}
+
+func (ev *Event) ResolveUProbeOffset(e *model.UProbeEvent) string {
+	if e.Desc == nil {
+		e.Desc = uprobe.GetUProbeDesc(e.ID)
+		if e.Desc == nil {
+			return ""
+		}
+	}
+	return e.Desc.OffsetStr
 }
 
 // NewEvent returns a new event

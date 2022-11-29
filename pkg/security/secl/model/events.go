@@ -87,6 +87,8 @@ const (
 	BindEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
+	// UProbe event
+	UProbeEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -190,6 +192,8 @@ func (t EventType) String() string {
 		return "bind"
 	case SyscallsEventType:
 		return "syscalls"
+	case UProbeEventType:
+		return "uprobe"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

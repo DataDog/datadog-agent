@@ -228,6 +228,7 @@ enum event_type
     EVENT_VETH_PAIR,
     EVENT_BIND,
     EVENT_SYSCALLS,
+    EVENT_UPROBE,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events

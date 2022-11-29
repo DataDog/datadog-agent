@@ -5380,6 +5380,39 @@
       ]
     },
     {
+      "name": "uprobe",
+      "definition": "",
+      "type": "",
+      "from_agent_version": "",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "uprobe.function_name",
+          "type": "string",
+          "definition": "",
+          "constants": ""
+        },
+        {
+          "name": "uprobe.offset",
+          "type": "string",
+          "definition": "",
+          "constants": ""
+        },
+        {
+          "name": "uprobe.path",
+          "type": "string",
+          "definition": "",
+          "constants": ""
+        },
+        {
+          "name": "uprobe.version",
+          "type": "string",
+          "definition": "",
+          "constants": ""
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
