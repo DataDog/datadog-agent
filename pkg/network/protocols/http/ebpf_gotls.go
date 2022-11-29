@@ -238,7 +238,10 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
+	startDone := make(chan interface{})
+
 	go func() {
+		<-startDone
 		for {
 			select {
 			case <-p.procMonitor.done:
@@ -276,6 +279,7 @@ func (p *GoTLSProgram) Start() {
 		p.handleProcessStart(uint32(pid))
 		return nil
 	})
+	close(startDone)
 }
 
 func (p *GoTLSProgram) Stop() {
