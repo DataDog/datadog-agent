@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: OTLP Ingest: Fix an issue where a span local "peer.service" attribute would not override a resource attribute-level service.
+    APM OTLP: Fix an issue where a span's local "peer.service" attribute would not override a resource attribute-level service.
