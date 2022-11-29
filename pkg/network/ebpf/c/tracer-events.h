@@ -9,6 +9,7 @@
 #include "cookie.h"
 
 #include "bpf_helpers.h"
+#include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
@@ -129,6 +130,8 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
         bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         batch_ptr->len = 0;
         batch_ptr->id++;
+
+        // we cannot use the telemetry macro here because of stack size constraints
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
     }
 }
