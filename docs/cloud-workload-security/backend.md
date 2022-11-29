@@ -732,6 +732,9 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "is_matching": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": false,
@@ -848,6 +851,9 @@ CWS logs have the following JSON schema:
                 "is_kworker": {
                     "type": "boolean",
                     "description": "Indicates whether the process is a kworker"
+                },
+                "is_matching": {
+                    "type": "boolean"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -2209,6 +2215,9 @@ CWS logs have the following JSON schema:
         "is_kworker": {
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
+        },
+        "is_matching": {
+            "type": "boolean"
         }
     },
     "additionalProperties": false,
@@ -2366,6 +2375,9 @@ CWS logs have the following JSON schema:
         "is_kworker": {
             "type": "boolean",
             "description": "Indicates whether the process is a kworker"
+        },
+        "is_matching": {
+            "type": "boolean"
         },
         "parent": {
             "$ref": "#/$defs/Process",
