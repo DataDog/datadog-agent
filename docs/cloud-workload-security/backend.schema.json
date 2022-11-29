@@ -716,6 +716,9 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_matching": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -832,6 +835,9 @@
         "is_kworker": {
           "type": "boolean",
           "description": "Indicates whether the process is a kworker"
+        },
+        "is_matching": {
+          "type": "boolean"
         },
         "parent": {
           "$ref": "#/$defs/Process",
