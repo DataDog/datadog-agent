@@ -47,16 +47,15 @@ func reqToClientIp(req *envoy_service_auth_v3.CheckRequest) string {
 
 func reqToAddrs(req *envoy_service_auth_v3.CheckRequest) map[string]interface{} {
 	httpReq := req.Attributes.Request.Http
-	httpPathIdx := strings.Index(httpReq.Path, "?")
-	if httpPathIdx == -1 {
-		httpPathIdx = len(httpReq.Path)
+	httpUrl := string(httpReq.Path)
+	if httpReq.Fragment != "" {
+		httpUrl += "#"
+		httpUrl += httpReq.Fragment
 	}
-	httpUrl := url.URL{
-		Scheme:   httpReq.Scheme,
-		Host:     httpReq.Host,
-		Path:     httpReq.Path[:httpPathIdx],
-		RawQuery: httpReq.Path[httpPathIdx:],
-		Fragment: httpReq.Fragment,
+	httpQuery := map[string][]string{}
+	httpPathIdx := strings.Index(httpReq.Path, "?")
+	if httpPathIdx != -1 {
+		httpQuery, _ = url.ParseQuery(httpReq.Path[httpPathIdx + 1:])
 	}
 	httpHeaders := map[string]string{}
 	for key, val := range httpReq.Headers {
@@ -68,10 +67,42 @@ func reqToAddrs(req *envoy_service_auth_v3.CheckRequest) map[string]interface{} 
 	addresses := map[string]interface{}{
 		"http.client_ip":                    reqToClientIp(req),
 		"server.request.method":             httpReq.Method,
-		"server.request.uri.raw":            httpUrl.String(),
+		"server.request.uri.raw":            httpUrl,
+		"server.request.query":              httpQuery,
 		"server.request.headers.no_cookies": httpHeaders,
 	}
 	return addresses
+}
+
+func shouldBlock(actions []string) bool {
+	for _, action := range actions {
+		if action == "block" {
+			return true
+		}
+	}
+	return false
+}
+
+func attachAppSecMetadata(resp *envoy_service_auth_v3.CheckResponse, matches []byte, blocked bool) {
+	if len(matches) == 2 && matches[0] == '[' && matches[1] == ']' {
+		return
+	}
+	meta := resp.DynamicMetadata
+	if meta == nil {
+		meta = &structpb.Struct{}
+		resp.DynamicMetadata = meta
+	}
+	fields := meta.Fields
+	if fields == nil {
+		fields = make(map[string]*structpb.Value)
+		meta.Fields = fields
+	}
+	// field to be copied into _dd.appsec.json by envoy tracer
+	rawBlocked := ""
+	if blocked {
+		rawBlocked = "\"blocked\":true,"
+	}
+	fields["appsec"] = structpb.NewStringValue(fmt.Sprintf("{\"event\":true,%s\"triggers\":%s}", rawBlocked, matches))
 }
 
 // Check implements authorization's Check interface which performs authorization check based on the
@@ -96,17 +127,8 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 	if err != nil && err != waf.ErrTimeout {
 		log.Errorf("appsec: unexpected waf execution error: %v", err)
 	}
-	log.Debugf("appsec: envoy auth api: matches=%s actions=%v", string(matches), actions)
-
-	if len(matches) > 0 {
-		meta := &structpb.Struct{Fields: make(map[string]*structpb.Value)}
-		meta.Fields["appsec"] = structpb.NewStringValue(fmt.Sprintf("{\"event\":true,\"triggers\":%s}", matches))
-		meta.Fields["origin"] = structpb.NewStringValue("appsec")
-		okResponse.DynamicMetadata = meta
-		//okResponse.HttpResponse.OkHttpResponse = envoy_service_auth_v3.OkHttpResponse{Headers: []*envoy_config_core_v3.HeaderValueOption{
-		//	{Header: envoy_config_core_v3.HeaderValue{Key: "x-datadog-sampling-priority", Value: "1"}},
-		//}}
-	}
-
+	log.Debugf("appsec: envoy auth api: matches=%v actions=%v", matches, actions)
+	block := shouldBlock(actions)
+	attachAppSecMetadata(okResponse, matches, block)
 	return okResponse, nil
 }
