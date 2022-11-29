@@ -45,12 +45,12 @@ core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 20
 core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/go-libddwaf,Apache-2.0,UNKNOWN
-core,github.com/DataDog/go-libddwaf/include,Apache-2.0,UNKNOWN
-core,github.com/DataDog/go-libddwaf/lib/darwin-amd64,Apache-2.0,UNKNOWN
-core,github.com/DataDog/go-libddwaf/lib/darwin-arm64,Apache-2.0,UNKNOWN
-core,github.com/DataDog/go-libddwaf/lib/linux-amd64,Apache-2.0,UNKNOWN
-core,github.com/DataDog/go-libddwaf/lib/linux-arm64,Apache-2.0,UNKNOWN
+core,github.com/DataDog/go-libddwaf,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/include,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/lib/darwin-amd64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/lib/darwin-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/lib/linux-amd64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/lib/linux-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/gohai/cpu,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/filesystem,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/memory,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
