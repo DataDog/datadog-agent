@@ -73,7 +73,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
-		0,
+		config.MaxKafkaStatsBuffered,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()

@@ -13,8 +13,6 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"sync"
 
-	"github.com/cilium/ebpf"
-
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -53,8 +51,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c, offsets, sockFD)
+func NewMonitor(c *config.Config, offsets []manager.ConstantEditor) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c, offsets)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up kafka ebpf program: %s", err)
 	}

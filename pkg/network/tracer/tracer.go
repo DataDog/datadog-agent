@@ -174,7 +174,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		state:                      state,
 		reverseDNS:                 newReverseDNS(config),
 		httpMonitor:                newHTTPMonitor(config, ebpfTracer, constantEditors),
-		kafkaMonitor:               newKafkaMonitor(config, ebpfTracer, constantEditors),
+		kafkaMonitor:               newKafkaMonitor(config, constantEditors),
 		activeBuffer:               network.NewConnectionBuffer(512, 256),
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
@@ -824,15 +824,12 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, offsets []manage
 	return monitor
 }
 
-func newKafkaMonitor(c *config.Config, tracer connection.Tracer, offsets []manager.ConstantEditor) *kafka.Monitor {
+func newKafkaMonitor(c *config.Config, offsets []manager.ConstantEditor) *kafka.Monitor {
 	if !c.EnableKafkaMonitoring {
 		return nil
 	}
 
-	// Shared with the HTTP program
-	sockFDMap := tracer.GetMap(string(probes.SockByPidFDMap))
-
-	monitor, err := kafka.NewMonitor(c, offsets, sockFDMap)
+	monitor, err := kafka.NewMonitor(c, offsets)
 	if err != nil {
 		log.Errorf("could not instantiate kafka monitor: %s", err)
 		return nil

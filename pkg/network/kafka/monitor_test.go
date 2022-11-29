@@ -34,7 +34,7 @@ func TestSanity(t *testing.T) {
 
 	cfg := config.New()
 	cfg.BPFDebug = true
-	monitor, err := NewMonitor(cfg, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestLoadKafkaBinary(t *testing.T) {
 
 	cfg := config.New()
 	cfg.BPFDebug = true
-	monitor, err := NewMonitor(cfg, nil, nil)
+	monitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	err = monitor.Start()
 	require.NoError(t, err)
