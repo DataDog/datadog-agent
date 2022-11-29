@@ -38,9 +38,6 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    kafka->owned_by_src_port = kafka->tup.sport;
     normalize_tuple(&kafka->tup);
 
     read_into_buffer_skb((char *)kafka->request_fragment, skb, &skb_info);
