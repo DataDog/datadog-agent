@@ -26,6 +26,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -192,9 +193,11 @@ func (nn *NetworkNamespace) hasValidHandle() bool {
 // NamespaceResolver is used to store namespace handles
 type NamespaceResolver struct {
 	sync.Mutex
-	state  *atomic.Int64
-	probe  *Probe
-	client statsd.ClientInterface
+	state   *atomic.Int64
+	probe   *Probe
+	client  statsd.ClientInterface
+	config  *config.Config
+	manager *manager.Manager
 
 	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
 }
@@ -202,9 +205,11 @@ type NamespaceResolver struct {
 // NewNamespaceResolver returns a new instance of NamespaceResolver
 func NewNamespaceResolver(probe *Probe) (*NamespaceResolver, error) {
 	nr := &NamespaceResolver{
-		state:  atomic.NewInt64(0),
-		probe:  probe,
-		client: probe.statsdClient,
+		state:   atomic.NewInt64(0),
+		probe:   probe,
+		client:  probe.StatsdClient,
+		config:  probe.Config,
+		manager: probe.Manager,
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(key uint32, value *NetworkNamespace) {
@@ -232,7 +237,7 @@ func (nr *NamespaceResolver) GetState() int64 {
 // SaveNetworkNamespaceHandle inserts the provided process network namespace in the list of tracked network. Returns
 // true if a new entry was added.
 func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NetNSPath) (*NetworkNamespace, bool) {
-	if !nr.probe.config.NetworkEnabled || nsID == 0 || nsPath == nil {
+	if !nr.config.NetworkEnabled || nsID == 0 || nsPath == nil {
 		return nil, false
 	}
 
@@ -273,7 +278,7 @@ func (nr *NamespaceResolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *uti
 // close this file descriptor when it is done using it. Do not forget to close this file descriptor, otherwise we might
 // exhaust the host IPs by keeping all network namespaces alive.
 func (nr *NamespaceResolver) ResolveNetworkNamespace(nsID uint32) *NetworkNamespace {
-	if !nr.probe.config.NetworkEnabled || nsID == 0 {
+	if !nr.config.NetworkEnabled || nsID == 0 {
 		return nil
 	}
 
@@ -296,7 +301,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 	}
 	defer handle.Close()
 
-	ntl, err := nr.probe.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	if err != nil {
 		seclog.Errorf("couldn't open netlink socket: %s", err)
 		return 0
@@ -334,7 +339,7 @@ func (nr *NamespaceResolver) snapshotNetworkDevices(netns *NetworkNamespace) int
 // IsLazyDeletionInterface returns true if an interface name is in the list of interfaces that aren't explicitly deleted by the
 // container runtime when a container is deleted.
 func (nr *NamespaceResolver) IsLazyDeletionInterface(name string) bool {
-	for _, lazyPrefix := range nr.probe.config.NetworkLazyInterfacePrefixes {
+	for _, lazyPrefix := range nr.config.NetworkLazyInterfacePrefixes {
 		if strings.HasPrefix(name, lazyPrefix) {
 			return true
 		}
@@ -344,7 +349,7 @@ func (nr *NamespaceResolver) IsLazyDeletionInterface(name string) bool {
 
 // SyncCache snapshots /proc for the provided pid. This method returns true if it updated the namespace cache.
 func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
-	if !nr.probe.config.NetworkEnabled {
+	if !nr.config.NetworkEnabled {
 		return false
 	}
 
@@ -362,7 +367,7 @@ func (nr *NamespaceResolver) SyncCache(proc *process.Process) bool {
 // of the device is resolved, a new TC classifier will automatically be added to the device. The queue is cleaned up
 // periodically if a namespace do not own any process.
 func (nr *NamespaceResolver) QueueNetworkDevice(device model.NetDevice) {
-	if !nr.probe.config.NetworkEnabled {
+	if !nr.config.NetworkEnabled {
 		return
 	}
 
@@ -384,7 +389,7 @@ func (nr *NamespaceResolver) QueueNetworkDevice(device model.NetDevice) {
 
 // Start starts the namespace flush goroutine
 func (nr *NamespaceResolver) Start(ctx context.Context) error {
-	if !nr.probe.config.NetworkEnabled {
+	if !nr.config.NetworkEnabled {
 		return nil
 	}
 
@@ -434,14 +439,14 @@ func (nr *NamespaceResolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {
 		defer handle.Close()
-		_, _ = nr.probe.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+		_, _ = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	}
 
 	// close network namespace handle to release the namespace
 	netns.close()
 
 	// remove all references to this network namespace from the manager
-	_ = nr.probe.manager.CleanupNetworkNamespace(netns.nsID)
+	_ = nr.manager.CleanupNetworkNamespace(netns.nsID)
 }
 
 // preventNetworkNamespaceDrift ensures that we do not keep network namespace handles indefinitely
@@ -581,7 +586,7 @@ func (nr *NamespaceResolver) dump(params *api.DumpNetworkNamespaceParams) []Netw
 				continue
 			}
 
-			ntl, err = nr.probe.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
+			ntl, err = nr.probe.Manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
 				links, err = ntl.Sock.LinkList()
 				if err == nil {

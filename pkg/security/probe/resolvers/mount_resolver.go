@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"context"
@@ -394,73 +394,73 @@ func (mr *MountResolver) ResolveMountPaths(mountID, pid uint32) (string, string,
 	return parentPath, mount.RootStr, nil
 }
 
-func getMountIDOffset(probe *Probe) uint64 {
+func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	offset := uint64(284)
 
 	switch {
-	case probe.kernelVersion.IsSuseKernel() || probe.kernelVersion.Code >= skernel.Kernel5_12:
+	case kernelVersion.IsSuseKernel() || kernelVersion.Code >= skernel.Kernel5_12:
 		offset = 292
-	case probe.kernelVersion.Code != 0 && probe.kernelVersion.Code < skernel.Kernel4_13:
+	case kernelVersion.Code != 0 && kernelVersion.Code < skernel.Kernel4_13:
 		offset = 268
 	}
 
 	return offset
 }
 
-func getVFSLinkDentryPosition(probe *Probe) uint64 {
+func GetVFSLinkDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		position = 3
 	}
 
 	return position
 }
 
-func getVFSMKDirDentryPosition(probe *Probe) uint64 {
+func GetVFSMKDirDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(2)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		position = 3
 	}
 
 	return position
 }
 
-func getVFSLinkTargetDentryPosition(probe *Probe) uint64 {
+func GetVFSLinkTargetDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(3)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		position = 4
 	}
 
 	return position
 }
 
-func getVFSSetxattrDentryPosition(probe *Probe) uint64 {
+func GetVFSSetxattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		position = 2
 	}
 
 	return position
 }
 
-func getVFSRemovexattrDentryPosition(probe *Probe) uint64 {
+func GetVFSRemovexattrDentryPosition(kernelVersion *skernel.Version) uint64 {
 	position := uint64(1)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		position = 2
 	}
 
 	return position
 }
 
-func getVFSRenameInputType(probe *Probe) uint64 {
+func GetVFSRenameInputType(kernelVersion *skernel.Version) uint64 {
 	inputType := uint64(1)
 
-	if probe.kernelVersion.Code != 0 && probe.kernelVersion.Code >= skernel.Kernel5_12 {
+	if kernelVersion.Code != 0 && kernelVersion.Code >= skernel.Kernel5_12 {
 		inputType = 2
 	}
 

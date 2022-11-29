@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/mailru/easyjson"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -271,7 +272,7 @@ func NewNoisyProcessEvent(count uint64,
 
 func resolutionErrorToEventType(err error) model.EventType {
 	switch err.(type) {
-	case ErrTruncatedParents, ErrTruncatedParentsERPC:
+	case resolvers.ErrTruncatedParents, resolvers.ErrTruncatedParentsERPC:
 		return model.CustomTruncatedParentsEventType
 	default:
 		return model.UnknownEventType
