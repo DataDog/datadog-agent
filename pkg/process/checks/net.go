@@ -85,9 +85,11 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
+	c.processData = ProcData
 	c.dockerFilter = parser.NewDockerProxy()
 	c.serviceExtractor = parser.NewServiceExtractor()
-	c.processData = ProcData
+	c.processData.Register(c.dockerFilter)
+	c.processData.Register(c.serviceExtractor)
 }
 
 // Name returns the name of the ConnectionsCheck.
