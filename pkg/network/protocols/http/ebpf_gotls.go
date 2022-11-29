@@ -238,10 +238,19 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
+	// This channel is used by the process watcher goroutine (just below) to
+	// wait until we finished scanning for already running Go processes.
+	// This is needed to avoid a race condition where an exit event is
+	// processed during the registration of an already running process,
+	// which would make the possible impossible to unregister afterwards,
+	// causing a memory leak.
 	startDone := make(chan interface{})
 
+	// Process watcher events handling goroutine
 	go func() {
+		// Wait for the scanning of already running processes to complete
 		<-startDone
+
 		for {
 			select {
 			case <-p.procMonitor.done:
@@ -275,6 +284,8 @@ func (p *GoTLSProgram) Start() {
 		}
 	}()
 
+	// Scan already running processes. We allow the process watcher to
+	// process events afterwards.
 	go func() {
 		_ = util.WithAllProcs(p.procRoot, func(pid int) error {
 			p.handleProcessStart(uint32(pid))
