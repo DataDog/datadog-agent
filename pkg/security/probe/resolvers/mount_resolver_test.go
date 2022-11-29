@@ -338,13 +338,16 @@ func TestMountResolver(t *testing.T) {
 		},
 	}
 
+	// use pid 1 for the tests
+	var pid uint32 = 1
+
 	// Create mount resolver
-	mr, _ := NewMountResolver(nil)
+	mr, _ := NewMountResolver(nil, MountResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(evt.mount)
+					mr.insert(evt.mount, pid, "")
 				}
 				if evt.umount != nil {
 					if err := mr.Delete(evt.umount.MountID); err != nil {
@@ -356,7 +359,7 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				p, _, err := mr.ResolveMountPaths(testC.mountID, 0)
+				p, err := mr.ResolveMountPath(testC.mountID, pid, "")
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())

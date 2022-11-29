@@ -54,12 +54,12 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient)
+	namespaceResolver, err := NewNamespaceResolver(probe)
 	if err != nil {
 		return nil, err
 	}
 
-	namespaceResolver, err := NewNamespaceResolver(probe)
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, resolvers.MountResolverOpts{UseProcFS: true, NamespaceResolver: namespaceResolver})
 	if err != nil {
 		return nil, err
 	}
@@ -91,19 +91,20 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 }
 
 // resolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
-	if isFilelessExecution(e) {
-		return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID), nil
-	}
-
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	mountPath, rootPath, mountErr := r.MountResolver.ResolveMountPaths(e.MountID, ctx.Pid)
-	if mountErr != nil {
-		return pathStr, mountErr
+	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		return pathStr, err
+	}
+
+	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		return pathStr, err
 	}
 
 	// This aims to handle bind mounts

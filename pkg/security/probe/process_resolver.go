@@ -414,7 +414,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
 	}
@@ -642,7 +642,7 @@ func isFilelessExecution(fileFields *model.FileFields) bool {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	if fileEvent.Inode == 0 {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -651,7 +651,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.
 		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
 	if err != nil {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -692,7 +692,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.resolvers.MountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.resolvers.MountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
 		if err != nil {
 			return "", err
 		}
@@ -729,13 +729,13 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext); err != nil {
+func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
+	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
 		return fmt.Errorf("failed to resolve exec path: %w", err)
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext); err != nil {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
 			return fmt.Errorf("failed to resolve interpreter path: %w", err)
 		}
 	} else {
@@ -780,12 +780,11 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
 
-	var cc model.ContainerContext
-	read, err := cc.UnmarshalBinary(procCache)
+	var ctrCtx model.ContainerContext
+	read, err := ctrCtx.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
-	entry.ContainerID = cc.ID
 
 	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
 		return nil
@@ -796,7 +795,7 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 
 	// resolve paths and other context fields
-	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
+	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		return nil
 	}
 

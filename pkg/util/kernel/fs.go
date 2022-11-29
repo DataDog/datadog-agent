@@ -28,6 +28,8 @@ func MountInfoPidPath(pid int32) string {
 
 // ParseMountInfoFile collects the mounts for a specific process ID.
 func ParseMountInfoFile(pid int32) ([]*mountinfo.Info, error) {
+	fmt.Printf(">>>>>>>>>>>: %s\n", MountInfoPidPath(pid))
+
 	f, err := os.Open(MountInfoPidPath(pid))
 	if err != nil {
 		return nil, err
