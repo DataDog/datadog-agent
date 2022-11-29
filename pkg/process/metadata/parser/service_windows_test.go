@@ -28,7 +28,14 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"C:\\Windows\\system32\\svchost.exe", "-k", "LocalService", "-p", "-s", "CDPSvc",
 			},
-			expectedServiceTag: "service:CDPSvc",
+			expectedServiceTag: "service:svchost",
+		},
+		{
+			name: "nginx",
+			cmdline: []string{
+				"C:\\nginx-1.23.2\\nginx.exe",
+			},
+			expectedServiceTag: "service:nginx",
 		},
 	}
 
