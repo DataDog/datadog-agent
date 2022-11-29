@@ -635,7 +635,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	require.EqualValues(t, expectedTags, connections.GetConnectionsTags(connections.Connections[0].TagsIdx))
 }
 
-func TestConvertTags(t *testing.T) {
+func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 	tags := []string{"tag0", "tag1", "tag2"}
 
 	tests := []struct {
@@ -671,7 +671,7 @@ func TestConvertTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, convertTags(tags, tt.tagOffsets, tt.serviceTag))
+			assert.Equal(t, tt.expected, convertAndEnrichWithServiceTags(tags, tt.tagOffsets, tt.serviceTag))
 		})
 	}
 }
