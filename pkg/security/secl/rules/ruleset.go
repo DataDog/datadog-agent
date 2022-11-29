@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // MacroID represents the ID of a macro
@@ -555,10 +554,6 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 
 			if rs.logger.IsTracing() {
 				rs.logger.Tracef("Rule `%s` matches with event `%s`\n", rule.ID, event)
-			}
-
-			if len(ctx.MatchingAncestors) != 0 {
-				seclog.Errorf("matching ancestors: %+v\n", ctx.MatchingAncestors)
 			}
 
 			rs.NotifyRuleMatch(rule, event, ctx.MatchingAncestors)
