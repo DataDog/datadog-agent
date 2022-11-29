@@ -2051,6 +2051,12 @@
           "constants": ""
         },
         {
+          "name": "exec.symbol.name",
+          "type": "string",
+          "definition": "Name of the userspace trace symbol",
+          "constants": ""
+        },
+        {
           "name": "exec.tid",
           "type": "int",
           "definition": "Thread ID of the thread",

@@ -1134,6 +1134,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exec.symbol.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).Exec.Symbol.Name
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "exec.tid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -12087,6 +12095,7 @@ func (e *Event) GetFields() []eval.Field {
 		"exec.is_thread",
 		"exec.pid",
 		"exec.ppid",
+		"exec.symbol.name",
 		"exec.tid",
 		"exec.tty_name",
 		"exec.uid",
@@ -13289,6 +13298,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
 		return int(e.Exec.Process.PPid), nil
+	case "exec.symbol.name":
+		return e.Exec.Symbol.Name, nil
 	case "exec.tid":
 		return int(e.Exec.Process.PIDContext.Tid), nil
 	case "exec.tty_name":
@@ -17380,6 +17391,8 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.ppid":
 		return "exec", nil
+	case "exec.symbol.name":
+		return "exec", nil
 	case "exec.tid":
 		return "exec", nil
 	case "exec.tty_name":
@@ -19521,6 +19534,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.ppid":
 		return reflect.Int, nil
+	case "exec.symbol.name":
+		return reflect.String, nil
 	case "exec.tid":
 		return reflect.Int, nil
 	case "exec.tty_name":
@@ -22420,6 +22435,13 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
 		}
 		e.Exec.Process.PPid = uint32(v)
+		return nil
+	case "exec.symbol.name":
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Symbol.Name"}
+		}
+		e.Exec.Symbol.Name = str
 		return nil
 	case "exec.tid":
 		if e.Exec.Process == nil {

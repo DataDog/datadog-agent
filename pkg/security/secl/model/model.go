@@ -209,6 +209,11 @@ type Event struct {
 	VethPair         VethPairEvent         `field:"-" json:"-"`
 }
 
+// UserspaceTraceSymbol
+type UserspaceTraceSymbol struct {
+	Name string `field:"name"` // Name of the userspace trace symbol
+}
+
 func initMember(member reflect.Value, deja map[string]bool) {
 	for i := 0; i < member.NumField(); i++ {
 		field := member.Field(i)
@@ -401,6 +406,9 @@ type SpanContext struct {
 // ExecEvent represents a exec event
 type ExecEvent struct {
 	*Process
+
+	// Userspace Probing
+	Symbol UserspaceTraceSymbol `field:"symbol"`
 }
 
 // ExitEvent represents a process exit event

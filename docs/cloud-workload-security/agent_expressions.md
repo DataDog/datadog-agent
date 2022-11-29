@@ -548,6 +548,7 @@ A process was executed or forked
 | `exec.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
 | `exec.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `exec.ppid` | int | Parent process ID |  |
+| `exec.symbol.name` | string | Name of the userspace trace symbol |  |
 | `exec.tid` | int | Thread ID of the thread |  |
 | `exec.tty_name` | string | Name of the TTY associated with the process |  |
 | `exec.uid` | int | UID of the process |  |
