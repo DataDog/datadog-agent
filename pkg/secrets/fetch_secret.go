@@ -11,10 +11,15 @@ package secrets
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +54,35 @@ func execCommand(inputPayload string) ([]byte, error) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
+
+	if len(secretBackendCommandSHA256) != 0 {
+		if !filepath.IsAbs(secretBackendCommand) {
+			return nil, fmt.Errorf("error while running '%s': absolute path required with SHA256", secretBackendCommand)
+		}
+
+		if err := checkConfigRights(configFileUsed); err != nil {
+			return nil, err
+		}
+
+		f, err := lockOpenFile(secretBackendCommand)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close() //nolint:errcheck
+
+		sha256, err := fileHashSHA256(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.EqualFold(sha256, secretBackendCommandSHA256) {
+			return nil, fmt.Errorf("error while running '%s': SHA256 mismatch", secretBackendCommand)
+		}
+
+	} else if hashIsRequired() {
+		return nil, fmt.Errorf("error while running '%s': running elevated and no configured SHA256", secretBackendCommand)
+	}
+
 	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
@@ -156,4 +190,42 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		res[sec] = v.Value
 	}
 	return res, nil
+}
+
+func fileHashSHA256(f *os.File) (string, error) {
+	stat, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	h := sha256.New()
+
+	fileSize := stat.Size()
+	if fileSize == 0 {
+		return formatHash(h), nil
+	}
+
+	var bufSize int64 = 102400
+	if fileSize < bufSize {
+		bufSize = fileSize
+	}
+
+	buffer := make([]byte, bufSize)
+
+	for {
+		read, err := f.Read(buffer)
+		if err != nil {
+			if err != io.EOF {
+				return "", err
+			}
+			break
+		}
+		h.Write(buffer[:read])
+	}
+
+	return formatHash(h), nil
+}
+
+func formatHash(h hash.Hash) string {
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
