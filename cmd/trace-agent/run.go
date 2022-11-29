@@ -207,9 +207,10 @@ func Run(ctx context.Context) {
 		},
 	})
 
-	initASM()
-
 	agnt := agent.NewAgent(ctx, cfg)
+
+	initASM(agnt.In)
+
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if pcfg := profilingConfig(cfg); pcfg != nil {
 		if err := profiling.Start(*pcfg); err != nil {
@@ -239,7 +240,7 @@ func Run(ctx context.Context) {
 	}
 }
 
-func initASM() {
+func initASM(traceChan chan *api.Payload) {
 	wafHandle, err := appsec.NewWAFHandle()
 	if err != nil {
 		tracelog.Errorf("appsec: unexpected error while instantiating the waf: %v", err)
@@ -247,7 +248,7 @@ func initASM() {
 
 	// HTTP API
 	{
-		httpsecAPI := appsec.NewHTTPSecHandler(wafHandle)
+		httpsecAPI := appsec.NewHTTPSecHandler(wafHandle, traceChan)
 		if err != nil {
 			log.Errorf("appsec: could not create the http api handler: %v", err)
 		} else {

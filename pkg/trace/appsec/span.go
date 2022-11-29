@@ -20,15 +20,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
+	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
+
+func sendSpan(sp *pb.Span, priority int32, traceChan chan *api.Payload) {
+	log.Debugf("appsec: sending span %+v", sp)
+	traceChan <- &api.Payload{
+		Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		TracerPayload: &pb.TracerPayload{
+			Chunks: []*pb.TraceChunk{
+				{
+					Origin:   "proxy",
+					Spans:    []*pb.Span{sp},
+					Priority: priority,
+				},
+			},
+		},
+	}
+}
 
 type span struct {
 	*pb.Span
 }
 
-func startSpan(traceID, parentID uint64, name, typ string) span {
+func startSpan(traceID, parentID uint64, name, typ, service string) span {
 	start := time.Now().UnixNano()
 	spanID := generateSpanID(start)
 	if traceID == 0 {
@@ -56,8 +74,8 @@ type httpSpan struct {
 	span
 }
 
-func startHTTPRequestSpan(traceID, parentID uint64, resource string) httpSpan {
-	sp := startSpan(traceID, parentID, "http.request", "web")
+func startHTTPRequestSpan(traceID, parentID uint64, resource, service string) httpSpan {
+	sp := startSpan(traceID, parentID, "http.request", "web", service)
 	sp.Resource = resource
 	return httpSpan{sp}
 }

@@ -10,7 +10,9 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	waf "github.com/DataDog/go-libddwaf"
 	"github.com/pkg/errors"
 )
@@ -26,6 +28,7 @@ type (
 		Resource     string                 `json:"resource"`
 		Headers      map[string][]string    `json:"headers"`
 		RemoteAddr   string                 `json:"remote_addr"`
+		Service      string                 `json:"service"`
 	}
 
 	spanTags struct {
@@ -45,7 +48,7 @@ type (
 	}
 )
 
-func NewHTTPSecHandler(handle *waf.Handle) http.Handler {
+func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse the body
 		var reqPayload requestPayload
@@ -59,14 +62,18 @@ func NewHTTPSecHandler(handle *waf.Handle) http.Handler {
 			return
 		}
 
-		sp := startHTTPRequestSpan(reqPayload.TraceID, reqPayload.ParentID, reqPayload.Resource)
-		sp.Meta = reqPayload.ExtraTags.Meta
-		sp.Metrics = reqPayload.ExtraTags.Metrics
+		sp := startHTTPRequestSpan(reqPayload.TraceID, reqPayload.ParentID, reqPayload.Resource, reqPayload.Service)
+		if extraMeta := reqPayload.ExtraTags.Meta; len(extraMeta) > 0 {
+			sp.Meta = extraMeta
+		}
+		if extraMetrics := reqPayload.ExtraTags.Metrics; len(extraMetrics) > 0 {
+			sp.Metrics = extraMetrics
+		}
 		setAppSecEnabledTags(sp.span)
 		setClientIPTags(sp, reqPayload.RemoteAddr, reqPayload.Headers)
 		defer func() {
 			sp.finish()
-			// TODO: add the span into the trace queue of the trace agent
+			sendSpan(sp.Span, int32(sampler.PriorityUserKeep), traceChan)
 		}()
 
 		wafCtx := waf.NewContext(handle)
