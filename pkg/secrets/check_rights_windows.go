@@ -11,6 +11,7 @@ package secrets
 import (
 	"fmt"
 	"os"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -190,4 +191,94 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 
 	sid, _, _, err := windows.LookupSID(domain, user)
 	return sid, err
+}
+
+var checkConfigRights = func(filename string) error {
+	if _, err := os.Stat(filename); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file %s does not exist", filename)
+		}
+	}
+
+	fileDacl, err := getACL(filename)
+	if err != nil {
+		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+	}
+
+	var aclSizeInfo winutil.AclSizeInformation
+	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
+	if err != nil {
+		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+	}
+
+	// create the sids that are acceptable to us (local system account and
+	// administrators group)
+	localSystem, err := getLocalSystemSID()
+	if err != nil {
+		return fmt.Errorf("could not query Local System SID: %s", err)
+	}
+	defer windows.FreeSid(localSystem)
+
+	administrators, err := getAdministratorsSID()
+	if err != nil {
+		return fmt.Errorf("could not query Administrator SID: %s", err)
+	}
+	defer windows.FreeSid(administrators)
+
+	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
+		var pAce *winutil.AccessAllowedAce
+		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
+			return fmt.Errorf("Could not query a ACE on %s: %s", filename, err)
+		}
+
+		compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
+		compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
+		compareIsAdministrators := windows.EqualSid(compareSid, administrators)
+
+		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
+			return fmt.Errorf("invalid permissions for config file '%s': explicit DENY not supported", filename)
+		}
+
+		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
+			allowedAccountForWrite := compareIsLocalSystem || compareIsAdministrators
+			hasOnlyAllowForRead := pAce.AccessMask&^(windows.FILE_GENERIC_READ) == 0
+			if !allowedAccountForWrite && !hasOnlyAllowForRead {
+				return fmt.Errorf("invalid permissions for config file '%s': users/groups other than LOCAL_SYSTEM and Administrators have rights on it", filename)
+			}
+		}
+	}
+
+	return nil
+}
+
+// hashIsRequired returns true if we consider the hash to be required for verification of the secret backend
+var hashIsRequired = func() bool {
+	elevated, _ := winutil.IsProcessElevated()
+	return elevated
+}
+
+func lockOpenFile(name string) (*os.File, error) {
+	h, err := winOpenFileShareRead(name)
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(h), name), nil
+}
+
+func winOpenFileShareRead(path string) (syscall.Handle, error) {
+	const fileFlagNormal = 0x00000080
+	filename, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return syscall.Handle(0), err
+	}
+	handle, err := syscall.CreateFile(
+		filename,
+		syscall.GENERIC_READ,
+		syscall.FILE_SHARE_READ,
+		nil,
+		syscall.OPEN_EXISTING,
+		fileFlagNormal,
+		0)
+
+	return handle, err
 }

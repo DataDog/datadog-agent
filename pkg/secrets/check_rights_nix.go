@@ -10,6 +10,7 @@ package secrets
 
 import (
 	"fmt"
+	"os"
 	"os/user"
 	"syscall"
 )
@@ -89,4 +90,41 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 	}
 
 	return nil
+}
+
+var checkConfigRights = func(path string) error {
+	var stat syscall.Stat_t
+	if err := syscall.Stat(path, &stat); err != nil {
+		return fmt.Errorf("invalid config file '%s': can't stat it: %s", path, err)
+	}
+
+	if stat.Uid != 0 || stat.Gid != 0 {
+		return fmt.Errorf("invalid config file '%s': not owned by root:root", path)
+	}
+
+	if stat.Mode&syscall.S_IWOTH != 0 {
+		return fmt.Errorf("invalid config file '%s': others can write", path)
+	}
+
+	return nil
+}
+
+// hashIsRequired returns true if we consider the hash to be required for verification of the secret backend
+var hashIsRequired = func() bool {
+	// Do not perform elevation check on Linux
+	return false
+}
+
+var lockOpenFile = func(path string) (*os.File, error) {
+	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDONLY, 0600)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = syscall.Flock(fd, syscall.LOCK_EX); err != nil {
+		syscall.Close(fd)
+		return nil, err
+	}
+
+	return os.NewFile(uintptr(fd), path), nil
 }

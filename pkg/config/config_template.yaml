@@ -711,6 +711,15 @@ api_key:
 #
 # secret_backend_skip_checks: false
 
+## @param secret_backend_command_sha256 - string - optional
+## @env DD_SECRET_BACKEND_COMMAND_SHA256 - string - optional
+## `secret_backend_command_sha256` is the SHA256 of the backend command executable.
+## The executable for `secret_backend_command` must be an absolute path if `secret_backend_command_sha256` is used.
+##
+## For more information see: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
+#
+# secret_backend_command_sha256: <SHA256>
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
