@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package probe
+package resolvers
 
 import (
 	"os/exec"
@@ -24,7 +24,7 @@ const (
 	SELinuxStatusEnforceKey uint32 = 1
 )
 
-func snapshotSELinux(selinuxStatusMap *ebpf.Map) error {
+func SnapshotSELinux(selinuxStatusMap *ebpf.Map) error {
 	currentStatus := func() string {
 		output, err := exec.Command("getenforce").Output()
 		if err != nil {
