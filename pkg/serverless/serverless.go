@@ -211,6 +211,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	daemon.StartLogCollection()
 	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {

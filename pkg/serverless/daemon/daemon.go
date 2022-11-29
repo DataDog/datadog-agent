@@ -90,6 +90,8 @@ type Daemon struct {
 
 	// InvocationProcessor is used to handle lifecycle events, either using the proxy or the lifecycle API
 	InvocationProcessor invocationlifecycle.InvocationProcessor
+
+	logCollector *serverlessLog.LambdaLogsCollector
 }
 
 // StartDaemon starts an HTTP server to receive messages from the runtime and coordinate
@@ -163,15 +165,12 @@ func (d *Daemon) GetFlushStrategy() string {
 
 // SetupLogCollectionHandler configures the log collection route handler
 func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
-	d.mux.Handle(route, &serverlessLog.LambdaLogsCollector{
-		ExtraTags:              d.ExtraTags,
-		LogChannel:             logsChan,
-		LogsEnabled:            logsEnabled,
-		EnhancedMetricsEnabled: enhancedMetricsEnabled,
-		HandleRuntimeDone:      d.HandleRuntimeDone,
-		Demux:                  d.MetricAgent.Demux,
-		ExecutionContext:       d.ExecutionContext,
-	})
+
+	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone)
+	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
+
+	d.mux.Handle(route, &server)
 }
 
 // SetStatsdServer sets the DogStatsD server instance running when it is ready.
@@ -289,6 +288,10 @@ func (d *Daemon) Stop() {
 		log.Error("Error shutting down HTTP server")
 	}
 
+	if d.logCollector != nil {
+		d.logCollector.Shutdown()
+	}
+
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
 	d.TriggerFlush(true)
@@ -357,9 +360,16 @@ func (d *Daemon) ComputeGlobalTags(configTags []string) {
 			d.MetricAgent.SetExtraTags(tagArray)
 		}
 		d.setTraceTags(tagMap)
+
 		d.ExtraTags.Tags = tagArray
 		serverlessLog.SetLogsTags(tagArray)
 	}
+}
+
+// StartLogCollection begins processing the logs we have already received from the Lambda Logs API.
+// This should be called after an ARN and RequestId is available. Can safely be called multiple times.
+func (d *Daemon) StartLogCollection() {
+	d.logCollector.Start()
 }
 
 // setTraceTags tries to set extra tags to the Trace agent.

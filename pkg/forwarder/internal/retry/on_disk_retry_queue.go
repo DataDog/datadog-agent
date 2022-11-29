@@ -22,13 +22,13 @@ const retryTransactionsExtension = ".retry"
 const retryFileFormat = "2006_01_02__15_04_05_"
 
 type onDiskRetryQueue struct {
-	serializer         *HTTPTransactionsSerializer
-	storagePath        string
-	diskUsageLimit     *DiskUsageLimit
-	filenames          []string
-	currentSizeInBytes int64
-	telemetry          onDiskRetryQueueTelemetry
-	pointDroppedSender *PointDroppedSender
+	serializer          *HTTPTransactionsSerializer
+	storagePath         string
+	diskUsageLimit      *DiskUsageLimit
+	filenames           []string
+	currentSizeInBytes  int64
+	telemetry           onDiskRetryQueueTelemetry
+	pointCountTelemetry *PointCountTelemetry
 }
 
 func newOnDiskRetryQueue(
@@ -36,18 +36,18 @@ func newOnDiskRetryQueue(
 	storagePath string,
 	diskUsageLimit *DiskUsageLimit,
 	telemetry onDiskRetryQueueTelemetry,
-	pointDroppedSender *PointDroppedSender) (*onDiskRetryQueue, error) {
+	pointCountTelemetry *PointCountTelemetry) (*onDiskRetryQueue, error) {
 
 	if err := os.MkdirAll(storagePath, 0700); err != nil {
 		return nil, err
 	}
 
 	storage := &onDiskRetryQueue{
-		serializer:         serializer,
-		storagePath:        storagePath,
-		diskUsageLimit:     diskUsageLimit,
-		telemetry:          telemetry,
-		pointDroppedSender: pointDroppedSender,
+		serializer:          serializer,
+		storagePath:         storagePath,
+		diskUsageLimit:      diskUsageLimit,
+		telemetry:           telemetry,
+		pointCountTelemetry: pointCountTelemetry,
 	}
 
 	if err := storage.reloadExistingRetryFiles(); err != nil {
@@ -184,7 +184,7 @@ func (s *onDiskRetryQueue) makeRoomFor(bufferSize int64) error {
 
 func (s *onDiskRetryQueue) onPointDropped(count int) {
 	s.telemetry.addPointDroppedCount(count)
-	s.pointDroppedSender.AddDroppedPointCount(count)
+	s.pointCountTelemetry.OnPointDropped(count)
 }
 
 func (s *onDiskRetryQueue) removeFileAt(index int) error {

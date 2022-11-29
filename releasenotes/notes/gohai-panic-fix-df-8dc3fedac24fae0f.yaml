@@ -1,4 +1,4 @@
 ---
-￼fixes:
-￼  - |
-￼    Fix a potential panic when df outputs warnings or errors among its standard output.
+fixes:
+  - |
+    Fix a potential panic when df outputs warnings or errors among its standard output.

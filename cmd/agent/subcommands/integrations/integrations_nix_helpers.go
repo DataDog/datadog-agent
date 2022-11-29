@@ -24,8 +24,8 @@ var (
 	pythonMinorVersion string
 )
 
-func getRelPyPath(cliParams *cliParams) string {
-	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, cliParams.pythonMajorVersion))
+func getRelPyPath(pythonMajorVersion string) string {
+	return filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", pythonBin, pythonMajorVersion))
 }
 
 func getRelChecksPath(cliParams *cliParams) (string, error) {
@@ -40,7 +40,7 @@ func getRelChecksPath(cliParams *cliParams) (string, error) {
 
 func detectPythonMinorVersion(cliParams *cliParams) error {
 	if pythonMinorVersion == "" {
-		pythonPath, err := getCommandPython(cliParams)
+		pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
 		if err != nil {
 			return err
 		}
