@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -216,12 +217,12 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := sprobe.NewDentryResolver(test.probe)
+	resolver, err := resolvers.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe); err != nil {
+	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromERPC(mountID, inode, pathID)
@@ -285,12 +286,12 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := sprobe.NewDentryResolver(test.probe)
+	resolver, err := resolvers.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe); err != nil {
+	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromERPC(mountID, inode, pathID, true)
@@ -354,12 +355,12 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := sprobe.NewDentryResolver(test.probe)
+	resolver, err := resolvers.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe); err != nil {
+	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromMap(mountID, inode, pathID)
@@ -423,12 +424,12 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := sprobe.NewDentryResolver(test.probe)
+	resolver, err := resolvers.NewDentryResolver(test.probe.Config, test.probe.StatsdClient, test.probe.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe); err != nil {
+	if err := resolver.Start(test.probe.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromMap(mountID, inode, pathID, true)
