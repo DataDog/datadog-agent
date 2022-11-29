@@ -2753,7 +2753,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight:               100 * eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -2769,7 +2770,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
@@ -2785,7 +2787,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -2817,7 +2820,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight:               100 * eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -2833,7 +2837,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight:               100 * eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
@@ -2881,7 +2886,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
@@ -2897,7 +2903,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
@@ -2961,7 +2968,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
@@ -2977,7 +2985,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -2993,7 +3002,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -3041,7 +3051,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -3073,7 +3084,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -3105,7 +3117,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -3202,7 +3215,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -3236,7 +3250,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -3301,7 +3316,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
@@ -3333,7 +3349,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
@@ -3365,7 +3382,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
@@ -3397,7 +3415,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
@@ -3435,7 +3454,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
@@ -3473,7 +3493,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -3588,7 +3609,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.IntArrayEvaluator{
@@ -3625,7 +3647,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.interpreter.file.path.length":
 		return &eval.IntArrayEvaluator{
@@ -3699,7 +3722,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
@@ -3795,7 +3819,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
@@ -3827,7 +3852,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				}
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight:               eval.IteratorWeight,
+			IsRelatedToAncestors: true,
 		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{

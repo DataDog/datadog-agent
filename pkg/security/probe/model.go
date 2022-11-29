@@ -82,6 +82,10 @@ type Event struct {
 	probe               *Probe
 }
 
+func (ev *Event) SetMatchingAncestors(ma []int) {
+	ev.MatchingAncestors = ma
+}
+
 // Retain the event
 func (ev *Event) Retain() Event {
 	if ev.ProcessCacheEntry != nil {

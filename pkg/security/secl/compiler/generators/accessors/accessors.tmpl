@@ -179,7 +179,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{else}}
 				Weight: eval.FunctionWeight,
 			{{end}}
-			{{ if and (eq $Field.GetEvaluatorType "eval.StringArrayEvaluator") ($Name | HasPrefix "process.ancestors") }}
+			{{ if and (eq $Field.GetEvaluatorType "eval.StringArrayEvaluator") (HasPrefix $Name "process.ancestors") }}
 				IsRelatedToAncestors: true,
 			{{ end }}
 		}, nil

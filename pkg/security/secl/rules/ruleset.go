@@ -150,7 +150,7 @@ type Rule struct {
 // RuleSetListener describes the methods implemented by an object used to be
 // notified of events on a rule set.
 type RuleSetListener interface {
-	RuleMatch(rule *Rule, event eval.Event, matchingAncestors []int)
+	RuleMatch(rule *Rule, event eval.Event)
 	EventDiscarderFound(rs *RuleSet, event eval.Event, field eval.Field, eventType eval.EventType)
 }
 
@@ -372,13 +372,21 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 	return rule.Rule, nil
 }
 
+type MatchingAncestorsReceiver interface {
+	SetMatchingAncestors([]int)
+}
+
 // NotifyRuleMatch notifies all the ruleset listeners that an event matched a rule
 func (rs *RuleSet) NotifyRuleMatch(rule *Rule, event eval.Event, matchingAncestors []int) {
 	rs.listenersLock.RLock()
 	defer rs.listenersLock.RUnlock()
 
+	if sev, ok := event.(MatchingAncestorsReceiver); ok {
+		sev.SetMatchingAncestors(matchingAncestors)
+	}
+
 	for _, listener := range rs.listeners {
-		listener.RuleMatch(rule, event, matchingAncestors)
+		listener.RuleMatch(rule, event)
 	}
 }
 
