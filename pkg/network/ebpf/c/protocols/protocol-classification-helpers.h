@@ -31,7 +31,7 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 #define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
     bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
-    
+
     return match;
 }
 
@@ -44,7 +44,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 #define GET "GET /"
 #define POST "POST /"
 #define PUT "PUT /"
-#define DELETE "DELETE /" 
+#define DELETE "DELETE /"
 #define HEAD "HEAD /"
 #define OPTIONS1 "OPTIONS /"
 #define OPTIONS2 "OPTIONS *"
@@ -84,15 +84,14 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
     log_debug("[protocol classification]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
 }
 
-// Decides if the protocol_classifier should process the packet. We process not empty TCP packets.
-static __always_inline bool should_process_packet(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup) {
-    // we're only interested in TCP traffic
-    if (!(tup->metadata & CONN_TYPE_TCP)) {
-        return false;
-    }
+// Returns true if the packet is TCP.
+static __always_inline bool is_tcp(conn_tuple_t *tup) {
+    return (tup->metadata&CONN_TYPE_TCP);
+}
 
-    bool empty_payload = skb_info->data_off == skb->len;
-    return !empty_payload;
+// Returns true if the payload is empty.
+static __always_inline bool is_payload_empty(struct __sk_buff *skb, skb_info_t *skb_info) {
+    return skb_info->data_off == skb->len;
 }
 
 // The method is used to read the data buffer from the __sk_buf struct. Similar implementation as `read_into_buffer_skb`
@@ -225,8 +224,8 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // We process a non empty TCP packets, rather than that - we skip the packet.
-    if (!should_process_packet(skb, &skb_info, &skb_tup)) {
+    // We support non empty TCP payloads for classification at the moment.
+    if (!is_tcp(&skb_tup) || is_payload_empty(skb, &skb_info)) {
         return;
     }
 
