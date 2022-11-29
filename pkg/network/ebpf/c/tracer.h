@@ -134,6 +134,7 @@ typedef struct {
 
 // Telemetry names
 typedef struct {
+    __u64 tcp_failed_connects;
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
     __u64 missed_udp_close;
