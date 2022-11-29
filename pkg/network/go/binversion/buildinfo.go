@@ -38,9 +38,9 @@ var (
 	// or when there are I/O errors reading the file.
 	errUnrecognizedFormat = errors.New("unrecognized file format")
 
-	// errNotGoExe is returned when a given executable file is valid but does
+	// ErrNotGoExe is returned when a given executable file is valid but does
 	// not contain Go build information.
-	errNotGoExe = errors.New("not a Go executable")
+	ErrNotGoExe = errors.New("not a Go executable")
 
 	// The build info blob left by the linker is identified by
 	// a 16-byte header, consisting of buildInfoMagic (14 bytes),
@@ -86,7 +86,7 @@ func readRawBuildInfo(x exe) (vers, mod string, err error) {
 	for {
 		i := bytes.Index(data, buildInfoMagic)
 		if i < 0 || len(data)-i < buildInfoSize {
-			return "", "", errNotGoExe
+			return "", "", ErrNotGoExe
 		}
 		if i%buildInfoAlign == 0 && len(data)-i >= buildInfoSize {
 			data = data[i:]
@@ -127,7 +127,7 @@ func readRawBuildInfo(x exe) (vers, mod string, err error) {
 		mod = readString(x, ptrSize, readPtr, readPtr(data[16+ptrSize:]))
 	}
 	if vers == "" {
-		return "", "", errNotGoExe
+		return "", "", ErrNotGoExe
 	}
 	if len(mod) >= 33 && mod[len(mod)-17] == '\n' {
 		// Strip module framing: sentinel strings delimiting the module info.

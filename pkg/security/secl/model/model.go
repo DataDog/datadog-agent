@@ -347,9 +347,9 @@ type Process struct {
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
 
-	TTYName     string      `field:"tty_name"`    // Name of the TTY associated with the process
-	Comm        string      `field:"comm"`        // Comm attribute of the process
-	LinuxBinprm LinuxBinprm `field:"interpreter"` // Script interpreter as identified by the shebang
+	TTYName     string      `field:"tty_name"`                         // Name of the TTY associated with the process
+	Comm        string      `field:"comm"`                             // Comm attribute of the process
+	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
 	ForkTime time.Time `field:"-" json:"-"`
@@ -644,6 +644,7 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 type ProcessContext struct {
 	Process
 
+	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
 }
 
