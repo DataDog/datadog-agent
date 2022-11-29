@@ -451,7 +451,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
-		"tcp_failed_connects": int64(telemetry.Tcp_failed_connects),
+		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
 		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
 		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
 		"missed_udp_close":    int64(telemetry.Missed_udp_close),
