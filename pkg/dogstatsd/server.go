@@ -166,6 +166,10 @@ type Server struct {
 	ServerlessMode     bool
 	UdsListenerRunning bool
 
+	// originTracker reports telemetry on origins sending metrics.
+	// Nil if not enabled.
+	originTracker *listeners.OriginTelemetryTracker
+
 	enrichConfig enrichConfig
 }
 
@@ -228,6 +232,8 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 	// This needs to be done after the configuration is loaded
 	once.Do(initLatencyTelemetry)
 
+	stopChan := make(chan bool)
+
 	var stats *util.Stats
 	if config.Datadog.GetBool("dogstatsd_stats_enable") {
 		buff := config.Datadog.GetInt("dogstatsd_stats_buffer")
@@ -259,9 +265,16 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 
 	udsListenerRunning := false
 
+	// origin tracking if enabled
+	var originTracker *listeners.OriginTelemetryTracker
+	originTrackerConfig := listeners.OriginTelemetryMode(config.Datadog.GetString("dogstatsd_origin_telemetry"))
+	if originTrackerConfig == listeners.OriginTelemetryComplete || originTrackerConfig == listeners.OriginTelemetrySimple {
+		originTracker = listeners.StartOriginTelemetry(stopChan, originTrackerConfig)
+	}
+
 	socketPath := config.Datadog.GetString("dogstatsd_socket")
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture)
+		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, capture, originTracker)
 		if err != nil {
 			log.Errorf(err.Error())
 		} else {
@@ -346,7 +359,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 		sharedFloat64List:       newFloat64ListPool(),
 		demultiplexer:           demultiplexer,
 		listeners:               tmpListeners,
-		stopChan:                make(chan bool),
+		stopChan:                stopChan,
 		serverlessFlushChan:     make(chan bool),
 		health:                  health.RegisterLiveness("dogstatsd-main"),
 		histToDist:              histToDist,
@@ -370,6 +383,7 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			serverlessMode:            serverless,
 			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
+		originTracker: originTracker,
 	}
 
 	// packets forwarding
@@ -661,10 +675,10 @@ func (s *Server) createOriginTagMaps(origin string) (okCnt telemetry.SimpleCount
 }
 
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
-//             slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
-//             which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
-//             is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
-//             which we can't do today.
+// slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
+// which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
+// is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
+// which we can't do today.
 func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, telemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
@@ -749,6 +763,7 @@ func (s *Server) Stop() {
 		s.TCapture.Stop()
 	}
 	s.health.Deregister() //nolint:errcheck
+	// stop the origin tracker
 	s.Started = false
 }
 

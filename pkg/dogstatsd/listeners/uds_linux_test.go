@@ -36,7 +36,7 @@ func TestUDSPassCred(t *testing.T) {
 
 	pool := packets.NewPool(512)
 	poolManager := packets.NewPoolManager(pool)
-	s, err := NewUDSListener(nil, poolManager, nil)
+	s, err := NewUDSListener(nil, poolManager, nil, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)

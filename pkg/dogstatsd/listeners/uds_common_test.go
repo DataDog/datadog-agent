@@ -33,7 +33,7 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string) {
 	_, err := os.Create(socketPath)
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
-	_, err = NewUDSListener(nil, packetPoolManagerUDS, nil)
+	_, err = NewUDSListener(nil, packetPoolManagerUDS, nil, nil)
 	assert.Error(t, err)
 }
 
@@ -46,7 +46,7 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string) {
 }
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string) {
-	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
+	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil, nil)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -80,7 +80,7 @@ func TestStartStopUDSListener(t *testing.T) {
 	mockConfig := config.Mock(t)
 	mockConfig.Set("dogstatsd_socket", socketPath)
 	mockConfig.Set("dogstatsd_origin_detection", false)
-	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil)
+	s, err := NewUDSListener(nil, packetPoolManagerUDS, nil, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -105,7 +105,7 @@ func TestUDSReceive(t *testing.T) {
 	var contents = []byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2")
 
 	packetsChannel := make(chan packets.Packets)
-	s, err := NewUDSListener(packetsChannel, packetPoolManagerUDS, nil)
+	s, err := NewUDSListener(packetsChannel, packetPoolManagerUDS, nil, nil)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

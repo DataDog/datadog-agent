@@ -60,7 +60,7 @@ func testUDSOriginDetection(t *testing.T) {
 	packetsChannel := make(chan packets.Packets)
 	sharedPacketPool := packets.NewPool(32)
 	sharedPacketPoolManager := packets.NewPoolManager(sharedPacketPool)
-	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, nil)
+	s, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, nil, nil)
 	require.Nil(t, err)
 
 	go s.Listen()
