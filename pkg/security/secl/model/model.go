@@ -207,6 +207,8 @@ type Event struct {
 	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
+
+	MatchingAncestors []int `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {

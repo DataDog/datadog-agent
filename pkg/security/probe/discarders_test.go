@@ -359,7 +359,7 @@ type testEventListener struct {
 	fields map[eval.Field]int
 }
 
-func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event) {}
+func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event, matchingAncestors []int) {}
 
 func (l *testEventListener) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if l.fields == nil {

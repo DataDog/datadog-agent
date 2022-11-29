@@ -208,6 +208,8 @@ type ProcessSerializer struct {
 	IsThread bool `json:"is_thread,omitempty" jsonschema_description:""`
 	// Indicates whether the process is a kworker
 	IsKworker bool `json:"is_kworker,omitempty" jsonschema_description:""`
+
+	IsMatching bool `json:"is_matching,omitempty" jsonschema_description:""`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -722,6 +724,13 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 
 		ptr = it.Next()
 	}
+
+	for _, matchingAncestor := range e.MatchingAncestors {
+		if matchingAncestor < len(ps.Ancestors) {
+			ps.Ancestors[matchingAncestor].IsMatching = true
+		}
+	}
+
 	return &ps
 }
 

@@ -515,15 +515,20 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) 
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
+func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event, matchingAncestors []int) {
+	sprobeEvent := event.(*sprobe.Event)
+
 	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
+	m.probe.OnRuleMatch(rule, sprobeEvent)
+
+	// hack
+	sprobeEvent.MatchingAncestors = matchingAncestors
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*sprobe.Event).GetProcessServiceTag()
+	service := sprobeEvent.GetProcessServiceTag()
 
-	id := event.(*sprobe.Event).ContainerContext.ID
+	id := sprobeEvent.ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
