@@ -323,8 +323,6 @@ struct bpf_map_def SEC("maps/path_id") path_id = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 static __attribute__((always_inline)) u32 get_path_id(int invalidate) {
@@ -355,8 +353,6 @@ struct perf_map_stats_t {
 struct bpf_map_def SEC("maps/events") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .max_entries = 0,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/events_stats") events_stats = {
@@ -364,8 +360,6 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct perf_map_stats_t),
     .max_entries = EVENT_MAX,
-    .pinning = 0,
-    .namespace = "",
 };
 
 void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
@@ -429,8 +423,6 @@ struct bpf_map_def SEC("maps/mount_ref") mount_ref = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct mount_ref_t),
     .max_entries = 64000,
-    .pinning = 0,
-    .namespace = "",
 };
 
 static __attribute__((always_inline)) void inc_mount_ref(u32 mount_id) {
@@ -527,8 +519,6 @@ struct bpf_map_def SEC("maps/enabled_events") enabled_events = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u64),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 static __attribute__((always_inline)) u64 get_enabled_events(void) {
