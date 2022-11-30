@@ -605,20 +605,17 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	defer ns.Unlock()
 
 	clientInfo := map[string]interface{}{}
-	clientTelemetry := map[string]interface{}{}
 	for id, c := range ns.clients {
 		clientInfo[id] = map[string]int{
-			"last_fetch": int(c.lastFetch.Unix()),
-		}
-		clientTelemetry[id] = map[string]int{
-			"closed_connections": len(c.closedConnections),
 			"stats":              len(c.stats),
+			"closed_connections": len(c.closedConnections),
+			"last_fetch":         int(c.lastFetch.Unix()),
 		}
 	}
 
 	return map[string]interface{}{
 		"clients": clientInfo,
-		"telemetry": map[string]interface{}{
+		"telemetry": map[string]int64{
 			"stats_underflows":     ns.telemetry.statsUnderflows,
 			"closed_conn_dropped":  ns.telemetry.closedConnDropped,
 			"conn_dropped":         ns.telemetry.connDropped,
@@ -626,7 +623,6 @@ func (ns *networkState) GetStats() map[string]interface{} {
 			"dns_stats_dropped":    ns.telemetry.dnsStatsDropped,
 			"http_stats_dropped":   ns.telemetry.httpStatsDropped,
 			"dns_pid_collisions":   ns.telemetry.dnsPidCollisions,
-			"clients":              clientTelemetry,
 		},
 		"current_time":       time.Now().Unix(),
 		"latest_bpf_time_ns": ns.latestTimeEpoch,
