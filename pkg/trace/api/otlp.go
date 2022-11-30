@@ -64,7 +64,6 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
-	fmt.Println("OTLPReceiver.Start on port %i", o.conf.OTLPReceiver.HTTPPort)
 	cfg := o.conf.OTLPReceiver
 	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
@@ -206,18 +205,14 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 // using the given headers.
 func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
 	ms, _ := in.MarshalJSON()
-	fmt.Printf("processRequest %+v\n", string(ms[:]))
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		fmt.Printf("rspans: %+v\n", rspans)
-
 		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
-	fmt.Println("ReceiveResourceSpans")
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -298,14 +293,11 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 				priorityByID[traceID] = p
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
-			fmt.Printf("Adding trace with id %d\n", traceID)
 		}
 	}
 	tags := tagstats.AsTags()
 	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
-	fmt.Printf("SpanCount %d\n", spancount)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
-	fmt.Printf("TraceCount %d\n", len(tracesByID))
 
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
@@ -362,10 +354,10 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			}
 		}
 	}
+
 	// Retrieve credentials from the context
 	p.ApiKey = header.Get("DD-API-KEY")
 	p.Site = header.Get("DD-SITE")
-	fmt.Printf("ApiKey: %s Site: %s", p.ApiKey, p.Site)
 
 	select {
 	case o.out <- &p:

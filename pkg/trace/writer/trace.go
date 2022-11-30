@@ -8,7 +8,6 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -112,7 +111,6 @@ func (w *TraceWriter) Stop() {
 
 // Run starts the TraceWriter.
 func (w *TraceWriter) Run() {
-	fmt.Println("Running TraceWriter")
 	if w.syncMode {
 		w.runSync()
 	} else {
@@ -127,7 +125,6 @@ func (w *TraceWriter) runAsync() {
 	for {
 		select {
 		case pkg := <-w.In:
-			fmt.Println("Adding Spans Async")
 			w.addSpans(pkg)
 		case <-w.stop:
 			w.drainAndFlush()
@@ -145,7 +142,6 @@ func (w *TraceWriter) runSync() {
 	for {
 		select {
 		case pkg := <-w.In:
-			fmt.Println("Adding Spans Sync")
 			w.addSpans(pkg)
 		case notify := <-w.flushChan:
 			w.drainAndFlush()
@@ -171,10 +167,7 @@ func (w *TraceWriter) FlushSync() error {
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
-	fmt.Println("Adding spans")
-
 	if pkg.APIKey != "" && pkg.APIKey != w.cfg.Endpoints[0].APIKey {
-		fmt.Printf("Changed API Key to %s\n", pkg.APIKey)
 		// Stop the existing senders, and create a new one.
 		stopSenders(w.senders)
 		w.cfg.Endpoints = []*config.Endpoint{{APIKey: pkg.APIKey, Host: w.cfg.Endpoints[0].Host, NoProxy: w.cfg.Endpoints[0].NoProxy}}
