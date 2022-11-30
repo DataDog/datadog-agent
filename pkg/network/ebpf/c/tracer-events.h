@@ -9,6 +9,7 @@
 #include "cookie.h"
 
 #include "bpf_helpers.h"
+#include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
 static __always_inline int get_proto(conn_tuple_t *t) {
@@ -24,12 +25,12 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
     if (skb_tup_ptr != NULL) {
         conn_tuple_t skb_tup = *skb_tup_ptr;
-        conn_tuple_t inverse_skb_conn_tup = {0};
-        invert_conn_tuple(skb_tup_ptr, &inverse_skb_conn_tup);
+        conn_tuple_t inverse_skb_conn_tup = *skb_tup_ptr;
+        flip_tuple(&inverse_skb_conn_tup);
         inverse_skb_conn_tup.pid = 0;
         inverse_skb_conn_tup.netns = 0;
         bpf_map_delete_elem(&connection_protocol, &inverse_skb_conn_tup);
-        bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &skb_tup);
+        bpf_map_delete_elem(&connection_protocol, &skb_tup);
     }
 
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
@@ -129,6 +130,8 @@ static __always_inline void flush_conn_close_if_full(struct pt_regs *ctx) {
         bpf_memcpy(&batch_copy, batch_ptr, sizeof(batch_copy));
         batch_ptr->len = 0;
         batch_ptr->id++;
+
+        // we cannot use the telemetry macro here because of stack size constraints
         bpf_perf_event_output(ctx, &conn_close_event, cpu, &batch_copy, sizeof(batch_copy));
     }
 }

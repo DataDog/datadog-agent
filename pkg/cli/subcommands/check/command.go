@@ -105,11 +105,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigName:        globalParams.ConfigName,
-					ConfigLoadSecrets: true,
-				}.LogForOneShot(globalParams.LoggerName, "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithConfigName(globalParams.ConfigName)).
+					LogForOneShot(globalParams.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},

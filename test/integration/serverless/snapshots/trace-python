@@ -40,7 +40,6 @@
               "version": "integration-tests-version"
             },
             "metrics": {
-              "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
             "type": ""

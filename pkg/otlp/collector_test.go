@@ -50,7 +50,7 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 	<-colDone
 
 	assert.Eventually(t, func() bool {
-		return service.Closed == p.col.GetState()
+		return service.StateClosed == p.col.GetState()
 	}, time.Second*2, time.Millisecond*200)
 }
 
