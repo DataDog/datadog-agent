@@ -131,12 +131,6 @@ func (c *client) Reset(active map[uint32]*ConnectionStats) {
 	c.stats = newStats
 }
 
-type aggrConnectionStats struct {
-	*ConnectionStats
-	rtt, rttVar uint64
-	count       uint32
-}
-
 type networkState struct {
 	sync.Mutex
 
@@ -497,26 +491,9 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	client := ns.clients[id]
 	client.lastFetch = now
 
-	// connections aggregated by nat-ed tuple
-	aggrConns := make(map[string]*aggrConnectionStats, len(client.closedConnections))
-	addAggrConn := func(c *ConnectionStats) {
-		natKey := string(c.ByteKeyNAT(ns.buf))
-		ac, ok := aggrConns[natKey]
-		if !ok {
-			aggrConns[natKey] = &aggrConnectionStats{
-				ConnectionStats: c,
-				rtt:             uint64(c.RTT),
-				rttVar:          uint64(c.RTTVar),
-				count:           1,
-			}
-
-			return
-		}
-
-		aggregateConnections(ac, c)
-	}
-
+	// connections aggregated by tuple
 	closed := client.closedConnections
+	aggrConns := newConnectionAggregator(len(closed))
 	for i := range closed {
 		closedConn := &closed[i]
 		cookie := closedConn.Cookie
@@ -532,21 +509,14 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 			continue
 		}
 
-		addAggrConn(closedConn)
-	}
-
-	// put the aggregated closed connections in the buffer
-	outputAggrConns := func(aggrConns map[string]*aggrConnectionStats) {
-		for _, c := range aggrConns {
-			c.RTT = uint32(c.rtt / uint64(c.count))
-			c.RTTVar = uint32(c.rttVar / uint64(c.count))
-			*buffer.Next() = *c.ConnectionStats
+		if !aggrConns.Aggregate(closedConn) {
+			*buffer.Next() = *closedConn
 		}
 	}
 
-	outputAggrConns(aggrConns)
+	aggrConns.Write(buffer)
 
-	aggrConns = make(map[string]*aggrConnectionStats, len(active))
+	aggrConns = newConnectionAggregator(len(active))
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
@@ -556,10 +526,12 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 			continue
 		}
 
-		addAggrConn(c)
+		if !aggrConns.Aggregate(c) {
+			*buffer.Next() = *c
+		}
 	}
 
-	outputAggrConns(aggrConns)
+	aggrConns.Write(buffer)
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats, isClosed bool) {
@@ -739,14 +711,82 @@ func (ns *networkState) determineConnectionIntraHost(connections []ConnectionSta
 	}
 }
 
-func aggregateConnections(aggrConn *aggrConnectionStats, c *ConnectionStats) {
+type connectionAggregator struct {
+	conns map[string]*struct {
+		*ConnectionStats
+		rttSum, rttVarSum uint64
+		count             uint32
+	}
+	buf []byte
+}
+
+func newConnectionAggregator(size int) *connectionAggregator {
+	return &connectionAggregator{
+		conns: make(map[string]*struct {
+			*ConnectionStats
+			rttSum    uint64
+			rttVarSum uint64
+			count     uint32
+		}, size),
+		buf: make([]byte, ConnectionByteKeyMaxLen),
+	}
+}
+
+// Aggregate aggregates a connection. The connection is only
+// aggregated it:
+// - it is not in the collection
+// - it is in the collection and:
+//   - the ip translation is nil OR
+//   - the other connection's ip translation is nil OR
+//   - the other connection's ip translation is not nil AND the nat info is the same
+func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
+	key := string(c.ByteKey(a.buf))
+	aggrConn, ok := a.conns[key]
+	if !ok {
+		a.conns[key] = &struct {
+			*ConnectionStats
+			rttSum    uint64
+			rttVarSum uint64
+			count     uint32
+		}{
+			ConnectionStats: c,
+			rttSum:          uint64(c.RTT),
+			rttVarSum:       uint64(c.RTTVar),
+			count:           1,
+		}
+
+		return true
+	}
+
+	if !(aggrConn.IPTranslation == nil ||
+		c.IPTranslation == nil ||
+		*c.IPTranslation == *aggrConn.IPTranslation) {
+		return false
+	}
+
 	aggrConn.Monotonic = aggrConn.Monotonic.Add(c.Monotonic)
 	aggrConn.Last = aggrConn.Last.Add(c.Last)
-	aggrConn.rtt += uint64(c.RTT)
-	aggrConn.rttVar += uint64(c.RTTVar)
+	aggrConn.rttSum += uint64(c.RTT)
+	aggrConn.rttVarSum += uint64(c.RTTVar)
 	aggrConn.count++
 	if aggrConn.LastUpdateEpoch < c.LastUpdateEpoch {
 		aggrConn.LastUpdateEpoch = c.LastUpdateEpoch
+	}
+	if aggrConn.IPTranslation == nil {
+		aggrConn.IPTranslation = c.IPTranslation
+	}
+
+	return true
+}
+
+// Write writes the aggregated connections to a clientBuffer,
+// computing an average for RTT and RTTVar for each
+// connection
+func (a connectionAggregator) Write(buffer *clientBuffer) {
+	for _, c := range a.conns {
+		c.RTT = uint32(c.rttSum / uint64(c.count))
+		c.RTTVar = uint32(c.rttVarSum / uint64(c.count))
+		*buffer.Next() = *c.ConnectionStats
 	}
 }
 
