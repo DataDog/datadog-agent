@@ -813,7 +813,6 @@ core,go.opencensus.io/trace/propagation,Apache-2.0,"Copyright 2018, OpenCensus A
 core,go.opencensus.io/trace/tracestate,Apache-2.0,"Copyright 2018, OpenCensus Authors"
 core,go.opentelemetry.io/collector/client,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/component,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/collector/component/componenttest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/config/configcompression,Apache-2.0,Copyright The OpenTelemetry Authors
