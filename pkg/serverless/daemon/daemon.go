@@ -65,8 +65,8 @@ type Daemon struct {
 	// It should be reset when we start a new invocation, as we may start a new invocation before hearing that the last one finished.
 	RuntimeWg *sync.WaitGroup
 
-	// FlushWg is used to keep track of whether there is currently a flush in progress
-	FlushWg *sync.WaitGroup
+	// FlushLock is used to keep track of whether there is currently a flush in progress
+	FlushLock sync.Mutex
 
 	ExtraTags *serverlessLog.Tags
 
@@ -104,7 +104,7 @@ func StartDaemon(addr string) *Daemon {
 		httpServer:        &http.Server{Addr: addr, Handler: mux},
 		mux:               mux,
 		RuntimeWg:         &sync.WaitGroup{},
-		FlushWg:           &sync.WaitGroup{},
+		FlushLock:         sync.Mutex{},
 		lastInvocations:   make([]time.Time, 0),
 		useAdaptiveFlush:  true,
 		flushStrategy:     &flush.AtTheEnd{},
@@ -201,8 +201,8 @@ func (d *Daemon) UseAdaptiveFlush(enabled bool) {
 // flush may be continued on the next invocation.
 // In some circumstances, it may switch to another flush strategy after the flush.
 func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
-	d.FlushWg.Add(1)
-	defer d.FlushWg.Done()
+	d.FlushLock.Lock()
+	defer d.FlushLock.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), FlushTimeout)
 
@@ -340,7 +340,8 @@ func (d *Daemon) TellDaemonRuntimeDone() {
 // WaitForDaemon waits until the daemon has finished handling the current invocation
 func (d *Daemon) WaitForDaemon() {
 	// We always want to wait for any in-progress flush to complete
-	d.FlushWg.Wait()
+	d.FlushLock.Lock()
+	d.FlushLock.Unlock() //nolint:staticcheck
 
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to

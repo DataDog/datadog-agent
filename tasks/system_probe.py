@@ -306,6 +306,9 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tracer.h",
                 "pkg/network/ebpf/c/protocols/http-types.h",
             ],
+            "pkg/network/telemetry/telemetry_types.go": [
+                "pkg/ebpf/c/telemetry_types.h",
+            ],
         }
         nw.rule(
             name="godefs",

@@ -82,3 +82,21 @@ func WithDefaultConfPath(defaultConfPath string) func(*BundleParams) {
 		b.DefaultConfPath = defaultConfPath
 	}
 }
+
+func WithLogForOneShot(loggerName, level string, overrideFromEnv bool) func(*BundleParams) {
+	return func(b *BundleParams) {
+		*b = b.LogForOneShot(loggerName, level, overrideFromEnv)
+	}
+}
+
+func WithLogForDaemon(loggerName, logFileConfig, defaultLogFile string) func(*BundleParams) {
+	return func(b *BundleParams) {
+		*b = b.LogForDaemon(loggerName, logFileConfig, defaultLogFile)
+	}
+}
+
+func WithLogToFile(logFile string) func(*BundleParams) {
+	return func(b *BundleParams) {
+		*b = b.LogToFile(logFile)
+	}
+}

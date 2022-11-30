@@ -93,7 +93,7 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 		StartTime:          timeNow(),
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, "", startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(""), startDetails, false)
 	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
@@ -108,7 +108,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -130,7 +130,7 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: lambdaInvokeContext,
 	}
-	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -146,7 +146,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, invalidTestString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(invalidTestString), startDetails, false)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
@@ -169,7 +169,7 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 		SpanID:  1304592378509342580,
 		Start:   startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, testString, startDetails, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, []byte(testString), startDetails, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -189,7 +189,7 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 		SpanID: 1304592378509342580,
 		Start:  startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, testString, startDetails, true)
+	startExecutionSpan(currentExecutionInfo, inferredSpan, []byte(testString), startDetails, true)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -210,7 +210,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -223,10 +223,10 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"response":"test response payload"}`,
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -251,7 +251,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -265,10 +265,10 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		EndTime:            endTime,
 		IsError:            false,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{"response":"test response payload"}`,
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -292,7 +292,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, testString, startDetails, false)
+	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -305,9 +305,9 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		EndTime:            endTime,
 		IsError:            true,
 		RequestID:          "test-request-id",
-		ResponseRawPayload: `{}`,
+		ResponseRawPayload: []byte(`{}`),
 	}
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), mockProcessTrace, endDetails)
+	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
@@ -319,7 +319,7 @@ func TestConvertRawPayloadWithHeaders(t *testing.T) {
 	expectedPayload := invocationPayload{}
 	expectedPayload.Headers = map[string]string{"Accept": "*/*", "Accept-Encoding": "gzip", "x-datadog-parent-id": "1480558859903409531", "x-datadog-sampling-priority": "1", "x-datadog-trace-id": "5736943178450432258"}
 
-	p := convertRawPayload(s)
+	p := convertRawPayload([]byte(s))
 
 	assert.Equal(t, p, expectedPayload)
 }
@@ -330,20 +330,20 @@ func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
 
 	expectedPayload := invocationPayload{}
 
-	p := convertRawPayload(s)
+	p := convertRawPayload([]byte(s))
 
 	assert.Equal(t, p, expectedPayload)
 }
 
 func TestParseLambdaPayload(t *testing.T) {
-	assert.Equal(t, "", parseLambdaPayload(""))
-	assert.Equal(t, "{}", parseLambdaPayload("{}"))
-	assert.Equal(t, "{}", parseLambdaPayload("a{}a"))
-	assert.Equal(t, "{a}", parseLambdaPayload("{a}a"))
-	assert.Equal(t, "{a}", parseLambdaPayload("a{a}"))
-	assert.Equal(t, "{a}", parseLambdaPayload("}{a}a{"))
-	assert.Equal(t, "{}{}", parseLambdaPayload("{}{}"))
-	assert.Equal(t, "{a}", parseLambdaPayload("a{a}a"))
-	assert.Equal(t, "{", parseLambdaPayload("{"))
-	assert.Equal(t, "}", parseLambdaPayload("}"))
+	assert.Equal(t, []byte(""), parseLambdaPayload([]byte("")))
+	assert.Equal(t, []byte("{}"), parseLambdaPayload([]byte("{}")))
+	assert.Equal(t, []byte("{}"), parseLambdaPayload([]byte("a{}a")))
+	assert.Equal(t, []byte("{a}"), parseLambdaPayload([]byte("{a}a")))
+	assert.Equal(t, []byte("{a}"), parseLambdaPayload([]byte("a{a}")))
+	assert.Equal(t, []byte("{a}"), parseLambdaPayload([]byte("}{a}a{")))
+	assert.Equal(t, []byte("{}{}"), parseLambdaPayload([]byte("{}{}")))
+	assert.Equal(t, []byte("{a}"), parseLambdaPayload([]byte("a{a}a")))
+	assert.Equal(t, []byte("{"), parseLambdaPayload([]byte("{")))
+	assert.Equal(t, []byte("}"), parseLambdaPayload([]byte("}")))
 }
