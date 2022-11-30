@@ -131,7 +131,7 @@ func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry
 			helper[helperName] = count
 
 			for errStr, errCount := range count {
-				gauge.Set(float64(errCount), probeName, helperName, errStr)
+				gauge.Set(float64(errCount), helperName, probeName, errStr)
 			}
 		}
 	}
