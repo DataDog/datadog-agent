@@ -8,7 +8,6 @@ package agent
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math"
 	"net/http"

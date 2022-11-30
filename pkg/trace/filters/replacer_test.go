@@ -66,7 +66,9 @@ func TestReplacer(t *testing.T) {
 			root := replaceFilterTestSpan(tt.got)
 			childSpan := replaceFilterTestSpan(tt.got)
 			trace := pb.Trace{root, childSpan}
-			tr.Replace(trace)
+			for _, s := range trace {
+				tr.Replace(s)
+			}
 			for k, v := range tt.want {
 				switch k {
 				case "resource.name":
