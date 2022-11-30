@@ -11,7 +11,8 @@ import (
 func TestRetrieveUST(t *testing.T) {
 	cfg := config.Mock(t)
 	cfg.Set("env", "staging")
-	cfg.Set("version", "not-applied")
+	cfg.Set(tagKeyService, "not-applied")
+	cfg.Set(tagKeyVersion, "not-applied")
 
 	tests := []struct {
 		name   string
@@ -31,8 +32,8 @@ func TestRetrieveUST(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := retrieveUST(tt.labels); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("retrieveUST() = %v, want %v", got, tt.want)
+			if got := RetrieveUnifiedServiceTags(tt.labels); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RetrieveUnifiedServiceTags() = %v, want %v", got, tt.want)
 			}
 		})
 	}

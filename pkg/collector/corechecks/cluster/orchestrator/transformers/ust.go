@@ -29,9 +29,9 @@ var labelToTagKeys = map[string]string{
 
 var ustLabelsWithoutFallback = []string{kubernetes.VersionTagLabelKey, kubernetes.ServiceTagLabelKey}
 
-// call retrieveUST for cluster level resources
+// RetrieveUnifiedServiceTags for cluster level resources
 // the `env` is handled special because it being a host level tag.
-func retrieveUST(labels map[string]string) []string {
+func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 	var tags []string
 
 	if tagValue, found := labels[kubernetes.EnvTagLabelKey]; found {
