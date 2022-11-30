@@ -36,7 +36,7 @@ regression_detector_submit_job:
     - BASELINE_SHA=$(git rev-parse main)
     - BASELINE_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${BASELINE_SHA}-7-amd64
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
-    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --region us-west-2 --aws-named-profile single-machine-performance
             job submit
             --lading-version ${LADING_VERSION}
             --total-samples ${TOTAL_SAMPLES}
