@@ -71,8 +71,10 @@ type TraceWriter struct {
 	syncMode  bool
 	flushChan chan chan struct{}
 
-	cfg     *config.AgentConfig
 	easylog *log.ThrottledLogger
+
+	cfg           *config.AgentConfig
+	updateSenders func()
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -97,7 +99,8 @@ func NewTraceWriter(cfg *config.AgentConfig) *TraceWriter {
 	if s := cfg.TraceWriter.FlushPeriodSeconds; s != 0 {
 		tw.tick = time.Duration(s*1000) * time.Millisecond
 	}
-	tw.senders = createSenders(cfg, tw)
+	tw.updateSenders = createUpdateSenders(tw)
+	tw.updateSenders()
 	return tw
 }
 
@@ -171,7 +174,7 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 		// Stop the existing senders, and create a new one.
 		stopSenders(w.senders)
 		w.cfg.Endpoints = []*config.Endpoint{{APIKey: pkg.APIKey, Host: w.cfg.Endpoints[0].Host, NoProxy: w.cfg.Endpoints[0].NoProxy}}
-		w.senders = createSenders(w.cfg, w)
+		w.updateSenders()
 	}
 
 	w.stats.Spans.Add(pkg.SpanCount)
@@ -307,18 +310,18 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 	}
 }
 
-func createSenders(cfg *config.AgentConfig, tw *TraceWriter) []*sender {
-	climit := cfg.TraceWriter.ConnectionLimit
+func createUpdateSenders(w *TraceWriter) func() {
+	climit := w.cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
 		// Default to 10% of the connection limit to outgoing sends.
 		// Since the connection limit was removed, keep this at 200
 		// as it was when we had it (2k).
 		climit = 200
 	}
-	qsize := cfg.TraceWriter.QueueSize
+	qsize := w.cfg.TraceWriter.QueueSize
 	if qsize == 0 {
 		// default to 50% of maximum memory.
-		maxmem := cfg.MaxMemory / 2
+		maxmem := w.cfg.MaxMemory / 2
 		if maxmem == 0 {
 			// or 500MB if unbound
 			maxmem = 500 * 1024 * 1024
@@ -326,6 +329,7 @@ func createSenders(cfg *config.AgentConfig, tw *TraceWriter) []*sender {
 		qsize = int(math.Max(1, maxmem/float64(MaxPayloadSize)))
 	}
 	log.Debugf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
-
-	return newSenders(cfg, tw, pathTraces, climit, qsize)
+	return func() {
+		w.senders = newSenders(w.cfg, w, pathTraces, climit, qsize)
+	}
 }
