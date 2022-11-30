@@ -52,10 +52,10 @@ func main() {
 		if err != nil {
 			log.Error(err)
 		}
+		traceAgent.Flush()
 		if shutdown {
 			break
 		}
-		traceAgent.Flush()
 	}
 }
 
