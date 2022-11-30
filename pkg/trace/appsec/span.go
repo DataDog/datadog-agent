@@ -83,6 +83,7 @@ func startHTTPRequestSpan(traceID, parentID uint64, service, remoteAddr, method 
 	setAppSecEnabledTags(sp.span)
 	setClientIPTags(sp, remoteAddr, headers)
 	sp.SetMethod(method)
+	sp.SetHost(url.Host)
 	sp.SetURL(url.String())
 	if ua := headers["user-agent"]; ua != "" {
 		sp.SetUserAgent(ua)
@@ -93,6 +94,7 @@ func startHTTPRequestSpan(traceID, parentID uint64, service, remoteAddr, method 
 func (s *httpSpan) SetMethod(m string)     { s.Meta["http.method"] = m }
 func (s *httpSpan) SetURL(u string)        { s.Meta["http.url"] = u }
 func (s *httpSpan) SetUserAgent(ua string) { s.Meta["http.useragent"] = ua }
+func (s *httpSpan) SetHost(host string)    { s.Meta["http.host"] = host }
 func (s *httpSpan) SetRequestHeaders(headers map[string]string) {
 	for k, v := range headers {
 		s.SetRequestHeader(k, v)

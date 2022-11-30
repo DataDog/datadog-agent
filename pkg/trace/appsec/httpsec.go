@@ -21,7 +21,6 @@ import (
 
 type (
 	requestPayload struct {
-		Trace   bool    `json:"trace"`
 		Request Request `json:"request"`
 		Service string  `json:"service"`
 	}
@@ -79,13 +78,13 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 		defer wafCtx.Close()
 
 		addresses := makeHTTPSecAddresses(reqPayload.Request, sp.Meta["http.client_ip"])
-		log.Debug("appsec: httpsec api: running the security rules against %v", addresses)
+		log.Debugf("appsec: httpsec api: running the security rules against %v", addresses)
 		matches, actions, err := wafCtx.Run(addresses, defaultWAFTimeout)
 		if err != nil && err != waf.ErrTimeout {
 			writeErrorResponse(w, err)
 			return
 		}
-		log.Debug("appsec: httpsec api: matches=%s actions=%v", string(matches), actions)
+		log.Debugf("appsec: httpsec api: matches=%s actions=%v", string(matches), actions)
 
 		if len(matches) > 0 {
 			setSecurityEventsTags(sp, matches, reqPayload.Request.Headers, nil)
