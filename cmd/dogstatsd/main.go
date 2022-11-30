@@ -181,6 +181,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 		config.GetBool("syslog_rfc"),
 		config.GetBool("log_to_console"),
 		config.GetBool("log_format_json"),
+		false,
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

@@ -55,6 +55,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		false,
 		true,
 		false,
+		false,
 	)
 
 	store := workloadmeta.GetGlobalStore()

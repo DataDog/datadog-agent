@@ -151,6 +151,7 @@ func (suite *AutoConfigTestSuite) SetupSuite() {
 		false,
 		true,
 		false,
+		false,
 	)
 }
 

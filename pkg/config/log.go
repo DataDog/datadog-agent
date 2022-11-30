@@ -89,7 +89,7 @@ func getSyslogTLSKeyPair() (*tls.Certificate, error) {
 // if a non empty logFile is provided, it will also log to the file
 // a non empty syslogURI will enable syslog, and format them following RFC 5424 if specified
 // you can also specify to log to the console and in JSON format
-func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat, verboseLogging bool) error {
 	seelogLogLevel, err := validateLogLevel(logLevel)
 	if err != nil {
 		return err
@@ -103,7 +103,17 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return err
 	}
 	_ = seelog.ReplaceLogger(loggerInterface)
-	log.SetupLogger(loggerInterface, seelogLogLevel)
+
+	var verboseLoggerInterface seelog.LoggerInterface = nil
+	if verboseLogging {
+		seelogConfig, err = buildLoggerConfig("my logger", "trace", "/var/log/datadog/agent-verbose.log", "", false, false, false)
+		verboseLoggerInterface, err = GenerateLoggerInterface(seelogConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	log.SetupLogger(loggerInterface, seelogLogLevel, verboseLoggerInterface)
 	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
 }

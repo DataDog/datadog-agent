@@ -456,5 +456,6 @@ func setupLogger(loggerName config.LoggerName, logFile string) error {
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
+		false,
 	)
 }

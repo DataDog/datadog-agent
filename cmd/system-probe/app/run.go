@@ -141,6 +141,7 @@ func StartSystemProbe() error {
 		ddconfig.Datadog.GetBool("syslog_rfc"),
 		ddconfig.Datadog.GetBool("log_to_console"),
 		ddconfig.Datadog.GetBool("log_format_json"),
+		false, // verbose_logging
 	)
 	if err != nil {
 		return log.Criticalf("failed to setup configured logger: %s", err)

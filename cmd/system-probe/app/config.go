@@ -33,7 +33,7 @@ func setupConfig() (*config.Config, error) {
 		return nil, fmt.Errorf("unable to set up system-probe configuration: %v", err)
 	}
 
-	err = ddconfig.SetupLogger(loggerName, ddconfig.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err = ddconfig.SetupLogger(loggerName, ddconfig.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return nil, err

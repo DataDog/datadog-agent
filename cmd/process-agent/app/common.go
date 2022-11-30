@@ -30,6 +30,7 @@ func initConfig(w io.Writer, cmd *cobra.Command) error {
 		false,
 		true,
 		false,
+		false,
 	)
 	if err != nil {
 		writeError(w, err)

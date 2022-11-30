@@ -47,7 +47,7 @@ func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
 
 func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
-	config.SetupLogger("", "off", "", "", false, true, false)
+	config.SetupLogger("", "off", "", "", false, true, false, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
 	defer demux.Stop(false)
@@ -94,7 +94,7 @@ var samplesBench []metrics.MetricSample
 
 func BenchmarkPbarseMetricMessage(b *testing.B) {
 	// our logger will log dogstatsd packet by default if nothing is setup
-	config.SetupLogger("", "off", "", "", false, true, false)
+	config.SetupLogger("", "off", "", "", false, true, false, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
 	s, _ := NewServer(demux, false)
@@ -151,7 +151,7 @@ func BenchmarkMapperControl(b *testing.B) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	// our logger will log dogstatsd packet by default if nothing is setup
-	config.SetupLogger("", "off", "", "", false, true, false)
+	config.SetupLogger("", "off", "", "", false, true, false, false)
 
 	demux := aggregator.InitTestAgentDemultiplexer()
 	s, _ := NewServer(demux, false)

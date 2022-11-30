@@ -67,6 +67,7 @@ func TestMain(m *testing.M) {
 		false,
 		true,
 		false,
+		false,
 	)
 
 	retryTicker := time.NewTicker(time.Duration(*retryDelay) * time.Second)

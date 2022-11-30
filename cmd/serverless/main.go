@@ -98,6 +98,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		false,   // syslog_rfc
 		true,    // log_to_console
 		false,   // log_format_json
+		false,   // verbose_logging
 	); err != nil {
 		log.Errorf("Unable to setup logger: %s", err)
 	}

@@ -45,15 +45,16 @@ var (
 
 // DatadogLogger wrapper structure for seelog
 type DatadogLogger struct {
-	inner seelog.LoggerInterface
-	level seelog.LogLevel
-	extra map[string]seelog.LoggerInterface
-	l     sync.RWMutex
+	inner   seelog.LoggerInterface
+	verbose seelog.LoggerInterface
+	level   seelog.LogLevel
+	extra   map[string]seelog.LoggerInterface
+	l       sync.RWMutex
 }
 
 // SetupLogger setup agent wide logger
-func SetupLogger(i seelog.LoggerInterface, level string) {
-	Logger = setupCommonLogger(i, level)
+func SetupLogger(i seelog.LoggerInterface, level string, verboseLogger seelog.LoggerInterface) {
+	Logger = setupCommonLogger(i, level, verboseLogger)
 
 	// Flush the log entries logged before initialization now that the logger is initialized
 	bufferMutex.Lock()
@@ -67,13 +68,17 @@ func SetupLogger(i seelog.LoggerInterface, level string) {
 
 // SetupJMXLogger setup JMXfetch specific logger
 func SetupJMXLogger(i seelog.LoggerInterface, level string) {
-	jmxLogger = setupCommonLogger(i, level)
+	jmxLogger = setupCommonLogger(i, level, nil)
 }
 
-func setupCommonLogger(i seelog.LoggerInterface, level string) *DatadogLogger {
+func setupCommonLogger(i seelog.LoggerInterface, level string, verboseLogger seelog.LoggerInterface) *DatadogLogger {
 	l := &DatadogLogger{
 		inner: i,
 		extra: make(map[string]seelog.LoggerInterface),
+	}
+
+	if verboseLogger != nil {
+		l.verbose = verboseLogger
 	}
 
 	lvl, ok := seelog.LogLevelFromString(level)
@@ -170,7 +175,12 @@ func (sw *DatadogLogger) scrub(s string) string {
 // trace logs at the trace level, called with sw.l held
 func (sw *DatadogLogger) trace(s string) {
 	scrubbed := sw.scrub(s)
-	sw.inner.Trace(scrubbed)
+
+	if sw.shouldLog(seelog.TraceLvl) {
+		sw.inner.Trace(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Trace(scrubbed)
+	}
 
 	for _, l := range sw.extra {
 		l.Trace(scrubbed)
@@ -195,6 +205,12 @@ func (sw *DatadogLogger) debug(s string) {
 	scrubbed := sw.scrub(s)
 	sw.inner.Debug(scrubbed)
 
+	if sw.shouldLog(seelog.DebugLvl) {
+		sw.inner.Debug(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Debug(scrubbed)
+	}
+
 	for _, l := range sw.extra {
 		l.Debug(scrubbed)
 	}
@@ -216,6 +232,13 @@ func (sw *DatadogLogger) debugStackDepth(s string, depth int) {
 func (sw *DatadogLogger) info(s string) {
 	scrubbed := sw.scrub(s)
 	sw.inner.Info(scrubbed)
+
+	if sw.shouldLog(seelog.InfoLvl) {
+		sw.inner.Info(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Info(scrubbed)
+	}
+
 	for _, l := range sw.extra {
 		l.Info(scrubbed)
 	}
@@ -237,6 +260,12 @@ func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
 func (sw *DatadogLogger) warn(s string) error {
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Warn(scrubbed)
+
+	if sw.shouldLog(seelog.WarnLvl) {
+		sw.inner.Warn(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Warn(scrubbed)
+	}
 
 	for _, l := range sw.extra {
 		l.Warn(scrubbed) //nolint:errcheck
@@ -264,6 +293,12 @@ func (sw *DatadogLogger) error(s string) error {
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Error(scrubbed)
 
+	if sw.shouldLog(seelog.ErrorLvl) {
+		sw.inner.Error(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Error(scrubbed)
+	}
+
 	for _, l := range sw.extra {
 		l.Error(scrubbed) //nolint:errcheck
 	}
@@ -289,6 +324,12 @@ func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 func (sw *DatadogLogger) critical(s string) error {
 	scrubbed := sw.scrub(s)
 	err := sw.inner.Critical(scrubbed)
+
+	if sw.shouldLog(seelog.CriticalLvl) {
+		sw.inner.Critical(scrubbed)
+	} else if Logger.verbose != nil {
+		sw.verbose.Critical(scrubbed)
+	}
 
 	for _, l := range sw.extra {
 		l.Critical(scrubbed) //nolint:errcheck
@@ -437,7 +478,7 @@ func formatErrorc(message string, context ...interface{}) error {
 // Log logs a message at the given level, using either bufferFunc (if logging is not yet set up) or
 // logFunc, and treating the variadic args as the message.
 func Log(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string), v ...interface{}) {
-	if Logger != nil && Logger.inner != nil && Logger.shouldLog(logLevel) {
+	if Logger != nil && Logger.inner != nil {
 		s := buildLogEntry(v...)
 		Logger.l.Lock()
 		defer Logger.l.Unlock()

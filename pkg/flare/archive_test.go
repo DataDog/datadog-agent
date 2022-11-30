@@ -67,7 +67,7 @@ func TestArchiveName(t *testing.T) {
 	assert.NotContains(t, zipFilePath, "info")
 
 	// init and configure logger at runtime
-	config.SetupLogger("TEST", "debug", "", "", true, true, true)
+	config.SetupLogger("TEST", "debug", "", "", true, true, true, false)
 	ll := settings.LogLevelRuntimeSetting{}
 
 	// set 'trace' level logging

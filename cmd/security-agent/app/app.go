@@ -129,6 +129,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		coreconfig.Datadog.GetBool("syslog_rfc"),
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
+		false,
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

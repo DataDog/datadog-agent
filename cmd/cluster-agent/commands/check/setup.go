@@ -38,7 +38,7 @@ func setupCLI(loggerName config.LoggerName, confFilePath, configName string, cli
 		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up global agent configuration: %v", err)
 	}
 
-	err = config.SetupLogger(loggerName, resolvedLogLevel, cliLogFile, "", false, true, false)
+	err = config.SetupLogger(loggerName, resolvedLogLevel, cliLogFile, "", false, true, false, false)
 	if err != nil {
 		return resolvedLogLevel, warnings, fmt.Errorf("unable to set up logger: %v", err)
 	}

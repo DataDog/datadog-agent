@@ -75,7 +75,7 @@ func TestRuntimeSettings(t *testing.T) {
 
 func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
-	config.SetupLogger("TEST", "debug", "", "", true, true, true)
+	config.SetupLogger("TEST", "debug", "", "", true, true, true, false)
 
 	ll := LogLevelRuntimeSetting{}
 	assert.Equal(t, "log_level", ll.Name())

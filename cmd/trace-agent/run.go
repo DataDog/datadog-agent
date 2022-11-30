@@ -93,6 +93,7 @@ func Run(ctx context.Context) {
 		coreconfig.Datadog.GetBool("syslog_rfc"),
 		coreconfig.Datadog.GetBool("log_to_console"),
 		coreconfig.Datadog.GetBool("log_format_json"),
+		false, // verbose_logging
 	); err != nil {
 		osutil.Exitf("Cannot create logger: %v", err)
 	}
