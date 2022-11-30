@@ -18,7 +18,7 @@ var (
 
 const (
 	// Maximum size for a directory name
-	directoryNameMaxSize = 32
+	directoryToHostnameMaxSize = 32
 )
 
 // NormalizeHost applies a liberal policy on host names.
@@ -49,11 +49,11 @@ func NormalizeHost(host string) (string, error) {
 	return buf.String(), nil
 }
 
-// CleanHostnameDir returns a hostname normalized to be use as a directory name.
+// CleanHostnameDir returns a hostname normalized to be uses as a directory name.
 func CleanHostnameDir(hostname string) string {
 	hostname = directoryNameFilter.ReplaceAllString(hostname, "_")
-	if len(hostname) > directoryNameMaxSize {
-		return hostname[:directoryNameMaxSize]
+	if len(hostname) > directoryToHostnameMaxSize {
+		return hostname[:directoryToHostnameMaxSize]
 	}
 	return hostname
 }
