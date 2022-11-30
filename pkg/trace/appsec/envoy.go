@@ -13,8 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	waf "github.com/DataDog/go-libddwaf"
-	//envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
+	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -107,14 +107,16 @@ func attachAppSecMetadata(resp *envoy_service_auth_v3.CheckResponse, matches []b
 	rawBlocked := ""
 	if blocked {
 		rawBlocked = "\"blocked\":true,"
+		fields["appsec.blocked"] = structpb.NewStringValue("true")
 	}
+	fields["appsec.event"] = structpb.NewStringValue("true")
 	fields["appsec"] = structpb.NewStringValue(fmt.Sprintf("{\"event\":true,%s\"triggers\":%s}", rawBlocked, matches))
 }
 
 // Check implements authorization's Check interface which performs authorization check based on the
 // attributes associated with the incoming request.
 func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequest) (*envoy_service_auth_v3.CheckResponse, error) {
-	okResponse := &envoy_service_auth_v3.CheckResponse{
+	resp := &envoy_service_auth_v3.CheckResponse{
 		Status: &status.Status{
 			Code: int32(code.Code_OK),
 		},
@@ -132,7 +134,7 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 	wafCtx := s.wafManager.GetWafContextForService(serviceName, env)
 	if wafCtx == nil {
 		// The WAF handle was released
-		return okResponse, nil
+		return resp, nil
 	}
 	defer wafCtx.Close()
 
@@ -144,6 +146,16 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 	}
 	log.Debugf("appsec: envoy auth api: matches=%v actions=%v", matches, actions)
 	block := shouldBlock(actions)
-	attachAppSecMetadata(okResponse, matches, block)
-	return okResponse, nil
+	if block {
+		resp.Status.Code = int32(code.Code_PERMISSION_DENIED)
+		resp.HttpResponse = &envoy_service_auth_v3.CheckResponse_DeniedResponse{
+			&envoy_service_auth_v3.DeniedHttpResponse{
+				Status: &envoy_type_v3.HttpStatus{
+					Code: 403,
+				},
+			},
+		}
+	}
+	attachAppSecMetadata(resp, matches, block)
+	return resp, nil
 }

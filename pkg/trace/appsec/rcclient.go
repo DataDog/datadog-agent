@@ -1,20 +1,20 @@
 package appsec
 
 import (
-    	"context"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"time"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	rc "github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 type ProductUpdate map[string][]byte
@@ -98,7 +98,7 @@ func (c *Client) Start() {
 		case <-ticker.C:
 			c.lastError = c.updateState()
 			if c.lastError != nil {
-				log.Errorf("could not update remote-config state: %v", c.lastError)
+				log.Errorf("appsec: could not update remote-config state: %v", c.lastError)
 			}
 		}
 	}
@@ -169,7 +169,7 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) error {
 	stateBefore, _ := c.repository.CurrentState()
 	products, err := c.repository.Update(update)
 	if err != nil {
-    		return err
+		return err
 	}
 	stateAfter, _ := c.repository.CurrentState()
 
@@ -212,6 +212,10 @@ func (c *Client) newUpdateRequest() (*pbgo.ClientGetConfigsRequest, error) {
 	state, err := c.repository.CurrentState()
 	if err != nil {
 		return nil, err
+	}
+
+	if state.RootsVersion < 1 {
+		state.RootsVersion = 1
 	}
 
 	pbCachedFiles := make([]*pbgo.TargetFileMeta, 0, len(state.CachedFiles))
