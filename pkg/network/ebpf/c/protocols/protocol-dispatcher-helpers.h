@@ -9,7 +9,7 @@
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
-    return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);
+    return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -22,7 +22,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // We handle the payload if it is an non empty TCP packet, or termination TCP packet.
+    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
     if (!is_tcp(&skb_tup) || (is_payload_empty(skb, &skb_info) && !is_tcp_termination(&skb_info))) {
         return;
     }

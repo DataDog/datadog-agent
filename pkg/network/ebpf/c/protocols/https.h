@@ -39,7 +39,7 @@ static __always_inline void https_process(conn_tuple_t *t, void *buffer, size_t 
 
         cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &inverse_conn_tup);
 
-        // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
+        // try classifying the protocol if no prior identification exists
         if (cur_fragment_protocol_ptr == NULL) {
             classify_protocol(&cur_fragment_protocol, http.request_fragment, len);
             // If there has been a change in the classification, save the new protocol.

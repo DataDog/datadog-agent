@@ -86,7 +86,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
 
 // Returns true if the packet is TCP.
 static __always_inline bool is_tcp(conn_tuple_t *tup) {
-    return (tup->metadata&CONN_TYPE_TCP);
+    return tup->metadata & CONN_TYPE_TCP;
 }
 
 // Returns true if the payload is empty.
