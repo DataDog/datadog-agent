@@ -579,11 +579,13 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}
 
 	payload := &Payload{
-		Source:                 ts,
-		TracerPayload:          tp,
-		ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
-		ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
-		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		TracerPayload: tp,
+		Meta: Metadata{
+			Source:                 ts,
+			ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
+			ClientComputedStats:    req.Header.Get(headerComputedStats) != "",
+			ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		},
 	}
 
 	select {

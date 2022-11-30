@@ -7,6 +7,8 @@ package agent
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"runtime"
 	"time"
 
@@ -220,87 +222,205 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	}
 }
 
-// Process is the default work unit that receives a trace, transforms it and
-// passes it downstream.
+func normalizePayloadEnv(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	pt.TracerEnv = traceutil.NormalizeTag(pt.TracerEnv)
+	return nil
+}
+
+func discardSpans(a *Agent) func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+		if a.DiscardSpan == nil {
+			return nil
+		}
+		n := 0
+		for _, span := range pt.TraceChunk.Spans {
+			if !a.DiscardSpan(span) {
+				pt.TraceChunk.Spans[n] = span
+				n++
+			}
+		}
+		// set everything at the back of the array to nil to avoid memory leaking
+		// since we're going to have garbage elements at the back of the slice.
+		for i := n; i < len(pt.TraceChunk.Spans); i++ {
+			pt.TraceChunk.Spans[i] = nil
+		}
+		pt.TraceChunk.Spans = pt.TraceChunk.Spans[:n]
+		return nil
+	}
+
+}
+
+func rejectEmpty(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	if len(pt.TraceChunk.Spans) == 0 {
+		return errors.New("Skipping received empty trace")
+	}
+	return nil
+}
+
+func countSpansReceived(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	m.Source.SpansReceived.Add(int64(len(pt.TraceChunk.Spans)))
+	return nil
+}
+
+func normalizeChunkTF(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	normalizeChunk(pt.TraceChunk, pt.Root)
+	return nil
+}
+
+func blocklist(a *Agent) Transformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+		if !a.Blacklister.Allows(pt.Root) {
+			m.Source.TracesFiltered.Inc()
+			m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
+			return fmt.Errorf("Trace rejected by ignore resources rules. root: %v", pt.Root)
+		}
+		return nil
+	}
+}
+
+func tagFilter(a *Agent) Transformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+		if filteredByTags(pt.Root, a.conf.RequireTags, a.conf.RejectTags) {
+			m.Source.TracesFiltered.Inc()
+			m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
+			return fmt.Errorf("Trace rejected as it fails to meet tag requirements. root: %v", pt.Root)
+		}
+		return nil
+	}
+}
+
+func eachSpan(fs ...SpanTransformer) Transformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+		for _, span := range pt.TraceChunk.Spans {
+			for _, f := range fs {
+				if err := f(m, pt, span); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+}
+
+func applyGlobalTags(a *Agent) SpanTransformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+		for k, v := range a.conf.GlobalTags {
+			if k == tagOrigin {
+				pt.TraceChunk.Origin = v
+			} else {
+				traceutil.SetMeta(s, k, v)
+			}
+		}
+		return nil
+	}
+}
+
+func modifySpan(a *Agent) SpanTransformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+		if a.ModifySpan != nil {
+			a.ModifySpan(s)
+		}
+		return nil
+	}
+}
+
+func obfuscateSpan(a *Agent) SpanTransformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+		a.obfuscateSpan(s)
+		return nil
+	}
+}
+
+func truncateSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+	Truncate(s)
+	return nil
+}
+
+func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+	if m.ClientComputedTopLevel {
+		traceutil.UpdateTracerTopLevel(s)
+	}
+	return nil
+}
+
+func replaceTags(a *Agent) SpanTransformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+		a.Replacer.Replace(s)
+		return nil
+	}
+}
+
+func setRootSpanTags(a *Agent) Transformer {
+	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+		a.setRootSpanTags(pt.Root)
+		return nil
+	}
+}
+
+func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	if !m.ClientComputedTopLevel {
+		// Figure out the top-level spans now as it involves modifying the Metrics map
+		// which is not thread-safe while samplers and Concentrator might modify it too.
+		traceutil.ComputeTopLevel(pt.TraceChunk.Spans)
+	}
+	return nil
+}
+
+type Transformer func(*api.Metadata, *traceutil.ProcessedTrace) error
+type SpanTransformer func(*api.Metadata, *traceutil.ProcessedTrace, *pb.Span) error
+
+func (a *Agent) transformers() []Transformer {
+	return []Transformer{
+		normalizePayloadEnv,
+		discardSpans(a),
+		rejectEmpty,
+		countSpansReceived,
+		normalizeChunkTF,
+		findDuplicateSpanIDs,
+		eachSpan(
+			normalizeSpan,
+		),
+		blocklist(a),
+		tagFilter(a),
+		eachSpan(
+			applyGlobalTags(a),
+			modifySpan(a),
+			obfuscateSpan(a),
+			truncateSpan,
+			updateTopLevel,
+			replaceTags(a),
+		),
+		setRootSpanTags(a),
+		computeTopLevel,
+	}
+}
+
+func (a *Agent) transform(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	tfs := a.transformers()
+	// Perform Transformations
+	for _, t := range tfs {
+		err := t(m, pt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (a *Agent) Process(p *api.Payload) {
-	if len(p.Chunks()) == 0 {
+	if len(p.TracerPayload.Chunks) == 0 {
 		log.Debugf("Skipping received empty payload")
 		return
 	}
 	now := time.Now()
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
-	ts := p.Source
+	ts := p.Meta.Source
 	ss := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.Meta.ClientComputedStats, a.conf)
 
-	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
-
-	a.discardSpans(p)
-
-	for i := 0; i < len(p.Chunks()); {
-		chunk := p.Chunk(i)
-		if len(chunk.Spans) == 0 {
-			log.Debugf("Skipping received empty trace")
-			p.RemoveChunk(i)
-			continue
-		}
-
-		tracen := int64(len(chunk.Spans))
-		ts.SpansReceived.Add(tracen)
-		err := normalizeTrace(p.Source, chunk.Spans)
-		if err != nil {
-			log.Debugf("Dropping invalid trace: %s", err)
-			ts.SpansDropped.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+	for i := 0; i < len(p.TracerPayload.Chunks); {
+		chunk := p.TracerPayload.Chunks[i]
 		root := traceutil.GetRoot(chunk.Spans)
-		normalizeChunk(chunk, root)
-		if !a.Blacklister.Allows(root) {
-			log.Debugf("Trace rejected by ignore resources rules. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags) {
-			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-			ts.TracesFiltered.Inc()
-			ts.SpansFiltered.Add(tracen)
-			p.RemoveChunk(i)
-			continue
-		}
-
-		// Extra sanitization steps of the trace.
-		for _, span := range chunk.Spans {
-			for k, v := range a.conf.GlobalTags {
-				if k == tagOrigin {
-					chunk.Origin = v
-				} else {
-					traceutil.SetMeta(span, k, v)
-				}
-			}
-			if a.ModifySpan != nil {
-				a.ModifySpan(span)
-			}
-			a.obfuscateSpan(span)
-			Truncate(span)
-			if p.ClientComputedTopLevel {
-				traceutil.UpdateTracerTopLevel(span)
-			}
-		}
-		a.Replacer.Replace(chunk.Spans)
-
-		a.setRootSpanTags(root)
-		if !p.ClientComputedTopLevel {
-			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
-			traceutil.ComputeTopLevel(chunk.Spans)
-		}
-
 		if p.TracerPayload.Hostname == "" {
 			// Older tracers set tracer hostname in the root span.
 			p.TracerPayload.Hostname = root.Meta[tagHostname]
@@ -311,16 +431,24 @@ func (a *Agent) Process(p *api.Payload) {
 		if p.TracerPayload.AppVersion == "" {
 			p.TracerPayload.AppVersion = traceutil.GetAppVersion(root, chunk)
 		}
-
 		pt := traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
 			AppVersion:             p.TracerPayload.AppVersion,
 			TracerEnv:              p.TracerPayload.Env,
 			TracerHostname:         p.TracerPayload.Hostname,
-			ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
+			ClientDroppedP0sWeight: float64(p.Meta.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		}
-		if !p.ClientComputedStats {
+
+		// Transform the chunk
+		if err := a.transform(&p.Meta, &pt); err != nil {
+			log.Debugf("Removing Chunk: %v", err)
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
+
+		// Sample
+		if !p.Meta.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
@@ -331,14 +459,14 @@ func (a *Agent) Process(p *api.Payload) {
 		if !keep {
 			if numEvents == 0 {
 				// the trace was dropped and no analyzed span were kept
-				p.RemoveChunk(i)
+				p.TracerPayload.RemoveChunk(i)
 				continue
 			}
 			// The sampler step filtered a subset of spans in the chunk. The new
 			// filtered chunk is added to the TracerPayload to be sent to
 			// TraceWriter. The complete chunk is still sent to the stats
 			// concentrator.
-			p.ReplaceChunk(i, filteredChunk)
+			p.TracerPayload.Chunks[i] = filteredChunk
 		}
 
 		if !chunk.DroppedTrace {
@@ -379,27 +507,6 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 
 var _ api.StatsProcessor = (*Agent)(nil)
 
-// discardSpans removes all spans for which the provided DiscardFunction function returns true
-func (a *Agent) discardSpans(p *api.Payload) {
-	if a.DiscardSpan == nil {
-		return
-	}
-	for _, chunk := range p.Chunks() {
-		n := 0
-		for _, span := range chunk.Spans {
-			if !a.DiscardSpan(span) {
-				chunk.Spans[n] = span
-				n++
-			}
-		}
-		// set everything at the back of the array to nil to avoid memory leaking
-		// since we're going to have garbage elements at the back of the slice.
-		for i := n; i < len(chunk.Spans); i++ {
-			chunk.Spans[i] = nil
-		}
-		chunk.Spans = chunk.Spans[:n]
-	}
-}
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)

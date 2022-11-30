@@ -24,27 +24,25 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 }
 
 // Replace replaces all tags matching the Replacer's rules.
-func (f Replacer) Replace(trace pb.Trace) {
+func (f Replacer) Replace(s *pb.Span) {
 	for _, rule := range f.rules {
 		key, str, re := rule.Name, rule.Repl, rule.Re
-		for _, s := range trace {
-			switch key {
-			case "*":
-				for k := range s.Meta {
-					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
-				}
-				s.Resource = re.ReplaceAllString(s.Resource, str)
-			case "resource.name":
-				s.Resource = re.ReplaceAllString(s.Resource, str)
-			default:
-				if s.Meta == nil {
-					continue
-				}
-				if _, ok := s.Meta[key]; !ok {
-					continue
-				}
-				s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
+		switch key {
+		case "*":
+			for k := range s.Meta {
+				s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 			}
+			s.Resource = re.ReplaceAllString(s.Resource, str)
+		case "resource.name":
+			s.Resource = re.ReplaceAllString(s.Resource, str)
+		default:
+			if s.Meta == nil {
+				continue
+			}
+			if _, ok := s.Meta[key]; !ok {
+				continue
+			}
+			s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
 		}
 	}
 }

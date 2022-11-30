@@ -372,7 +372,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			t.Fatal("timed out")
 		case p := <-out:
 			// stats are computed this time
-			require.False(p.ClientComputedStats)
+			require.False(p.Meta.ClientComputedStats)
 		}
 		// after the first receive, the keyStatsComputed attribute has to be applied,
 		// so that on the second run stats are skipped
@@ -385,7 +385,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			t.Fatal("timed out")
 		case p := <-out:
 			// stats are not computed the second time
-			require.True(p.ClientComputedStats)
+			require.True(p.Meta.ClientComputedStats)
 		}
 	})
 }
@@ -555,8 +555,8 @@ func TestOTLPReceiver(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			select {
 			case p := <-out:
-				assert.Equal(t, "go", p.Source.Lang)
-				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
+				assert.Equal(t, "go", p.Meta.Source.Lang)
+				assert.Equal(t, "opentelemetry_grpc_v1", p.Meta.Source.EndpointVersion)
 				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
 			case <-timeout:

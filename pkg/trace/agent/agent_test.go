@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -99,7 +100,9 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+			},
 		})
 
 		assert := assert.New(t)
@@ -138,7 +141,9 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+			},
 		})
 		assert.EqualValues(0, want.TracesFiltered.Load())
 		assert.EqualValues(0, want.SpansFiltered.Load())
@@ -148,7 +153,9 @@ func TestProcess(t *testing.T) {
 				spanInvalid,
 				spanInvalid,
 			})),
-			Source: want,
+			Meta: api.Metadata{
+				Source: want,
+			},
 		})
 		assert.EqualValues(1, want.TracesFiltered.Load())
 		assert.EqualValues(2, want.SpansFiltered.Load())
@@ -192,7 +199,9 @@ func TestProcess(t *testing.T) {
 				}),
 				testutil.TraceChunkWithSpan(spanValid),
 			}),
-			Source: want,
+			Meta: api.Metadata{
+				Source: want,
+			},
 		})
 		assert.EqualValues(1, want.TracesFiltered.Load())
 		assert.EqualValues(2, want.SpansFiltered.Load())
@@ -245,7 +254,9 @@ func TestProcess(t *testing.T) {
 			chunk.Priority = int32(key)
 			agnt.Process(&api.Payload{
 				TracerPayload: testutil.TracerPayloadWithChunk(chunk),
-				Source:        want,
+				Meta: api.Metadata{
+					Source: want,
+				},
 			})
 		}
 
@@ -275,7 +286,9 @@ func TestProcess(t *testing.T) {
 		}, 2))
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			},
 		})
 		timeout := time.After(2 * time.Second)
 		var span *pb.Span
@@ -301,7 +314,9 @@ func TestProcess(t *testing.T) {
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			},
 		})
 		timeout := time.After(2 * time.Second)
 		select {
@@ -342,7 +357,9 @@ func TestProcess(t *testing.T) {
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			},
 		})
 
 		timeout := time.After(2 * time.Second)
@@ -383,7 +400,9 @@ func TestProcess(t *testing.T) {
 		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+			},
 		})
 
 		var gotCount int
@@ -543,7 +562,9 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
 					ContainerID: "feature_disabled",
 				},
-				ClientComputedStats: true,
+				Meta: api.Metadata{
+					ClientComputedStats: true,
+				},
 			},
 			expected: stats.Input{},
 		},
@@ -602,7 +623,7 @@ func TestConcentratorInput(t *testing.T) {
 			}
 			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
-			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			tc.in.Meta.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 
 			if len(tc.expected.Traces) == 0 {
@@ -633,9 +654,11 @@ func TestClientComputedTopLevel(t *testing.T) {
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			ClientComputedTopLevel: true,
+			TracerPayload: tp,
+			Meta: api.Metadata{
+				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				ClientComputedTopLevel: true,
+			},
 		})
 		timeout := time.After(time.Second)
 		select {
@@ -653,9 +676,11 @@ func TestClientComputedTopLevel(t *testing.T) {
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			ClientComputedTopLevel: false,
+			TracerPayload: tp,
+			Meta: api.Metadata{
+				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				ClientComputedTopLevel: false,
+			},
 		})
 		timeout := time.After(time.Second)
 		select {
@@ -677,9 +702,11 @@ func TestClientComputedTopLevel(t *testing.T) {
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
-			TracerPayload:          tp,
-			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			ClientComputedTopLevel: true,
+			TracerPayload: tp,
+			Meta: api.Metadata{
+				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				ClientComputedTopLevel: true,
+			},
 		})
 		timeout := time.After(time.Second)
 		select {
@@ -789,18 +816,22 @@ func TestClientComputedStats(t *testing.T) {
 
 	t.Run("on", func(t *testing.T) {
 		agnt.Process(&api.Payload{
-			TracerPayload:       tp,
-			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			ClientComputedStats: true,
+			TracerPayload: tp,
+			Meta: api.Metadata{
+				Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				ClientComputedStats: true,
+			},
 		})
 		assert.Len(t, agnt.Concentrator.In, 0)
 	})
 
 	t.Run("off", func(t *testing.T) {
 		agnt.Process(&api.Payload{
-			TracerPayload:       tp,
-			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-			ClientComputedStats: false,
+			TracerPayload: tp,
+			Meta: api.Metadata{
+				Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+				ClientComputedStats: false,
+			},
 		})
 		assert.Len(t, agnt.Concentrator.In, 1)
 	})
@@ -1078,7 +1109,9 @@ func TestPartialSamplingFree(t *testing.T) {
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 	agnt.Process(&api.Payload{
 		TracerPayload: tracerPayload,
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Meta: api.Metadata{
+			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+		},
 	})
 	runtime.GC()
 	runtime.ReadMemStats(&m)
@@ -1290,7 +1323,9 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	for i := 0; i < b.N; i++ {
 		ta.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(10, 8)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Meta: api.Metadata{
+				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
+			},
 		})
 	}
 }
@@ -1929,7 +1964,9 @@ func TestSpanSampling(t *testing.T) {
 				// that we have the original for comparison later.
 				TracerPayload: proto.Clone(tc.payload).(*pb.TracerPayload),
 				// a nil Source would trigger a panic
-				Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
+				Meta: api.Metadata{
+					Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
+				},
 			})
 			assert.Len(t, traceAgent.TraceWriter.In, 1)
 			sampledChunks := <-traceAgent.TraceWriter.In

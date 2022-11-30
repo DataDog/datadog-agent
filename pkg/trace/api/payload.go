@@ -12,12 +12,16 @@ import (
 
 // Payload specifies information about a set of traces received by the API.
 type Payload struct {
+	// TracerPayload holds the incoming payload from the tracer.
+	TracerPayload *pb.TracerPayload
+
+	Meta Metadata
+}
+
+type Metadata struct {
 	// Source specifies information about the source of these traces, such as:
 	// language, interpreter, tracer version, etc.
 	Source *info.TagStats
-
-	// TracerPayload holds the incoming payload from the tracer.
-	TracerPayload *pb.TracerPayload
 
 	// ClientComputedTopLevel specifies that the client has already marked top-level
 	// spans.
@@ -31,22 +35,3 @@ type Payload struct {
 	ClientDroppedP0s int64
 }
 
-// Chunks returns chunks in TracerPayload
-func (p *Payload) Chunks() []*pb.TraceChunk {
-	return p.TracerPayload.Chunks
-}
-
-// Chunk returns a chunk in TracerPayload by its index
-func (p *Payload) Chunk(i int) *pb.TraceChunk {
-	return p.TracerPayload.Chunks[i]
-}
-
-// RemoveChunk removes a chunk in TracerPayload by its index
-func (p *Payload) RemoveChunk(i int) {
-	p.TracerPayload.RemoveChunk(i)
-}
-
-// ReplaceChunk replaces a chunk in TracerPayload at a given index
-func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
-	p.TracerPayload.Chunks[i] = chunk
-}

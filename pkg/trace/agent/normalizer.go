@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -204,6 +205,36 @@ func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 		spanIDs[span.SpanID] = struct{}{}
 	}
 
+	return nil
+}
+
+// normalizeSpan takes a span and
+// * rejects the trace if there is a trace ID discrepancy between Span s and the Root span
+// * rejects the trace if s cannot be normalized
+// * returns an error:
+//   - nil if the trace can be accepted
+//   - a reason tag explaining the reason the traces failed normalization
+func normalizeSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+	if s.TraceID != pt.Root.TraceID {
+		m.Source.TracesDropped.ForeignSpan.Inc()
+		return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", s)
+	}
+	if err := normalize(m.Source, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// findDuplicateSpanIDs will count duplicate spans in a trace
+func findDuplicateSpanIDs(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	spanIDs := make(map[uint64]struct{})
+	for _, span := range pt.TraceChunk.Spans {
+		if _, ok := spanIDs[span.SpanID]; ok {
+			m.Source.SpansMalformed.DuplicateSpanID.Inc()
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+		}
+		spanIDs[span.SpanID] = struct{}{}
+	}
 	return nil
 }
 

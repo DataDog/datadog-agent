@@ -303,8 +303,10 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
-		Source:              tagstats,
-		ClientComputedStats: rattr[keyStatsComputed] != "",
+		Meta: Metadata{
+			Source:              tagstats,
+			ClientComputedStats: rattr[keyStatsComputed] != "",
+		},
 	}
 	for k, spans := range tracesByID {
 		prio := int32(sampler.PriorityAutoKeep)
