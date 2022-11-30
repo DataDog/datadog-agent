@@ -46,6 +46,7 @@ community_string: public
 profile: f5-big-ip
 oid_batch_size: 20
 namespace: profile-metadata
+collect_topology: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
@@ -136,6 +137,51 @@ profiles:
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.2.101",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.3.101",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x01, 0x03},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.10.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.4.0.101.1", // chassis id type
+				Type:  gosnmp.Integer,
+				Value: 4, // 4->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.5.0.101.1", // chassis id
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x01, 0x02},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.6.0.101.1",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.7.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x01, 0x01},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.8.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Port1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.9.0.101.1",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev1-Name"),
+			},
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.1",
 				Type:  gosnmp.Integer,
 				Value: 131,
@@ -174,6 +220,51 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.1",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow1"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.2.102",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.3.7.1.3.102",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x03},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.10.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.4.0.102.2",
+				Type:  gosnmp.Integer,
+				Value: 4, // 4->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.5.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x02},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.6.0.102.2",
+				Type:  gosnmp.Integer,
+				Value: 3, // 3->macAddress
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.7.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte{0x01, 0x00, 0x00, 0x00, 0x02, 0x01},
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.8.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Port1-Description"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.1.1.9.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
 			},
 			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.2",
@@ -260,6 +351,51 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
@@ -280,6 +416,15 @@ profiles:
 		"1.3.6.1.4.1.3375.2.1.6.4.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
+		"1.0.8802.1.1.2.1.3.7.1.2",
+		"1.0.8802.1.1.2.1.3.7.1.3",
+		"1.0.8802.1.1.2.1.4.1.1.10",
+		"1.0.8802.1.1.2.1.4.1.1.4",
+		"1.0.8802.1.1.2.1.4.1.1.5",
+		"1.0.8802.1.1.2.1.4.1.1.6",
+		"1.0.8802.1.1.2.1.4.1.1.7",
+		"1.0.8802.1.1.2.1.4.1.1.8",
+		"1.0.8802.1.1.2.1.4.1.1.9",
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
@@ -353,6 +498,58 @@ profiles:
       "admin_status": 1,
       "oper_status": 1
     }
+  ],
+  "links": [
+        {
+            "local": {
+                "device": {
+                    "id": "profile-metadata:1.2.3.4",
+                    "id_type": "ndm"
+                },
+                "interface": {
+                    "id": "01:00:00:00:01:03",
+                    "id_type": "mac_address"
+                }
+            },
+            "remote": {
+                "device": {
+                    "id": "01:00:00:00:01:02",
+                    "id_type": "mac_address",
+                    "name": "RemoteDev1-Name",
+                    "description": "RemoteDev1-Description"
+                },
+                "interface": {
+                    "id": "01:00:00:00:01:01",
+                    "id_type": "mac_address",
+                    "description": "RemoteDev1-Port1-Description"
+                }
+            }
+        },
+        {
+            "local": {
+                "device": {
+                    "id": "profile-metadata:1.2.3.4",
+                    "id_type": "ndm"
+                },
+                "interface": {
+                    "id": "01:00:00:00:02:03",
+                    "id_type": "mac_address"
+                }
+            },
+            "remote": {
+                "device": {
+                    "id": "01:00:00:00:02:02",
+                    "id_type": "mac_address",
+                    "name": "RemoteDev2-Name",
+                    "description": "RemoteDev2-Description"
+                },
+                "interface": {
+                    "id": "01:00:00:00:02:01",
+                    "id_type": "mac_address",
+                    "description": "RemoteDev2-Port1-Description"
+                }
+            }
+        }
   ],
   "collect_timestamp":946684800
 }

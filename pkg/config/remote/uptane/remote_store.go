@@ -8,7 +8,6 @@ package uptane
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 
 	"github.com/theupdateframework/go-tuf/client"
 
@@ -80,7 +79,7 @@ func (s *remoteStore) GetMeta(path string) (io.ReadCloser, int64, error) {
 	if !versionFound {
 		return nil, 0, client.ErrNotFound{File: path}
 	}
-	return ioutil.NopCloser(bytes.NewReader(requestedVersion)), int64(len(requestedVersion)), nil
+	return io.NopCloser(bytes.NewReader(requestedVersion)), int64(len(requestedVersion)), nil
 }
 
 // GetMeta implements go-tuf's RemoteStore.GetTarget
@@ -93,7 +92,7 @@ func (s *remoteStore) GetTarget(targetPath string) (stream io.ReadCloser, size i
 	if !found {
 		return nil, 0, client.ErrNotFound{File: targetPath}
 	}
-	return ioutil.NopCloser(bytes.NewReader(target)), int64(len(target)), nil
+	return io.NopCloser(bytes.NewReader(target)), int64(len(target)), nil
 }
 
 type remoteStoreDirector struct {

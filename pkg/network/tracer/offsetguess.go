@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -934,7 +933,7 @@ func acceptHandler(l net.Listener) {
 			return
 		}
 
-		_, _ = io.Copy(ioutil.Discard, conn)
+		_, _ = io.Copy(io.Discard, conn)
 		if tcpc, ok := conn.(*net.TCPConn); ok {
 			_ = tcpc.SetLinger(0)
 		}

@@ -10,7 +10,7 @@ package net
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -22,7 +22,7 @@ func getNTPServersFromFiles(files []string) ([]string, error) {
 	serversMap := make(map[string]bool)
 
 	for _, conf := range files {
-		content, err := ioutil.ReadFile(conf)
+		content, err := os.ReadFile(conf)
 		if err == nil {
 			lines := strings.Split(string(content), "\n")
 

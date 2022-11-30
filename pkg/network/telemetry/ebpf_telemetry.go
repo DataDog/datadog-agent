@@ -29,9 +29,11 @@ const (
 	readIndx int = iota
 	readUserIndx
 	readKernelIndx
+	skbLoadBytes
+	perfEventOutput
 )
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel"}
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
@@ -260,11 +262,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", p.ProbeIdentificationPair)
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	for _, id := range undefinedProbes {
@@ -272,11 +273,10 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if err != nil {
 			return nil, err
 		}
-		if !present {
-			return nil, fmt.Errorf("could not find ProgramSpec for probe %v", id)
+		if present {
+			specs = append(specs, s...)
 		}
 
-		specs = append(specs, s...)
 	}
 
 	return specs, nil

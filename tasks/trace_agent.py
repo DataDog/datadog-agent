@@ -123,3 +123,15 @@ def cross_compile(ctx, tag=""):
     ctx.run("git checkout -")
 
     print(f"Done! Binaries are located in ./bin/trace-agent/{tag}")
+
+
+@task
+def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
+    """
+    Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
+    """
+    if not bench:
+        print("Argument --bench=<bench_regex> is required.")
+        return
+    with ctx.cd("./pkg/trace"):
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")

@@ -9,7 +9,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -141,7 +141,7 @@ func TestCreateArchiveAndGoRoutines(t *testing.T) {
 			}
 			defer dump.Close()
 
-			routines, err := ioutil.ReadAll(dump)
+			routines, err := io.ReadAll(dump)
 			if err != nil {
 				assert.Fail(t, "Unable to read go-routine dump")
 			}
@@ -190,7 +190,7 @@ func TestZipConfigCheck(t *testing.T) {
 	dir := t.TempDir()
 
 	zipConfigCheck(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "config-check.log"))
+	content, err := os.ReadFile(filepath.Join(dir, "config-check.log"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestZipRegistryJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(dstDir, "test", "registry.json")
-	actualContent, err := ioutil.ReadFile(targetPath)
+	actualContent, err := os.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
 }
@@ -372,7 +372,7 @@ func TestZipTaggerList(t *testing.T) {
 
 	taggerListURL = s.URL
 	zipAgentTaggerList(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "tagger-list.json"))
+	content, err := os.ReadFile(filepath.Join(dir, "tagger-list.json"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestZipWorkloadList(t *testing.T) {
 
 	workloadListURL = s.URL
 	zipWorkloadList(dir, "")
-	content, err := ioutil.ReadFile(filepath.Join(dir, "workload-list.log"))
+	content, err := os.ReadFile(filepath.Join(dir, "workload-list.log"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -477,7 +477,7 @@ instances:
 	err := writeScrubbedFile(filename, []byte(clear))
 	require.NoError(t, err)
 
-	got, err := ioutil.ReadFile(filename)
+	got, err := os.ReadFile(filename)
 	require.NoError(t, err)
 	assert.Equal(t, redacted, string(got))
 }
@@ -490,7 +490,7 @@ func TestZipFile(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(dstDir, "test.json")
-	actualContent, err := ioutil.ReadFile(targetPath)
+	actualContent, err := os.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
 }
@@ -507,7 +507,7 @@ func TestZipVersionHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(dstDir, "test", "version-history.json")
-	actualContent, err := ioutil.ReadFile(targetPath)
+	actualContent, err := os.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, "mockfilecontent", string(actualContent))
 }
@@ -538,7 +538,7 @@ process_config:
 		dir := t.TempDir()
 
 		zipProcessAgentFullConfig(dir, "")
-		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		content, err := os.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)
 		assert.Equal(t, "error: process-agent is not running or is unreachable", string(content))
 	})
@@ -560,7 +560,7 @@ process_config:
 
 		procStatusURL = srv.URL
 		zipProcessAgentFullConfig(dir, "")
-		content, err := ioutil.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
+		content, err := os.ReadFile(filepath.Join(dir, "process_agent_runtime_config_dump.yaml"))
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(content))
 	})
@@ -610,7 +610,7 @@ func TestZipProcessAgentChecks(t *testing.T) {
 		err = zipProcessChecks(dir, "", func() (string, error) { return "fake:1337", nil })
 		require.NoError(t, err)
 
-		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		content, err := os.ReadFile(filepath.Join(dir, "process_check_output.json"))
 		require.NoError(t, err)
 		assert.True(t, strings.HasPrefix(string(content), "error: process-agent is not running or is unreachable"))
 	})
@@ -643,15 +643,15 @@ func TestZipProcessAgentChecks(t *testing.T) {
 		err = zipProcessChecks(dir, "", func() (string, error) { return strings.TrimPrefix(srv.URL, "http://"), nil })
 		require.NoError(t, err)
 
-		content, err := ioutil.ReadFile(filepath.Join(dir, "process_check_output.json"))
+		content, err := os.ReadFile(filepath.Join(dir, "process_check_output.json"))
 		require.NoError(t, err)
 		assert.Equal(t, expectedProcessesJSON, content)
 
-		content, err = ioutil.ReadFile(filepath.Join(dir, "container_check_output.json"))
+		content, err = os.ReadFile(filepath.Join(dir, "container_check_output.json"))
 		require.NoError(t, err)
 		assert.Equal(t, expectedContainersJSON, content)
 
-		content, err = ioutil.ReadFile(filepath.Join(dir, "process_discovery_check_output.json"))
+		content, err = os.ReadFile(filepath.Join(dir, "process_discovery_check_output.json"))
 		require.NoError(t, err)
 		assert.Equal(t, expectedProcessDiscoveryJSON, content)
 	})

@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -156,7 +156,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 	daemon.StoreInvocationTime(time.Now())
 
 	var body []byte
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
+	if body, err = io.ReadAll(response.Body); err != nil {
 		return fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
 	}
 	defer response.Body.Close()
@@ -211,6 +211,7 @@ func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, 
 	log.Debug("Received invocation event...")
 	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
 	daemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+	daemon.StartLogCollection()
 	ecs := daemon.ExecutionContext.GetCurrentState()
 
 	if daemon.MetricAgent != nil {

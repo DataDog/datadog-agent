@@ -6,19 +6,16 @@
 package snmp
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -27,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
@@ -288,6 +284,8 @@ tags:
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", telemetryTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", telemetryTags)
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 7, "", telemetryTags)
+
+	chk.Cancel()
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
@@ -986,13 +984,6 @@ namespace: '%s'
 func TestCheck_Run_sessionCloseError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -1011,7 +1002,7 @@ metrics:
     name: myMetric
 `)
 
-	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -1028,17 +1019,12 @@ metrics:
 	err = chk.Run()
 	assert.Nil(t, err)
 
-	w.Flush()
-	logs := b.String()
-
 	snmpTags := []string{"snmp_device:1.2.3.4"}
 	sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0.0, "", snmpTags)
 	sender.AssertMetricTaggedWith(t, "Gauge", "datadog.snmp.check_duration", snmpTags)
 	sender.AssertMetricTaggedWith(t, "MonotonicCount", "datadog.snmp.check_interval", snmpTags)
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
-
-	assert.Equal(t, strings.Count(logs, "failed to close sess"), 1, logs)
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
@@ -1655,22 +1641,19 @@ metric_tags:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+
+	chk.Cancel()
+	assert.Nil(t, chk.discovery)
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
 	checkconfig.SetConfdPathAndCleanProfiles()
 
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
-
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	chk := Check{sessionFactory: sessionFactory}
+	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
 	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
 
 	// language=yaml
@@ -1704,7 +1687,7 @@ metric_tags:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&discoveryPacket, nil)
 
-	err = chk.Configure(rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 
 	time.Sleep(100 * time.Millisecond)
@@ -1733,13 +1716,7 @@ metric_tags:
 		sender.AssertMetric(t, "Gauge", "datadog.snmp.submitted_metrics", 0, "", snmpGlobalTagsWithLoader)
 	}
 
-	w.Flush()
-	logs := b.String()
-
-	assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."), 4, logs)
-	for i := 0; i < 4; i++ {
-		assert.Equal(t, strings.Count(logs, "error collecting for device 10.10.0."+strconv.Itoa(i)), 1, logs)
-	}
+	assert.Equal(t, uint64(4), chk.workerRunDeviceCheckErrors.Load())
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
@@ -2082,4 +2059,28 @@ metrics:
 	}
 	networkTags := []string{"network:10.10.0.0/30", "autodiscovery_subnet:10.10.0.0/30"}
 	sender.AssertMetric(t, "Gauge", "snmp.discovered_devices_count", 4, "", networkTags)
+}
+
+func TestCheckCancel(t *testing.T) {
+	checkconfig.SetConfdPathAndCleanProfiles()
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+	chk := Check{sessionFactory: sessionFactory}
+
+	aggregator.InitAndStartAgentDemultiplexer(demuxOpts(), "")
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+ip_address: 1.2.3.4
+community_string: public
+`)
+
+	err := chk.Configure(rawInstanceConfig, []byte(``), "test")
+	assert.Nil(t, err)
+
+	// check Cancel does not panic when called with single check
+	// it shouldn't try to stop discovery
+	chk.Cancel()
 }

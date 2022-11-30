@@ -162,20 +162,6 @@ func TestFixDeprecatedFlags(t *testing.T) {
 			expectWarn: deprecatedFlagWarning("-check", "check"),
 		},
 		{
-			cli: "-install-service",
-			expectArgs: []string{
-				"--install-service",
-			},
-			expectWarn: deprecatedFlagWarning("-install-service", "--install-service"),
-		},
-		{
-			cli: "-uninstall-service",
-			expectArgs: []string{
-				"--uninstall-service",
-			},
-			expectWarn: deprecatedFlagWarning("-uninstall-service", "--uninstall-service"),
-		},
-		{
 			cli: "-start-service",
 			expectArgs: []string{
 				"--start-service",

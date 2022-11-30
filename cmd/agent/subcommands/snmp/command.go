@@ -92,10 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.cmd = cmd
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: true,
-				}.LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", true))),
 				core.Bundle,
 			)
 		},
@@ -165,9 +162,6 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 		deviceIP = address[:strings.Index(address, ":")]
 		value, _ = strconv.ParseUint(address[strings.Index(address, ":")+1:], 0, 16)
 		port = uint16(value)
-		if port == 0 {
-			port = defaultPort
-		}
 	} else {
 		//If the customer provides only 1 argument : the ip_address
 		//We check the ip address configuration in the agent runtime and we use it for the snmpwalk
@@ -198,10 +192,10 @@ func snmpwalk(config config.Component, cliParams *cliParams) error {
 			if instance.Timeout != 0 {
 				cliParams.timeout = instance.Timeout
 			}
-
-		} else {
-			port = defaultPort
 		}
+	}
+	if port == 0 {
+		port = defaultPort
 	}
 
 	// Communication options check
