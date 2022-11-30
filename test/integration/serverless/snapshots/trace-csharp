@@ -48,7 +48,6 @@
             "metrics": {
               "_dd.top_level": 1,
               "_dd.tracer_kr": 0,
-              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "process_id": null
@@ -114,7 +113,6 @@
             "metrics": {
               "_dd.top_level": 1,
               "_dd.tracer_kr": 1,
-              "_sampling_priority_rate_v1": 1,
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "process_id": null

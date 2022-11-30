@@ -12,6 +12,25 @@ static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
     return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
 }
 
+// checks if we have seen that tcp packet before. It can happen if a packet travels multiple interfaces or retransmissions.
+static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return false;
+    }
+
+    u32 *tcp_seq = bpf_map_lookup_elem(&connection_states, tup);
+
+    // check if we've seen this TCP segment before. this can happen in the
+    // context of localhost traffic where the same TCP segment can be seen
+    // multiple times coming in and out from different interfaces
+    if (tcp_seq != NULL && *tcp_seq == skb_info->tcp_seq) {
+        return true;
+    }
+
+    bpf_map_update_elem(&connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
+    return false;
+}
+
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
 static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb) {
     skb_info_t skb_info = {0};

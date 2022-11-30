@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -215,8 +217,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	// Concurrently start heavyweight features
+	var wg sync.WaitGroup
+	wg.Add(3)
 
 	// starts trace agent
 	go func() {
@@ -251,6 +254,19 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}()
 
+	// start appsec
+	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+	go func() {
+		defer wg.Done()
+		appsec, err := appsec.New()
+		if err != nil {
+			log.Error("appsec: could not start: ", err)
+		} else if appsec != nil {
+			log.Info("appsec: started successfully")
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
+		}
+	}()
+
 	wg.Wait()
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
@@ -260,6 +276,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
+		SubProcessor:         httpsecSubProcessor,
 	}
 
 	// start the experimental proxy if enabled
