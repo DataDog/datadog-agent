@@ -560,4 +560,6 @@ ____##name(struct pt_regs *ctx, ##args)
 
 #define BPF_KPROBE_SYSCALL BPF_KSYSCALL
 
+#include "bpf_tracing_custom.h"
+
 #endif

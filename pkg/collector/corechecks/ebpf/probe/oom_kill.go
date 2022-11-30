@@ -34,6 +34,7 @@ import (
 /*
 #include <string.h>
 #include "../c/runtime/oom-kill-kern-user.h"
+#cgo CFLAGS: -I "${SRCDIR}/../../../../ebpf/c"
 */
 import "C"
 
@@ -99,13 +100,21 @@ func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 }
 
 func loadRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
-	buf, err := runtime.OomKill.Compile(cfg, []string{"-g"}, statsd.Client)
+	buf, err := runtime.OomKill.Compile(cfg, getCFlags(cfg), statsd.Client)
 	if err != nil {
 		return nil, err
 	}
 	defer buf.Close()
 
 	return startOOMKillProbe(buf, nil)
+}
+
+func getCFlags(config *ebpf.Config) []string {
+	cflags := []string{"-g"}
+	if config.BPFDebug {
+		cflags = append(cflags, "-DDEBUG=1")
+	}
+	return cflags
 }
 
 func startOOMKillProbe(buf bytecode.AssetReader, btfData *btf.Spec) (*OOMKillProbe, error) {

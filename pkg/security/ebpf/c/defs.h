@@ -1,7 +1,7 @@
 #ifndef _DEFS_H_
 #define _DEFS_H_
 
-#include "bpf_helpers.h"
+#include "bpf_tracing.h"
 
 #include "constants.h"
 
@@ -172,13 +172,6 @@
 #define TTY_NAME_LEN 64
 #define CONTAINER_ID_LEN 64
 #define MAX_XATTR_NAME_LEN 200
-
-#define bpf_printk(fmt, ...)                       \
-    ({                                             \
-        char ____fmt[] = fmt;                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), \
-                         ##__VA_ARGS__);           \
-    })
 
 #define IS_UNHANDLED_ERROR(retval) retval < 0 && retval != -EACCES && retval != -EPERM
 #define IS_ERR(ptr)     ((unsigned long)(ptr) > (unsigned long)(-1000))
