@@ -199,6 +199,9 @@ type Event struct {
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
+	// uprobe event
+	UProbe UProbeEvent `field:"uprobe" event:"uprobe"`
+
 	// internal usage
 	Mount            MountEvent            `field:"-" json:"-"`
 	Umount           UmountEvent           `field:"-" json:"-"`
@@ -954,4 +957,21 @@ type VethPairEvent struct {
 //msgp:ignore SyscallsEvent
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+}
+
+type UProbeDesc struct {
+	Path         string
+	Version      string
+	FunctionName string
+	OffsetStr    string
+	Offset       uint64
+}
+
+type UProbeEvent struct {
+	ID           uint64      `field:"-"`
+	Desc         *UProbeDesc `field:"-"`
+	Path         string      `field:"path,handler:ResolveUProbePath"`
+	Version      string      `field:"version,handler:ResolveUProbeVersion"`
+	FunctionName string      `field:"function_name,handler:ResolveUProbeFunctionName"`
+	Offset       string      `field:"offset,handler:ResolveUProbeOffset"`
 }

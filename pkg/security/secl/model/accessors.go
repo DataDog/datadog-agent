@@ -52,6 +52,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("splice"),
 		eval.EventType("unlink"),
 		eval.EventType("unload_module"),
+		eval.EventType("uprobe"),
 		eval.EventType("utimes"),
 	}
 }
@@ -8595,6 +8596,38 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "uprobe.function_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).UProbe.FunctionName
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "uprobe.offset":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).UProbe.Offset
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "uprobe.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).UProbe.Path
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "uprobe.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				return (*Event)(ctx.Object).UProbe.Version
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "utimes.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -9596,6 +9629,10 @@ func (e *Event) GetFields() []eval.Field {
 		"unlink.retval",
 		"unload_module.name",
 		"unload_module.retval",
+		"uprobe.function_name",
+		"uprobe.offset",
+		"uprobe.path",
+		"uprobe.version",
 		"utimes.file.change_time",
 		"utimes.file.filesystem",
 		"utimes.file.gid",
@@ -13283,6 +13320,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.UnloadModule.Name, nil
 	case "unload_module.retval":
 		return int(e.UnloadModule.SyscallEvent.Retval), nil
+	case "uprobe.function_name":
+		return e.UProbe.FunctionName, nil
+	case "uprobe.offset":
+		return e.UProbe.Offset, nil
+	case "uprobe.path":
+		return e.UProbe.Path, nil
+	case "uprobe.version":
+		return e.UProbe.Version, nil
 	case "utimes.file.change_time":
 		return int(e.Utimes.File.FileFields.CTime), nil
 	case "utimes.file.filesystem":
@@ -15034,6 +15079,14 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "unload_module", nil
 	case "unload_module.retval":
 		return "unload_module", nil
+	case "uprobe.function_name":
+		return "uprobe", nil
+	case "uprobe.offset":
+		return "uprobe", nil
+	case "uprobe.path":
+		return "uprobe", nil
+	case "uprobe.version":
+		return "uprobe", nil
 	case "utimes.file.change_time":
 		return "utimes", nil
 	case "utimes.file.filesystem":
@@ -16785,6 +16838,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "unload_module.retval":
 		return reflect.Int, nil
+	case "uprobe.function_name":
+		return reflect.String, nil
+	case "uprobe.offset":
+		return reflect.String, nil
+	case "uprobe.path":
+		return reflect.String, nil
+	case "uprobe.version":
+		return reflect.String, nil
 	case "utimes.file.change_time":
 		return reflect.Int, nil
 	case "utimes.file.filesystem":
@@ -24579,6 +24640,34 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "UnloadModule.SyscallEvent.Retval"}
 		}
 		e.UnloadModule.SyscallEvent.Retval = int64(v)
+		return nil
+	case "uprobe.function_name":
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UProbe.FunctionName"}
+		}
+		e.UProbe.FunctionName = str
+		return nil
+	case "uprobe.offset":
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UProbe.Offset"}
+		}
+		e.UProbe.Offset = str
+		return nil
+	case "uprobe.path":
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UProbe.Path"}
+		}
+		e.UProbe.Path = str
+		return nil
+	case "uprobe.version":
+		str, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "UProbe.Version"}
+		}
+		e.UProbe.Version = str
 		return nil
 	case "utimes.file.change_time":
 		v, ok := value.(int)

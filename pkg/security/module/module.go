@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -408,6 +409,16 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {
 		logLoadingErrors("error while loading policies: %+v", loadErrs)
+	}
+
+	uprobesBucket := ruleSet.GetBucket(model.UProbeEventType.String())
+	if uprobesBucket != nil {
+		uprobeRules := uprobesBucket.GetRules()
+		for id, uprobeRule := range uprobeRules {
+			if err := uprobe.CreateUProbeFromRule(uint64(id), uprobeRule); err != nil {
+				return err
+			}
+		}
 	}
 
 	// update current policies related module attributes

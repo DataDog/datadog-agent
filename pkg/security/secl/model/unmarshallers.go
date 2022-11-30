@@ -1038,3 +1038,16 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 	return 64, nil
 }
+
+func (e *UProbeEvent) UnmarshalBinary(data []byte) (int, error) {
+	const size = 8
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	read := 0
+	e.ID = ByteOrder.Uint64(data[0:8])
+	read += 8
+
+	return validateReadSize(size, read)
+}
