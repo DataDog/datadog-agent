@@ -1,17 +1,17 @@
 # Migrating to Components
 
-After your component has been created you can link it to other components such as flares, status pages, or health.
+After your component has been created you can link it to other components such as flares (other like status pages, or health will come later).
 
 This page documents how to fully integrate your component in the Agent life cycle.
 
 ## Flare
 
 Migrate the code related to your component's domain from `pkg/flare` to your component. After migrating
-the Agent to components, you can delete `pkg/flare`.
+the Agent to components, you can delete it from `pkg/flare`.
 
 ### Creating a callback
 
-To add data to a flare, register a provider.
+To add data to a flare you will fiest need to register a `FlareBuilder`.
 
 First create a `flare.go` file in your component (the file name is a convention) and create a `func (c *yourComp) fillFlare(fb flarehelpers.FlareBuilder) error` function.
 
@@ -28,7 +28,7 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 )
 
-func (c *cfg) fillFlare(fb flarehelpers.FlareBuilder) error {
+func (c *myComponent) fillFlare(fb flarehelpers.FlareBuilder) error {
 	fb.AddFileFromFunc(
 		"runtime_config_dump.yaml",
 		func () ([]byte, error) {
@@ -46,14 +46,13 @@ All errors are automatically
 added to a log file shipped within the flare. Ship as much data as possible in a flare instead of
 stopping at the first error. Returning an error does not stop the flare from being created or sent.
 
-### Migrating your code
-
-The code in `pkg/flare` uses the `FlareBuilder` interface, simplifying migration. Locate the code
-related to your component domain from `pkg/flare` and move it to your `fillFlare` function.
-
 ### Register the callback
 
-Finally, to Register your callback, provide a new `comp/core/flare/helpers:Provider` by using `comp/core/flare/helpers:NewProvider`.
+Finally, to Register your callback, provide a new `comp/core/flare/helpers:Provider` by using
+`comp/core/flare/helpers:NewProvider`.
+
+For this the constructor of your component must return a `helpers.Provider` that will be called for each flare creation
+(`NewProvider` does all the underlying work for you).
 
 Example from the `config` component:
 
@@ -88,3 +87,8 @@ func newConfig(deps dependencies) (provides, error) {
 	}, nil
 }
 ```
+
+### Migrating your code
+
+The code in `pkg/flare` uses the `FlareBuilder` interface, simplifying migration. Locate the code
+related to your component domain from `pkg/flare` and move it to your `fillFlare` function.

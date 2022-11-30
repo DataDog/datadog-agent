@@ -31,6 +31,6 @@ var Bundle = fxutil.Bundle(
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
 	config.MockModule,
-	log.Module,
-	flare.Module,
+	log.MockModule,
+	flare.MockModule,
 )

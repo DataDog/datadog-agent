@@ -157,7 +157,7 @@ type FlareBuilder interface {
 
 type flareCallback func(fb FlareBuilder) error
 
-// FlareProvider represents a callback to be use when creating a flare
+// FlareProvider represents a callback to be used when creating a flare
 type FlareProvider struct {
 	Callback flareCallback
 }

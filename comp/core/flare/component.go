@@ -6,7 +6,7 @@
 // Package flare implements a component to generate flares from the agent.
 //
 // A flare is a archive containing all the information necessary to troubleshoot the Agent. When openeing a support
-// ticket a flare might be requested. Flares contains the Agent logs, configurations and much more.
+// ticket a flare might be requested. Flares contain the Agent logs, configurations and much more.
 package flare
 
 import (
