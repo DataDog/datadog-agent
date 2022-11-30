@@ -38,6 +38,7 @@ func main() {
 	traceAgent := &trace.ServerlessTraceAgent{}
 
 	setupTraceAgent(traceAgent, metadata)
+	defer traceAgent.Stop()
 
 	// Register the extension
 	serverlessID, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
@@ -56,7 +57,6 @@ func main() {
 		}
 		traceAgent.Flush()
 	}
-	traceAgent.Stop()
 }
 
 func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.Metadata) {
@@ -67,26 +67,24 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.
 }
 
 func WaitForNextInvocation(id registration.ID) (bool, error) {
-	var err error
-	var request *http.Request
-	var response *http.Response
-
-	if request, err = http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil); err != nil {
+	request, err := http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil)
+	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
 
 	// make a blocking HTTP call to wait for the next event from AWS
 	client := &http.Client{Timeout: 0} // this one should never timeout
-	if response, err = client.Do(request); err != nil {
+	response, err := client.Do(request)
+	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
+	defer response.Body.Close()
 
-	var body []byte
-	if body, err = ioutil.ReadAll(response.Body); err != nil {
+	body, err = ioutil.ReadAll(response.Body)
+	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
 	}
-	defer response.Body.Close()
 
 	var payload serverless.Payload
 	if err := json.Unmarshal(body, &payload); err != nil {
