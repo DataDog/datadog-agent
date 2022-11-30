@@ -25,12 +25,25 @@ import (
 )
 
 const (
-	runtimeAPIEnvVar                    = "AWS_LAMBDA_RUNTIME_API"
-	extensionRegistrationRoute          = "/2020-01-01/extension/register"
-	datadogConfigPath                   = "/var/task/datadog.yaml"
-	routeEventNext               string = "/2020-01-01/extension/event/next"
-	headerExtID                  string = "Lambda-Extension-Identifier"
-	extensionRegistrationTimeout        = 5 * time.Second
+	runtimeAPIEnvVar             = "AWS_LAMBDA_RUNTIME_API"
+	extensionRegistrationRoute   = "/2020-01-01/extension/register"
+	datadogConfigPath            = "/var/task/datadog.yaml"
+	routeEventNext               = "/2020-01-01/extension/event/next"
+	headerExtID                  = "Lambda-Extension-Identifier"
+	extensionRegistrationTimeout = 5 * time.Second
+)
+
+var (
+	// client is a client that should never timeout
+	client = &http.Client{Timeout: 0}
+
+	extensionNextURL = func(route string) string {
+		prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
+		if len(prefix) == 0 {
+			return fmt.Sprintf("http://localhost:9001%s", route)
+		}
+		return fmt.Sprintf("http://%s%s", prefix, route)
+	}(routeEventNext)
 )
 
 func main() {
@@ -41,7 +54,11 @@ func main() {
 	defer traceAgent.Stop()
 
 	// Register the extension
-	serverlessID, err := registration.RegisterExtension(os.Getenv(runtimeAPIEnvVar), extensionRegistrationRoute, extensionRegistrationTimeout)
+	serverlessID, err := registration.RegisterExtension(
+		os.Getenv(runtimeAPIEnvVar),
+		extensionRegistrationRoute,
+		extensionRegistrationTimeout,
+	)
 	if err != nil {
 		log.Errorf("Can't register as a serverless agent: %s", err)
 		return
@@ -67,14 +84,13 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.
 }
 
 func WaitForNextInvocation(id registration.ID) (bool, error) {
-	request, err := http.NewRequest(http.MethodGet, buildURL(routeEventNext), nil)
+	request, err := http.NewRequest(http.MethodGet, extensionNextURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: can't create the GET request: %v", err)
 	}
 	request.Header.Set(headerExtID, id.String())
 
 	// make a blocking HTTP call to wait for the next event from AWS
-	client := &http.Client{Timeout: 0} // this one should never timeout
 	response, err := client.Do(request)
 	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
@@ -95,12 +111,4 @@ func WaitForNextInvocation(id registration.ID) (bool, error) {
 		return true, nil
 	}
 	return false, nil
-}
-
-func buildURL(route string) string {
-	prefix := os.Getenv("AWS_LAMBDA_RUNTIME_API")
-	if len(prefix) == 0 {
-		return fmt.Sprintf("http://localhost:9001%s", route)
-	}
-	return fmt.Sprintf("http://%s%s", prefix, route)
 }
