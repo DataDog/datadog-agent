@@ -34,15 +34,19 @@ func NewEnvoyAuthorizationServer(wafHandle *waf.Handle) envoy_service_auth_v3.Au
 	}
 }
 
+// Return the first global client ip address based on the request TCP source ip
+// and http headers. The result is an empty string if no global IP address was
+// found.
 func reqToClientIp(req *envoy_service_auth_v3.CheckRequest) string {
 	sockAddr := req.Attributes.Source.Address.GetSocketAddress()
 	if sockAddr == nil {
 		log.Warnf("appsec envoy authorization api: unsupported source: %v", req.Attributes.Source)
 		return ""
 	}
-	// TODO support for client IP detection
 	peerIp := sockAddr.Address
-	return peerIp
+	headers := req.Attributes.Request.Http.Headers
+	clientIp, _ := makeClientIPTags(peerIp, headers)
+	return clientIp
 }
 
 func reqToAddrs(req *envoy_service_auth_v3.CheckRequest) map[string]interface{} {
@@ -55,7 +59,7 @@ func reqToAddrs(req *envoy_service_auth_v3.CheckRequest) map[string]interface{} 
 	httpQuery := map[string][]string{}
 	httpPathIdx := strings.Index(httpReq.Path, "?")
 	if httpPathIdx != -1 {
-		httpQuery, _ = url.ParseQuery(httpReq.Path[httpPathIdx + 1:])
+		httpQuery, _ = url.ParseQuery(httpReq.Path[httpPathIdx+1:])
 	}
 	httpHeaders := map[string]string{}
 	for key, val := range httpReq.Headers {
@@ -65,11 +69,13 @@ func reqToAddrs(req *envoy_service_auth_v3.CheckRequest) map[string]interface{} 
 		httpHeaders[key] = val
 	}
 	addresses := map[string]interface{}{
-		"http.client_ip":                    reqToClientIp(req),
 		"server.request.method":             httpReq.Method,
 		"server.request.uri.raw":            httpUrl,
 		"server.request.query":              httpQuery,
 		"server.request.headers.no_cookies": httpHeaders,
+	}
+	if clientIP := reqToClientIp(req); clientIP != "" {
+		addresses["http.client_ip"] = clientIP
 	}
 	return addresses
 }

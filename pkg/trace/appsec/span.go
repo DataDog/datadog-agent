@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -262,7 +263,21 @@ func ippref(s string) *netaddrIPPrefix {
 // network.client.ip span tags according to the request headers and remote
 // connection address. Note that the given request headers reqHeaders must be
 // normalized with lower-cased keys for this function to work.
-func setClientIPTags(span httpSpan, remoteAddr string, reqHeaders map[string][]string) {
+func setClientIPTags(sp httpSpan, remoteAddr string, headers map[string]string) (clientIP string) {
+	clientIP, tags := makeClientIPTags(remoteAddr, headers)
+	for t, v := range tags {
+		sp.Meta[t] = v
+	}
+	return clientIP
+}
+
+// getClientIPTags get the http.client_ip, http.request.headers.*, and
+// network.client.ip span tags according to the request headers and remote
+// connection address. Note that the given request headers reqHeaders must be
+// normalized with lower-cased keys for this function to work.
+func makeClientIPTags(remoteAddr string, reqHeaders map[string]string) (clientIP string, tags map[string]string) {
+	tags = map[string]string{}
+
 	ipHeaders := defaultIPHeaders
 	if len(clientIPHeader) > 0 {
 		ipHeaders = []string{clientIPHeader}
@@ -275,7 +290,7 @@ func setClientIPTags(span httpSpan, remoteAddr string, reqHeaders map[string][]s
 	for _, hdr := range ipHeaders {
 		if v, _ := reqHeaders[hdr]; len(v) > 0 {
 			headers = append(headers, hdr)
-			ips = append(ips, v...)
+			ips = append(ips, v)
 		}
 	}
 
@@ -283,7 +298,7 @@ func setClientIPTags(span httpSpan, remoteAddr string, reqHeaders map[string][]s
 	if remoteAddr != "" {
 		remoteIP = parseIP(remoteAddr)
 		if remoteIP.IsValid() {
-			span.Meta["network.client.ip"] = remoteIP.String()
+			tags["network.client.ip"] = remoteIP.String()
 		}
 	}
 
@@ -291,22 +306,25 @@ func setClientIPTags(span httpSpan, remoteAddr string, reqHeaders map[string][]s
 	case 0:
 		ip := remoteIP.String()
 		if remoteIP.IsValid() && isGlobal(remoteIP) {
-			span.Meta["http.client_ip"] = ip
+			tags["http.client_ip"] = ip
 		}
 	case 1:
 		for _, ipstr := range strings.Split(ips[0], ",") {
 			ip := parseIP(strings.TrimSpace(ipstr))
 			if ip.IsValid() && isGlobal(ip) {
-				span.Meta["http.client_ip"] = ip.String()
+				tags["http.client_ip"] = ip.String()
 				break
 			}
 		}
 	default:
 		for _, hdr := range headers {
-			span.SetRequestHeader(hdr, strings.Join(reqHeaders[hdr], ","))
+			tags["http.request.headers."+hdr] = reqHeaders[hdr]
 		}
-		span.Meta["_dd.multiple-ip-headers"] = strings.Join(headers, ",")
+		tags["_dd.multiple-ip-headers"] = strings.Join(headers, ",")
 	}
+
+	clientIP, _ = tags["http.client_ip"]
+	return clientIP, tags
 }
 
 func parseIP(s string) netaddrIP {
@@ -347,7 +365,20 @@ var (
 	netaddrIPv6Raw       = netip.AddrFrom16
 )
 
-func netaddrIPv4(a, b, c, d byte) netaddrIP {
-	e := [4]byte{a, b, c, d}
-	return netip.AddrFrom4(e)
+// Return the span context out of the given HTTP headers. If present, the first
+// header value will be parsed.
+func getSpanContext(headers map[string]string) (traceID, parentID uint64) {
+	for h, v := range headers {
+		switch strings.ToLower(h) {
+		case "x-datadog-trace-id":
+			traceID, _ = strconv.ParseUint(v, 10, 64)
+		case "x-datadog-parent-id":
+			parentID, _ = strconv.ParseUint(v, 10, 64)
+		}
+	}
+	return traceID, parentID
+}
+
+func makeResourceName(method, path string) string {
+	return method + " " + path
 }

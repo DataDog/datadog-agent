@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -19,21 +21,17 @@ import (
 
 type (
 	requestPayload struct {
-		Type         string                 `json:"type"`
-		Trace        bool                   `json:"trace"`
-		ExtraTags    spanTags               `json:"extra_tags"`
-		SecAddresses map[string]interface{} `json:"sec_addresses"`
-		TraceID      uint64                 `json:"trace_id"`
-		ParentID     uint64                 `json:"parent_id"`
-		Resource     string                 `json:"resource"`
-		Headers      map[string][]string    `json:"headers"`
-		RemoteAddr   string                 `json:"remote_addr"`
-		Service      string                 `json:"service"`
+		Trace   bool    `json:"trace"`
+		Request Request `json:"request"`
+		Service string  `json:"service"`
 	}
 
-	spanTags struct {
-		Meta    map[string]string  `json:"meta"`
-		Metrics map[string]float64 `json:"metrics"`
+	Request struct {
+		Method     string   `json:"method"`
+		URL        *url.URL `json:"url"`
+		RemoteAddr string   `json:"remote_addr"`
+		// Headers normalized with lower-case names.
+		Headers map[string]string `json:"headers"`
 	}
 
 	responsePayload struct {
@@ -62,15 +60,13 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 			return
 		}
 
-		sp := startHTTPRequestSpan(reqPayload.TraceID, reqPayload.ParentID, reqPayload.Resource, reqPayload.Service)
-		if extraMeta := reqPayload.ExtraTags.Meta; len(extraMeta) > 0 {
-			sp.Meta = extraMeta
-		}
-		if extraMetrics := reqPayload.ExtraTags.Metrics; len(extraMetrics) > 0 {
-			sp.Metrics = extraMetrics
-		}
+		headers := reqPayload.Request.Headers
+		traceID, parentID := getSpanContext(headers)
+		resource := makeResourceName(reqPayload.Request.Method, reqPayload.Request.URL.Path)
+
+		sp := startHTTPRequestSpan(traceID, parentID, resource, reqPayload.Service)
 		setAppSecEnabledTags(sp.span)
-		setClientIPTags(sp, reqPayload.RemoteAddr, reqPayload.Headers)
+		clientIP := setClientIPTags(sp, reqPayload.Request.RemoteAddr, headers)
 		defer func() {
 			sp.finish()
 			sendSpan(sp.Span, int32(sampler.PriorityUserKeep), traceChan)
@@ -84,8 +80,9 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 		}
 		defer wafCtx.Close()
 
-		log.Debug("appsec: httpsec api: running the security rules against %v", reqPayload.SecAddresses)
-		matches, actions, err := wafCtx.Run(reqPayload.SecAddresses, defaultWAFTimeout)
+		addresses := makeHTTPSecAddresses(reqPayload.Request, clientIP)
+		log.Debug("appsec: httpsec api: running the security rules against %v", addresses)
+		matches, actions, err := wafCtx.Run(addresses, defaultWAFTimeout)
 		if err != nil && err != waf.ErrTimeout {
 			writeErrorResponse(w, err)
 			return
@@ -104,6 +101,26 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 			log.Errorf("appsec: unexpected error while encoding the waf response payload into json: %v", err)
 		}
 	})
+}
+
+func makeHTTPSecAddresses(req Request, clientIP string) map[string]interface{} {
+	headers := map[string]string{}
+	for h, v := range req.Headers {
+		h = strings.ToLower(h)
+		if h == "cookie" {
+			continue
+		}
+		headers[h] = v
+	}
+	addr := map[string]interface{}{
+		"server.request.headers.no_cookies": headers,
+		"server.request.uri.raw":            req.URL.RequestURI(),
+		"server.request.query":              req.URL.Query(),
+	}
+	if clientIP != "" {
+		addr["http.client_ip"] = clientIP
+	}
+	return addr
 }
 
 func writeErrorResponse(w http.ResponseWriter, err error) {
