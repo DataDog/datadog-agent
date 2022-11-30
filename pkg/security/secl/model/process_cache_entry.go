@@ -35,6 +35,7 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 	}
 
 	pc.Ancestor = parent
+	pc.Parent = &parent.Process
 	pc.IsThread = false
 	parent.Retain()
 }
@@ -89,17 +90,17 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 // ShareArgsEnvs share args and envs between the current entry and the given child entry
 func (pc *ProcessCacheEntry) ShareArgsEnvs(childEntry *ProcessCacheEntry) {
 	childEntry.ArgsEntry = pc.ArgsEntry
-	if childEntry.ArgsEntry != nil && childEntry.ArgsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.ArgsEntry.ArgsEnvsCacheEntry.Retain()
+	if childEntry.ArgsEntry != nil {
+		childEntry.ArgsEntry.Retain()
 	}
 	childEntry.EnvsEntry = pc.EnvsEntry
-	if childEntry.EnvsEntry != nil && childEntry.EnvsEntry.ArgsEnvsCacheEntry != nil {
-		childEntry.EnvsEntry.ArgsEnvsCacheEntry.Retain()
+	if childEntry.EnvsEntry != nil {
+		childEntry.EnvsEntry.Retain()
 	}
 }
 
-// SetParent set the parent of a fork child
-func (pc *ProcessCacheEntry) SetParent(parent *ProcessCacheEntry) {
+// SetParentOfForkChild set the parent of a fork child
+func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)
 	parent.ShareArgsEnvs(pc)
 	pc.IsThread = true
@@ -117,26 +118,13 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.LinuxBinprm = pc.LinuxBinprm
 	childEntry.Cookie = pc.Cookie
 
-	childEntry.SetParent(pc)
+	childEntry.SetParentOfForkChild(pc)
 }
 
 // Equals returns whether process cache entries share the same values for comm and args/envs
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return pc.Comm == entry.Comm && pc.ArgsEntry.Equals(entry.ArgsEntry) && pc.EnvsEntry.Equals(entry.EnvsEntry)
 }
-
-/*func (pc *ProcessCacheEntry) String() string {
-	s := fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", pc.PathnameStr, pc.Comm, pc.Pid, pc.PPid, pc.ArgsArray)
-	ancestor := pc.Ancestor
-	for i := 0; ancestor != nil; i++ {
-		for j := 0; j <= i; j++ {
-			s += "\t"
-		}
-		s += fmt.Sprintf("filename: %s[%s] pid:%d ppid:%d args:%v\n", ancestor.PathnameStr, ancestor.Comm, ancestor.Pid, ancestor.PPid, ancestor.ArgsArray)
-		ancestor = ancestor.Ancestor
-	}
-	return s
-}*/
 
 // ArgsEnvs raw value for args and envs
 type ArgsEnvs struct {
@@ -162,7 +150,7 @@ type ArgsEnvsCacheEntry struct {
 }
 
 // Reset the entry
-func (p *ArgsEnvsCacheEntry) release() {
+func (p *ArgsEnvsCacheEntry) forceReleaseAll() {
 	entry := p
 	for entry != nil {
 		next := entry.next
@@ -187,6 +175,10 @@ func (p *ArgsEnvsCacheEntry) release() {
 func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 	p.TotalSize += uint64(entry.Size)
 
+	// this shouldn't happen, but is here to protect against infinite loops
+	entry.next = nil
+	entry.last = nil
+
 	if p.last != nil {
 		p.last.next = entry
 	} else {
@@ -196,18 +188,20 @@ func (p *ArgsEnvsCacheEntry) Append(entry *ArgsEnvsCacheEntry) {
 }
 
 // Retain increment ref counter
-func (p *ArgsEnvsCacheEntry) Retain() {
+func (p *ArgsEnvsCacheEntry) retain() {
 	p.refCount++
 }
 
 // Release decrement and eventually release the entry
-func (p *ArgsEnvsCacheEntry) Release() {
+func (p *ArgsEnvsCacheEntry) release() bool {
 	p.refCount--
 	if p.refCount > 0 {
-		return
+		return false
 	}
 
-	p.release()
+	p.forceReleaseAll()
+
+	return true
 }
 
 // NewArgsEnvsCacheEntry returns a new args/env cache entry
@@ -253,6 +247,20 @@ type ArgsEntry struct {
 	parsed bool
 }
 
+// Retain increment ref counter
+func (p *ArgsEntry) Retain() {
+	if p.ArgsEnvsCacheEntry != nil {
+		p.ArgsEnvsCacheEntry.retain()
+	}
+}
+
+// Release decrement and eventually release the entry
+func (p *ArgsEntry) Release() {
+	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
+		p.ArgsEnvsCacheEntry = nil
+	}
+}
+
 // ToArray returns args as array
 func (p *ArgsEntry) ToArray() ([]string, bool) {
 	if len(p.Values) > 0 || p.parsed {
@@ -261,9 +269,9 @@ func (p *ArgsEntry) ToArray() ([]string, bool) {
 	p.Values, p.Truncated = p.toArray()
 	p.parsed = true
 
-	// now we have the cache we can free
+	// now we have the cache we can force the free without having to check the refcount
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.ArgsEnvsCacheEntry.forceReleaseAll()
 		p.ArgsEnvsCacheEntry = nil
 	}
 
@@ -296,6 +304,20 @@ type EnvsEntry struct {
 	kv           map[string]string
 }
 
+// Retain increment ref counter
+func (p *EnvsEntry) Retain() {
+	if p.ArgsEnvsCacheEntry != nil {
+		p.ArgsEnvsCacheEntry.retain()
+	}
+}
+
+// Release decrement and eventually release the entry
+func (p *EnvsEntry) Release() {
+	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
+		p.ArgsEnvsCacheEntry = nil
+	}
+}
+
 // ToArray returns envs as an array
 func (p *EnvsEntry) ToArray() ([]string, bool) {
 	if p.parsed {
@@ -305,9 +327,9 @@ func (p *EnvsEntry) ToArray() ([]string, bool) {
 	p.Values, p.Truncated = p.toArray()
 	p.parsed = true
 
-	// now we have the cache we can free
+	// now we have the cache we can force the free without having to check the refcount
 	if p.ArgsEnvsCacheEntry != nil {
-		p.release()
+		p.ArgsEnvsCacheEntry.forceReleaseAll()
 		p.ArgsEnvsCacheEntry = nil
 	}
 

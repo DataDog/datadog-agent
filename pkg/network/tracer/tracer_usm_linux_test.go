@@ -20,6 +20,8 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -31,6 +33,7 @@ import (
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -60,6 +63,10 @@ func httpSupported(t *testing.T) bool {
 
 func httpsSupported(t *testing.T) bool {
 	return http.HTTPSSupported(testConfig())
+}
+
+func goTLSSupported() bool {
+	return runtime.GOARCH == "amd64"
 }
 
 func classificationSupported(config *config.Config) bool {
@@ -573,4 +580,147 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		_ = grpcClient.HandleUnary(context.Background(), "test")
 		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
 	})
+}
+
+// GoTLS test
+
+// Test that we can capture HTTPS traffic from Go processes started after the
+// tracer.
+func TestHTTPGoTLSCaptureNewProcess(t *testing.T) {
+	const (
+		ServerAddr          = "localhost:8081"
+		ExpectedOccurrences = 10
+	)
+
+	if !goTLSSupported() {
+		t.Skip("GoTLS support not available on non amd64 architectures")
+	}
+
+	if !httpSupported(t) {
+		t.Skip("HTTPS feature not available on pre 4.14.0 kernels")
+	}
+
+	if !httpsSupported(t) {
+		t.Skip("HTTPS feature not available supported for this setup")
+	}
+
+	// Setup
+	closeServer := testutil.HTTPServer(t, ServerAddr, testutil.Options{
+		EnableTLS: true,
+	})
+	defer closeServer()
+
+	cfg := testConfig()
+	cfg.EnableRuntimeCompiler = true
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPSMonitoring = true
+	cfg.EnableGoTLSSupport = true
+
+	tr, err := NewTracer(cfg)
+	require.NoError(t, err)
+	defer tr.Stop()
+	require.NoError(t, tr.RegisterClient("1"))
+
+	// This maps will keep track of whether or not the tracer saw this request already or not
+	reqs := make(requestsMap)
+	for i := 0; i < ExpectedOccurrences; i++ {
+		req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", ServerAddr, nethttp.StatusOK, i), nil)
+		require.NoError(t, err)
+		reqs[req] = false
+	}
+
+	clientBin := buildGoTLSClientBin(t)
+
+	// Test
+	clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
+	_, err = nettestutil.RunCommand(clientCmd)
+	require.NoError(t, err)
+
+	occurrences := PrintableInt(0)
+	require.Eventually(t, func() bool {
+		stats, err := tr.GetActiveConnections("1")
+		require.NoError(t, err)
+		occurrences += PrintableInt(countRequestsOccurrences(t, stats, reqs))
+		return occurrences == ExpectedOccurrences
+	}, 3*time.Second, 100*time.Millisecond, "Expected to find the request %v times, got %v captured. Requests not found:\n%v", ExpectedOccurrences, &occurrences, reqs)
+}
+
+func buildGoTLSClientBin(t *testing.T) string {
+	const ClientSrcPath = "testutil/gotls_client"
+	const ClientBinaryPath = "testutil/gotls_client/gotls_client"
+
+	t.Helper()
+
+	cur, err := testutil.CurDir()
+	require.NoError(t, err)
+
+	clientBinary := fmt.Sprintf("%s/%s", cur, ClientBinaryPath)
+
+	// If there is a compiled binary already, skip the compilation.
+	// Meant for the CI.
+	if _, err = os.Stat(clientBinary); err == nil {
+		return clientBinary
+	}
+
+	clientSrcDir := fmt.Sprintf("%s/%s", cur, ClientSrcPath)
+	clientBuildDir, err := os.MkdirTemp("/tmp", "gotls_client_build-")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		os.RemoveAll(clientBuildDir)
+	})
+
+	clientBinPath := fmt.Sprintf("%s/gotls_client", clientBuildDir)
+
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-ldflags=-extldflags '-static'", "-o", clientBinPath, clientSrcDir)
+	out, err := c.CombinedOutput()
+	require.NoError(t, err, "could not build client test binary: %s\noutput: %s", err, string(out))
+
+	return clientBinPath
+}
+
+func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map[*nethttp.Request]bool) (occurrences int) {
+	t.Helper()
+
+	for key, stats := range conns.HTTP {
+		for req, found := range reqs {
+			if found {
+				continue
+			}
+
+			expectedStatus := testutil.StatusFromPath(req.URL.Path)
+			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+				occurrences++
+				reqs[req] = true
+				break
+			}
+		}
+	}
+
+	return
+}
+
+type PrintableInt int
+
+func (i *PrintableInt) String() string {
+	if i == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%d", *i)
+}
+
+type requestsMap map[*nethttp.Request]bool
+
+func (m requestsMap) String() string {
+	var result strings.Builder
+
+	for req, found := range m {
+		if found {
+			continue
+		}
+		result.WriteString(fmt.Sprintf("\t- %v\n", req.URL.Path))
+	}
+
+	return result.String()
 }

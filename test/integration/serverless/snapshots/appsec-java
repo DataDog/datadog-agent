@@ -1,0 +1,196 @@
+[
+  {
+    "container_id": "",
+    "language_name": "",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda.cold_start",
+            "resource": "integration-tests-extension-XXXXXX-appsec-java",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "account_id": "601427279990",
+              "architecture": "XXX",
+              "aws_account": "601427279990",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-XXXXXX-appsec-java",
+              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "runtime": "java8.al2",
+              "service": "integration-tests-service",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_sampling_priority_rate_v1": 1,
+              "_top_level": 1
+            },
+            "type": ""
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  },
+  {
+    "container_id": "",
+    "language_name": "java",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda",
+            "resource": "integration-tests-extension-XXXXXX-appsec-java",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "account_id": "601427279990",
+              "architecture": "XXX",
+              "aws_account": "601427279990",
+              "cold_start": "true",
+              "datadog_lambda": "X.X.X",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-XXXXXX-appsec-java",
+              "function_version": "$LATEST",
+              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
+              "language": "jvm",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "resource_names": "integration-tests-extension-XXXXXX-appsec-java",
+              "runtime": "java8.al2",
+              "runtime-id": "null",
+              "service": "integration-tests-service",
+              "tagA": "valueA",
+              "tagB": "valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "thread.name": "main",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_dd.agent_psr": 1,
+              "_dd.top_level": 1,
+              "_sampling_priority_v1": 1,
+              "_top_level": 1,
+              "thread.id": 1
+            },
+            "type": ""
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  },
+  {
+    "container_id": "",
+    "language_name": "java",
+    "language_version": null,
+    "tracer_version": null,
+    "runtime_id": "",
+    "chunks": [
+      {
+        "priority": 1,
+        "origin": "lambda",
+        "spans": [
+          {
+            "service": "integration-tests-service",
+            "name": "aws.lambda",
+            "resource": "integration-tests-extension-XXXXXX-appsec-java",
+            "trace_id": null,
+            "span_id": null,
+            "parent_id": null,
+            "start": null,
+            "duration": null,
+            "error": 0,
+            "meta": {
+              "_dd.compute_stats": "1",
+              "account_id": "601427279990",
+              "architecture": "XXX",
+              "aws_account": "601427279990",
+              "cold_start": "false",
+              "datadog_lambda": "X.X.X",
+              "dd_extension_version": "123",
+              "env": "integration-tests-env",
+              "function_arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-XXXXXX-appsec-java",
+              "function_version": "$LATEST",
+              "functionname": "integration-tests-extension-XXXXXX-appsec-java",
+              "language": "jvm",
+              "memorysize": "1024",
+              "region": "eu-west-1",
+              "request_id": "null",
+              "resource_names": "integration-tests-extension-XXXXXX-appsec-java",
+              "runtime": "java8.al2",
+              "runtime-id": "null",
+              "service": "integration-tests-service",
+              "tagA": "valueA",
+              "tagB": "valueB",
+              "taga": "valuea",
+              "tagb": "valueb",
+              "tagc": "valuec",
+              "tagd": "valued",
+              "thread.name": "main",
+              "version": "integration-tests-version"
+            },
+            "metrics": {
+              "_dd.agent_psr": 1,
+              "_dd.top_level": 1,
+              "_sampling_priority_v1": 1,
+              "_top_level": 1,
+              "thread.id": 1
+            },
+            "type": ""
+          }
+        ],
+        "tags": null,
+        "dropped_trace": false
+      }
+    ],
+    "tags": null,
+    "env": "integration-tests-env",
+    "hostname": "",
+    "app_version": "integration-tests-version"
+  }
+]

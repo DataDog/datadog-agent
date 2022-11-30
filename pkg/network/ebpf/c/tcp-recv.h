@@ -2,6 +2,7 @@
 #define __TCP_RECV_H__
 
 #include "bpf_helpers.h"
+#include "bpf_telemetry.h"
 #include "tracer-stats.h"
 #include "tracer-maps.h"
 

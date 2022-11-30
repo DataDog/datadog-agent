@@ -20,7 +20,7 @@ type contextKey struct {
 	key string
 }
 
-var connContextKey = &contextKey{"http-connection"}
+var ConnContextKey = &contextKey{"http-connection"}
 
 // NewMuxedGRPCServer returns an http.Server that multiplexes connections
 // between a gRPC server and an HTTP handler.
@@ -35,7 +35,7 @@ func NewMuxedGRPCServer(addr string, tlsConfig *tls.Config, grpcServer *grpc.Ser
 		TLSConfig: tlsConfig,
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			// Store the connection in the context so requests can reference it if needed
-			return context.WithValue(ctx, connContextKey, c)
+			return context.WithValue(ctx, ConnContextKey, c)
 		},
 	}
 }
@@ -47,7 +47,7 @@ func TimeoutHandlerFunc(httpHandler http.Handler, timeout time.Duration) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deadline := time.Now().Add(timeout)
 
-		conn := r.Context().Value(connContextKey).(net.Conn)
+		conn := r.Context().Value(ConnContextKey).(net.Conn)
 		_ = conn.SetWriteDeadline(deadline)
 
 		httpHandler.ServeHTTP(w, r)
