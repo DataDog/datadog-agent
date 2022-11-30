@@ -6,8 +6,6 @@
 package helpers
 
 import (
-	"io"
-
 	"go.uber.org/fx"
 )
 
@@ -49,18 +47,6 @@ type FlareBuilder interface {
 	//
 	// The data returned by 'cb' is automatically scrubbed of any sensitive informations before being added to the flare.
 	AddFileFromFunc(destFile string, cb func() ([]byte, error)) error
-
-	// WriteFileFromFunc creates a new file in the flare and call cb with an io.Writer to write to that file.
-	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
-	// automatically be created.
-	//
-	// The data written by 'cb' to the io.Writer will be first stored in a buffer before being scrubbed and flush to disk.
-	// This is because the scrubber works on whole line, so partial writes could bypass its detection.
-	//
-	// If the 'cb' returns an error, the file will not be created, the error is added to the flare's logs and returned to
-	// the caller.
-	WriteFileFromFunc(destFile string, cb func(io.Writer) error) error
 
 	// CopyFile copies the content of 'srcFile' to the root of the flare.
 	//

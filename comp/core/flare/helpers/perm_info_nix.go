@@ -9,8 +9,8 @@
 package helpers
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"os/user"
 	"strconv"
@@ -63,14 +63,15 @@ func (p permissionsInfos) add(filePath string) error {
 
 // Commit resolves the infos of every stacked files in the map
 // and then writes the permissions.log file on the filesystem.
-func (p permissionsInfos) commit(f io.Writer) error {
+func (p permissionsInfos) commit() ([]byte, error) {
+	f := &bytes.Buffer{}
 	// write headers
 	s := fmt.Sprintf("%-50s | %-5s | %-10s | %-10s | %-10s|\n", "File path", "mode", "owner", "group", "error")
 	if _, err := f.Write([]byte(s)); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := f.Write([]byte(strings.Repeat("-", len(s)) + "\n")); err != nil {
-		return err
+		return nil, err
 	}
 
 	// write each file permissions infos
@@ -89,8 +90,8 @@ func (p permissionsInfos) commit(f io.Writer) error {
 				infoError,
 			)))
 		if err != nil {
-			return err
+			return f.Bytes(), err
 		}
 	}
-	return nil
+	return f.Bytes(), nil
 }

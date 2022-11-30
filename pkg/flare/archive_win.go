@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,8 +42,8 @@ const (
 )
 
 func getCounterStrings(fb flarehelpers.FlareBuilder) error {
-	return fb.WriteFileFromFunc("counter_strings.txt",
-		func(f io.Writer) error {
+	return fb.AddFileFromFunc("counter_strings.txt",
+		func() ([]byte, error) {
 			bufferIncrement := uint32(1024)
 			bufferSize := bufferIncrement
 			var counterlist []uint16
@@ -72,11 +71,12 @@ func getCounterStrings(fb flarehelpers.FlareBuilder) error {
 			}
 			clist := winutil.ConvertWindowsStringList(counterlist)
 
+			f := &bytes.Buffer{}
 			for i := 0; i < len(clist); i++ {
 				f.Write([]byte(clist[i])) //nolint:errcheck
 				f.Write([]byte("\r\n"))   //nolint:errcheck
 			}
-			return nil
+			return f.Bytes(), nil
 		},
 	)
 }
@@ -178,9 +178,9 @@ func exportWindowsEventLog(fb flarehelpers.FlareBuilder, eventLogChannel, eventL
 }
 
 func getServiceStatus(fb flarehelpers.FlareBuilder) error {
-	return fb.WriteFileFromFunc(
+	return fb.AddFileFromFunc(
 		"servicestatus.txt",
-		func(fh io.Writer) error {
+		func() ([]byte, error) {
 			cancelctx, cancelfunc := context.WithTimeout(context.Background(), execTimeout)
 			defer cancelfunc()
 
@@ -196,10 +196,11 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 				// but continue on.
 			}
 
-			_, err = fh.Write(out.Bytes())
+			f := &bytes.Buffer{}
+			_, err = f.Write(out.Bytes())
 			if err != nil {
 				log.Warnf("Error writing file %v", err)
-				return err
+				return nil, err
 			}
 			// compute the location of the driver
 			ddroot, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
@@ -207,14 +208,14 @@ func getServiceStatus(fb flarehelpers.FlareBuilder) error {
 				pathtodriver := filepath.Join(ddroot, "bin", "agent", "driver", "ddnpm.sys")
 				fi, err := os.Stat(pathtodriver)
 				if err != nil {
-					fh.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
+					f.Write([]byte(fmt.Sprintf("Failed to stat file %v %v\n", pathtodriver, err))) //nolint:errcheck
 				} else {
-					fh.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
+					f.Write([]byte(fmt.Sprintf("Driver last modification time : %v\n", fi.ModTime().Format(time.UnixDate)))) //nolint:errcheck
 				}
 			} else {
-				return fmt.Errorf("Error getting path to datadog agent binaries %v", err)
+				return nil, fmt.Errorf("Error getting path to datadog agent binaries %v", err)
 			}
-			return nil
+			return f.Bytes(), nil
 		})
 }
 

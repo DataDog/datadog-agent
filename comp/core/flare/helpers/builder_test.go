@@ -8,7 +8,6 @@ package helpers
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -127,26 +126,6 @@ func TestAddFile(t *testing.T) {
 
 	fb.AddFile(FromSlash("test/AddFile_scrubbed_api_key"), []byte("api_key : 123456789006789009"))
 	assertFileContent(t, fb, "api_key: \"********\"", "test/AddFile_scrubbed_api_key")
-}
-
-func TestWriteFileFromFunc(t *testing.T) {
-	fb := getNewBuilder(t)
-	defer fb.clean()
-
-	fb.WriteFileFromFunc(FromSlash("test/WriteFileFromFunc"), func(w io.Writer) error {
-		w.Write([]byte("some data\n"))
-		w.Write([]byte("api_key: 123456789006789009"))
-		return nil
-	})
-	assertFileContent(t, fb, "some data\napi_key: \"********\"", "test/WriteFileFromFunc")
-
-	err := fb.WriteFileFromFunc(FromSlash("test/WriteFileFromFunc_error"), func(w io.Writer) error {
-		w.Write([]byte("some data\n"))
-		return fmt.Errorf("error!")
-	})
-	assert.Error(t, err)
-	assert.Equal(t, FromSlash("callback 'github.com/DataDog/datadog-agent/comp/core/flare/helpers.TestWriteFileFromFunc.func2' failed for test/WriteFileFromFunc_error: error!"), err.Error())
-	assert.NoFileExists(t, filepath.Join(fb.flareDir, "test", "WriteFileFromFunc_error"))
 }
 
 // Test that writeScrubbedFile actually scrubs third-party API keys.

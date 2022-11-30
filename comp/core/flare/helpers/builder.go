@@ -6,15 +6,11 @@
 package helpers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -122,8 +118,8 @@ func getArchiveName() string {
 func (fb *builder) Save() (string, error) {
 	defer fb.clean()
 
-	fb.WriteFileFromFunc("permissions.log", fb.permsInfos.commit) //nolint:errcheck
-	fb.logFile.Close()                                            //nolint:errcheck
+	fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit) //nolint:errcheck
+	fb.logFile.Close()                                          //nolint:errcheck
 
 	archivePath := filepath.Join(os.TempDir(), getArchiveName())
 
@@ -170,16 +166,6 @@ func (fb *builder) AddFile(destFile string, content []byte) error {
 		return fb.logError("error writing data to '%s': %s", destFile, err)
 	}
 	return nil
-}
-
-func (fb *builder) WriteFileFromFunc(destFile string, cb func(io.Writer) error) error {
-	w := &bytes.Buffer{}
-	if err := cb(w); err != nil {
-		cbName := runtime.FuncForPC(reflect.ValueOf(cb).Pointer()).Name()
-		return fb.logError("callback '%s' failed for %s: %s", cbName, destFile, err)
-	}
-
-	return fb.AddFile(destFile, w.Bytes())
 }
 
 func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destDir string, destFilename string) error {

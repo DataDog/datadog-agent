@@ -9,7 +9,6 @@
 package helpers
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -75,8 +74,8 @@ func TestPermsFileCommit(t *testing.T) {
 	pi.add(f2)
 	pi.add(f3)
 
-	b := bytes.NewBuffer(nil)
-	require.NoError(t, pi.commit(b))
+	b, err := pi.commit()
+	require.NoError(t, err)
 
 	pattern := []byte(`File path                                          | mode  | owner      | group      | error     |
 ---------------------------------------------------------------------------------------------------
@@ -84,6 +83,6 @@ func TestPermsFileCommit(t *testing.T) {
 .+/file_a      | -r-------- | \w+\s*| \w+\s*|           |
 .+/file_a      |       |            |            | could not stat file .+/file_3: stat .+/file_3: no such file or directory|`)
 
-	res, _ := regexp.Match(b.String(), pattern)
+	res, _ := regexp.Match(string(b), pattern)
 	assert.True(t, res)
 }
