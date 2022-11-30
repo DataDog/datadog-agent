@@ -6,11 +6,9 @@
 //go:build linux
 // +build linux
 
-package vulnprobe
+package uprobe
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -20,35 +18,31 @@ const UprobeSection = "uprobe/vuln_detector"
 const UprobeFuncName = "uprobe_vuln_detector"
 const UprobeConstantName = "vuln_id"
 
-var uprobeCpt uint64 = 0
-
-func AttachProbe(m *manager.Manager, path, funcName string) (uint64, string, error) {
-	uprobeCpt++
-	uid := fmt.Sprintf("vuln_detector_%d", uprobeCpt)
+func attachProbe(m *manager.Manager, u *uprobe) error {
 	pID := manager.ProbeIdentificationPair{
-		UID:          uid,
+		UID:          u.uid,
 		EBPFSection:  UprobeSection,
 		EBPFFuncName: UprobeFuncName,
 	}
 	p := &manager.Probe{
 		ProbeIdentificationPair: pID,
-		BinaryPath:              path,
-		HookFuncName:            funcName,
+		BinaryPath:              u.desc.Path,
+		HookFuncName:            u.desc.FunctionName,
 		CopyProgram:             true,
 		Enabled:                 true,
 	}
 	ce := manager.ConstantEditor{
 		Name:                     UprobeConstantName,
-		Value:                    uint64(uprobeCpt),
+		Value:                    uint64(u.id),
 		ProbeIdentificationPairs: []manager.ProbeIdentificationPair{pID},
 	}
 	err := m.CloneProgram(UprobeUID, p, []manager.ConstantEditor{ce}, nil)
 	if err != nil {
-		return 0, "", err
+		return err
 	}
 
-	seclog.Infof("attached %s:%s with UID %s and vuln_id %d\n", path, funcName, uid, uprobeCpt)
-	return uprobeCpt, uid, nil
+	seclog.Infof("attached %s:%s with UID %s and vuln_id %d\n", u.desc.Path, u.desc.FunctionName, u.uid, u.id)
+	return nil
 }
 
 func GetVulncheckProbe() *manager.Probe {

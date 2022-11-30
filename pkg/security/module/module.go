@@ -415,7 +415,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	if uprobesBucket != nil {
 		uprobeRules := uprobesBucket.GetRules()
 		for id, uprobeRule := range uprobeRules {
-			if err := uprobe.CreateUProbeFromRule(uint64(id), uprobeRule); err != nil {
+			if err := uprobe.CreateUProbeFromRule(m.probe.GetManager(), uint64(id), uprobeRule); err != nil {
 				return err
 			}
 		}

@@ -1,7 +1,16 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
+// +build linux
+
 package uprobe
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -10,9 +19,9 @@ import (
 )
 
 type uprobe struct {
-	desc  model.UProbeDesc
-	ID    uint64
-	probe manager.Probe
+	desc model.UProbeDesc
+	id   uint64
+	uid  string
 }
 
 var uprobes = make(map[uint64]*uprobe)
@@ -33,7 +42,7 @@ func GetUProbeDesc(id uint64) *model.UProbeDesc {
 	return nil
 }
 
-func CreateUProbeFromRule(id uint64, rule *rules.Rule) error {
+func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error {
 	pathValues := rule.GetFieldValues("uprobe.path")
 	if len(pathValues) == 0 {
 		return ErrUProbeRuleMissingPath
@@ -81,7 +90,8 @@ func CreateUProbeFromRule(id uint64, rule *rules.Rule) error {
 	}
 
 	up := uprobe{
-		ID: id,
+		id:  id,
+		uid: fmt.Sprintf("vuln_detector_%d", id),
 		desc: model.UProbeDesc{
 			Path:         pathValue,
 			Version:      versionValue,
@@ -91,9 +101,11 @@ func CreateUProbeFromRule(id uint64, rule *rules.Rule) error {
 		},
 	}
 
-	//TODO create the corresponding probe
-
-	uprobes[up.ID] = &up
+	err := attachProbe(m, &up)
+	if err != nil {
+		return err
+	}
+	uprobes[up.id] = &up
 
 	return nil
 }
