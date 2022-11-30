@@ -139,7 +139,6 @@ type networkState struct {
 	telemetry     telemetry // Monotonic state telemetry
 	lastTelemetry telemetry // Old telemetry state; used for logging
 
-	buf             []byte // Shared buffer
 	latestTimeEpoch uint64
 
 	// Network state configuration
@@ -160,7 +159,6 @@ func NewState(clientExpiry time.Duration, maxClosedConns, maxClientStats int, ma
 		maxClientStats: maxClientStats,
 		maxDNSStats:    maxDNSStats,
 		maxHTTPStats:   maxHTTPStats,
-		buf:            make([]byte, ConnectionByteKeyMaxLen),
 	}
 }
 
