@@ -26,6 +26,8 @@
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $S3_ARTIFACTS_URI/offset-guess-debug.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/http.o $S3_ARTIFACTS_URI/http.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/http-debug.o $S3_ARTIFACTS_URI/http-debug.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/kafka.o $S3_ARTIFACTS_URI/kafka.o.$ARCH
+    - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/kafka-debug.o $S3_ARTIFACTS_URI/kafka-debug.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/dns.o $S3_ARTIFACTS_URI/dns.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/dns-debug.o $S3_ARTIFACTS_URI/dns-debug.o.$ARCH
     - $S3_CP_CMD $SRC_PATH/pkg/ebpf/bytecode/build/runtime-security.o $S3_ARTIFACTS_URI/runtime-security.o.$ARCH

@@ -18,6 +18,8 @@
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/offset-guess-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/http.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/http-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/http-debug.o
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/kafka.o $CI_PROJECT_DIR/.tmp/binary-ebpf/kafka.o
+  - cp $SRC_PATH/pkg/ebpf/bytecode/build/kafka-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/kafka-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/dns-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/dns-debug.o
   - cp $SRC_PATH/pkg/ebpf/bytecode/build/runtime/tracer.c $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.c
