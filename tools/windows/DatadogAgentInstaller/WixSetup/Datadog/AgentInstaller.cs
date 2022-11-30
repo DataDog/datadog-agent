@@ -190,6 +190,8 @@ namespace WixSetup.Datadog
             //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
             ;
 
+            project.MajorUpgrade.AllowSameVersionUpgrades = true;
+            project.ReinstallMode = "amus";
             project.Platform = Platform.x64;
             // MSI 4.0+ required
             project.InstallerVersion = 400;
