@@ -204,7 +204,6 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
 func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
-	ms, _ := in.MarshalJSON()
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
 		o.ReceiveResourceSpans(ctx, rspans, header, protocol)

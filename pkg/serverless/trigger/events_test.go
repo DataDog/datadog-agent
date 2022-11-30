@@ -36,6 +36,7 @@ func TestEventPayloadParsing(t *testing.T) {
 	}
 	for testFile, testFunc := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
+		defer file.Close()
 		assert.NoError(t, err)
 
 		jsonData, err := io.ReadAll(file)
@@ -76,6 +77,7 @@ func TestEventPayloadParsingWrong(t *testing.T) {
 				continue
 			}
 			file, err := os.Open(fmt.Sprintf("%v/%v", testDir, wrongTestFile.Name()))
+			defer file.Close()
 			assert.NoError(t, err)
 
 			jsonData, err := io.ReadAll(file)
@@ -110,6 +112,7 @@ func TestGetEventType(t *testing.T) {
 
 	for testFile, expectedEventType := range testCases {
 		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
+		defer file.Close()
 		assert.NoError(t, err)
 
 		jsonData, err := io.ReadAll(file)

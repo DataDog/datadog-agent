@@ -68,7 +68,6 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
 		} else {
-			log.Debug("Loaded trace config")
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.OTLPReceiver.BindHost = "127.0.0.1"
