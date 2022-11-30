@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add both the `StartTime` and `ScheduledTime` properties in collector for K8s pods.
+    Adds both the `StartTime` and `ScheduledTime` properties in the collector for Kubernetes pods.
