@@ -10,6 +10,7 @@ regression_detector_submit_job:
     paths:
       - submission_metadata
   variables:
+    GIT_STRATEGY: clone # pull the whole repo so we can compute baseline SHA
     SMP_VERSION: 0.6.3-rc2
     LADING_VERSION: 0.10.2
     TOTAL_SAMPLES: 600
