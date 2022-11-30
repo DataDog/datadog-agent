@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 package run
 
 import (
@@ -16,6 +14,11 @@ import (
 )
 
 func setupMallochookReporter() {
+	if !mallochook.Supported() {
+		log.Debug("mallochook is not supported on this platform")
+		return
+	}
+
 	log.Debug("setting up mallochook reporter")
 	inuse := telemetry.NewSimpleGauge("mallochook", "inuse",
 		"Number of bytes currently allocated via malloc")

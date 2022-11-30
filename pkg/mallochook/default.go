@@ -5,6 +5,14 @@
 
 //go:build !linux
 
-package run
+package mallochook
 
-func setupMallochookReporter() {}
+// Supported returns true when mallochook can provide stats on the current platform
+func Supported() bool {
+	return false
+}
+
+// GetStats returns a snapshot of memory allocation statistics
+func GetStats() Stats {
+	return Stats{}
+}

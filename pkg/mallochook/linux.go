@@ -12,12 +12,9 @@ package mallochook
 // #include "mallochook.h"
 import "C"
 
-// Stats contains statistics about allocations
-type Stats struct {
-	// Inuse is the number of bytes currently in use (allocated, but not freed)
-	Inuse uint
-	// Alloc is the total number of bytes allocated so far
-	Alloc uint
+// Supported returns true when mallochook can provide stats on the current platform
+func Supported() bool {
+	return true
 }
 
 // GetStats returns a snapshot of memory allocation statistics
