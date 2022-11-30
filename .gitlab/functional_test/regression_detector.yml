@@ -10,7 +10,7 @@ regression_detector_submit_job:
     paths:
       - submission_metadata
   variables:
-    SMP_VERSION: 0.6.2
+    SMP_VERSION: 0.6.3-rc2
     LADING_VERSION: 0.10.2
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
@@ -26,7 +26,7 @@ regression_detector_submit_job:
     - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
     - aws configure set region us-west-2 --profile single-machine-performance
     # Download smp binary and prepare it for use
-    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-gnu/smp smp
+    - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
     # Submit job, using the current main SHA as baseline. This will have been
     # previously submitted in a separate pipeline run. The comparison will have
