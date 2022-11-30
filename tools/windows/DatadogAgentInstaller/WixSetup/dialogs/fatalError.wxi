@@ -9,7 +9,9 @@
     <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="!(loc.WixUIBack)" />
     <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
     <Control Id="Title" Type="Text" X="135" Y="20" Width="220" Height="60" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorTitle)" />
-    <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="80" Transparent="yes" NoPrefix="yes" Text="WOLOLOLOLOLOLOLOL" />
+    <Control Id="Description" Type="Text" X="135" Y="70" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription1)" />
+    <Control Id="ViewLogDescription" Type="Text" X="135" Y="110" Width="220" Height="40" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDialog_ViewLogDescription)" />
+    <Control Id="FinishDescription" Type="Text" X="135" Y="150" Width="220" Height="20" Transparent="yes" NoPrefix="yes" Text="!(loc.FatalErrorDescription2)" />
   </Dialog>
 
   <InstallUISequence>

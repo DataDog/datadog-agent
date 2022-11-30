@@ -50,6 +50,7 @@
 
   <!-- these strings for the FatalError dialog -->
   <String Id ="FatalErrorDialog_ViewLog" Overridable="yes" Localizable="yes">View Log</String>
+  <String Id ="FatalErrorDialog_ViewLogDescription" Overridable="yes" Localizable="yes">Detailed information on the error can be found in the installation log file. Click the View Log button to view the installation log.</String>
 
   <String Id="MsiRMFilesInUse_Title" Overridable="yes">[ProductName] Setup</String>
   <String Id="MsiRMFilesInUseExit" Overridable="yes">E&amp;xit</String>
