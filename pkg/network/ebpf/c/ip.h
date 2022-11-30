@@ -113,15 +113,8 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
 }
 
 __maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
-    return t->saddr_l == t2->saddr_l &&
-        t->saddr_h == t2->saddr_h &&
-        t->daddr_l == t2->daddr_l &&
-        t->daddr_h == t2->daddr_h &&
-        t->sport == t2->sport &&
-        t->dport == t2->dport &&
-        t->netns == t2->netns &&
-        t->pid == t2->pid &&
-        t->metadata == t2->metadata;
+    bool match = !bpf_memcmp(t, t2, sizeof(conn_tuple_t));
+    return match;
 }
 
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in

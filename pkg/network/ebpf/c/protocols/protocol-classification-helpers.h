@@ -170,29 +170,23 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     }
 
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
-    if (cur_fragment_protocol_ptr == NULL) {
+    if (cur_fragment_protocol_ptr) {
+        return;
+    }
+
+    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+    const size_t payload_length = skb->len - skb_info.data_off;
+    const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+    classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
+    // If there has been a change in the classification, save the new protocol.
+    if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+        bpf_map_update_with_telemetry(connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
         conn_tuple_t inverse_skb_conn_tup = skb_tup;
         flip_tuple(&inverse_skb_conn_tup);
-
-        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &inverse_skb_conn_tup);
-
-        // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
-        if (cur_fragment_protocol_ptr == NULL) {
-            protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-            log_debug("[protocol_classifier_entrypoint]: %p was not classified\n", skb);
-            char request_fragment[CLASSIFICATION_MAX_BUFFER];
-            bpf_memset(request_fragment, 0, sizeof(request_fragment));
-            read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-            const size_t payload_length = skb->len - skb_info.data_off;
-            const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-            classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
-            log_debug("[protocol_classifier_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
-            // If there has been a change in the classification, save the new protocol.
-            if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-                bpf_map_update_with_telemetry(connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
-                bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
-            }
-        }
+        bpf_map_update_with_telemetry(connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
     }
 }
 
