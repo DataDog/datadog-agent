@@ -403,6 +403,11 @@ func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
 }
 
+// GetManager returns the manager
+func (p *Probe) GetManager() *manager.Manager {
+	return p.manager
+}
+
 func (p *Probe) zeroEvent() *Event {
 	*p.event = eventZero
 	return p.event

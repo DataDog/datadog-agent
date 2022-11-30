@@ -60,6 +60,7 @@
 #include "mmap.h"
 #include "mprotect.h"
 #include "raw_syscalls.h"
+#include "vulnprobe.h"
 
 #ifndef DO_NOT_USE_TC
 #include "flow.h"

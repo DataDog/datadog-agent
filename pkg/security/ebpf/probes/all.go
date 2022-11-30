@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -86,6 +87,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getBindProbes()...)
 	allProbes = append(allProbes, getSyscallMonitorProbes()...)
 	allProbes = append(allProbes, getPipeProbes()...)
+	allProbes = append(allProbes, uprobe.GetVulncheckProbe())
 
 	allProbes = append(allProbes,
 		&manager.Probe{
