@@ -62,11 +62,8 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
 		ddConfig.Datadog.Set("serverless.enabled", true)
-		ddConfig.Datadog.Set("log_level", "debug")
 
 		tc, confErr := loadConfig.Load()
-		tc.OTLPReceiver.HTTPPort = 4318
-		tc.OTLPReceiver.BindHost = "127.0.0.1"
 
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)
@@ -74,6 +71,8 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			log.Debug("Loaded trace config")
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
+			tc.OTLPReceiver.BindHost = "127.0.0.1"
+			tc.OTLPReceiver.HTTPPort = 4318
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
