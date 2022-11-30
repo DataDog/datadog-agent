@@ -50,6 +50,11 @@ namespace Datadog.CustomActions
                 }
                 else
                 {
+                    if (embedded.Contains("embedded3"))
+                    {
+                        throw new InvalidOperationException($"The file {embedded} doesn't exist, but it should");
+                        
+                    }
                     session.Log($"{embedded} not found, skipping decompression.");
                 }
             }

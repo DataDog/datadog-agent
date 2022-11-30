@@ -98,6 +98,35 @@ namespace WixSetup.Datadog
                     "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]")
                 .HideTarget(true);
 
+            DecompressPythonDistributions = new CustomAction<DecompressCustomActions>(
+                    new Id("DecompressPythonDistributions"),
+                    DecompressCustomActions.DecompressPythonDistributions,
+                    Return.check,
+                    When.After,
+                    new Step("WriteConfigCustomAction"),
+                    Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                )
+                {
+                    Execute = Execute.deferred
+                }
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
+            ConfigureUser = new CustomAction<UserCustomActions>(
+                    new Id("ConfigureUser"),
+                    UserCustomActions.ConfigureUser,
+                    Return.check,
+                    When.After,
+                    new Step("DecompressPythonDistributions"),
+                    Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                )
+                {
+                    Execute = Execute.deferred
+                }
+                .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY], " +
+                               "PROJECTLOCATION=[PROJECTLOCATION], " +
+                               "DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], " +
+                               "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
+
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
                     new Id("ProcessDdAgentUserCredentials"),
                     UserCustomActions.ProcessDdAgentUserCredentials,
@@ -111,29 +140,6 @@ namespace WixSetup.Datadog
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true);
-
-            DecompressPythonDistributions = new CustomAction<DecompressCustomActions>(
-                new Id("DecompressPythonDistributions"),
-                DecompressCustomActions.DecompressPythonDistributions,
-                Return.check,
-                When.After,
-                Step.InstallFinalize,
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
-                )
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
-
-            ConfigureUser = new CustomAction<UserCustomActions>(
-                new Id("ConfigureUser"),
-                UserCustomActions.ConfigureUser,
-                Return.check,
-                When.Before,
-                Step.StartServices,
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
-                )
-                {
-                    Execute = Execute.deferred
-                }
-                .SetProperties("DDAGENTUSER_PROCESSED_FQ_NAME=[DDAGENTUSER_PROCESSED_FQ_NAME], DDAGENTUSER_SID=[DDAGENTUSER_SID]");
         }
     }
 }

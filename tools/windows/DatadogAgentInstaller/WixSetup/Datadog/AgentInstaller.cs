@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+using System.Xml.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
 using WixSharp.Controls;
+using static WixSharp.SetupEventArgs;
 using File = WixSharp.File;
 
 namespace WixSetup.Datadog
@@ -32,6 +37,35 @@ namespace WixSetup.Datadog
         private const string InstallerSource = @"C:\opt\datadog-agent";
         private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
+
+        private WixEntity[] Permissions
+        {
+            get
+            {
+                return new WixEntity[]
+                {
+                    new DirPermission
+                    {
+                        User = "[WIX_ACCOUNT_ADMINISTRATORS]",
+                        GenericAll = true,
+                        ChangePermission = true
+                    },
+                    new DirPermission
+                    {
+                        User = "[WIX_ACCOUNT_LOCALSYSTEM]",
+                        GenericAll = true,
+                        ChangePermission = true
+                    },
+                    new DirPermission
+                    {
+                        User = "[WIX_ACCOUNT_USERS]",
+                        GenericAll = false,
+                        ChangePermission = true
+                    }
+                };
+            }
+        }
+
 
         private readonly AgentBinaries _agentBinaries;
         private readonly AgentFeatures _agentFeatures = new AgentFeatures();
@@ -140,19 +174,7 @@ namespace WixSetup.Datadog
             )
             .AddDirectories(
                 CreateProgramFilesFolder(),
-                new Dir(new Id("%CommonAppData%"),
-                    new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
-                        new DirPermission("[WIX_ACCOUNT_ADMINISTRATORS]", GenericPermission.All) { ChangePermission = true },
-                        new DirPermission("[WIX_ACCOUNT_LOCALSYSTEM]", GenericPermission.All) { ChangePermission = true },
-                        new DirPermission("[WIX_ACCOUNT_USERS]", GenericPermission.None) { ChangePermission = false },
-                        new DirPermission("[DDAGENTUSER_PROCESSED_FQ_NAME]", GenericPermission.Read | GenericPermission.Execute) { ChangePermission = false },
-                        new DirFiles($@"{EtcSource}\*.yaml.example"),
-                        new Dir("checks.d"),
-                        new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
-                            new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
-                        )
-                    )
-                ),
+                CreateAppDataFolder(),
                 new Dir(@"%ProgramMenu%\Datadog",
                     new ExeFileShortcut
                     {
@@ -162,7 +184,7 @@ namespace WixSetup.Datadog
                         WorkingDirectory = "AGENT",
                     }
                 ),
-                new Dir("logs")
+                new Dir("logs", Permissions)
             )
             // enable the ability to repair the installation even when the original MSI is no longer available.
             //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
@@ -209,7 +231,6 @@ namespace WixSetup.Datadog
                             new DirFiles($@"{InstallerSource}\*.txt"),
                             new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
                         )
-                    )
                 );
             if (_agentPython.IncludePython2)
             {
@@ -348,6 +369,53 @@ namespace WixSetup.Datadog
                 targetBinFolder.AddFile(new File(_agentBinaries.LibDatadogAgentTwo));
             };
             return targetBinFolder;
+        }
+
+        public class Test : WixEntity, IGenericEntity
+        {
+            public void Process(ProcessingContext context)
+            {
+                var directory = new XElement("Directory");
+                directory.AddAttributes(new Dictionary<string, string>
+                {
+                    {"Id", "APPLICATIONDATADIRECTORY"},
+                    {"Name", "Datadog"}
+                });
+                var component = new XElement("Component");
+                component.AddAttributes(new Dictionary<string, string>
+                {
+                    {"Id", "conffolder"},
+                    {"Guid", "e540d2db-f443-4a98-bd72-7ab2654f4ffb"},
+                    {"KeyPath", "false"}
+                });
+                directory.AddElement(component);
+                var createFolder = new XElement("CreateFolder");
+                var accountAdmin = new XElement("Permission");
+
+                context.XParent.Add(directory);
+            }
+        }
+
+        private Dir CreateAppDataFolder()
+        {
+            var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
+                Permissions.Combine(new WixEntity[]
+                {
+                    new DirFiles($@"{EtcSource}\*.yaml.example"),
+                    new Dir("checks.d"),
+                    new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
+                        Permissions.Combine(new WixEntity[]
+                        {
+                            new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
+                        })
+                    )
+                })
+            );
+
+            return new Dir(new Id("%CommonAppData%"), appData)
+            {
+                Attributes = { { "Name", "CommonAppData" } }
+            };
         }
 
         public event XDocumentGeneratedDlgt WixSourceGenerated;

@@ -19,6 +19,12 @@ namespace Datadog.CustomActions.Native
 
     public static class NativeMethods
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern IntPtr LocalFree(IntPtr hMem);
+
+        [DllImport("shlwapi", EntryPoint = "PathFileExists", CharSet = CharSet.Unicode)]
+        public static extern bool PathExists(string path);
+
         public enum ReturnCodes
         {
             NO_ERROR = 0,
@@ -426,6 +432,159 @@ namespace Datadog.CustomActions.Native
                 LsaClose(policyHandle);
             }
         }
+        #endregion
+
+        #region ACLs
+        [DllImport("Advapi32.dll", SetLastError = true)]
+        public static extern void SetFileSecurity(string path, int type_of_sd, IntPtr sd);
+        [DllImport("Advapi32.dll", SetLastError = true)]
+        public static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string StringSecurityDescriptor, uint StringSDRevision, out IntPtr SecurityDescriptor, out UIntPtr SecurityDescriptorSize);
+
+        public enum SE_OBJECT_TYPE
+        {
+            SE_UNKNOWN_OBJECT_TYPE = 0,
+            SE_FILE_OBJECT,
+            SE_SERVICE,
+            SE_PRINTER,
+            SE_REGISTRY_KEY,
+            SE_LMSHARE,
+            SE_KERNEL_OBJECT,
+            SE_WINDOW_OBJECT,
+            SE_DS_OBJECT,
+            SE_DS_OBJECT_ALL,
+            SE_PROVIDER_DEFINED_OBJECT,
+            SE_WMIGUID_OBJECT,
+            SE_REGISTRY_WOW64_32KEY
+        }
+
+        [Flags]
+        public enum SECURITY_INFORMATION : uint
+        {
+            Owner = 0x00000001,
+            Group = 0x00000002,
+            Dacl = 0x00000004,
+            Sacl = 0x00000008,
+            ProtectedDacl = 0x80000000,
+            ProtectedSacl = 0x40000000,
+            UnprotectedDacl = 0x20000000,
+            UnprotectedSacl = 0x10000000
+        }
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        public static extern uint SetNamedSecurityInfo(
+            [MarshalAs(UnmanagedType.LPWStr)] string pObjectName,
+            SE_OBJECT_TYPE ObjectType,
+            SECURITY_INFORMATION SecurityInfo,
+            IntPtr psidOwner,
+            IntPtr psidGroup,
+            IntPtr pDacl,
+            IntPtr pSacl);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        public static extern uint GetNamedSecurityInfo(
+            [MarshalAs(UnmanagedType.LPWStr)] string pObjectName,
+            SE_OBJECT_TYPE ObjectType,
+            SECURITY_INFORMATION SecurityInfo,
+            out IntPtr pSidOwner,
+            out IntPtr pSidGroup,
+            out IntPtr pDacl,
+            out IntPtr pSacl,
+            out IntPtr pSecurityDescriptor);
+
+        public enum MULTIPLE_TRUSTEE_OPERATION
+        {
+            NO_MULTIPLE_TRUSTEE,
+            TRUSTEE_IS_IMPERSONATE
+        }
+
+        public enum TRUSTEE_FORM
+        {
+            TRUSTEE_IS_SID,
+            TRUSTEE_IS_NAME,
+            TRUSTEE_BAD_FORM,
+            TRUSTEE_IS_OBJECTS_AND_SID,
+            TRUSTEE_IS_OBJECTS_AND_NAME
+        }
+
+        public enum TRUSTEE_TYPE
+        {
+            TRUSTEE_IS_UNKNOWN,
+            TRUSTEE_IS_USER,
+            TRUSTEE_IS_GROUP,
+            TRUSTEE_IS_DOMAIN,
+            TRUSTEE_IS_ALIAS,
+            TRUSTEE_IS_WELL_KNOWN_GROUP,
+            TRUSTEE_IS_DELETED,
+            TRUSTEE_IS_INVALID,
+            TRUSTEE_IS_COMPUTER
+        }
+
+        //Platform independent (32 & 64 bit) - use Pack = 0 for both platforms. IntPtr works as well.
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 0)]
+        public struct TRUSTEE
+        {
+            public IntPtr pMultipleTrustee;
+            public MULTIPLE_TRUSTEE_OPERATION MultipleTrusteeOperation;
+            public TRUSTEE_FORM TrusteeForm;
+            public TRUSTEE_TYPE TrusteeType;
+            public IntPtr Name;
+        }
+
+        public enum ACCESS_MODE : uint
+        {
+            NOT_USED_ACCESS = 0,
+            GRANT_ACCESS,
+            SET_ACCESS,
+            REVOKE_ACCESS,
+            SET_AUDIT_SUCCESS,
+            SET_AUDIT_FAILURE
+        }
+
+        public const long STANDARD_RIGHTS_REQUIRED = 0x000F0000L;
+        public const long SYNCHRONIZE = 0x00100000L;
+        public const long FILE_ALL_ACCESS = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0x1FF;
+
+        public enum ACCESS_MASK : uint
+        {
+            GENERIC_ALL = 0x10000000, //268435456,
+            GENERIC_READ = 0x80000000, //2147483648L,
+            GENERIC_WRITE = 0x40000000, //1073741824,
+            GENERIC_EXECUTE = 0x20000000, //536870912,
+            STANDARD_RIGHTS_READ = 0x00020000, //131072
+            STANDARD_RIGHTS_WRITE = 0x00020000,
+            SHARE_ACCESS_READ = 0x1200A9, // 1179817
+            SHARE_ACCESS_WRITE = 0x1301BF, // 1245631
+            SHARE_ACCESS_FULL = 0x1f01ff // 2032127
+        }
+
+        public enum ACCESS_INHERITANCE : uint
+        {
+            NO_INHERITANCE = 0,
+            OBJECT_INHERIT_ACE = 0x1,
+            CONTAINER_INHERIT_ACE = 0x2,
+            NO_PROPAGATE_INHERIT_ACE = 0x4,
+            INHERIT_ONLY_ACE = 0x8,
+            INHERITED_ACE = 0x10,
+            SUB_OBJECTS_ONLY_INHERIT = ACCESS_INHERITANCE.OBJECT_INHERIT_ACE | ACCESS_INHERITANCE.INHERIT_ONLY_ACE,
+            SUB_CONTAINERS_ONLY_INHERIT = ACCESS_INHERITANCE.CONTAINER_INHERIT_ACE | ACCESS_INHERITANCE.INHERIT_ONLY_ACE,
+            SUB_CONTAINERS_AND_OBJECTS_INHERIT = ACCESS_INHERITANCE.CONTAINER_INHERIT_ACE | ACCESS_INHERITANCE.OBJECT_INHERIT_ACE,
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode, Pack = 0)] //Platform independent 32 & 64 bit - use Pack = 0 for both platforms
+        public struct EXPLICIT_ACCESS
+        {
+            public uint grfAccessPermissions;
+            public uint grfAccessMode;
+            public uint grfInheritance;
+            public TRUSTEE Trustee;
+        }
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = false)]
+        public static extern uint SetEntriesInAcl(
+            uint cCountOfExplicitEntries,
+            [In, MarshalAs(UnmanagedType.LPArray, SizeParamIndex = 0)] EXPLICIT_ACCESS[] pListOfExplicitEntries,
+            IntPtr OldAcl,
+            out IntPtr NewAcl);
         #endregion
     }
 }
