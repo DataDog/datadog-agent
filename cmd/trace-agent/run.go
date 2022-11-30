@@ -209,7 +209,7 @@ func Run(ctx context.Context) {
 
 	agnt := agent.NewAgent(ctx, cfg)
 
-	initASM(agnt.In)
+	initASM(agnt.In, cfg.DefaultEnv)
 
 	log.Infof("Trace agent running on host %s", cfg.Hostname)
 	if pcfg := profilingConfig(cfg); pcfg != nil {
@@ -240,7 +240,7 @@ func Run(ctx context.Context) {
 	}
 }
 
-func initASM(traceChan chan *api.Payload) {
+func initASM(traceChan chan *api.Payload, defaultEnv string) {
 	wafHandle, err := appsec.NewWAFHandle()
 	if err != nil {
 		tracelog.Errorf("appsec: unexpected error while instantiating the waf: %v", err)
@@ -250,7 +250,7 @@ func initASM(traceChan chan *api.Payload) {
 
 	// HTTP API
 	{
-		httpsecAPI := appsec.NewHTTPSecHandler(wafHandle, traceChan)
+		httpsecAPI := appsec.NewHTTPSecHandler(wafManager, defaultEnv, traceChan)
 		if err != nil {
 			log.Errorf("appsec: could not create the http api handler: %v", err)
 		} else {
@@ -267,7 +267,7 @@ func initASM(traceChan chan *api.Payload) {
 	// gRPC server serving the envoy auth api
 	{
 		srv := google_grpc.NewServer()
-		service := appsec.NewEnvoyAuthorizationServer(wafManager)
+		service := appsec.NewEnvoyAuthorizationServer(wafManager, defaultEnv)
 		envoy_service_auth_v3.RegisterAuthorizationServer(srv, service)
 		addr := "0.0.0.0:42424"
 		lis, err := net.Listen("tcp", addr)

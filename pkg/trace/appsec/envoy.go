@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	waf "github.com/DataDog/go-libddwaf"
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -23,15 +22,17 @@ import (
 
 type server struct {
 	wafManager *Manager
+	defaultEnv string
 }
 
 // Static assertion that &server{} implements the expected Go interface
 var _ envoy_service_auth_v3.AuthorizationServer = &server{}
 
 // NewEnvoyAuthorizationServer creates a new envoy authorization server.
-func NewEnvoyAuthorizationServer(wafManager *Manager) envoy_service_auth_v3.AuthorizationServer {
+func NewEnvoyAuthorizationServer(wafManager *Manager, defaultEnv string) envoy_service_auth_v3.AuthorizationServer {
 	return &server{
 		wafManager: wafManager,
+		defaultEnv: defaultEnv,
 	}
 }
 
@@ -133,7 +134,7 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 	}
 	env, ok := req.Attributes.ContextExtensions["env"]
 	if !ok {
-		env = config.GetTraceAgentDefaultEnv()
+		env = s.defaultEnv
 	}
 
 	wafCtx := s.wafManager.GetWafContextForService(serviceName, env)

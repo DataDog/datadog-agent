@@ -23,6 +23,7 @@ type (
 	requestPayload struct {
 		Request Request `json:"request"`
 		Service string  `json:"service"`
+		Env     string  `json:"env"`
 	}
 
 	Request struct {
@@ -45,7 +46,7 @@ type (
 	}
 )
 
-func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Handler {
+func NewHTTPSecHandler(wafManager *Manager, defaultEnv string, traceChan chan *api.Payload) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse the body
 		var reqPayload requestPayload
@@ -69,7 +70,12 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 			sendSpan(sp.Span, int32(sampler.PriorityUserKeep), traceChan)
 		}()
 
-		wafCtx := waf.NewContext(handle)
+		env := reqPayload.Env
+		if env == "" {
+			env = defaultEnv
+		}
+
+		wafCtx := wafManager.GetWafContextForService(reqPayload.Service, env)
 		if wafCtx == nil {
 			// The WAF handle got released in the meantime
 			writeUnavailableResponse(w)
