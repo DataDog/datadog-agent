@@ -16,8 +16,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metadata"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -33,6 +31,10 @@ const (
 	extensionRegistrationTimeout = 5 * time.Second
 )
 
+func init() {
+	os.Setenv("DD_API_KEY", "INVALID_KEY")
+}
+
 var (
 	// client is a client that should never timeout
 	client = &http.Client{Timeout: 0}
@@ -47,13 +49,10 @@ var (
 )
 
 func main() {
-	metadata := metadata.GetMetaData(metadata.GetDefaultConfig())
 	traceAgent := &trace.ServerlessTraceAgent{}
-
-	setupTraceAgent(traceAgent, metadata)
+	traceAgent.Start(true, &trace.LoadConfig{Path: datadogConfigPath}, nil)
 	defer traceAgent.Stop()
 
-	// Register the extension
 	serverlessID, err := registration.RegisterExtension(
 		os.Getenv(runtimeAPIEnvVar),
 		extensionRegistrationRoute,
@@ -76,13 +75,6 @@ func main() {
 	}
 }
 
-func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, metadata *metadata.Metadata) {
-	os.Setenv("DD_API_KEY", "INVALID_KEY")
-	traceAgent.Start(true, &trace.LoadConfig{Path: datadogConfigPath})
-	traceAgent.SetTags(tag.GetBaseTagsMapWithMetadata(metadata.TagMap()))
-
-}
-
 func WaitForNextInvocation(id registration.ID) (bool, error) {
 	request, err := http.NewRequest(http.MethodGet, extensionNextURL, nil)
 	if err != nil {
@@ -97,7 +89,7 @@ func WaitForNextInvocation(id registration.ID) (bool, error) {
 	}
 	defer response.Body.Close()
 
-	body, err = ioutil.ReadAll(response.Body)
+	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return false, fmt.Errorf("WaitForNextInvocation: can't read the body: %v", err)
 	}
