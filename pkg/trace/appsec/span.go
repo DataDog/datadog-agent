@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -61,6 +62,7 @@ func startSpan(traceID, parentID uint64, name, typ, service string) span {
 			Start:    start,
 			Name:     name,
 			Type:     typ,
+			Service:  service,
 			Meta:     map[string]string{},
 			Metrics:  map[string]float64{},
 		},
@@ -75,10 +77,17 @@ type httpSpan struct {
 	span
 }
 
-func startHTTPRequestSpan(traceID, parentID uint64, resource, service string) httpSpan {
-	sp := startSpan(traceID, parentID, "http.request", "web", service)
-	sp.Resource = resource
-	return httpSpan{sp}
+func startHTTPRequestSpan(traceID, parentID uint64, service, remoteAddr, method string, url *url.URL, headers map[string]string) httpSpan {
+	sp := httpSpan{startSpan(traceID, parentID, "http.request", "web", service)}
+	sp.Resource = makeResourceName(method, url.Path)
+	setAppSecEnabledTags(sp.span)
+	setClientIPTags(sp, remoteAddr, headers)
+	sp.SetMethod(method)
+	sp.SetURL(url.String())
+	if ua := headers["user-agent"]; ua != "" {
+		sp.SetUserAgent(ua)
+	}
+	return sp
 }
 
 func (s *httpSpan) SetMethod(m string)     { s.Meta["http.method"] = m }
@@ -223,7 +232,7 @@ func makeEventsTagValue(events json.RawMessage) (json.RawMessage, error) {
 }
 
 // setSecurityEventsTags sets the AppSec-specific span tags when security events were found.
-func setSecurityEventsTags(span httpSpan, events json.RawMessage, headers, respHeaders map[string][]string) {
+func setSecurityEventsTags(span httpSpan, events json.RawMessage, headers, respHeaders map[string]string) {
 	if err := setEventSpanTags(span, events); err != nil {
 		log.Errorf("appsec: unexpected error while creating the appsec event tags: %v", err)
 		return
@@ -234,7 +243,7 @@ func setSecurityEventsTags(span httpSpan, events json.RawMessage, headers, respH
 
 // normalizeHTTPHeaders returns the HTTP headers following Datadog's
 // normalization format.
-func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]string) {
+func normalizeHTTPHeaders(headers map[string]string) (normalized map[string]string) {
 	if len(headers) == 0 {
 		return nil
 	}
@@ -242,7 +251,7 @@ func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]st
 	for k, v := range headers {
 		k = strings.ToLower(k)
 		if i := sort.SearchStrings(collectedHTTPHeaders[:], k); i < len(collectedHTTPHeaders) && collectedHTTPHeaders[i] == k {
-			normalized[k] = strings.Join(v, ",")
+			normalized[k] = v
 		}
 	}
 	if len(normalized) == 0 {

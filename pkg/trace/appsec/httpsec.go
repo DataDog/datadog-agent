@@ -60,13 +60,11 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 			return
 		}
 
-		headers := reqPayload.Request.Headers
+		request := reqPayload.Request
+		headers := request.Headers
 		traceID, parentID := getSpanContext(headers)
-		resource := makeResourceName(reqPayload.Request.Method, reqPayload.Request.URL.Path)
+		sp := startHTTPRequestSpan(traceID, parentID, reqPayload.Service, request.RemoteAddr, request.Method, request.URL, headers)
 
-		sp := startHTTPRequestSpan(traceID, parentID, resource, reqPayload.Service)
-		setAppSecEnabledTags(sp.span)
-		clientIP := setClientIPTags(sp, reqPayload.Request.RemoteAddr, headers)
 		defer func() {
 			sp.finish()
 			sendSpan(sp.Span, int32(sampler.PriorityUserKeep), traceChan)
@@ -80,7 +78,7 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 		}
 		defer wafCtx.Close()
 
-		addresses := makeHTTPSecAddresses(reqPayload.Request, clientIP)
+		addresses := makeHTTPSecAddresses(reqPayload.Request, sp.Meta["http.client_ip"])
 		log.Debug("appsec: httpsec api: running the security rules against %v", addresses)
 		matches, actions, err := wafCtx.Run(addresses, defaultWAFTimeout)
 		if err != nil && err != waf.ErrTimeout {
@@ -90,7 +88,10 @@ func NewHTTPSecHandler(handle *waf.Handle, traceChan chan *api.Payload) http.Han
 		log.Debug("appsec: httpsec api: matches=%s actions=%v", string(matches), actions)
 
 		if len(matches) > 0 {
-			setSecurityEventsTags(sp, matches, nil, nil)
+			setSecurityEventsTags(sp, matches, reqPayload.Request.Headers, nil)
+		}
+		if len(actions) > 0 {
+			sp.Meta["blocked"] = "true"
 		}
 
 		if err := json.NewEncoder(w).Encode(responsePayload{
