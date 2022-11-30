@@ -34,8 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	flareBundle "github.com/DataDog/datadog-agent/comp/flare"
+	"github.com/DataDog/datadog-agent/comp/flare/flare"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
@@ -117,6 +118,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 			core.Bundle,
+			flareBundle.Bundle,
 		)
 	}
 
@@ -201,6 +203,7 @@ func StartAgentWithDefaults() error {
 		// no config file path specification in this situation
 		fx.Supply(core.CreateAgentBundleParams("", true).LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 		core.Bundle,
+		flareBundle.Bundle,
 	)
 }
 

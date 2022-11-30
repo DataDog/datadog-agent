@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/comp/flare"
+	flarepkg "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -45,6 +46,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", "off", true)),
 				core.Bundle,
+				flare.Bundle,
 			)
 		},
 	}
@@ -56,7 +58,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func run(config config.Component, cliParams *cliParams) error {
 	var b bytes.Buffer
 	color.Output = &b
-	err := flare.GetConfigCheck(color.Output, cliParams.verbose)
+	err := flarepkg.GetConfigCheck(color.Output, cliParams.verbose)
 	if err != nil {
 		return fmt.Errorf("unable to get pkgconfig: %v", err)
 	}

@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"go.etcd.io/bbolt"

@@ -16,7 +16,7 @@ To add data to a flare you will fiest need to register a `FlareBuilder`.
 First create a `flare.go` file in your component (the file name is a convention) and create a `func (c *yourComp) fillFlare(fb flarehelpers.FlareBuilder) error` function.
 
 This function is called every time the Agent generates a flare, either from the CLI or from the running Agent. This
-callback receives a `comp/core/flare/helpers:FlareBuilder`. The `FlareBuilder` interface provides the
+callback receives a `comp/flare/flare/helpers:FlareBuilder`. The `FlareBuilder` interface provides the
 helpers required to add data to a flare: adding files, copying directories, scrubbing data, and so on.
 
 Example of `flare.go`:
@@ -25,7 +25,7 @@ Example of `flare.go`:
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 )
 
 func (c *myComponent) fillFlare(fb flarehelpers.FlareBuilder) error {
@@ -48,8 +48,8 @@ stopping at the first error. Returning an error does not stop the flare from bei
 
 ### Register the callback
 
-Finally, to Register your callback, provide a new `comp/core/flare/helpers:Provider` by using
-`comp/core/flare/helpers:NewProvider`.
+Finally, to Register your callback, provide a new `comp/flare/flare/helpers:Provider` by using
+`comp/flare/flare/helpers:NewProvider`.
 
 For this the constructor of your component must return a `helpers.Provider` that will be called for each flare creation
 (`NewProvider` does all the underlying work for you).
@@ -67,7 +67,7 @@ var Module = fxutil.Component(
 In `config.go`:
 ```golang
 import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 )
 
 type provides struct {

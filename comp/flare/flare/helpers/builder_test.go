@@ -145,7 +145,7 @@ func TestWriteFileFromFunc(t *testing.T) {
 		return fmt.Errorf("error!")
 	})
 	assert.Error(t, err)
-	assert.Equal(t, FromSlash("callback 'github.com/DataDog/datadog-agent/comp/core/flare/helpers.TestWriteFileFromFunc.func2' failed for test/WriteFileFromFunc_error: error!"), err.Error())
+	assert.Equal(t, FromSlash("callback 'github.com/DataDog/datadog-agent/comp/flare/flare/helpers.TestWriteFileFromFunc.func2' failed for test/WriteFileFromFunc_error: error!"), err.Error())
 	assert.NoFileExists(t, filepath.Join(fb.flareDir, "test", "WriteFileFromFunc_error"))
 }
 

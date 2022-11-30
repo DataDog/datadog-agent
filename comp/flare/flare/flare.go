@@ -8,7 +8,7 @@ package flare
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"go.uber.org/fx"

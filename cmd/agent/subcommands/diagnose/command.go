@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/flare"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -56,6 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "info", true)),
 				core.Bundle,
+				flare.Bundle,
 			)
 		},
 	}
@@ -69,6 +71,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "info", true)),
 				core.Bundle,
+				flare.Bundle,
 			)
 		},
 	}
@@ -96,6 +99,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "off", true)),
 				core.Bundle,
+				flare.Bundle,
 			)
 		},
 	}
@@ -111,6 +115,7 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot("CORE", "off", true)),
 				core.Bundle,
+				flare.Bundle,
 			)
 		},
 	}

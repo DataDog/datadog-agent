@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 

@@ -3,18 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package core implements the "core" bundle, providing services common to all
+// Package flare implements the "flare" bundle, providing services for flares to all
 // agent flavors and binaries.
 //
 // The constituent components serve as utilities and are mostly independent of
 // one another. Other components should depend on any components they need.
 //
-// This bundle does not depend on any other bundles.
-package core
+// This Bundle should be part of the "core" bundle. But linking again the "pkg/flare" package adds 30MB to the binaries.
+// For this reason we moved this to it's own bundle for now. Once "pkg/flare" has fully been migrated we will merge this
+// bundle with the "core" bundle.
+//
+// This bundle depends on the "core" bundle.
+package flare
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/flare/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,12 +25,10 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	config.Module,
-	log.Module,
+	flare.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	config.MockModule,
-	log.MockModule,
+	flare.Module,
 )

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package core
+package flare
 
 import (
 	"testing"
@@ -11,18 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/flare/flare"
 )
 
 func TestBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
-		// instantiate all of the core components, since this is not done
+		// instantiate all of the flare components, since this is not done
 		// automatically.
-		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(log.Component) {}),
+		fx.Invoke(func(flare.Component) {}),
+		fx.Supply(core.BundleParams{}),
+		core.Bundle,
 
-		fx.Supply(BundleParams{}),
 		Bundle))
 }
 
@@ -30,11 +30,11 @@ func TestMockBundleDependencies(t *testing.T) {
 	require.NoError(t, fx.ValidateApp(
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 
-		// instantiate all of the core components, since this is not done
+		// instantiate all of the flare components, since this is not done
 		// automatically.
-		fx.Invoke(func(config.Component) {}),
-		fx.Invoke(func(log.Component) {}),
+		fx.Invoke(func(flare.Component) {}),
+		fx.Supply(core.BundleParams{}),
+		core.Bundle,
 
-		fx.Supply(BundleParams{}),
 		MockBundle))
 }

@@ -21,8 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	flareBundle "github.com/DataDog/datadog-agent/comp/flare"
+	"github.com/DataDog/datadog-agent/comp/flare/flare"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
@@ -65,6 +66,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", "off", false)),
 				core.Bundle,
+				flareBundle.Bundle,
 			)
 		},
 	}

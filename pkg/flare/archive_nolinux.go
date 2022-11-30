@@ -9,7 +9,7 @@
 package flare
 
 import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	flarehelpers "github.com/DataDog/datadog-agent/comp/flare/flare/helpers"
 )
 
 func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
