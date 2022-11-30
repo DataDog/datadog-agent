@@ -556,7 +556,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *Co
 	}
 }
 
-// createStatsForKey will create a new stats object for a key if it doesn't already exist.
+// createStatsForCookie will create a new stats object for a key if it doesn't already exist.
 func (ns *networkState) createStatsForCookie(client *client, cookie uint32) {
 	if _, ok := client.stats[cookie]; !ok {
 		if len(client.stats) >= ns.maxClientStats {
