@@ -133,6 +133,9 @@ func (m *Manager) createWafContextForService(key serviceKey, update ProductUpdat
 	}
 
 	m.lock.Lock()
+	if prevHandle, ok := m.wafHandles[key]; ok {
+		prevHandle.Close()
+	}
 	m.wafHandles[key] = handle
 	m.lock.Unlock()
 	return nil

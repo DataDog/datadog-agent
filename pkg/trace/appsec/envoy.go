@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	waf "github.com/DataDog/go-libddwaf"
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -89,7 +90,7 @@ func shouldBlock(actions []string) bool {
 	return false
 }
 
-func attachAppSecMetadata(resp *envoy_service_auth_v3.CheckResponse, matches []byte, blocked bool) {
+func attachAppSecMetadata(resp *envoy_service_auth_v3.CheckResponse, clientIp string, matches []byte, blocked bool) {
 	if len(matches) == 2 && matches[0] == '[' && matches[1] == ']' {
 		return
 	}
@@ -109,6 +110,9 @@ func attachAppSecMetadata(resp *envoy_service_auth_v3.CheckResponse, matches []b
 		rawBlocked = "\"blocked\":true,"
 		fields["appsec.blocked"] = structpb.NewStringValue("true")
 	}
+	if clientIp != "" {
+		fields["http.client_ip"] = structpb.NewStringValue(clientIp)
+	}
 	fields["appsec.event"] = structpb.NewStringValue("true")
 	fields["appsec"] = structpb.NewStringValue(fmt.Sprintf("{\"event\":true,%s\"triggers\":%s}", rawBlocked, matches))
 }
@@ -124,11 +128,12 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 
 	serviceName, ok := req.Attributes.ContextExtensions["service_name"]
 	if !ok {
-		serviceName = "default-proxy-service-name"
+		log.Error("appsec: cannot check request because service name is missing")
+		return resp, nil
 	}
 	env, ok := req.Attributes.ContextExtensions["env"]
 	if !ok {
-		env = "default-env" // TODO take it from the trace-agent config
+		env = config.GetTraceAgentDefaultEnv()
 	}
 
 	wafCtx := s.wafManager.GetWafContextForService(serviceName, env)
@@ -156,6 +161,6 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 			},
 		}
 	}
-	attachAppSecMetadata(resp, matches, block)
+	attachAppSecMetadata(resp, addresses["http.client_ip"].(string), matches, block)
 	return resp, nil
 }
