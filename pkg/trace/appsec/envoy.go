@@ -21,16 +21,16 @@ import (
 )
 
 type server struct {
-	wafHandle *waf.Handle
+	wafManager *Manager
 }
 
 // Static assertion that &server{} implements the expected Go interface
 var _ envoy_service_auth_v3.AuthorizationServer = &server{}
 
 // NewEnvoyAuthorizationServer creates a new envoy authorization server.
-func NewEnvoyAuthorizationServer(wafHandle *waf.Handle) envoy_service_auth_v3.AuthorizationServer {
+func NewEnvoyAuthorizationServer(wafManager *Manager) envoy_service_auth_v3.AuthorizationServer {
 	return &server{
-		wafHandle: wafHandle,
+		wafManager: wafManager,
 	}
 }
 
@@ -120,7 +120,16 @@ func (s *server) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequ
 		},
 	}
 
-	wafCtx := waf.NewContext(s.wafHandle)
+	serviceName, ok := req.Attributes.ContextExtensions["service_name"]
+	if !ok {
+		serviceName = "default-proxy-service-name"
+	}
+	env, ok := req.Attributes.ContextExtensions["env"]
+	if !ok {
+		env = "default-env" // TODO take it from the trace-agent config
+	}
+
+	wafCtx := s.wafManager.GetWafContextForService(serviceName, env)
 	if wafCtx == nil {
 		// The WAF handle was released
 		return okResponse, nil

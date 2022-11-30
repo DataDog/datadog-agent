@@ -246,6 +246,8 @@ func initASM(traceChan chan *api.Payload) {
 		tracelog.Errorf("appsec: unexpected error while instantiating the waf: %v", err)
 	}
 
+	wafManager := appsec.NewManager(wafHandle)
+
 	// HTTP API
 	{
 		httpsecAPI := appsec.NewHTTPSecHandler(wafHandle, traceChan)
@@ -265,7 +267,7 @@ func initASM(traceChan chan *api.Payload) {
 	// gRPC server serving the envoy auth api
 	{
 		srv := google_grpc.NewServer()
-		service := appsec.NewEnvoyAuthorizationServer(wafHandle)
+		service := appsec.NewEnvoyAuthorizationServer(wafManager)
 		envoy_service_auth_v3.RegisterAuthorizationServer(srv, service)
 		addr := "0.0.0.0:42424"
 		lis, err := net.Listen("tcp", addr)
