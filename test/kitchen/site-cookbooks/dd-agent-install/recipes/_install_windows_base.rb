@@ -72,7 +72,6 @@ windows_package 'Datadog Agent' do
   # but we need to print the install logs.
   ignore_failure true
 end
-end
 
 # This runs during the converge phase and will return a non-zero exit
 # code if the service doesn't run. While it can be useful to quickly
