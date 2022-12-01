@@ -80,7 +80,7 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
-	// tfs is the list of transformers used by agent.Process()
+	// transformers is the list of transformers used by agent.Process()
 	transformers []Transformer
 }
 
