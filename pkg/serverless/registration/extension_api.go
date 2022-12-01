@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	extensionName = "datadog-agent"
+	extensionName = "datadog-agent-open-telemetry"
 	headerExtName = "Lambda-Extension-Name"
 
 	//HeaderExtID is the header name for the extension identifier
