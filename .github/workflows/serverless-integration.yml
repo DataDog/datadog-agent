@@ -28,7 +28,7 @@ jobs:
       - name: Install go
         uses: actions/setup-go@v3
         with:
-          go-version-file: '.go-version'
+          go-version-file: 'go/src/github.com/DataDog/datadog-agent/.go-version'
 
       - name: Install Serverless Framework
         run: sudo yarn global add serverless@^3.7.9 --prefix /usr/local
