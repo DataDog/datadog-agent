@@ -9,6 +9,8 @@
 package uprobe
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -20,7 +22,7 @@ const UprobeConstantName = "vuln_id"
 
 func attachProbe(m *manager.Manager, u *uprobe) error {
 	pID := manager.ProbeIdentificationPair{
-		UID:          u.uid,
+		UID:          fmt.Sprintf("vuln_detector_%d", u.id),
 		EBPFSection:  UprobeSection,
 		EBPFFuncName: UprobeFuncName,
 	}
@@ -41,7 +43,9 @@ func attachProbe(m *manager.Manager, u *uprobe) error {
 		return err
 	}
 
-	seclog.Infof("attached %s:%s with UID %s and vuln_id %d\n", u.desc.Path, u.desc.FunctionName, u.uid, u.id)
+	u.pID = pID
+
+	seclog.Infof("attached %s:%s with UID %s and vuln_id %d\n", u.desc.Path, u.desc.FunctionName, u.pID.UID, u.id)
 	return nil
 }
 
@@ -52,7 +56,6 @@ func GetVulncheckProbe() *manager.Probe {
 			EBPFSection:  UprobeSection,
 			EBPFFuncName: UprobeFuncName,
 		},
-		BinaryPath:      "/usr/bin/bash",
 		KeepProgramSpec: true,
 	}
 }

@@ -11,7 +11,6 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -341,21 +340,6 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				// This is needed to skip FIM events relatives to pipes (avoiding abnormal path events)
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/mntget", EBPFFuncName: "kprobe_mntget"}},
-				}},
-
-				// uprobe
-				// Used for dynamic uprobes attach of uprobe
-				// TODO(jrs): find a way to enable them dynamicaly
-				&manager.AllOf{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_0", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_1", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_2", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_3", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_4", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_5", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_6", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_7", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: "vuln_detector_8", EBPFSection: uprobe.UprobeSection, EBPFFuncName: uprobe.UprobeFuncName}},
 				}},
 			},
 

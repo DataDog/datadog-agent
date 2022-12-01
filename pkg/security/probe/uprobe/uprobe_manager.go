@@ -10,7 +10,6 @@ package uprobe
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -21,7 +20,7 @@ import (
 type uprobe struct {
 	desc model.UProbeDesc
 	id   uint64
-	uid  string
+	pID  manager.ProbeIdentificationPair
 }
 
 var uprobes = make(map[uint64]*uprobe)
@@ -90,8 +89,7 @@ func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error
 	}
 
 	up := uprobe{
-		id:  id,
-		uid: fmt.Sprintf("vuln_detector_%d", id),
+		id: id,
 		desc: model.UProbeDesc{
 			Path:         pathValue,
 			Version:      versionValue,
@@ -108,4 +106,17 @@ func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error
 	uprobes[up.id] = &up
 
 	return nil
+}
+
+func GetActivatedProbes() []manager.ProbesSelector {
+
+	selector := &manager.BestEffort{}
+
+	for _, up := range uprobes {
+		selector.Selectors = append(selector.Selectors, &manager.ProbeSelector{
+			ProbeIdentificationPair: up.pID,
+		})
+	}
+
+	return []manager.ProbesSelector{selector}
 }

@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -999,6 +1000,8 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 			}
 		}
 	}
+
+	activatedProbes = append(activatedProbes, uprobe.GetActivatedProbes()...)
 
 	// Print the list of unique probe identification IDs that are registered
 	var selectedIDs []manager.ProbeIdentificationPair
