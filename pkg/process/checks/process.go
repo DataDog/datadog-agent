@@ -254,7 +254,7 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 func (p *ProcessCheck) processDiscoveryHintCheck(hints *[]model.CollectorProcHint) {
 	log.Warn("hi")
 	currentTime := time.Now().Unix()
-	if currentTime == p.nextGroupTime {
+	if currentTime >= p.nextGroupTime {
 		*hints = append(*hints, model.CollectorProcHint_hintProcessDiscovery)
 		p.nextGroupTime = currentTime + p.secsBetweenHints
 	}
