@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,7 +50,6 @@ type ConnectionsCheck struct {
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
 	lastConnsByPID   *atomic.Value
-	probe            procutil.Probe
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
 	processData      *ProcessData
@@ -59,7 +57,6 @@ type ConnectionsCheck struct {
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
-	c.probe = newProcessProbe()
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
