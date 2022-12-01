@@ -24,7 +24,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 14
-      
+
+      - name: Install go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: '.go-version'
+
       - name: Install Serverless Framework
         run: sudo yarn global add serverless@^3.7.9 --prefix /usr/local
 
