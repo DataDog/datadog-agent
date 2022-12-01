@@ -37,6 +37,11 @@ func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }
 
+func testCheckRightsStub() {
+	// Stub for CI since running as Administrator and no installer data
+	getDDAgentUserSID = winutil.GetSidFromUser
+}
+
 func TestCheckRights(t *testing.T) {
 	_, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)

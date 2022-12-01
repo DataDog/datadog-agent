@@ -60,9 +60,24 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	secretUser, err := getSecretUserSID()
+	currentUser, err := winutil.GetSidFromUser()
 	if err != nil {
 		return err
+	}
+
+	secretuser := currentUser
+
+	elevated, err := winutil.IsProcessElevated()
+	if err != nil {
+		return fmt.Errorf("unable to determine if running elevated: %s", err)
+	}
+
+	if elevated || currentUser.Equals(localSystem) {
+		ddUser, err := getDDAgentUserSID()
+		if err != nil {
+			return fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
+		}
+		secretuser = ddUser
 	}
 
 	bSecretUserExplicitlyAllowed := false
@@ -139,36 +154,6 @@ func getAdministratorsSID() (*windows.SID, error) {
 		0, 0, 0, 0, 0, 0,
 		&administrators)
 	return administrators, err
-}
-
-// getSecretUserSID returns the SID of the user running the secret backend
-func getSecretUserSID() (*windows.SID, error) {
-	localSystem, err := getLocalSystemSID()
-	if err != nil {
-		return nil, fmt.Errorf("could not query Local System SID: %s", err)
-	}
-	defer windows.FreeSid(localSystem)
-
-	currentUser, err := winutil.GetSidFromUser()
-	if err != nil {
-		return nil, fmt.Errorf("could not get SID for current user: %s", err)
-	}
-
-	secretUser := currentUser
-
-	elevated, err := winutil.IsProcessElevated()
-	if err != nil {
-		return nil, fmt.Errorf("unable to determine if running elevated: %s", err)
-	}
-
-	if elevated || currentUser.Equals(localSystem) {
-		ddUser, err := getDDAgentUserSID()
-		if err != nil {
-			return nil, fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
-		}
-		secretUser = ddUser
-	}
-	return secretUser, nil
 }
 
 // getDDAgentUserSID returns the SID of the ddagentuser configured at installation time
