@@ -201,19 +201,23 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     if (topic_name_size <= 0) {
         return false;
     }
-    // __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
+//    __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
     if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
         return false;
     }
-    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+    const uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
+    if (kafka_transaction->current_offset_in_request_fragment + topic_name_size_final  > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
-    uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
-    bpf_probe_read_kernel(
-        kafka_transaction->topic_name,
-        topic_name_size_final,
-        (void*)(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment));
-    log_debug("topic_name: %s", kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
+    char* topic_name_offset =  kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
+    for (uint32_t i = 0; i < topic_name_size_final; i++) {
+        kafka_transaction->topic_name[i] = topic_name_offset[i];
+    }
+//    bpf_probe_read_kernel(
+//        kafka_transaction->topic_name,
+//        topic_name_size_final,
+//        (void*)(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment));
+//    log_debug("topic_name: %s", kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
     return true;
 }
 
