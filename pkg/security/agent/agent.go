@@ -52,8 +52,6 @@ func NewRuntimeSecurityAgent(hostname string) (*RuntimeSecurityAgent, error) {
 		return nil, err
 	}
 
-	api.RegisterVTCodec()
-
 	telemetry, err := newTelemetry()
 	if err != nil {
 		return nil, errors.New("failed to initialize the telemetry reporter")
