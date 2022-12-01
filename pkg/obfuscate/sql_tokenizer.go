@@ -723,20 +723,12 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 			tkn.scanMantissa(16)
 		} else {
 			// octal int or float
-			seenDecimalDigit := false
 			tkn.scanMantissa(8)
 			if tkn.lastChar == '8' || tkn.lastChar == '9' {
-				// illegal octal int or float
-				seenDecimalDigit = true
 				tkn.scanMantissa(10)
 			}
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
-			}
-			// octal int
-			if seenDecimalDigit {
-				// tkn.setErr called in caller
-				return LexError, tkn.bytes()
 			}
 		}
 		goto exit
@@ -763,6 +755,7 @@ exponent:
 exit:
 	t := tkn.bytes()
 	if len(t) == 0 {
+		tkn.setErr("Parse error: ended up with zero-length number.")
 		return LexError, nil
 	}
 	return Number, t
