@@ -257,7 +257,7 @@ snmp_listener:
 `))
 	assert.NoError(t, err)
 
-	Output := ParseConfigSnmpMain()
+	Output, _ := parseConfigSnmpMain()
 	Exoutput := []SNMPConfig{
 		{
 			Version:         "1",
