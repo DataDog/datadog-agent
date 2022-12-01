@@ -681,13 +681,11 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 		}
 
 		clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
+		c, clientInput, err := nettestutil.StartCommand(clientCmd)
+		require.NoError(t, err)
 
 		go func() {
 			defer close(done)
-			c, clientInput, err := nettestutil.StartCommand(clientCmd)
-			require.NoError(t, err)
-			_, err = clientInput.Write([]byte{1})
-			require.NoError(t, err)
 			err = c.Wait()
 			require.NoError(t, err)
 
@@ -698,6 +696,9 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 		require.NoError(t, err)
 		defer tr.Stop()
 		require.NoError(t, tr.RegisterClient("1"))
+
+		_, err = clientInput.Write([]byte{1})
+		require.NoError(t, err)
 
 		<-done
 
