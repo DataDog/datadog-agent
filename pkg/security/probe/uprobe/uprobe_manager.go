@@ -163,14 +163,14 @@ func HandleNewMountNamespace(event *model.NewMountNSEvent) {
 
 			err := attachProbe(m, newUprobe)
 			if err != nil {
-				seclog.Warnf("failed to attach container uprobe %w", err)
+				seclog.Errorf("failed to attach container uprobe %s/%s:%s err: %w", newUprobe.pID.UID, newUprobe.desc.Path, newUprobe.desc.FunctionName, err)
 				continue
 			}
 
 			allUProbes[up.id] = newUprobe
 			containerUProbes[event.PidOne] = append(containerUProbes[event.PidOne], newUprobe)
 
-			seclog.Infof("attached uprobe %s:%s to container with pid %d", newUprobe.desc.Path, newUprobe.desc.FunctionName, event.PidOne)
+			seclog.Infof("attached uprobe %s/%s:%s", newUprobe.pID.UID, newUprobe.desc.Path, newUprobe.desc.FunctionName)
 		}
 	}
 }
@@ -178,9 +178,9 @@ func HandleNewMountNamespace(event *model.NewMountNSEvent) {
 func HandleProcessExit(event *model.ExitEvent) {
 	for _, up := range containerUProbes[event.PIDContext.Tid] {
 		if err := m.DetachHook(up.pID); err != nil {
-			seclog.Warnf("failed to detach uprobe %s:%s from pid %d", up.desc.Path, up.desc.FunctionName, event.PIDContext.Pid)
+			seclog.Warnf("failed to detach uprobe %s/%s:%s err: %w", up.pID.UID, up.desc.Path, up.desc.FunctionName, err)
 		} else {
-			seclog.Infof("detached uprobe %s:%s from container with pid %d", up.desc.Path, up.desc.FunctionName, event.PIDContext.Pid)
+			seclog.Infof("detached uprobe %s/%s:%s", up.pID.UID, up.desc.Path, up.desc.FunctionName)
 		}
 		delete(allUProbes, up.id)
 	}
