@@ -40,7 +40,9 @@ func TestServerlessServiceRewrite(t *testing.T) {
 	tp.Chunks[0].Spans[0].Service = "aws.lambda"
 	go agnt.Process(&api.Payload{
 		TracerPayload: tp,
-		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		Meta: api.Metadata{
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		},
 	})
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
@@ -72,7 +74,9 @@ func TestInferredSpanFunctionTagFiltering(t *testing.T) {
 	tp.Chunks[0].Spans[1].Meta["_dd_origin"] = "lambda"
 	go agnt.Process(&api.Payload{
 		TracerPayload: tp,
-		Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		Meta: api.Metadata{
+			Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		},
 	})
 	timeout := time.After(2 * time.Second)
 	select {
