@@ -1332,7 +1332,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)
+		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(nil, nil, span)
 		Truncate(span)
 	}
 	return t
@@ -1985,7 +1985,7 @@ func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
 
 	span := &pb.Span{}
 
-	agnt.setRootSpanTags(span)
+	agnt.setRootSpanTags(nil, &traceutil.ProcessedTrace{Root: span})
 
 	assert.Contains(t, span.Meta, "aas.site.kind")
 }

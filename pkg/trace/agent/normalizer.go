@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -146,96 +145,83 @@ func normalize(ts *info.TagStats, s *pb.Span) error {
 // normalizeChunk takes a trace chunk and
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
-func normalizeChunk(chunk *pb.TraceChunk, root *pb.Span) {
+func normalizeChunk(_ *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	// check if priority is already populated
-	if chunk.Priority == int32(sampler.PriorityNone) {
+	if pt.TraceChunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
-		if p, ok := root.Metrics[tagSamplingPriority]; ok {
-			chunk.Priority = int32(p)
+		if p, ok := pt.Root.Metrics[tagSamplingPriority]; ok {
+			pt.TraceChunk.Priority = int32(p)
 		} else {
-			for _, s := range chunk.Spans {
+			for _, s := range pt.TraceChunk.Spans {
 				if p, ok := s.Metrics[tagSamplingPriority]; ok {
-					chunk.Priority = int32(p)
+					pt.TraceChunk.Priority = int32(p)
 					break
 				}
 			}
 		}
 	}
-	if chunk.Origin == "" && root.Meta != nil {
+	if pt.TraceChunk.Origin == "" && pt.Root.Meta != nil {
 		// Older tracers set origin in the root span.
-		chunk.Origin = root.Meta[tagOrigin]
+		pt.TraceChunk.Origin = pt.Root.Meta[tagOrigin]
 	}
+	return nil
 }
 
-// normalizeTrace takes a trace and
-// * rejects the trace if there is a trace ID discrepancy between 2 spans
-// * rejects the trace if two spans have the same span_id
-// * rejects empty traces
-// * rejects traces where at least one span cannot be normalized
-// * return the normalized trace and an error:
-//   - nil if the trace can be accepted
-//   - a reason tag explaining the reason the traces failed normalization
-func normalizeTrace(ts *info.TagStats, t pb.Trace) error {
-	if len(t) == 0 {
-		ts.TracesDropped.EmptyTrace.Inc()
-		return errors.New("trace is empty (reason:empty_trace)")
+
+func testNormalizeTrace(ts *info.TagStats, t pb.Trace) error {
+	m := &api.Metadata{
+		Source: ts,
 	}
-
-	spanIDs := make(map[uint64]struct{})
-	firstSpan := t[0]
-
-	for _, span := range t {
-		if span == nil {
-			continue
-		}
-		if firstSpan == nil {
-			firstSpan = span
-		}
-		if span.TraceID != firstSpan.TraceID {
-			ts.TracesDropped.ForeignSpan.Inc()
-			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
-		}
-		if err := normalize(ts, span); err != nil {
-			return err
-		}
-		if _, ok := spanIDs[span.SpanID]; ok {
-			ts.SpansMalformed.DuplicateSpanID.Inc()
-			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
-		}
-		spanIDs[span.SpanID] = struct{}{}
+	pt := &traceutil.ProcessedTrace{
+		TraceChunk: &pb.TraceChunk{
+			Spans: t,
+		},
+		Root: traceutil.GetRoot(t),
 	}
-
-	return nil
+	return normalizeSpans(m, pt)
 }
 
 // normalizeSpan takes a span and
 // * rejects the trace if there is a trace ID discrepancy between Span s and the Root span
 // * rejects the trace if s cannot be normalized
+// * removes nil spans from the chunk
+// * counts instances of duplicate span IDs
 // * returns an error:
 //   - nil if the trace can be accepted
 //   - a reason tag explaining the reason the traces failed normalization
-func normalizeSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-	if s.TraceID != pt.Root.TraceID {
-		m.Source.TracesDropped.ForeignSpan.Inc()
-		return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", s)
-	}
-	if err := normalize(m.Source, s); err != nil {
-		return err
+func normalizeSpans(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	spanIDs := make(map[uint64]struct{})
+	for _, s := range pt.TraceChunk.Spans {
+		if s == nil {
+			continue
+		}
+		if s.TraceID != pt.Root.TraceID {
+			m.Source.TracesDropped.ForeignSpan.Inc()
+			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", s)
+		}
+		if err := normalize(m.Source, s); err != nil {
+			return err
+		}
+		if _, ok := spanIDs[s.SpanID]; ok {
+			m.Source.SpansMalformed.DuplicateSpanID.Inc()
+			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", s)
+		}
+		spanIDs[s.SpanID] = struct{}{}
 	}
 	return nil
 }
 
-// findDuplicateSpanIDs will count duplicate spans in a trace
-func findDuplicateSpanIDs(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	spanIDs := make(map[uint64]struct{})
-	for _, span := range pt.TraceChunk.Spans {
-		if _, ok := spanIDs[span.SpanID]; ok {
-			m.Source.SpansMalformed.DuplicateSpanID.Inc()
-			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
+func filterNil(ss []*pb.Span) []*pb.Span {
+	var k int
+	for i := range ss {
+		if ss[i] == nil {
+			continue
 		}
-		spanIDs[span.SpanID] = struct{}{}
+		ss[k] = ss[i]
+		k++
 	}
-	return nil
+	ss = ss[:k]
+	return ss
 }
 
 func normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {

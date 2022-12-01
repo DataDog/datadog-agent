@@ -85,7 +85,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.obfuscateSpan(nil, nil, span)
 		assert.Equal(t, cmd, span.Meta["redis.raw_command"])
 		assert.Equal(t, "SET GET", span.Resource)
 	})
@@ -99,7 +99,7 @@ func TestObfuscateDefaults(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.obfuscateSpan(nil, nil, span)
 		assert.Equal(t, query, span.Meta["sql.query"])
 		assert.Equal(t, "UPDATE users ( name ) SET ( ? )", span.Resource)
 	})
@@ -128,7 +128,7 @@ func TestObfuscateConfig(t *testing.T) {
 			agnt := NewAgent(ctx, cfg)
 			defer cancelFunc()
 			span := &pb.Span{Type: typ, Meta: map[string]string{key: val}}
-			agnt.obfuscateSpan(span)
+			agnt.obfuscateSpan(nil, nil, span)
 			assert.Equal(t, exp, span.Meta[key])
 		}
 	}
@@ -244,7 +244,7 @@ func TestSQLResourceQuery(t *testing.T) {
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
-	agnt.obfuscateSpan(span)
+	agnt.obfuscateSpan(nil, nil, span)
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
 	assert.Equal("SELECT * FROM users WHERE id = 42", span.Meta["sql.query"])
 }
@@ -258,7 +258,7 @@ func TestSQLResourceWithoutQuery(t *testing.T) {
 
 	agnt, stop := agentWithDefaults()
 	defer stop()
-	agnt.obfuscateSpan(span)
+	agnt.obfuscateSpan(nil, nil, span)
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Resource)
 	assert.Equal("SELECT * FROM users WHERE id = ?", span.Meta["sql.query"])
 }
@@ -300,7 +300,7 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
-		agnt.obfuscateSpan(&tc.span)
+		agnt.obfuscateSpan(nil, nil, &tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
 		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
 	}
@@ -315,7 +315,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.obfuscateSpan(nil, nil, span)
 		assert.Equal(t, "users", span.Meta["sql.tables"])
 
 	})
@@ -327,7 +327,7 @@ func TestSQLTableNames(t *testing.T) {
 		}
 		agnt, stop := agentWithDefaults()
 		defer stop()
-		agnt.obfuscateSpan(span)
+		agnt.obfuscateSpan(nil, nil, span)
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
 }

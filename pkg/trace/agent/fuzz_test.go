@@ -92,7 +92,7 @@ func FuzzObfuscateSpan(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid span: %v", err)
 		}
-		agent.obfuscateSpan(&pbSpan)
+		agent.obfuscateSpan(nil, nil, &pbSpan)
 		encPostObfuscate, err := encode(&pbSpan)
 		if err != nil {
 			t.Fatalf("obfuscateSpan returned an invalid span: %v", err)
@@ -127,9 +127,15 @@ func FuzzNormalizeTrace(f *testing.F) {
 		if err != nil {
 			t.Skipf("Skipping invalid trace: %v", err)
 		}
+		// Nil Spans are filtered before normalization
+		pbTrace = filterNil(pbTrace)
 		ts := newTagStats()
-		if err := normalizeTrace(ts, pbTrace); err != nil {
+		if err := testNormalizeTrace(ts, pbTrace); err != nil {
 			t.Skipf("Skipping rejected trace: %v", err)
+		}
+		// Handle special case. Encoding a zero-length trace is decoded as nil, which is fine.
+		if len(pbTrace) == 0 {
+			pbTrace = nil
 		}
 		encPostNorm, err := encode(pbTrace)
 		if err != nil {

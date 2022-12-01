@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -28,12 +29,12 @@ const (
 	textNonParsable = "Non-parsable SQL query"
 )
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
+func (a *Agent) obfuscateSpan(_ *api.Metadata, _ *traceutil.ProcessedTrace, span *pb.Span) error {
 	o := a.obfuscator
 	switch span.Type {
 	case "sql", "cassandra":
 		if span.Resource == "" {
-			return
+			return nil
 		}
 		oq, err := o.ObfuscateSQLString(span.Resource)
 		if err != nil {
@@ -46,7 +47,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 				span.Meta[tagSQLQuery] = textNonParsable
 			}
 			span.Resource = textNonParsable
-			return
+			return nil
 		}
 
 		span.Resource = oq.Query
@@ -56,7 +57,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		}
 		if span.Meta != nil && span.Meta[tagSQLQuery] != "" {
 			// "sql.query" tag already set by user, do not change it.
-			return
+			return nil
 		}
 		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
 	case "redis":
@@ -64,7 +65,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if a.conf.Obfuscation.Redis.Enabled {
 			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
 				// nothing to do
-				return
+				return nil
 			}
 			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
 		}
@@ -72,32 +73,33 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		if a.conf.Obfuscation.Memcached.Enabled {
 			v, ok := span.Meta[tagMemcachedCommand]
 			if span.Meta == nil || !ok {
-				return
+				return nil
 			}
 			span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(v)
 		}
 	case "web", "http":
 		if span.Meta == nil {
-			return
+			return nil
 		}
 		v, ok := span.Meta[tagHTTPURL]
 		if !ok || v == "" {
-			return
+			return nil
 		}
 		span.Meta[tagHTTPURL] = o.ObfuscateURLString(v)
 	case "mongodb":
 		v, ok := span.Meta[tagMongoDBQuery]
 		if span.Meta == nil || !ok {
-			return
+			return nil
 		}
 		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(v)
 	case "elasticsearch":
 		v, ok := span.Meta[tagElasticBody]
 		if span.Meta == nil || !ok {
-			return
+			return nil
 		}
 		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(v)
 	}
+	return nil
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {

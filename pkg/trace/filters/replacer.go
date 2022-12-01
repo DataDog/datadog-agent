@@ -8,8 +8,10 @@ package filters
 import (
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Replacer is a filter which replaces tag values based on its
@@ -24,7 +26,7 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 }
 
 // Replace replaces all tags matching the Replacer's rules.
-func (f Replacer) Replace(s *pb.Span) {
+func (f Replacer) Replace(_ *api.Metadata, _ *traceutil.ProcessedTrace, s *pb.Span) error {
 	for _, rule := range f.rules {
 		key, str, re := rule.Name, rule.Repl, rule.Re
 		switch key {
@@ -45,6 +47,7 @@ func (f Replacer) Replace(s *pb.Span) {
 			s.Meta[key] = re.ReplaceAllString(s.Meta[key], str)
 		}
 	}
+	return nil
 }
 
 // ReplaceStatsGroup applies the replacer rules to the given stats bucket group.

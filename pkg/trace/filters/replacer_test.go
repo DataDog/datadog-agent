@@ -67,7 +67,7 @@ func TestReplacer(t *testing.T) {
 			childSpan := replaceFilterTestSpan(tt.got)
 			trace := pb.Trace{root, childSpan}
 			for _, s := range trace {
-				tr.Replace(s)
+				tr.Replace(nil, nil, s)
 			}
 			for k, v := range tt.want {
 				switch k {

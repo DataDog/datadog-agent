@@ -204,22 +204,23 @@ func (a *Agent) loop() {
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.
-func (a *Agent) setRootSpanTags(root *pb.Span) {
-	clientSampleRate := sampler.GetGlobalRate(root)
-	sampler.SetClientRate(root, clientSampleRate)
+func (a *Agent) setRootSpanTags(_ *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	clientSampleRate := sampler.GetGlobalRate(pt.Root)
+	sampler.SetClientRate(pt.Root, clientSampleRate)
 
 	if ratelimiter := a.Receiver.RateLimiter; ratelimiter.Active() {
 		rate := ratelimiter.RealRate()
-		sampler.SetPreSampleRate(root, rate)
+		sampler.SetPreSampleRate(pt.Root, rate)
 	}
 
 	// TODO: add azure specific tags here (at least for now, so chill out and
 	// just do it) "it doesn't have to be pretty it just has to work"
 	if a.conf.InAzureAppServices {
 		for k, v := range traceutil.GetAppServicesTags() {
-			traceutil.SetMeta(root, k, v)
+			traceutil.SetMeta(pt.Root, k, v)
 		}
 	}
+	return nil
 }
 
 func normalizePayloadEnv(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
@@ -227,27 +228,24 @@ func normalizePayloadEnv(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
-func discardSpans(a *Agent) func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-		if a.DiscardSpan == nil {
-			return nil
-		}
-		n := 0
-		for _, span := range pt.TraceChunk.Spans {
-			if !a.DiscardSpan(span) {
-				pt.TraceChunk.Spans[n] = span
-				n++
-			}
-		}
-		// set everything at the back of the array to nil to avoid memory leaking
-		// since we're going to have garbage elements at the back of the slice.
-		for i := n; i < len(pt.TraceChunk.Spans); i++ {
-			pt.TraceChunk.Spans[i] = nil
-		}
-		pt.TraceChunk.Spans = pt.TraceChunk.Spans[:n]
+func (a *Agent) discardSpans(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	if a.DiscardSpan == nil {
 		return nil
 	}
-
+	n := 0
+	for _, span := range pt.TraceChunk.Spans {
+		if !a.DiscardSpan(span) {
+			pt.TraceChunk.Spans[n] = span
+			n++
+		}
+	}
+	// set everything at the back of the array to nil to avoid memory leaking
+	// since we're going to have garbage elements at the back of the slice.
+	for i := n; i < len(pt.TraceChunk.Spans); i++ {
+		pt.TraceChunk.Spans[i] = nil
+	}
+	pt.TraceChunk.Spans = pt.TraceChunk.Spans[:n]
+	return nil
 }
 
 func rejectEmpty(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
@@ -262,31 +260,23 @@ func countSpansReceived(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
-func normalizeChunkTF(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	normalizeChunk(pt.TraceChunk, pt.Root)
+
+func (a *Agent) blocklist(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	if !a.Blacklister.Allows(pt.Root) {
+		m.Source.TracesFiltered.Inc()
+		m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
+		return fmt.Errorf("Trace rejected by ignore resources rules. root: %v", pt.Root)
+	}
 	return nil
 }
 
-func blocklist(a *Agent) Transformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-		if !a.Blacklister.Allows(pt.Root) {
-			m.Source.TracesFiltered.Inc()
-			m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
-			return fmt.Errorf("Trace rejected by ignore resources rules. root: %v", pt.Root)
-		}
-		return nil
+func (a *Agent) tagFilter(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
+	if filteredByTags(pt.Root, a.conf.RequireTags, a.conf.RejectTags) {
+		m.Source.TracesFiltered.Inc()
+		m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
+		return fmt.Errorf("Trace rejected as it fails to meet tag requirements. root: %v", pt.Root)
 	}
-}
-
-func tagFilter(a *Agent) Transformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-		if filteredByTags(pt.Root, a.conf.RequireTags, a.conf.RejectTags) {
-			m.Source.TracesFiltered.Inc()
-			m.Source.SpansFiltered.Add(int64(len(pt.TraceChunk.Spans)))
-			return fmt.Errorf("Trace rejected as it fails to meet tag requirements. root: %v", pt.Root)
-		}
-		return nil
-	}
+	return nil
 }
 
 func eachSpan(fs ...SpanTransformer) Transformer {
@@ -302,34 +292,24 @@ func eachSpan(fs ...SpanTransformer) Transformer {
 	}
 }
 
-func applyGlobalTags(a *Agent) SpanTransformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-		for k, v := range a.conf.GlobalTags {
-			if k == tagOrigin {
-				pt.TraceChunk.Origin = v
-			} else {
-				traceutil.SetMeta(s, k, v)
-			}
+func (a *Agent) applyGlobalTags(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+	for k, v := range a.conf.GlobalTags {
+		if k == tagOrigin {
+			pt.TraceChunk.Origin = v
+		} else {
+			traceutil.SetMeta(s, k, v)
 		}
-		return nil
 	}
+	return nil
 }
 
-func modifySpan(a *Agent) SpanTransformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-		if a.ModifySpan != nil {
-			a.ModifySpan(s)
-		}
-		return nil
+func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
+	if a.ModifySpan != nil {
+		a.ModifySpan(s)
 	}
+	return nil
 }
 
-func obfuscateSpan(a *Agent) SpanTransformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-		a.obfuscateSpan(s)
-		return nil
-	}
-}
 
 func truncateSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
 	Truncate(s)
@@ -343,19 +323,7 @@ func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) e
 	return nil
 }
 
-func replaceTags(a *Agent) SpanTransformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-		a.Replacer.Replace(s)
-		return nil
-	}
-}
 
-func setRootSpanTags(a *Agent) Transformer {
-	return func(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-		a.setRootSpanTags(pt.Root)
-		return nil
-	}
-}
 
 func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	if !m.ClientComputedTopLevel {
@@ -372,25 +340,22 @@ type SpanTransformer func(*api.Metadata, *traceutil.ProcessedTrace, *pb.Span) er
 func (a *Agent) transformers() []Transformer {
 	return []Transformer{
 		normalizePayloadEnv,
-		discardSpans(a),
+		a.discardSpans,
 		rejectEmpty,
 		countSpansReceived,
-		normalizeChunkTF,
-		findDuplicateSpanIDs,
+		normalizeChunk,
+		normalizeSpans,
+		a.blocklist,
+		a.tagFilter,
 		eachSpan(
-			normalizeSpan,
-		),
-		blocklist(a),
-		tagFilter(a),
-		eachSpan(
-			applyGlobalTags(a),
-			modifySpan(a),
-			obfuscateSpan(a),
+			a.applyGlobalTags,
+			a.modifySpan,
+			a.obfuscateSpan,
 			truncateSpan,
 			updateTopLevel,
-			replaceTags(a),
+			a.Replacer.Replace,
 		),
-		setRootSpanTags(a),
+		a.setRootSpanTags,
 		computeTopLevel,
 	}
 }
@@ -420,6 +385,8 @@ func (a *Agent) Process(p *api.Payload) {
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
+		// Remove nil spans from the chunk. The rest of the code can assume a span is not nil.
+		chunk.Spans = filterNil(chunk.Spans)
 		root := traceutil.GetRoot(chunk.Spans)
 		if p.TracerPayload.Hostname == "" {
 			// Older tracers set tracer hostname in the root span.
@@ -447,11 +414,11 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		// Sample
 		if !p.Meta.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
+		// Sampling
 		numEvents, keep, filteredChunk := a.sample(now, ts, pt)
 		if !keep {
 			keep = sampler.ApplySpanSampling(chunk)

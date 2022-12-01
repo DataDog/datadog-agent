@@ -395,12 +395,6 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 	assert.Equal(t, newTagStats(), ts)
 }
 
-func TestNormalizeTraceEmpty(t *testing.T) {
-	ts, trace := newTagStats(), pb.Trace{}
-	err := normalizeTrace(ts, trace)
-	assert.Error(t, err)
-	assert.Equal(t, tsDropped(&info.TracesDropped{EmptyTrace: *atomic.NewInt64(1)}), ts)
-}
 
 func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	ts := newTagStats()
@@ -409,7 +403,7 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	span1.TraceID = 1
 	span2.TraceID = 2
 	trace := pb.Trace{span1, span2}
-	err := normalizeTrace(ts, trace)
+	err := testNormalizeTrace(ts, trace)
 	assert.Error(t, err)
 	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
 }
@@ -420,7 +414,7 @@ func TestNormalizeTraceInvalidSpan(t *testing.T) {
 
 	span2.Name = "" // invalid
 	trace := pb.Trace{span1, span2}
-	err := normalizeTrace(ts, trace)
+	err := testNormalizeTrace(ts, trace)
 	assert.NoError(t, err)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{SpanNameEmpty: *atomic.NewInt64(1)}), ts)
 }
@@ -431,7 +425,7 @@ func TestNormalizeTraceDuplicateSpanID(t *testing.T) {
 
 	span2.SpanID = span1.SpanID
 	trace := pb.Trace{span1, span2}
-	err := normalizeTrace(ts, trace)
+	err := testNormalizeTrace(ts, trace)
 	assert.NoError(t, err)
 	assert.Equal(t, tsMalformed(&info.SpansMalformed{DuplicateSpanID: *atomic.NewInt64(1)}), ts)
 }
@@ -442,7 +436,7 @@ func TestNormalizeTrace(t *testing.T) {
 
 	span2.SpanID++
 	trace := pb.Trace{span1, span2}
-	err := normalizeTrace(ts, trace)
+	err := testNormalizeTrace(ts, trace)
 	assert.NoError(t, err)
 }
 
@@ -461,7 +455,7 @@ func TestNormalizeChunkPopulatingOrigin(t *testing.T) {
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Origin = ""
-	normalizeChunk(chunk, root)
+	normalizeChunk(nil, &traceutil.ProcessedTrace{Root: root, TraceChunk: chunk})
 	assert.Equal("rum", chunk.Origin)
 }
 
@@ -471,7 +465,7 @@ func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Origin = "lambda"
-	normalizeChunk(chunk, root)
+	normalizeChunk(nil, &traceutil.ProcessedTrace{Root: root, TraceChunk: chunk})
 	assert.Equal("lambda", chunk.Origin)
 }
 
@@ -481,7 +475,7 @@ func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {
 	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Priority = int32(sampler.PriorityNone)
-	normalizeChunk(chunk, root)
+	normalizeChunk(nil, &traceutil.ProcessedTrace{Root: root, TraceChunk: chunk})
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
@@ -491,7 +485,7 @@ func TestNormalizeChunkNotPopulatingSamplingPriority(t *testing.T) {
 	traceutil.SetMetric(root, "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
 	chunk := testutil.TraceChunkWithSpan(root)
 	chunk.Priority = int32(sampler.PriorityAutoDrop)
-	normalizeChunk(chunk, root)
+	normalizeChunk(nil, &traceutil.ProcessedTrace{Root: root, TraceChunk: chunk})
 	assert.EqualValues(sampler.PriorityAutoDrop, chunk.Priority)
 }
 
@@ -504,7 +498,7 @@ func TestNormalizePopulatePriorityFromAnySpan(t *testing.T) {
 	chunk.Spans[0].Metrics = nil
 	chunk.Spans[2].Metrics = nil
 	traceutil.SetMetric(chunk.Spans[1], "_sampling_priority_v1", float64(sampler.PriorityAutoKeep))
-	normalizeChunk(chunk, root)
+	normalizeChunk(nil, &traceutil.ProcessedTrace{Root: root, TraceChunk: chunk})
 	assert.EqualValues(sampler.PriorityAutoKeep, chunk.Priority)
 }
 
