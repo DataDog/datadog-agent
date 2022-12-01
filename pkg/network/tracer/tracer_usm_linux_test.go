@@ -608,12 +608,12 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 	return func(t *testing.T) {
 		const (
-			ServerAddr          = "localhost:8081"
-			ExpectedOccurrences = 10
+			serverAddr          = "localhost:8081"
+			expectedOccurrences = 10
 		)
 
 		// Setup
-		closeServer := testutil.HTTPServer(t, ServerAddr, testutil.Options{
+		closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
 			EnableTLS: true,
 		})
 		defer closeServer()
@@ -631,14 +631,14 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 
 		// This maps will keep track of whether or not the tracer saw this request already or not
 		reqs := make(requestsMap)
-		for i := 0; i < ExpectedOccurrences; i++ {
-			req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", ServerAddr, nethttp.StatusOK, i), nil)
+		for i := 0; i < expectedOccurrences; i++ {
+			req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
 			require.NoError(t, err)
 			reqs[req] = false
 		}
 
 		// Test
-		clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
+		clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, expectedOccurrences)
 		c, clientInput, err := nettestutil.StartCommand(clientCmd)
 		require.NoError(t, err)
 		_, err = clientInput.Write([]byte{1})
@@ -646,19 +646,19 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 		err = c.Wait()
 		require.NoError(t, err)
 
-		checkRequests(t, tr, ExpectedOccurrences, reqs)
+		checkRequests(t, tr, expectedOccurrences, reqs)
 	}
 }
 
 func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 	return func(t *testing.T) {
 		const (
-			ServerAddr          = "localhost:8081"
-			ExpectedOccurrences = 10
+			serverAddr          = "localhost:8081"
+			expectedOccurrences = 10
 		)
 
 		// Setup
-		var closeServer func() = testutil.HTTPServer(t, ServerAddr, testutil.Options{
+		var closeServer func() = testutil.HTTPServer(t, serverAddr, testutil.Options{
 			EnableTLS: true,
 		})
 
@@ -674,13 +674,13 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 
 		// This maps will keep track of whether or not the tracer saw this request already or not
 		reqs := make(requestsMap)
-		for i := 0; i < ExpectedOccurrences; i++ {
-			req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", ServerAddr, nethttp.StatusOK, i), nil)
+		for i := 0; i < expectedOccurrences; i++ {
+			req, err := nethttp.NewRequest(nethttp.MethodGet, fmt.Sprintf("https://%s/%d/request-%d", serverAddr, nethttp.StatusOK, i), nil)
 			require.NoError(t, err)
 			reqs[req] = false
 		}
 
-		clientCmd := fmt.Sprintf("%s %s %d", clientBin, ServerAddr, ExpectedOccurrences)
+		clientCmd := fmt.Sprintf("%s %s %d", clientBin, serverAddr, expectedOccurrences)
 		c, clientInput, err := nettestutil.StartCommand(clientCmd)
 		require.NoError(t, err)
 
@@ -702,7 +702,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(clientBin string) func(t *testing.T) {
 
 		<-done
 
-		checkRequests(t, tr, ExpectedOccurrences, reqs)
+		checkRequests(t, tr, expectedOccurrences, reqs)
 	}
 }
 
