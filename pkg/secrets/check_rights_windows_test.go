@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func setCorrectRight(path string) {
@@ -28,6 +30,11 @@ func setCorrectRight(path string) {
 
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
+}
+
+func testCheckRightsStub() {
+	// Stub for CI since running as Administrator and no installer data
+	getDDAgentUserSID = winutil.GetSidFromUser
 }
 
 func TestCheckRights(t *testing.T) {

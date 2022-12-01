@@ -15,6 +15,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -58,9 +59,24 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	secretuser, err := winutil.GetSidFromUser()
+	currentUser, err := winutil.GetSidFromUser()
 	if err != nil {
 		return fmt.Errorf("could not get SID for current user: %s", err)
+	}
+
+	secretuser := currentUser
+
+	elevated, err := winutil.IsProcessElevated()
+	if err != nil {
+		return fmt.Errorf("unable to determine if running elevated: %s", err)
+	}
+
+	if elevated || currentUser.Equals(localSystem) {
+		ddUser, err := getDDAgentUserSID()
+		if err != nil {
+			return fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
+		}
+		secretuser = ddUser
 	}
 
 	bSecretUserExplicitlyAllowed := false
@@ -134,6 +150,27 @@ func getAdministratorsSID() (*windows.SID, error) {
 		0, 0, 0, 0, 0, 0,
 		&administrators)
 	return administrators, err
+}
+
+var getDDAgentUserSID = func() (*windows.SID, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Datadog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		return nil, fmt.Errorf("could not open installer registry key: %s", err)
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return nil, fmt.Errorf("could not read installedUser in registry: %s", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return nil, fmt.Errorf("could not read installedDomain in registry: %s", err)
+	}
+
+	sid, _, _, err := windows.LookupSID(domain, user)
+	return sid, err
 }
 
 var checkConfigRights = func(filename string) error {
