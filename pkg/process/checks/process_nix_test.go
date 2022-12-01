@@ -125,7 +125,7 @@ func TestBasicProcessMessages(t *testing.T) {
 			networks := make(map[int32][]*model.Connection)
 
 			procs := fmtProcesses(cfg, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, tc.containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(procs, tc.containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid", []model.CollectorProcHint{})
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 
@@ -237,7 +237,7 @@ func TestContainerProcessChunking(t *testing.T) {
 			sysInfo := &model.SystemInfo{}
 
 			processes := fmtProcesses(cfg, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, ctrs, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			messages, totalProcs, totalContainers := createProcCtrMessages(processes, ctrs, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid", []model.CollectorProcHint{})
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)

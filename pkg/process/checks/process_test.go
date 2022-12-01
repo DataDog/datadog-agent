@@ -40,6 +40,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 			},
 		},
 		containerProvider: mockContainerProvider(t),
+		nextGroupTime:     time.Now().Unix(),
+		secsBetweenHints:  1,
 	}, probe
 }
 
@@ -111,32 +113,100 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc2)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc4)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc5)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 	}
 	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
 	assert.Nil(t, actual.RealTime)
+}
+
+func TestProcessCheckHints(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	processesByPid := map[int32]*procutil.Process{1: proc1}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.Equal(t, &RunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
+		},
+	}
+	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
+	assert.Nil(t, actual.RealTime)
+
+	expectedTwo := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintUnspecified,
+			},
+		},
+	}
+
+	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

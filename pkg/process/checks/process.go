@@ -133,11 +133,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return nil, err
 	}
 
-	collectorProcHints := make([]model.CollectorProcHint, 2)
-	if time.Now().Unix() > p.nextGroupTime {
-		collectorProcHints[1] = model.CollectorProcHint_hintProcessDiscovery
-		p.nextGroupTime = time.Now().Unix() + p.secsBetweenHints
-	}
+	collectorProcHints := getHints(time.Now().Unix(), p.nextGroupTime, p.secsBetweenHints)
 
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
@@ -252,6 +248,15 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 		return p.runRealtime(cfg, nextGroupID())
 	}
 	return nil, errors.New("invalid run options for check")
+}
+
+func getHints(currentTime int64, nextGroupTime int64, secsBetweenHints int64) []model.CollectorProcHint {
+	collectorProcHints := make([]model.CollectorProcHint, 2)
+	if currentTime >= nextGroupTime {
+		collectorProcHints[1] = model.CollectorProcHint_hintProcessDiscovery
+		nextGroupTime = currentTime + secsBetweenHints
+	}
+	return collectorProcHints
 }
 
 func createProcCtrMessages(
