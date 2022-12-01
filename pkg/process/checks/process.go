@@ -61,6 +61,9 @@ type ProcessCheck struct {
 
 	maxBatchSize  int
 	maxBatchBytes int
+
+	nextGroupTime    int64
+	secsBetweenHints int64
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -76,9 +79,12 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	p.networkID = networkID
-
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
+
+	p.nextGroupTime = time.Now().Unix()
+	p.secsBetweenHints = 600
+
 }
 
 // Name returns the name of the ProcessCheck.
@@ -127,6 +133,12 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return nil, err
 	}
 
+	collectorProcHints := make([]model.CollectorProcHint, 2)
+	if time.Now().Unix() > p.nextGroupTime {
+		collectorProcHints[1] = model.CollectorProcHint_hintProcessDiscovery
+		p.nextGroupTime = time.Now().Unix() + p.secsBetweenHints
+	}
+
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
@@ -171,7 +183,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 	connsByPID := Connections.getLastConnectionsByPID()
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -251,6 +263,7 @@ func createProcCtrMessages(
 	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
+	hints []model.CollectorProcHint,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
@@ -263,7 +276,7 @@ func createProcCtrMessages(
 		m.Info = sysInfo
 		m.GroupId = groupID
 		m.ContainerHostType = cfg.ContainerHostType
-
+		m.Hints = hints
 		messages = append(messages, m)
 	}
 
