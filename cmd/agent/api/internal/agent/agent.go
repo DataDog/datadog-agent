@@ -126,8 +126,18 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 	if jmxLogFile == "" {
 		jmxLogFile = common.DefaultJmxLogFile
 	}
+
+	// If we're not in an FX app we fallback to pkgflare implementation. Once all app have been migrated to flare we
+	// could remove this.
+	var filePath string
+	var err error
 	log.Infof("Making a flare")
-	filePath, err := flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	if flare != nil {
+		filePath, err = flare.Create(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	} else {
+		filePath, err = pkgflare.CreateArchive(false, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, profile, nil)
+	}
+
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
