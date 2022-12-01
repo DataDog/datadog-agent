@@ -61,7 +61,7 @@ func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 
 	return snmpconfigs
 }
-func ParseConfigSnmpMain() []SNMPConfig {
+func parseConfigSnmpMain() ([]SNMPConfig, error) {
 	snmpconfigs := []SNMPConfig{}
 	configs := []snmplistener.Config{}
 	//the UnmarshalKey stores the result in mapstructures while the snmpconfig is in yaml
@@ -69,6 +69,7 @@ func ParseConfigSnmpMain() []SNMPConfig {
 	err := config.Datadog.UnmarshalKey("snmp_listener.configs", &configs)
 	if err != nil {
 		fmt.Printf("unable to get snmp config from snmp_listener: %v", err)
+		return nil, err
 	}
 	for c := range configs {
 		snmpconfig := SNMPConfig{}
@@ -90,7 +91,7 @@ func ParseConfigSnmpMain() []SNMPConfig {
 
 	}
 
-	return snmpconfigs
+	return snmpconfigs, nil
 
 }
 
@@ -125,7 +126,8 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 			snmpconfigs = append(snmpconfigs, ParseConfigSnmp(c)...)
 		}
 	}
-	snmpconfigs = append(snmpconfigs, ParseConfigSnmpMain()...)
+	snmpconfigMain, _ := parseConfigSnmpMain()
+	snmpconfigs = append(snmpconfigs, snmpconfigMain...)
 
 	return snmpconfigs, nil
 
