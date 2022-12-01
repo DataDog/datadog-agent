@@ -192,21 +192,20 @@ func TestProcessCheckHints(t *testing.T) {
 	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
 	assert.Nil(t, actual.RealTime)
 
-	expectedTwo := []model.MessageBody{
+	expectedUnspecified := []model.MessageBody{
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
 				model.CollectorProcHint_hintUnspecified,
-				model.CollectorProcHint_hintUnspecified,
 			},
 		},
 	}
 
-	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
 	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
+	assert.ElementsMatch(t, expectedUnspecified, actual.Standard) // ordering is not guaranteed
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

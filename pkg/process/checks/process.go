@@ -133,8 +133,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return nil, err
 	}
 
-	collectorProcHints := getHints(time.Now().Unix(), p.nextGroupTime, p.secsBetweenHints)
-
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid := range procs {
@@ -176,6 +174,9 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		}
 		return &RunResult{}, nil
 	}
+
+	collectorProcHints := make([]model.CollectorProcHint, 1, 2)
+	p.processDiscoveryHintCheck(&collectorProcHints)
 
 	connsByPID := Connections.getLastConnectionsByPID()
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
@@ -250,13 +251,13 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 	return nil, errors.New("invalid run options for check")
 }
 
-func getHints(currentTime int64, nextGroupTime int64, secsBetweenHints int64) []model.CollectorProcHint {
-	collectorProcHints := make([]model.CollectorProcHint, 2)
-	if currentTime >= nextGroupTime {
-		collectorProcHints[1] = model.CollectorProcHint_hintProcessDiscovery
-		nextGroupTime = currentTime + secsBetweenHints
+func (p *ProcessCheck) processDiscoveryHintCheck(hints *[]model.CollectorProcHint) {
+	log.Warn("hi")
+	currentTime := time.Now().Unix()
+	if currentTime == p.nextGroupTime {
+		*hints = append(*hints, model.CollectorProcHint_hintProcessDiscovery)
+		p.nextGroupTime = currentTime + p.secsBetweenHints
 	}
-	return collectorProcHints
 }
 
 func createProcCtrMessages(
