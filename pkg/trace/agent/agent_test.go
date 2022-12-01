@@ -1065,6 +1065,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		conf:              cfg,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt)
+	agnt.transformers = agnt.makeTransformers()
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,

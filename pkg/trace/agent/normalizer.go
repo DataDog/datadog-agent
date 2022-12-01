@@ -167,19 +167,6 @@ func normalizeChunk(_ *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
-func testNormalizeTrace(ts *info.TagStats, t pb.Trace) error {
-	m := &api.Metadata{
-		Source: ts,
-	}
-	pt := &traceutil.ProcessedTrace{
-		TraceChunk: &pb.TraceChunk{
-			Spans: t,
-		},
-		Root: traceutil.GetRoot(t),
-	}
-	return normalizeSpans(m, pt)
-}
-
 // normalizeSpan takes a span and
 // * rejects the trace if there is a trace ID discrepancy between Span s and the Root span
 // * rejects the trace if s cannot be normalized

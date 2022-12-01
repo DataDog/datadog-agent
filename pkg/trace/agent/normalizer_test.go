@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -393,6 +394,19 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 	assert.Equal(t, beforeTraceID, s.TraceID)
 	assert.Equal(t, beforeSpanID, s.SpanID)
 	assert.Equal(t, newTagStats(), ts)
+}
+
+func testNormalizeTrace(ts *info.TagStats, t pb.Trace) error {
+	m := &api.Metadata{
+		Source: ts,
+	}
+	pt := &traceutil.ProcessedTrace{
+		TraceChunk: &pb.TraceChunk{
+			Spans: t,
+		},
+		Root: traceutil.GetRoot(t),
+	}
+	return normalizeSpans(m, pt)
 }
 
 func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
