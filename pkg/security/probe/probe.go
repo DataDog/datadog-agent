@@ -308,6 +308,8 @@ func (p *Probe) Init() error {
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
+	uprobe.Init(p.manager)
+
 	return nil
 }
 
@@ -497,6 +499,17 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.NewMountNSEventType:
+		if _, err = event.NewMountNS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode new mount ns event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if event.NewMountNS.PidOne != 0 {
+			uprobe.HandleNewMountNamespace(&event.NewMountNS)
+		}
+
+		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -678,6 +691,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = event.ResolveEventTimestamp()
 		event.Exit.Process = &event.ProcessCacheEntry.Process
+
+		uprobe.HandleProcessExit(&event.Exit)
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))

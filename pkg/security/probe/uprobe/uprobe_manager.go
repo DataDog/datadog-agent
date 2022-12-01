@@ -10,10 +10,15 @@ package uprobe
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
@@ -23,7 +28,10 @@ type uprobe struct {
 	pID  manager.ProbeIdentificationPair
 }
 
-var uprobes = make(map[uint64]*uprobe)
+var allUProbes = make(map[uint64]*uprobe)         // id to uprobe map
+var ruleFilesUprobes = make(map[string][]*uprobe) // path to list of uprobe map
+var containerUProbes = make(map[uint32][]*uprobe) // container pid one to uprobe map
+var m *manager.Manager
 
 var (
 	ErrUProbeRuleMissingPath                 = errors.New("uprobe rule is missing a path value")
@@ -34,14 +42,22 @@ var (
 	ErrUProbeRuleMissingFunctionNameOrOffset = errors.New("uprobe rule requires either a function name or an offset value")
 )
 
+func Init(manager *manager.Manager) {
+	m = manager
+}
+
+func getNextID() uint64 {
+	return uint64(time.Now().UnixNano())
+}
+
 func GetUProbeDesc(id uint64) *model.UProbeDesc {
-	if up, exists := uprobes[id]; exists {
+	if up, exists := allUProbes[id]; exists {
 		return &up.desc
 	}
 	return nil
 }
 
-func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error {
+func CreateUProbeFromRule(rule *rules.Rule) error {
 	pathValues := rule.GetFieldValues("uprobe.path")
 	if len(pathValues) == 0 {
 		return ErrUProbeRuleMissingPath
@@ -88,8 +104,8 @@ func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error
 		return ErrUProbeRuleMissingFunctionNameOrOffset
 	}
 
-	up := uprobe{
-		id: id,
+	up := &uprobe{
+		id: getNextID(),
 		desc: model.UProbeDesc{
 			Path:         pathValue,
 			Version:      versionValue,
@@ -99,11 +115,13 @@ func CreateUProbeFromRule(m *manager.Manager, id uint64, rule *rules.Rule) error
 		},
 	}
 
-	err := attachProbe(m, &up)
+	err := attachProbe(m, up)
 	if err != nil {
 		return err
 	}
-	uprobes[up.id] = &up
+
+	allUProbes[up.id] = up
+	ruleFilesUprobes[up.desc.Path] = append(ruleFilesUprobes[up.desc.Path], up)
 
 	return nil
 }
@@ -112,11 +130,59 @@ func GetActivatedProbes() []manager.ProbesSelector {
 
 	selector := &manager.BestEffort{}
 
-	for _, up := range uprobes {
+	for _, up := range allUProbes {
 		selector.Selectors = append(selector.Selectors, &manager.ProbeSelector{
 			ProbeIdentificationPair: up.pID,
 		})
 	}
 
 	return []manager.ProbesSelector{selector}
+}
+
+func HandleNewMountNamespace(event *model.NewMountNSEvent) {
+	rootPath := utils.RootPath(int32(event.PidOne))
+
+	for path, uProbesForPath := range ruleFilesUprobes {
+		fullPath := filepath.Join(rootPath, path)
+		fInfo, err := os.Stat(fullPath)
+		if err != nil || fInfo.IsDir() {
+			continue
+		}
+
+		for _, up := range uProbesForPath {
+			newUprobe := &uprobe{
+				id: getNextID(),
+				desc: model.UProbeDesc{
+					Path:         fullPath,
+					Version:      up.desc.Version,
+					FunctionName: up.desc.FunctionName,
+					OffsetStr:    up.desc.OffsetStr,
+					Offset:       up.desc.Offset,
+				},
+			}
+
+			err := attachProbe(m, newUprobe)
+			if err != nil {
+				seclog.Warnf("failed to attach container uprobe %w", err)
+				continue
+			}
+
+			allUProbes[up.id] = newUprobe
+			containerUProbes[event.PidOne] = append(containerUProbes[event.PidOne], newUprobe)
+
+			seclog.Infof("attached uprobe %s:%s to container with pid %d", newUprobe.desc.Path, newUprobe.desc.FunctionName, event.PidOne)
+		}
+	}
+}
+
+func HandleProcessExit(event *model.ExitEvent) {
+	for _, up := range containerUProbes[event.PIDContext.Tid] {
+		if err := m.DetachHook(up.pID); err != nil {
+			seclog.Warnf("failed to detach uprobe %s:%s from pid %d", up.desc.Path, up.desc.FunctionName, event.PIDContext.Pid)
+		} else {
+			seclog.Infof("detached uprobe %s:%s from container with pid %d", up.desc.Path, up.desc.FunctionName, event.PIDContext.Pid)
+		}
+		delete(allUProbes, up.id)
+	}
+	delete(containerUProbes, event.PIDContext.Tid)
 }

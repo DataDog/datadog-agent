@@ -587,6 +587,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_socket_bind", EBPFFuncName: "kprobe_security_socket_bind"}},
 				}},
 			},
+
+			// List of probes required to capture DNS events
+			"uprobe": {
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unshare"}, EntryAndExit),
+				},
+			},
 		}
 	}
 

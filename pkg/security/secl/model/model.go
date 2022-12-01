@@ -211,6 +211,7 @@ type Event struct {
 	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
+	NewMountNS       NewMountNSEvent       `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -855,6 +856,12 @@ type CgroupTracingEvent struct {
 	ContainerContext ContainerContext
 	Config           ActivityDumpLoadConfig
 	ConfigCookie     uint32
+}
+
+type NewMountNSEvent struct {
+	PidOne     uint32
+	PidOnePPid uint32
+	Flags      uint32
 }
 
 // ActivityDumpLoadConfig represents the load configuration of an activity dump

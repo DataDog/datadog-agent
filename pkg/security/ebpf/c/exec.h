@@ -109,6 +109,13 @@ struct _tracepoint_sched_process_exec {
     pid_t old_pid;
 };
 
+struct new_mntns_event_t {
+    struct kevent_t event;
+    u32 pid_one;
+    u32 pid_one_parent;
+    u32 flags;
+};
+
 #define MAX_PATH_LEN 256
 
 struct exec_path {
@@ -148,6 +155,15 @@ struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u64),
     .max_entries = 512,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct bpf_map_def SEC("maps/mntns_cache") mntns_cache = {
+    .type = BPF_MAP_TYPE_LRU_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 4096,
     .pinning = 0,
     .namespace = "",
 };
@@ -586,6 +602,18 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
 
+    u32 *mntns = bpf_map_lookup_elem(&mntns_cache, &parent_pid);
+    if (mntns != NULL) {
+        bpf_map_delete_elem(&mntns_cache, &parent_pid);
+        struct new_mntns_event_t new_mntns = {0};
+        new_mntns.flags = *mntns;
+        if (new_mntns.flags & CLONE_NEWPID) {
+            new_mntns.pid_one = pid;
+            new_mntns.pid_one_parent = parent_pid;
+        }
+        send_event_ptr(args, EVENT_NEWMNTNS, &new_mntns);
+    }
+
     return 0;
 }
 
@@ -613,6 +641,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
+    // delete mntns entry
+    bpf_map_delete_elem(&mntns_cache, &pid);
 
     u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
@@ -864,6 +894,36 @@ int kprobe_setup_new_exec(struct pt_regs *ctx) {
     } else {
         fetch_interpreter(ctx, bprm);
     }
+
+    return 0;
+}
+
+SYSCALL_KPROBE1(unshare, unsigned long, flags) {
+    struct syscall_cache_t syscall = {
+        .type = EVENT_NEWMNTNS,
+        .unshare = {
+            .flags = flags,
+        },
+    };
+
+    cache_syscall(&syscall);
+    return 0;
+}
+
+SYSCALL_KRETPROBE(unshare) {
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_NEWMNTNS);
+    if (!syscall) {
+        return 0;
+    }
+
+    int ret = (int)PT_REGS_RC(ctx);
+
+    if (!((syscall->unshare.flags & CLONE_NEWNS) && ret == 0)) {
+        return 0;
+    }
+
+    u32 tid = bpf_get_current_pid_tgid();
+    bpf_map_update_elem(&mntns_cache, &tid, &syscall->unshare.flags, BPF_ANY);
 
     return 0;
 }

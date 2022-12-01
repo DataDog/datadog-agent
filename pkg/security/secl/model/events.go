@@ -89,6 +89,8 @@ const (
 	SyscallsEventType
 	// UProbe event
 	UProbeEventType
+	// New mount namespace event
+	NewMountNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -194,6 +196,8 @@ func (t EventType) String() string {
 		return "syscalls"
 	case UProbeEventType:
 		return "uprobe"
+	case NewMountNSEventType:
+		return "new_mntns"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

@@ -48,14 +48,3 @@ func attachProbe(m *manager.Manager, u *uprobe) error {
 	seclog.Infof("attached %s:%s with UID %s and vuln_id %d\n", u.desc.Path, u.desc.FunctionName, u.pID.UID, u.id)
 	return nil
 }
-
-func GetVulncheckProbe() *manager.Probe {
-	return &manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          UprobeUID,
-			EBPFSection:  UprobeSection,
-			EBPFFuncName: UprobeFuncName,
-		},
-		KeepProgramSpec: true,
-	}
-}

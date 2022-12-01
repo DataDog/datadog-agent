@@ -216,6 +216,10 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } bind;
+
+        struct {
+            u32 flags;
+        } unshare;
     };
 };
 

@@ -848,6 +848,21 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 	return cursor + 4, nil
 }
 
+func (e *NewMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	const size = 12
+	if len(data) < size {
+		return 0, ErrNotEnoughData
+	}
+
+	read := 0
+	e.PidOne = ByteOrder.Uint32(data[0:4])
+	e.PidOnePPid = ByteOrder.Uint32(data[4:8])
+	e.Flags = ByteOrder.Uint32(data[8:12])
+	read += 12
+
+	return validateReadSize(size, read)
+}
+
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 48 {
