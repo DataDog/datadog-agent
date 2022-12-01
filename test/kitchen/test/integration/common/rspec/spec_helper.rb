@@ -918,43 +918,41 @@ def get_sddl_for_object(name)
   sddl
 end
 
-def equal_sddl?(left, right)
-  # First, split the sddl into the ownership (user and group), and the dacl
-  left_array = left.split("D:")
-  right_array = right.split("D:")
+RSpec::Matchers.define :have_sddl_equal_to do |expected|
+  match do |actual|
+    # First, split the sddl into the ownership (user and group), and the dacl
+    left_array = actual.split('D:')
+    right_array = expected.split('D:')
 
-  # compare the ownership & group.  Must be the same
-  if left_array[0] != right_array[0]
-    return false
-  end
-  left_dacl = left_array[1].scan(/(\([^)]*\))/)
-  right_dacl = right_array[1].scan(/(\([^)]*\))/)
+    # compare the ownership & group.  Must be the same
+    return false if left_array[0] != right_array[0]
 
+    left_dacl = left_array[1].scan(/(\([^)]*\))/)
+    right_dacl = right_array[1].scan(/(\([^)]*\))/)
 
-  # if they're different lengths, they're different
-  if left_dacl.length != right_dacl.length
-    return false
-  end
+    # if they're different lengths, they're different
+    return false if left_dacl.length != right_dacl.length
 
-  ## now need to break up the DACL list, because they may be listed in different
-  ## orders... the order doesn't matter but the components should be the same.  So..
+    ## now need to break up the DACL list, because they may be listed in different
+    ## orders... the order doesn't matter but the components should be the same.  So..
 
-  left_dacl.each do |left_entry|
-    found = false
-    right_dacl.each do |right_entry|
-      if left_entry == right_entry
+    left_dacl.each do |left_entry|
+      found = false
+      right_dacl.each do |right_entry|
+        next unless left_entry == right_entry
+
         found = true
         right_dacl.delete(right_entry)
         break
       end
+      return false unless found
     end
-    if !found
-      return false
-    end
+    return false unless right_dacl.empty?
+
+    return true
   end
-  return false if right_dacl.length != 0
-  return true
 end
+
 def get_security_settings
   fname = "secout.txt"
   system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
