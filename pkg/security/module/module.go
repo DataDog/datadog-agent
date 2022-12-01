@@ -413,8 +413,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 
 	uprobesBucket := ruleSet.GetBucket(model.UProbeEventType.String())
 	if uprobesBucket != nil {
-		uprobeRules := uprobesBucket.GetRules()
-		for _, uprobeRule := range uprobeRules {
+		for _, uprobeRule := range uprobesBucket.GetRules() {
 			if err := uprobe.CreateUProbeFromRule(uprobeRule); err != nil {
 				return err
 			}

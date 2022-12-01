@@ -588,7 +588,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				}},
 			},
 
-			// List of probes required to capture DNS events
+			// List of probes required to handle uprobe rules
 			"uprobe": {
 				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unshare"}, EntryAndExit),
