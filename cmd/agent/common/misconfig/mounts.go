@@ -102,7 +102,7 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 		}
 
 		hidepidSetting, hidepid2Set := isHidePid2Set(mountOptsLookup)
-		if hidepid2Set {
+		if !hidepid2Set {
 			// hidepid is not set, no further checks necessary
 			log.Tracef("Proc mounts hidepid=2 or hidepid=invisible option is not set")
 			return nil
