@@ -44,7 +44,6 @@ func newConfig(deps dependencies) (Component, error) {
 		deps.Params.ConfigName,
 		!deps.Params.ConfigLoadSecrets,
 		!deps.Params.ConfigMissingOK,
-		!deps.Params.ExcludeDefaultConfPath,
 		deps.Params.DefaultConfPath)
 	if err != nil {
 		return nil, err
