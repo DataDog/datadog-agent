@@ -80,7 +80,8 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
-	transformers []Transformer
+	// tfs is the list of transformers used by agent.Process()
+	tfs []Transformer
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -115,26 +116,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
-	agnt.transformers = []Transformer{
-		normalizePayloadEnv,
-		agnt.discardSpans,
-		rejectEmpty,
-		countSpansReceived,
-		normalizeChunk,
-		normalizeSpans,
-		agnt.blocklist,
-		agnt.tagFilter,
-		eachSpan(
-			agnt.applyGlobalTags,
-			agnt.modifySpan,
-			agnt.obfuscateSpan,
-			Truncate,
-			updateTopLevel,
-			agnt.Replacer.Replace,
-		),
-		agnt.setRootSpanTags,
-		computeTopLevel,
-	}
 	return agnt
 }
 
@@ -347,6 +328,32 @@ func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
+func (a *Agent) transformers() []Transformer {
+	if a.tfs == nil {
+		a.tfs = []Transformer{
+			normalizePayloadEnv,
+			a.discardSpans,
+			rejectEmpty,
+			countSpansReceived,
+			normalizeChunk,
+			normalizeSpans,
+			a.blocklist,
+			a.tagFilter,
+			eachSpan(
+				a.applyGlobalTags,
+				a.modifySpan,
+				a.obfuscateSpan,
+				Truncate,
+				updateTopLevel,
+				a.Replacer.Replace,
+			),
+			a.setRootSpanTags,
+			computeTopLevel,
+		}
+	}
+	return a.tfs
+}
+
 // Transformer is a transformation of a processed trace.
 type Transformer func(*api.Metadata, *traceutil.ProcessedTrace) error
 
@@ -355,7 +362,7 @@ type SpanTransformer func(*api.Metadata, *traceutil.ProcessedTrace, *pb.Span) er
 
 // transform applies all of the transformations in a.transformers
 func (a *Agent) transform(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	for _, t := range a.transformers {
+	for _, t := range a.transformers() {
 		err := t(m, pt)
 		if err != nil {
 			return err
