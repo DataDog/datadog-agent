@@ -260,7 +260,6 @@ func countSpansReceived(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
-
 func (a *Agent) blocklist(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	if !a.Blacklister.Allows(pt.Root) {
 		m.Source.TracesFiltered.Inc()
@@ -310,7 +309,6 @@ func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.
 	return nil
 }
 
-
 func truncateSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
 	Truncate(s)
 	return nil
@@ -322,8 +320,6 @@ func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) e
 	}
 	return nil
 }
-
-
 
 func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	if !m.ClientComputedTopLevel {
@@ -473,7 +469,6 @@ func newChunksArray(chunks []*pb.TraceChunk) []*pb.TraceChunk {
 }
 
 var _ api.StatsProcessor = (*Agent)(nil)
-
 
 func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion string) pb.ClientStatsPayload {
 	enableContainers := features.Has("enable_cid_stats") || (a.conf.FargateOrchestrator != config.OrchestratorUnknown)

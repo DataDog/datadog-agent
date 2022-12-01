@@ -167,7 +167,6 @@ func normalizeChunk(_ *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
-
 func testNormalizeTrace(ts *info.TagStats, t pb.Trace) error {
 	m := &api.Metadata{
 		Source: ts,

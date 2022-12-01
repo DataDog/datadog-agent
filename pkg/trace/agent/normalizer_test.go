@@ -395,7 +395,6 @@ func TestSpecialZipkinRootSpan(t *testing.T) {
 	assert.Equal(t, newTagStats(), ts)
 }
 
-
 func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	ts := newTagStats()
 	span1, span2 := newTestSpan(), newTestSpan()
