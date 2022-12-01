@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -492,6 +493,15 @@ type ExitEventSerializer struct {
 	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process or number of the signal that caused the process to terminate"`
 }
 
+// UProbeEventSerializer serializes an uprobe event to JSON
+// easyjson:json
+type UProbeEventSerializer struct {
+	Path    string `json:"Path" jsonschema_description:"BinaryPath"`
+	Version string `json:"Version,omitempty" jsonschema_description:"Version"`
+	Func    string `json:"Function" jsonschema_description:"Function name"`
+	Offset  string `json:"Offset,omitempty" jsonschema_description:"Offset"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -513,6 +523,7 @@ type EventSerializer struct {
 	*ProcessContextSerializer   `json:"process,omitempty"`
 	*DDContextSerializer        `json:"dd,omitempty"`
 	*ContainerContextSerializer `json:"container,omitempty"`
+	*UProbeEventSerializer      `json:"uprobe,omitempty"`
 	Date                        utils.EasyjsonTime `json:"date,omitempty"`
 }
 
@@ -918,6 +929,21 @@ func serializeSyscallRetval(retval int64) string {
 	}
 }
 
+func newUProbeEventSerializer(e *Event) *UProbeEventSerializer {
+	up := uprobe.GetUProbeDesc(e.UProbe.ID)
+	if up == nil {
+		return nil
+	}
+
+	upes := &UProbeEventSerializer{
+		Path:    up.Path,
+		Version: up.Version,
+		Func:    up.FunctionName,
+		Offset:  up.OffsetStr,
+	}
+	return upes
+}
+
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	var pc model.ProcessContext
@@ -1161,6 +1187,8 @@ func NewEventSerializer(event *Event) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
+	case model.UProbeEventType:
+		s.UProbeEventSerializer = newUProbeEventSerializer(event)
 	}
 
 	return s

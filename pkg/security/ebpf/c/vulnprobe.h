@@ -2,19 +2,16 @@
 #define _VULNPROBE_H_
 
 #include "defs.h"
-#include "filters.h"
-#include "syscalls.h"
 #include "process.h"
 
-/* struct vulnprobe_event_t { */
-/*     struct kevent_t event; */
-/*     struct process_context_t process; */
-/*     struct span_context_t span; */
-/*     struct container_context_t container; */
-/*     struct syscall_t syscall; */
+struct vulnprobe_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
 
-/*     u64 id; */
-/* }; */
+    u64 id;
+};
 
 __attribute__((always_inline)) static u64 load_vuln_id() {
     u64 vuln_id = 0;
@@ -30,16 +27,14 @@ int uprobe_vuln_detector(void *ctx)
 
     // TODO: probe args
 
-    /* /\* constuct and send the event *\/ */
-    /* struct vulnprobe_event_t event = { */
-    /*     .syscall.retval = 0, */
-    /*     .event.async = 0, */
-    /*     .id = id, */
-    /* }; */
-    /* struct proc_cache_t *entry = fill_process_context(&event.process); */
-    /* fill_container_context(entry, &event.container); */
-    /* fill_span_context(&event.span); */
-    /* send_event(ctx, EVENT_UPROBE, event); */
+    /* constuct and send the event */
+    struct vulnprobe_event_t event = {
+        .id = id,
+    };
+    struct proc_cache_t *entry = fill_process_context(&event.process);
+    fill_container_context(entry, &event.container);
+    fill_span_context(&event.span);
+    send_event(ctx, EVENT_UPROBE, event);
     return 0;
 }
 

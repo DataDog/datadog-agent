@@ -1033,6 +1033,33 @@
       ],
       "description": "SpliceEventSerializer serializes a splice event to JSON"
     },
+    "UProbeEvent": {
+      "properties": {
+        "Path": {
+          "type": "string",
+          "description": "BinaryPath"
+        },
+        "Version": {
+          "type": "string",
+          "description": "Version"
+        },
+        "Function": {
+          "type": "string",
+          "description": "Function name"
+        },
+        "Offset": {
+          "type": "string",
+          "description": "Offset"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "Path",
+        "Function"
+      ],
+      "description": "UProbeEventSerializer serializes an uprobe event to JSON"
+    },
     "UserContext": {
       "properties": {
         "id": {
@@ -1103,6 +1130,9 @@
     },
     "container": {
       "$ref": "#/$defs/ContainerContext"
+    },
+    "uprobe": {
+      "$ref": "#/$defs/UProbeEvent"
     },
     "date": {
       "type": "string",
