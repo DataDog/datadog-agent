@@ -14,14 +14,12 @@ package probe
 import (
 	"fmt"
 	"math"
-	"path/filepath"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -67,31 +65,15 @@ func loadCOREProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
 	if kv < kernel.VersionCode(4, 9, 0) {
-		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0.", kv)
+		return nil, fmt.Errorf("detected kernel version %s, but oom-kill probe requires a kernel version of at least 4.9.0", kv)
 	}
 
-	var telemetry ebpf.COREResult
-	defer func() {
-		ebpf.StoreCORETelemetryForAsset("oomKill", telemetry)
-	}()
-
-	var btfData *btf.Spec
-	btfData, telemetry = ebpf.GetBTF(cfg.BTFPath, cfg.BPFDir)
-
-	if btfData == nil {
-		return nil, fmt.Errorf("could not find BTF data on host")
-	}
-
-	buf, err := bytecode.GetReader(filepath.Join(cfg.BPFDir, "co-re"), "oom-kill.o")
+	var probe *OOMKillProbe
+	err = ebpf.LoadCOREAsset(cfg, "oom-kill.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startOOMKillProbe(buf, opts)
+		return err
+	})
 	if err != nil {
-		telemetry = ebpf.AssetReadError
-		return nil, fmt.Errorf("error reading oom-kill.o file: %s", err)
-	}
-	defer buf.Close()
-
-	probe, err := startOOMKillProbe(buf, btfData)
-	if err != nil {
-		telemetry = ebpf.VerifierError
 		return nil, err
 	}
 
@@ -106,7 +88,7 @@ func loadRuntimeCompiledProbe(cfg *ebpf.Config) (*OOMKillProbe, error) {
 	}
 	defer buf.Close()
 
-	return startOOMKillProbe(buf, nil)
+	return startOOMKillProbe(buf, manager.Options{})
 }
 
 func getCFlags(config *ebpf.Config) []string {
@@ -117,32 +99,19 @@ func getCFlags(config *ebpf.Config) []string {
 	return cflags
 }
 
-func startOOMKillProbe(buf bytecode.AssetReader, btfData *btf.Spec) (*OOMKillProbe, error) {
-	probes := []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"},
-		},
-	}
-
-	maps := []*manager.Map{
-		{Name: "oom_stats"},
-	}
-
+func startOOMKillProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*OOMKillProbe, error) {
 	m := &manager.Manager{
-		Probes: probes,
-		Maps:   maps,
+		Probes: []*manager.Probe{
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/oom_kill_process", EBPFFuncName: "kprobe__oom_kill_process", UID: "oom"}},
+		},
+		Maps: []*manager.Map{
+			{Name: "oom_stats"},
+		},
 	}
 
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		VerifierOptions: bpflib.CollectionOptions{
-			Programs: bpflib.ProgramOptions{
-				KernelTypes: btfData,
-			},
-		},
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
 	if err := m.InitWithOptions(buf, managerOptions); err != nil {
