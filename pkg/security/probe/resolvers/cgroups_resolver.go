@@ -9,30 +9,60 @@
 package resolvers
 
 import (
+	"sync"
+
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
+type pid1CacheEntry struct {
+	pid      uint32
+	refCount int
+}
+
 // CgroupsResolver defines a cgroup monitor
 type CgroupsResolver struct {
-	pids *lru.Cache[string, uint32]
+	sync.RWMutex
+	pids *lru.Cache[string, *pid1CacheEntry]
 }
 
 // AddPID1 associates a container id and a pid which is expected to be the pid 1
 func (cr *CgroupsResolver) AddPID1(id string, pid uint32) {
-	// the first one wins
-	if _, exists := cr.pids.Get(id); !exists {
-		cr.pids.Add(id, pid)
+	cr.Lock()
+	defer cr.Unlock()
+
+	entry, exists := cr.pids.Get(id)
+	if !exists {
+		cr.pids.Add(id, &pid1CacheEntry{pid: pid, refCount: 1})
+	} else {
+		entry.refCount++
 	}
 }
 
 // GetPID1 return the registered pid1
 func (cr *CgroupsResolver) GetPID1(id string) (uint32, bool) {
-	return cr.pids.Get(id)
+	cr.RLock()
+	defer cr.RUnlock()
+
+	entry, exists := cr.pids.Get(id)
+	if !exists {
+		return 0, false
+	}
+
+	return entry.pid, true
 }
 
 // DelPID1 removes the entry
 func (cr *CgroupsResolver) DelPID1(id string) {
-	cr.pids.Remove(id)
+	cr.Lock()
+	defer cr.Unlock()
+
+	entry, exists := cr.pids.Get(id)
+	if exists {
+		entry.refCount--
+		if entry.refCount <= 0 {
+			cr.pids.Remove(id)
+		}
+	}
 }
 
 // Len return the number of entries
@@ -42,7 +72,7 @@ func (cr *CgroupsResolver) Len() int {
 
 // NewCgroupsResolver returns a new cgroups monitor
 func NewCgroupsResolver() (*CgroupsResolver, error) {
-	pids, err := lru.New[string, uint32](1024)
+	pids, err := lru.New[string, *pid1CacheEntry](1024)
 	if err != nil {
 		return nil, err
 	}
