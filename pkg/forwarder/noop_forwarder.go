@@ -105,6 +105,11 @@ func (f NoopForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesP
 	return nil
 }
 
+// SubmitContainerImages does nothing.
+func (f NoopForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
+	return nil
+}
+
 // SubmitOrchestratorManifests does nothing.
 func (f NoopForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return nil, nil

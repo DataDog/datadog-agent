@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/containerimage"
 	"github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -61,6 +62,7 @@ type AgentDemultiplexerOptions struct {
 	UseEventPlatformForwarder      bool
 	UseOrchestratorForwarder       bool
 	UseContainerLifecycleForwarder bool
+	UseContainerImageForwarder     bool
 	FlushInterval                  time.Duration
 
 	EnableNoAggregationPipeline bool
@@ -83,6 +85,7 @@ func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultipl
 		UseNoopEventPlatformForwarder:  false,
 		UseNoopOrchestratorForwarder:   false,
 		UseContainerLifecycleForwarder: false,
+		UseContainerImageForwarder:     false,
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -162,6 +165,12 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		containerLifecycleForwarder = containerlifecycle.NewForwarder()
 	}
 
+	// setup the container image forwarder
+	var containerImageForwarder *forwarder.DefaultForwarder
+	if options.UseContainerImageForwarder {
+		containerImageForwarder = containerimage.NewForwarder()
+	}
+
 	var sharedForwarder forwarder.Forwarder
 	if options.UseNoopForwarder {
 		sharedForwarder = forwarder.NoopForwarder{}
@@ -172,7 +181,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder)
 
 	// prepare the embedded aggregator
 	// --
@@ -204,7 +213,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			noAggSerializer,
@@ -320,6 +329,10 @@ func (d *AgentDemultiplexer) Run() {
 
 	if d.options.UseContainerLifecycleForwarder {
 		d.aggregator.contLcycleDequeueOnce.Do(func() { go d.aggregator.dequeueContainerLifecycleEvents() })
+	}
+
+	if d.options.UseContainerImageForwarder {
+		d.aggregator.contImageDequeueOnce.Do(func() { go d.aggregator.dequeueContainerImages() })
 	}
 
 	for _, w := range d.statsd.workers {

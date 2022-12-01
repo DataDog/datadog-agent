@@ -74,6 +74,7 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.orchestratorManifestIn,
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
+			s.agg.contImageIn,
 		)
 	})
 	return s.defaultSender, nil

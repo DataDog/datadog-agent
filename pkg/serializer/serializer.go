@@ -100,6 +100,7 @@ type MetricSerializer interface {
 	SendOrchestratorMetadata(msgs []ProcessMessageBody, hostName, clusterID string, payloadType int) error
 	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
 	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
+	SendContainerImage(msgs []ContainerImageMessage, hostname string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -107,6 +108,7 @@ type Serializer struct {
 	Forwarder             forwarder.Forwarder
 	orchestratorForwarder forwarder.Forwarder
 	contlcycleForwarder   forwarder.Forwarder
+	contimageForwarder    forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -128,11 +130,12 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder, contimageForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
 		contlcycleForwarder:           contlcycleForwarder,
+		contimageForwarder:            contimageForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -475,6 +478,32 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		}
 
 		log.Tracef("Sent container lifecycle event %+v", msg)
+	}
+
+	return nil
+}
+
+// SendContainerImage serializes & sends container image payloads
+func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname string) error {
+	if s.contimageForwarder == nil {
+		return errors.New("container image forwarder is not setup")
+	}
+
+	for _, msg := range msgs {
+		extraHeaders := make(http.Header)
+		extraHeaders.Set("Content-Type", protobufContentType)
+		msg.Host = hostname
+		encoded, err := proto.Marshal(&msg)
+		if err != nil {
+			return log.Errorf("Unable to encode message: %v", err)
+		}
+
+		payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&encoded})
+		if err := s.contimageForwarder.SubmitContainerImages(payloads, extraHeaders); err != nil {
+			return log.Errorf("Unable to submit container image payload: %v", err)
+		}
+
+		log.Tracef("Send container image %+v", msg)
 	}
 
 	return nil

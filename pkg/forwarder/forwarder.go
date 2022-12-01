@@ -75,6 +75,7 @@ type Forwarder interface {
 	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) (chan Response, error)
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -637,6 +638,12 @@ func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.Bytes
 // SubmitContainerLifecycleEvents sends container lifecycle events
 func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(endpoints.ContainerLifecycleEndpoint, payload, false, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitContainerImages sends container image
+func (f *DefaultForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.ContainerImageEndpoint, payload, false, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 

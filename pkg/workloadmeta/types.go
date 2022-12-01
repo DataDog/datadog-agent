@@ -86,9 +86,10 @@ type Kind string
 
 // Defined Kinds
 const (
-	KindContainer     Kind = "container"
-	KindKubernetesPod Kind = "kubernetes_pod"
-	KindECSTask       Kind = "ecs_task"
+	KindContainer              Kind = "container"
+	KindKubernetesPod          Kind = "kubernetes_pod"
+	KindECSTask                Kind = "ecs_task"
+	KindContainerImageMetadata Kind = "container_image_metadata"
 )
 
 // Source is the source name of an entity.

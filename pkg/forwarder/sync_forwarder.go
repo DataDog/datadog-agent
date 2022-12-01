@@ -161,3 +161,8 @@ func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPay
 func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitContainerLifecycleEvents(payload, extra)
 }
+
+// SubmitContainerImages sends container image
+func (f *SyncForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
+	return f.defaultForwarder.SubmitContainerImages(payload, extra)
+}

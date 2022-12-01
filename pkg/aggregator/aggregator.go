@@ -124,6 +124,8 @@ var (
 	aggregatorEventPlatformEventsErrors        = expvar.Map{}
 	aggregatorContainerLifecycleEvents         = expvar.Int{}
 	aggregatorContainerLifecycleEventsErrors   = expvar.Int{}
+	aggregatorContainerImages                  = expvar.Int{}
+	aggregatorContainerImagesErrors            = expvar.Int{}
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
@@ -179,6 +181,8 @@ func init() {
 	aggregatorExpvars.Set("EventPlatformEventsErrors", &aggregatorEventPlatformEventsErrors)
 	aggregatorExpvars.Set("ContainerLifecycleEvents", &aggregatorContainerLifecycleEvents)
 	aggregatorExpvars.Set("ContainerLifecycleEventsErrors", &aggregatorContainerLifecycleEventsErrors)
+	aggregatorExpvars.Set("ContainerImages", &aggregatorContainerImages)
+	aggregatorExpvars.Set("ContainerImagesErrors", &aggregatorContainerImagesErrors)
 
 	contextsByMtypeMap := expvar.Map{}
 	aggregatorDogstatsdContextsByMtype = make([]expvar.Int, int(metrics.NumMetricTypes))
@@ -211,6 +215,11 @@ type BufferedAggregator struct {
 	contLcycleBuffer      chan senderContainerLifecycleEvent
 	contLcycleStopper     chan struct{}
 	contLcycleDequeueOnce sync.Once
+
+	contImageIn          chan senderContainerImage
+	contImageBuffer      chan senderContainerImage
+	contImageStopper     chan struct{}
+	contImageDequeueOnce sync.Once
 
 	// metricSamplePool is a pool of slices of metric sample to avoid allocations.
 	// Used by the Dogstatsd Batcher.
@@ -289,6 +298,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		contLcycleIn:      make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleBuffer:  make(chan senderContainerLifecycleEvent, bufferSize),
 		contLcycleStopper: make(chan struct{}),
+
+		contImageIn:      make(chan senderContainerImage, bufferSize),
+		contImageBuffer:  make(chan senderContainerImage, bufferSize),
+		contImageStopper: make(chan struct{}),
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[check.ID]*CheckSampler),
@@ -785,6 +798,9 @@ func (agg *BufferedAggregator) run() {
 		case event := <-agg.contLcycleIn:
 			aggregatorContainerLifecycleEvents.Add(1)
 			agg.handleContainerLifecycleEvent(event)
+		case event := <-agg.contImageIn:
+			aggregatorContainerImages.Add(1)
+			agg.handleContainerImage(event)
 		}
 	}
 }
@@ -805,6 +821,22 @@ func (agg *BufferedAggregator) dequeueContainerLifecycleEvents() {
 	}
 }
 
+// dequeueContainerImages consumes buffered container image.
+// It is blocking so it should be started in its own routine and only one instance should be started.
+func (agg *BufferedAggregator) dequeueContainerImages() {
+	for {
+		select {
+		case event := <-agg.contImageBuffer:
+			if err := agg.serializer.SendContainerImage(event.msgs, agg.hostname); err != nil {
+				aggregatorContainerImagesErrors.Add(1)
+				log.Warnf("Error submitting container image data: %v", err)
+			}
+		case <-agg.contImageStopper:
+			return
+		}
+	}
+}
+
 // handleContainerLifecycleEvent forwards container lifecycle events to the buffering channel.
 func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContainerLifecycleEvent) {
 	select {
@@ -813,6 +845,17 @@ func (agg *BufferedAggregator) handleContainerLifecycleEvent(event senderContain
 	default:
 		aggregatorContainerLifecycleEventsErrors.Add(1)
 		log.Warn("Container lifecycle events channel is full")
+	}
+}
+
+// handleContainerImage forwards container image to the buffering channel.
+func (agg *BufferedAggregator) handleContainerImage(event senderContainerImage) {
+	select {
+	case agg.contImageBuffer <- event:
+		return
+	default:
+		aggregatorContainerImagesErrors.Add(1)
+		log.Warn("Container image channel is full")
 	}
 }
 
