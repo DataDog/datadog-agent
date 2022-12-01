@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -277,14 +278,15 @@ namespace Datadog.CustomActions
                 var key = Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
                 if (key != null)
                 {
-                    key.GetAccessControl()
-                        .AddAccessRule(new RegistryAccessRule(
-                            securityIdentifier,
-                            RegistryRights.WriteKey |
-                            RegistryRights.ReadKey |
-                            RegistryRights.Delete |
-                            RegistryRights.FullControl,
-                            AccessControlType.Allow));
+                    var registrySecurity = key.GetAccessControl();
+                    registrySecurity.AddAccessRule(new RegistryAccessRule(
+                        securityIdentifier,
+                        RegistryRights.WriteKey |
+                        RegistryRights.ReadKey |
+                        RegistryRights.Delete |
+                        RegistryRights.FullControl,
+                        AccessControlType.Allow));
+                    key.SetAccessControl(registrySecurity);
                 }
                 else
                 {
@@ -307,7 +309,7 @@ namespace Datadog.CustomActions
                 };
                 foreach (var filePath in files)
                 {
-                    if (!PathExists(filePath))
+                    if (!Directory.Exists(filePath) && !File.Exists(filePath))
                     {
                         if (filePath.Contains("embedded3"))
                         {
@@ -317,105 +319,59 @@ namespace Datadog.CustomActions
                         continue;
                     }
 
-                    FileSecurity fileSecurity;
+                    FileSystemSecurity fileSystemSecurity;
+                    string sddl;
                     try
                     {
-                        fileSecurity = File.GetAccessControl(filePath, AccessControlSections.Access);
+                        if (Directory.Exists(filePath))
+                        {
+                            fileSystemSecurity = Directory.GetAccessControl(filePath);
+                            sddl = $"D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
+                        }
+                        else
+                        {
+                            fileSystemSecurity = File.GetAccessControl(filePath, AccessControlSections.All);
+                            sddl = $"O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})";
+                        }
                     }
                     catch (Exception e)
                     {
                         session.Log($"Failed to get ACLs on {filePath}: {e}");
                         throw;
                     }
-                    session.Log($"{filePath} current ACLs: {fileSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Access)}");
-#if false
-                    //fileSecurity = new FileSecurity(filePath, AccessControlSections.Access);
-                    fileSecurity.AddAccessRule(new FileSystemAccessRule(securityIdentifier, FileSystemRights.FullControl, AccessControlType.Allow));
-                    fileSecurity.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
-                    fileSecurity.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
-                    fileSecurity.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ChangePermissions, AccessControlType.Allow));
-                    fileSecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false); // disable inheritance and clear any inherited permissions
-                    try
-                    {
-                        File.SetAccessControl(filePath, fileSecurity);
-                    }
-                    catch (Exception e)
-                    {
-                        session.Log($"Failed to set ACLs on {filePath}: {e}");
-                        throw;
-                    }
-#elif false
-
-#elif false
-                    fileSecurity.SetSecurityDescriptorSddlForm(Directory.Exists(filePath)
-                        ? $"O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})"
-                        : $"O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})");
+                    session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
 
                     try
                     {
-                        File.SetAccessControl(filePath, fileSecurity);
-                    }
-                    catch (Exception e)
-                    {
-                        session.Log($"Failed to set ACLs on {filePath}: {e}");
-                        throw;
-                    }
-#else
-                    var res = (ReturnCodes)GetNamedSecurityInfo(
-                        filePath,
-                        SE_OBJECT_TYPE.SE_FILE_OBJECT,
-                        SECURITY_INFORMATION.Dacl,
-                        out _,
-                        out _,
-                        out var dacl,
-                        out _,
-                        out var securityDescriptor);
-                    if (res == ReturnCodes.NO_ERROR)
-                    {
-                        var sid = new byte[securityIdentifier.BinaryLength];
-                        securityIdentifier.GetBinaryForm(sid, 0);
-                        var pSid = Marshal.AllocHGlobal(sid.Length);
-                        Marshal.Copy(sid, 0, pSid, sid.Length);
-                        var explicitAccess = new EXPLICIT_ACCESS
+                        if (Directory.Exists(filePath))
                         {
-                            grfInheritance = (uint)ACCESS_INHERITANCE.SUB_CONTAINERS_AND_OBJECTS_INHERIT,
-                            grfAccessPermissions = (uint)FILE_ALL_ACCESS,
-                            grfAccessMode = (uint)ACCESS_MODE.GRANT_ACCESS,
-                            Trustee = new TRUSTEE
-                            {
-                                pMultipleTrustee = IntPtr.Zero,
-                                MultipleTrusteeOperation = MULTIPLE_TRUSTEE_OPERATION.NO_MULTIPLE_TRUSTEE,
-                                TrusteeForm = TRUSTEE_FORM.TRUSTEE_IS_SID,
-                                TrusteeType = TRUSTEE_TYPE.TRUSTEE_IS_USER,
-                                Name = pSid
-                            }
-                        };
-                        res = (ReturnCodes)SetEntriesInAcl(1, new []{ explicitAccess }, dacl, out var newAcl);
-                        if (res == ReturnCodes.NO_ERROR)
-                        {
-                            res = (ReturnCodes)SetNamedSecurityInfo(
-                                filePath,
-                                SE_OBJECT_TYPE.SE_FILE_OBJECT,
-                                SECURITY_INFORMATION.Dacl | SECURITY_INFORMATION.ProtectedDacl,
-                                IntPtr.Zero,
-                                IntPtr.Zero,
-                                newAcl,
-                                IntPtr.Zero
-                            );
+                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
+                            Directory.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
                         }
-                        Marshal.FreeHGlobal(pSid);
-                        LocalFree(securityDescriptor);
+                        else
+                        {
+                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
+                            File.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
+                        }
                     }
-
-                    if (res != ReturnCodes.NO_ERROR)
+                    catch (Exception e)
                     {
-                        throw new Win32Exception((int)res);
+                        session.Log($"Failed to set ACLs on {filePath}: {e}");
+                        throw;
                     }
-#endif
 
                     try
                     {
-                        session.Log($"{filePath} new ACLs: {File.GetAccessControl(filePath).GetSecurityDescriptorSddlForm(AccessControlSections.Access)}");
+                        if (Directory.Exists(filePath))
+                        {
+                            fileSystemSecurity = Directory.GetAccessControl(filePath);
+                        }
+                        else
+                        {
+                            fileSystemSecurity = File.GetAccessControl(filePath);
+                        }
+
+                        session.Log($"{filePath} new ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
                     }
                     catch (Exception e)
                     {
