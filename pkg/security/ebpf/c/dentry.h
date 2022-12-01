@@ -10,6 +10,7 @@
 #include "defs.h"
 #include "filters.h"
 
+#define TMPFS_MAGIC 0x01021994
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {

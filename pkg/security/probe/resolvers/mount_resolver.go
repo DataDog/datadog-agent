@@ -11,6 +11,7 @@ package resolvers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -115,6 +116,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 
 func (mr *MountResolver) syncCache(pid uint32, containerID string) error {
 	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		fmt.Printf("PPPPPPPPPPPPPP: %d %s %d\n", pid, containerID, pid1)
 		pid = pid1
 	}
 
@@ -361,13 +363,19 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 
 	if err := mr.syncCache(pid, containerID); err != nil {
 		mr.procMissStats.Inc()
+
+		fmt.Printf(">>>>>>>>>>: %d %d %s\n", mountID, pid, containerID)
+
 		return "", err
 	}
 	path, err = mr.getMountPath(mountID)
 	if err == nil {
+		fmt.Printf("++++++++++: %d %d %s\n", mountID, pid, containerID)
 		mr.procHitsStats.Inc()
 		return path, nil
 	}
+	fmt.Printf("----------: %d %d %s\n", mountID, pid, containerID)
+
 	mr.procMissStats.Inc()
 
 	return "", ErrMountNotFound
