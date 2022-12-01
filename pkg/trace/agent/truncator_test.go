@@ -40,21 +40,21 @@ func testSpan() *pb.Span {
 func TestTruncateResourcePassThru(t *testing.T) {
 	s := testSpan()
 	before := s.Resource
-	Truncate(s)
+	Truncate(nil, nil, s)
 	assert.Equal(t, before, s.Resource)
 }
 
 func TestTruncateLongResource(t *testing.T) {
 	s := testSpan()
 	s.Resource = strings.Repeat("TOOLONG", 5000)
-	Truncate(s)
+	Truncate(nil, nil, s)
 	assert.Equal(t, 5000, len(s.Resource))
 }
 
 func TestTruncateMetricsPassThru(t *testing.T) {
 	s := testSpan()
 	before := s.Metrics
-	Truncate(s)
+	Truncate(nil, nil, s)
 	assert.Equal(t, before, s.Metrics)
 }
 
@@ -62,7 +62,7 @@ func TestTruncateMetricsKeyTooLong(t *testing.T) {
 	s := testSpan()
 	key := strings.Repeat("TOOLONG", 1000)
 	s.Metrics[key] = 42
-	Truncate(s)
+	Truncate(nil, nil, s)
 	for k := range s.Metrics {
 		assert.True(t, len(k) < traceutil.MaxMetricsKeyLen+4)
 	}
@@ -71,7 +71,7 @@ func TestTruncateMetricsKeyTooLong(t *testing.T) {
 func TestTruncateMetaPassThru(t *testing.T) {
 	s := testSpan()
 	before := s.Meta
-	Truncate(s)
+	Truncate(nil, nil, s)
 	assert.Equal(t, before, s.Meta)
 }
 
@@ -79,7 +79,7 @@ func TestTruncateMetaKeyTooLong(t *testing.T) {
 	s := testSpan()
 	key := strings.Repeat("TOOLONG", 1000)
 	s.Meta[key] = "foo"
-	Truncate(s)
+	Truncate(nil, nil, s)
 	for k := range s.Meta {
 		assert.True(t, len(k) < traceutil.MaxMetaKeyLen+4)
 	}
@@ -89,7 +89,7 @@ func TestTruncateMetaValueTooLong(t *testing.T) {
 	s := testSpan()
 	val := strings.Repeat("TOOLONG", 25000)
 	s.Meta["foo"] = val
-	Truncate(s)
+	Truncate(nil, nil, s)
 	for _, v := range s.Meta {
 		assert.True(t, len(v) < traceutil.MaxMetaValLen+4)
 	}

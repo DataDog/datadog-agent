@@ -79,6 +79,8 @@ type Agent struct {
 
 	// Used to synchronize on a clean exit
 	ctx context.Context
+
+	transformers []Transformer
 }
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
@@ -113,6 +115,26 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
+	agnt.transformers = []Transformer{
+		normalizePayloadEnv,
+		agnt.discardSpans,
+		rejectEmpty,
+		countSpansReceived,
+		normalizeChunk,
+		normalizeSpans,
+		agnt.blocklist,
+		agnt.tagFilter,
+		eachSpan(
+			agnt.applyGlobalTags,
+			agnt.modifySpan,
+			agnt.obfuscateSpan,
+			Truncate,
+			updateTopLevel,
+			agnt.Replacer.Replace,
+		),
+		agnt.setRootSpanTags,
+		computeTopLevel,
+	}
 	return agnt
 }
 
@@ -309,11 +331,6 @@ func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.
 	return nil
 }
 
-func truncateSpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-	Truncate(s)
-	return nil
-}
-
 func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
 	if m.ClientComputedTopLevel {
 		traceutil.UpdateTracerTopLevel(s)
@@ -330,36 +347,15 @@ func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
 	return nil
 }
 
+// Transformer is a transformation of a processed trace.
 type Transformer func(*api.Metadata, *traceutil.ProcessedTrace) error
+
+// SpanTransformer is a transformation of a span within a trace.
 type SpanTransformer func(*api.Metadata, *traceutil.ProcessedTrace, *pb.Span) error
 
-func (a *Agent) transformers() []Transformer {
-	return []Transformer{
-		normalizePayloadEnv,
-		a.discardSpans,
-		rejectEmpty,
-		countSpansReceived,
-		normalizeChunk,
-		normalizeSpans,
-		a.blocklist,
-		a.tagFilter,
-		eachSpan(
-			a.applyGlobalTags,
-			a.modifySpan,
-			a.obfuscateSpan,
-			truncateSpan,
-			updateTopLevel,
-			a.Replacer.Replace,
-		),
-		a.setRootSpanTags,
-		computeTopLevel,
-	}
-}
-
+// transform applies all of the transformations in a.transformers
 func (a *Agent) transform(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	tfs := a.transformers()
-	// Perform Transformations
-	for _, t := range tfs {
+	for _, t := range a.transformers {
 		err := t(m, pt)
 		if err != nil {
 			return err

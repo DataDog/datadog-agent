@@ -6,6 +6,7 @@
 package agent
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -13,7 +14,7 @@ import (
 
 // Truncate checks that the span resource, meta and metrics are within the max length
 // and modifies them if they are not
-func Truncate(s *pb.Span) {
+func Truncate(_ *api.Metadata, _ *traceutil.ProcessedTrace, s *pb.Span) error {
 	r, ok := traceutil.TruncateResource(s.Resource)
 	if !ok {
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", traceutil.MaxResourceLen, s.Resource)
@@ -51,4 +52,5 @@ func Truncate(s *pb.Span) {
 			s.Metrics[k] = v
 		}
 	}
+	return nil
 }

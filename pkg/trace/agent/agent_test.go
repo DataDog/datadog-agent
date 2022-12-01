@@ -1333,7 +1333,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(nil, nil, span)
-		Truncate(span)
+		Truncate(nil, nil, span)
 	}
 	return t
 }
