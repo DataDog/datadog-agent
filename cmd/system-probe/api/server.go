@@ -19,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // StartServer starts the HTTP server for the system-probe, which registers endpoints from all enabled modules.
@@ -50,7 +48,7 @@ func StartServer(cfg *config.Config) error {
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 
 	// Expose telemetry endpoint
-	if ddconfig.Datadog.GetBool("telemetry.enabled") {
+	if cfg.TelemetryEnabled {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
 
