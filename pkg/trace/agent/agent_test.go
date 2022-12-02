@@ -8,7 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -18,12 +18,14 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -295,6 +297,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -333,7 +336,9 @@ func TestProcess(t *testing.T) {
 		span2 := &pb.Span{TraceID: 1, SpanID: 2, Service: "a"}
 		span3 := &pb.Span{TraceID: 1, SpanID: 3, Service: "a"}
 
-		tp := testutil.TracerPayloadWithChunk(spansToChunk(span1, span2, span3))
+		c := spansToChunk(span1, span2, span3)
+		c.Priority = 1
+		tp := testutil.TracerPayloadWithChunk(c)
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -595,6 +600,7 @@ func TestConcentratorInput(t *testing.T) {
 			if tc.withFargate {
 				cfg.FargateOrchestrator = config.OrchestratorECS
 			}
+			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
@@ -807,14 +813,14 @@ func TestSampling(t *testing.T) {
 	}
 	// configureAgent creates a new agent using the provided configuration.
 	configureAgent := func(ac agentConfig) *Agent {
-		cfg := &config.AgentConfig{RareSamplerDisabled: ac.rareSamplerDisabled}
-		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerDisabled: ac.rareSamplerDisabled}
+		cfg := &config.AgentConfig{RareSamplerEnabled: !ac.rareSamplerDisabled, RareSamplerCardinality: 200, RareSamplerTPS: 5}
+		sampledCfg := &config.AgentConfig{ExtraSampleRate: 1, TargetTPS: 5, ErrorTPS: 10, RareSamplerEnabled: !ac.rareSamplerDisabled}
 
 		a := &Agent{
 			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
 			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
 			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
-			RareSampler:       sampler.NewRareSampler(config.New()),
+			RareSampler:       sampler.NewRareSampler(cfg),
 			conf:              cfg,
 		}
 		if ac.errorsSampled {
@@ -940,8 +946,78 @@ func TestSampling(t *testing.T) {
 	}
 }
 
+func TestSample(t *testing.T) {
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 10}
+	a := &Agent{
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		EventProcessor:    newEventProcessor(cfg),
+		conf:              cfg,
+	}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    time.Now().UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    1,
+			Meta:     map[string]string{},
+		}
+		if decisionMaker != "" {
+			root.Meta["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	tests := map[string]struct {
+		trace              traceutil.ProcessedTrace
+		sampledNoFeature   bool
+		sampledWithFeature bool
+	}{
+		"userdrop-error-no-dm-sampled": {
+			trace:              genSpan("", sampler.PriorityUserDrop),
+			sampledNoFeature:   false,
+			sampledWithFeature: true,
+		},
+		"userdrop-error-manual-dm-unsampled": {
+			trace:              genSpan("-4", sampler.PriorityUserDrop),
+			sampledNoFeature:   false,
+			sampledWithFeature: false,
+		},
+		"userdrop-error-agent-dm-sampled": {
+			trace:              genSpan("-1", sampler.PriorityUserDrop),
+			sampledNoFeature:   false,
+			sampledWithFeature: true,
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:              genSpan("", sampler.PriorityUserKeep),
+			sampledNoFeature:   true,
+			sampledWithFeature: true,
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:              genSpan("-1", sampler.PriorityUserKeep),
+			sampledNoFeature:   true,
+			sampledWithFeature: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, keep, _ := a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
+			assert.Equal(t, tt.sampledNoFeature, keep)
+
+			features.Set("error_rare_sample_tracer_drop")
+			defer features.Set("")
+			_, keep, _ = a.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), tt.trace)
+			assert.Equal(t, tt.sampledWithFeature, keep)
+		})
+	}
+}
+
 func TestPartialSamplingFree(t *testing.T) {
-	cfg := &config.AgentConfig{RareSamplerDisabled: true, BucketInterval: 10 * time.Second}
+	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
 	statsChan := make(chan pb.StatsPayload, 100)
 	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
@@ -1197,8 +1273,16 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
 	defer cancelFunc()
+
 	ta := NewAgent(ctx, c)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ta.Run()
+	}()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1211,7 +1295,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	}
 }
 
-// Mimicks behaviour of agent Process function
+// Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)
@@ -1344,7 +1428,7 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 	// prepare the traces in this file by adding sampling.priority=2
 	// everywhere to ensure consistent sampling assumptions and results.
 	var traces pb.Traces
-	bts, err := ioutil.ReadAll(in)
+	bts, err := io.ReadAll(in)
 	if _, err = traces.UnmarshalMsg(bts); err != nil {
 		return nil, 0, err
 	}
@@ -1569,10 +1653,10 @@ func TestSampleWithPriorityNone(t *testing.T) {
 //     sampler still runs. The resulting trace chunk, if any, contains only
 //     the spans that were tagged for span sampling, and the sampling priority
 //     of the resulting chunk overall is PriorityUserKeep.
-//  2a. Same as (2), except that only the local root span specifically is tagged
-//       for span sampling. Verify that only the local root span is kept.
-//  2b. Same as (2), except that only a non-local-root span specifically is
-//      tagged for span sampling. Verify that only one span is kept.
+//     2a. Same as (2), except that only the local root span specifically is tagged
+//     for span sampling. Verify that only the local root span is kept.
+//     2b. Same as (2), except that only a non-local-root span specifically is
+//     tagged for span sampling. Verify that only one span is kept.
 //  3. When the chunk is dropped due to an agent-provided sample rate, i.e. with
 //     PriorityAutoDrop priority. In this case, other samplers will run. Only if the
 //     resulting decision is to drop the chunk, expect that the span sampler
@@ -1836,7 +1920,7 @@ func TestSpanSampling(t *testing.T) {
 			// priority==0 chunk as rare. Instead, we use the error sampler to
 			// cover the case where non-span samplers decide to keep a priority==0
 			// chunk.
-			cfg.RareSamplerDisabled = true
+			cfg.RareSamplerEnabled = false
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			traceAgent := NewAgent(ctx, cfg)
@@ -1853,4 +1937,19 @@ func TestSpanSampling(t *testing.T) {
 			tc.checks(t, tc.payload, chunks)
 		})
 	}
+}
+
+func TestSetRootSpanTagsInAzureAppServices(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.InAzureAppServices = true
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewAgent(ctx, cfg)
+	defer cancel()
+
+	span := &pb.Span{}
+
+	agnt.setRootSpanTags(span)
+
+	assert.Contains(t, span.Meta, "aas.site.kind")
 }

@@ -76,13 +76,13 @@ func BenchmarkSeries(b *testing.B) {
 	}
 	bufferContext := marshaler.DefaultBufferContext()
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
-		iterableSeries := &metricsserializer.IterableSeries{SerieSource: metricsserializer.CreateSerieSource(series)}
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return iterableSeries.MarshalSplitCompress(bufferContext)
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true)
 	json := func(series metrics.Series) (transaction.BytesPayloads, error) {
-		iterableSeries := &metricsserializer.IterableSeries{SerieSource: metricsserializer.CreateSerieSource(series)}
+		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
 		return payloadBuilder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 	}
 

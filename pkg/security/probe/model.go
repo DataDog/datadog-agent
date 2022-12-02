@@ -11,6 +11,7 @@ package probe
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -104,15 +105,10 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
-			switch err.(type) {
-			case ErrDentryPathKeyNotFound:
-				// this error is the only one we don't care about
-			default:
-				f.PathResolutionError = err
-				ev.SetPathResolutionError(err)
-			}
+			f.PathResolutionError = err
+			ev.SetPathResolutionError(err)
 		}
 		f.SetPathnameStr(path)
 	}
@@ -133,7 +129,14 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	return ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID)
+	if f.Filesystem == "" {
+		fs, err := ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+		if err != nil {
+			ev.SetPathResolutionError(err)
+		}
+		f.Filesystem = fs
+	}
+	return f.Filesystem
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
@@ -157,38 +160,46 @@ func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
 func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {
-		fragments := strings.Split(ev.ResolveXAttrName(e), ".")
-		if len(fragments) > 0 {
-			e.Namespace = fragments[0]
+		ns, _, found := strings.Cut(ev.ResolveXAttrName(e), ".")
+		if found {
+			e.Namespace = ns
 		}
 	}
 	return e.Namespace
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+func (ev *Event) SetMountPoint(e *model.MountEvent) error {
+	var err error
+	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
+func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
 	if len(e.MountPointStr) == 0 {
-		ev.SetMountPoint(e)
+		if err := ev.SetMountPoint(e); err != nil {
+			return "", err
+		}
 	}
-	return e.MountPointStr
+	return e.MountPointStr, nil
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+func (ev *Event) SetMountRoot(e *model.MountEvent) error {
+	var err error
+	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
+func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 	if len(e.RootStr) == 0 {
-		ev.SetMountRoot(e)
+		if err := ev.SetMountRoot(e); err != nil {
+			return "", err
+		}
 	}
-	return e.RootStr
+	return e.RootStr, nil
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -447,12 +458,15 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 }
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(record *perf.Record) (uint64, uint64, error) {
+func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	if len(record.RawSample) < 16 {
-		return 0, 0, model.ErrNotEnoughData
+		return QuickInfo{}, model.ErrNotEnoughData
 	}
 
-	return model.ByteOrder.Uint64(record.RawSample[0:8]), model.ByteOrder.Uint64(record.RawSample[8:16]), nil
+	return QuickInfo{
+		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
+		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+	}, nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
@@ -495,10 +509,12 @@ func (ev *Event) GetProcessServiceTag() string {
 		return ""
 	}
 
+	var serviceValues []string
+
 	// first search in the process context itself
 	if entry.EnvsEntry != nil {
 		if service := entry.EnvsEntry.Get(ServiceEnvVar); service != "" {
-			return service
+			serviceValues = append(serviceValues, service)
 		}
 	}
 
@@ -512,12 +528,37 @@ func (ev *Event) GetProcessServiceTag() string {
 
 		if ancestor.EnvsEntry != nil {
 			if service := ancestor.EnvsEntry.Get(ServiceEnvVar); service != "" {
-				return service
+				serviceValues = append(serviceValues, service)
 			}
 		}
 	}
 
-	return ""
+	return bestGuessServiceTag(serviceValues)
+}
+
+func bestGuessServiceTag(serviceValues []string) string {
+	if len(serviceValues) == 0 {
+		return ""
+	}
+
+	firstGuess := serviceValues[0]
+
+	// first we sort base on len, biggest len first
+	sort.Slice(serviceValues, func(i, j int) bool {
+		return len(serviceValues[j]) < len(serviceValues[i]) // reverse
+	})
+
+	// we then compare [i] and [i + 1] to check if [i + 1] is a prefix of [i]
+	for i := 0; i < len(serviceValues)-1; i++ {
+		if !strings.HasPrefix(serviceValues[i], serviceValues[i+1]) {
+			// if it's not a prefix it means we have multiple disjoints services
+			// we then return the first guess, closest in the process tree
+			return firstGuess
+		}
+	}
+
+	// we have a prefix chain, let's return the biggest one
+	return serviceValues[0]
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context

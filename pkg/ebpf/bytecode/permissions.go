@@ -14,8 +14,9 @@ import (
 	"syscall"
 )
 
-// VerifyAssetPermissions checks that the file at the given path is owned by root and has permissions 0644,
-// and returns an error if this isn't the case
+// VerifyAssetPermissions checks that the file at the given path is owned by root,
+// and does not have write permission for group and other;
+// returns an error if this isn't the case
 func VerifyAssetPermissions(assetPath string) error {
 	// Enforce that we only load root-writeable object files
 	info, err := os.Stat(assetPath)

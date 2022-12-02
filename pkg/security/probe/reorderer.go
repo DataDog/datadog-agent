@@ -184,7 +184,7 @@ type ReOrderer struct {
 	queue       chan *perf.Record
 	handler     func(*perf.Record)
 	heap        *reOrdererHeap
-	extractInfo func(*perf.Record) (uint64, uint64, error) // timestamp
+	extractInfo QuickInfoExtractor // timestamp
 	opts        ReOrdererOpts
 	metric      ReOrdererMetric
 	Metrics     chan ReOrdererMetric
@@ -202,15 +202,16 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 	defer metricTicker.Stop()
 
 	var lastTm, tm uint64
-	var err error
 
 	for {
 		select {
 		case record := <-r.queue:
 			if len(record.RawSample) > 0 {
-				if _, tm, err = r.extractInfo(record); err != nil {
+				info, err := r.extractInfo(record)
+				if err != nil {
 					continue
 				}
+				tm = info.timestamp
 			} else {
 				tm = lastTm
 			}
@@ -256,8 +257,17 @@ func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, m
 	}
 }
 
+// QuickInfo represents the info quickly extractable from an event, that can be used for reordering
+type QuickInfo struct {
+	cpu       uint64
+	timestamp uint64
+}
+
+// QuickInfoExtractor represents a function that takes a record, and returns the quick infos
+type QuickInfoExtractor = func(record *perf.Record) (QuickInfo, error)
+
 // NewReOrderer returns a new ReOrderer
-func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo func(record *perf.Record) (uint64, uint64, error), opts ReOrdererOpts) *ReOrderer {
+func NewReOrderer(ctx context.Context, handler func(record *perf.Record), extractInfo QuickInfoExtractor, opts ReOrdererOpts) *ReOrderer {
 	return &ReOrderer{
 		ctx:     ctx,
 		queue:   make(chan *perf.Record, opts.QueueSize),

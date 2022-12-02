@@ -11,7 +11,8 @@ package app
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
+	"github.com/DataDog/datadog-agent/comp/core"
 )
 
 var (
@@ -22,8 +23,11 @@ var (
 )
 
 func init() {
-	complianceCmd.AddCommand(app.CheckCmd(func() []string {
-		return []string{confPath}
-	}))
+	bundleParams := core.BundleParams{
+		ConfFilePath: confPath,
+		ConfigName:   "datadog-cluster",
+	}.LogForOneShot(string(loggerName), "off", true)
+
+	complianceCmd.AddCommand(check.Commands(bundleParams)...)
 	ClusterAgentCmd.AddCommand(complianceCmd)
 }

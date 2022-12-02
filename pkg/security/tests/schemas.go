@@ -17,6 +17,7 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 )
 
 //nolint:deadcode,unused
@@ -24,10 +25,12 @@ import (
 var schemaAssetFS embed.FS
 
 // ValidInodeFormatChecker defines the format inode checker
+//
 //nolint:deadcode,unused
 type ValidInodeFormatChecker struct{}
 
 // IsFormat check inode format
+//
 //nolint:deadcode,unused
 func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 
@@ -45,7 +48,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !sprobe.IsFakeInode(inode)
+	return !resolvers.IsFakeInode(inode)
 }
 
 //nolint:deadcode,unused
@@ -81,9 +84,9 @@ func validateEventSchema(t *testing.T, event *sprobe.Event, path string) bool {
 }
 
 //nolint:deadcode,unused
-func validateStringSchema(t *testing.T, ad string, path string) bool {
+func validateStringSchema(t *testing.T, event string, path string) bool {
 	t.Helper()
-	return validateSchema(t, ad, path)
+	return validateSchema(t, event, path)
 }
 
 //nolint:deadcode,unused
@@ -210,4 +213,10 @@ func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
+}
+
+//nolint:deadcode,unused
+func validateRuleSetLoadedSchema(t *testing.T, event *sprobe.CustomEvent) bool {
+	t.Helper()
+	return validateStringSchema(t, event.String(), "file:///schemas/ruleset_loaded.schema.json")
 }

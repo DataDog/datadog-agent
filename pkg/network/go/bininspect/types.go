@@ -3,14 +3,54 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//go:build linux
+// +build linux
+
 package bininspect
 
 import (
+	"debug/elf"
 	"errors"
 	"reflect"
 
 	"github.com/go-delve/delve/pkg/goversion"
 )
+
+const (
+	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
+	ReadGoTLSFunc  = "crypto/tls.(*Conn).Read"
+	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
+)
+
+var StructOffsetTLSConn = FieldIdentifier{
+	StructName: "crypto/tls.Conn",
+	FieldName:  "conn",
+}
+
+var StructOffsetTCPConn = FieldIdentifier{
+	StructName: "net.TCPConn",
+	FieldName:  "conn",
+}
+
+var StructOffsetNetConnFd = FieldIdentifier{
+	StructName: "net.conn",
+	FieldName:  "fd",
+}
+
+var StructOffsetNetFdPfd = FieldIdentifier{
+	StructName: "net.netFD",
+	FieldName:  "pfd",
+}
+
+var StructOffsetPollFdSysfd = FieldIdentifier{
+	StructName: "internal/poll.FD",
+	FieldName:  "Sysfd",
+}
+
+type elfMetadata struct {
+	file *elf.File
+	arch GoArch
+}
 
 // Result is the result of the binary inspection process.
 type Result struct {
@@ -20,6 +60,7 @@ type Result struct {
 	IncludesDebugSymbols bool
 	Functions            map[string]FunctionMetadata
 	StructOffsets        map[FieldIdentifier]uint64
+	GoroutineIDMetadata  GoroutineIDMetadata
 }
 
 // GoArch only includes supported architectures,
@@ -54,16 +95,6 @@ const (
 	// GoABIRegister is the same as abi internal (as of 2021-11-12)
 	GoABIRegister GoABI = "register"
 )
-
-// FunctionConfig controls the extraction of information about a single function
-// that can be used to attach an eBPF uprobe to.
-type FunctionConfig struct {
-	// The full name of the function to gather metadata for.
-	// ex: crypto/tls.(*Conn).Write
-	Name string
-	// Whether to gather the locations of the return instructions in the function.
-	IncludeReturnLocations bool
-}
 
 // FunctionMetadata contains the results of the inspection process that
 // that can be used to attach an eBPF uprobe to a single function.
@@ -179,6 +210,37 @@ type FieldIdentifier struct {
 	StructName string
 	// Name of the field in the struct
 	FieldName string
+}
+
+// GoroutineIDMetadata contains information
+// that can be used to reliably determine the ID
+// of the currently-running goroutine from an eBPF uprobe.
+type GoroutineIDMetadata struct {
+	// The offset of the `goid` field within `runtime.g`
+	GoroutineIDOffset uint64
+	// Whether the pointer to the current `runtime.g` value is in a register.
+	// If true, then `RuntimeGRegister` is given.
+	// Otherwise, `RuntimeGTLSAddrOffset` is given
+	RuntimeGInRegister bool
+
+	// The register that the pointer to the current `runtime.g` is in.
+	RuntimeGRegister int
+	// The offset of the `runtime.g` value within thread-local-storage.
+	RuntimeGTLSAddrOffset uint64
+}
+
+// ParameterLookupFunction represents a function that returns a list of parameter metadata (for example, parameter size)
+// for a specific golang function. It selects the relevant parameters metadata by the given go version & architecture.
+type ParameterLookupFunction func(goversion.GoVersion, string) ([]ParameterMetadata, error)
+
+// StructLookupFunction represents a function that returns the offset of a specific field in a struct.
+// It selects the relevant offset metadata by the given go version & architecture.
+type StructLookupFunction func(goversion.GoVersion, string) (uint64, error)
+
+// FunctionConfiguration contains info for the function analyzing process when scanning a binary.
+type FunctionConfiguration struct {
+	IncludeReturnLocations bool
+	ParamLookupFunction    ParameterLookupFunction
 }
 
 // ErrNilElf is returned when getting a nil pointer to an elf file.

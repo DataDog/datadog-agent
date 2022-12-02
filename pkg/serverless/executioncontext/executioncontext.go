@@ -7,7 +7,7 @@ package executioncontext
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +23,7 @@ type ExecutionContext struct {
 	coldstartRequestID string
 	lastLogRequestID   string
 	coldstart          bool
+	coldstartDuration  float64
 	startTime          time.Time
 	endTime            time.Time
 }
@@ -34,6 +35,7 @@ type State struct {
 	ColdstartRequestID string
 	LastLogRequestID   string
 	Coldstart          bool
+	ColdstartDuration  float64
 	StartTime          time.Time
 	EndTime            time.Time
 }
@@ -48,9 +50,16 @@ func (ec *ExecutionContext) GetCurrentState() State {
 		ColdstartRequestID: ec.coldstartRequestID,
 		LastLogRequestID:   ec.lastLogRequestID,
 		Coldstart:          ec.coldstart,
+		ColdstartDuration:  ec.coldstartDuration,
 		StartTime:          ec.startTime,
 		EndTime:            ec.endTime,
 	}
+}
+
+func (ec *ExecutionContext) SetColdStartDuration(duration float64) {
+	ec.m.Lock()
+	defer ec.m.Unlock()
+	ec.coldstartDuration = duration
 }
 
 // SetFromInvocation sets the execution context based on an invocation
@@ -67,17 +76,16 @@ func (ec *ExecutionContext) SetFromInvocation(arn string, requestID string) {
 	}
 }
 
-// UpdateFromStartLog updates the execution context based on a platform.Start log message
-func (ec *ExecutionContext) UpdateFromStartLog(requestID string, time time.Time) {
+// UpdateStartTime updates the execution context based on a platform.Start log message
+func (ec *ExecutionContext) UpdateStartTime(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	ec.lastLogRequestID = requestID
 	ec.startTime = time
 }
 
-// UpdateFromRuntimeDoneLog updates the execution context based on a
+// UpdateEndTime updates the execution context based on a
 // platform.runtimeDone log message
-func (ec *ExecutionContext) UpdateFromRuntimeDoneLog(time time.Time) {
+func (ec *ExecutionContext) UpdateEndTime(time time.Time) {
 	ec.m.Lock()
 	defer ec.m.Unlock()
 	ec.endTime = time
@@ -90,7 +98,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(persistedStateFilePath, file, 0644)
+	err = os.WriteFile(persistedStateFilePath, file, 0600)
 	if err != nil {
 		return err
 	}
@@ -101,7 +109,7 @@ func (ec *ExecutionContext) SaveCurrentExecutionContext() error {
 func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.m.Lock()
 	defer ec.m.Unlock()
-	file, err := ioutil.ReadFile(persistedStateFilePath)
+	file, err := os.ReadFile(persistedStateFilePath)
 	if err != nil {
 		return err
 	}

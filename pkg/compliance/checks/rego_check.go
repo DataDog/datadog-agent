@@ -35,11 +35,11 @@ const regoEvalTimeout = 20 * time.Second
 type regoCheck struct {
 	evalLock sync.Mutex
 
-	metrics           metrics.Metrics
-	ruleID            string
-	ruleScope         compliance.RuleScope
-	inputs            []compliance.RegoInput
-	preparedEvalQuery rego.PreparedEvalQuery
+	metrics        metrics.Metrics
+	ruleID         string
+	ruleScope      compliance.RuleScope
+	inputs         []compliance.RegoInput
+	regoModuleArgs []func(*rego.Rego)
 }
 
 func importModule(importPath, parentDir string, required bool) (string, error) {
@@ -135,17 +135,7 @@ func (r *regoCheck) compileRule(rule *compliance.RegoRule, regoOptions []func(r 
 
 	log.Debugf("rego query: %v", query)
 
-	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
-	defer cancel()
-	preparedEvalQuery, err := rego.New(
-		moduleArgs...,
-	).PrepareForEval(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	r.preparedEvalQuery = preparedEvalQuery
+	r.regoModuleArgs = moduleArgs
 
 	return nil
 }
@@ -391,7 +381,12 @@ func (r *regoCheck) check(env env.Env) []*compliance.Report {
 	ctx, cancel := context.WithTimeout(context.Background(), regoEvalTimeout)
 	defer cancel()
 
-	results, err := r.preparedEvalQuery.Eval(ctx, rego.EvalInput(input), rego.EvalMetrics(r.metrics))
+	args := make([]func(*rego.Rego), len(r.regoModuleArgs), len(r.regoModuleArgs)+2)
+	copy(args, r.regoModuleArgs)
+	args = append(args, rego.Input(input), rego.Metrics(r.metrics))
+
+	regoMod := rego.New(args...)
+	results, err := regoMod.Eval(ctx)
 	if err != nil {
 		return buildRegoErrorReports(err)
 	}
@@ -465,7 +460,7 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 			return nil, err
 		}
 
-		if err := checkFindingStatus(&finding); err != nil {
+		if err := finding.normalizeStatus(); err != nil {
 			return nil, err
 		}
 
@@ -475,13 +470,23 @@ func parseFindings(regoData interface{}) ([]regoFinding, error) {
 	return res, nil
 }
 
-func checkFindingStatus(finding *regoFinding) error {
-	switch finding.Status {
-	case "passed", "failing", "error":
-		return nil
-	default:
+var statusMapping = map[string]string{
+	"passed":  "passed",
+	"pass":    "passed",
+	"failing": "failing",
+	"fail":    "failing",
+	"error":   "error",
+	"err":     "error",
+}
+
+func (finding *regoFinding) normalizeStatus() error {
+	mapped, ok := statusMapping[finding.Status]
+	if !ok {
 		return fmt.Errorf("unknown finding status: %s", finding.Status)
 	}
+
+	finding.Status = mapped
+	return nil
 }
 
 func checkFindingRequiredFields(metadata *mapstructure.Metadata) error {

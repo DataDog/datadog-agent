@@ -7,11 +7,10 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -23,7 +22,6 @@ import (
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/zstd_0"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -338,9 +336,8 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 }
 
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
-	clusterID, orig, cfg, check := getPodCheckMessage()
+	clusterID, cfg, check := getPodCheckMessage(t)
 	cfg.Orchestrator.IsManifestCollectionEnabled = true
-	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, cfg, ep)
@@ -349,8 +346,7 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 }
 
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
-	clusterID, orig, cfg, check := getPodCheckMessage()
-	defer func() { _ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", orig) }()
+	clusterID, cfg, check := getPodCheckMessage(t)
 
 	runCollectorTest(t, check, cfg, &endpointConfig{}, ddconfig.Mock(t), func(cfg *config.AgentConfig, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, cfg, ep)
@@ -363,15 +359,14 @@ func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	})
 }
 
-func getPodCheckMessage() (string, string, *config.AgentConfig, checks.Check) {
+func getPodCheckMessage(t *testing.T) (string, *config.AgentConfig, checks.Check) {
 
 	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
 
 	cfg := config.NewDefaultAgentConfig()
 	cfg.Orchestrator.OrchestrationCollectionEnabled = true
 
-	orig := os.Getenv("DD_ORCHESTRATOR_CLUSTER_ID")
-	_ = os.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 
 	pd := make([]process.MessageBody, 0, 2)
 	m := &process.CollectorPod{
@@ -387,7 +382,7 @@ func getPodCheckMessage() (string, string, *config.AgentConfig, checks.Check) {
 		name: checks.Pod.Name(),
 		data: [][]process.MessageBody{pd},
 	}
-	return clusterID, orig, cfg, check
+	return clusterID, cfg, check
 }
 
 func testPodMessageMetadata(t *testing.T, clusterID string, cfg *config.AgentConfig, ep *mockEndpoint) {
@@ -420,16 +415,14 @@ func testPodMessageManifest(t *testing.T, clusterID string, cfg *config.AgentCon
 	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
 	assert.NotEmpty(t, req.headers.Get(headers.TimestampHeader))
-	assert.Equal(t, headers.ZSTDContentEncoding, req.headers.Get(headers.ContentEncodingHeader))
 
-	d, err := zstd_0.Decompress(nil, req.body)
+	reqBody, err := process.DecodeMessage(req.body)
 	require.NoError(t, err)
 
-	x := &process.CollectorManifest{}
-	err = proto.Unmarshal(d, x)
-	require.NoError(t, err)
+	cm, ok := reqBody.Body.(*process.CollectorManifest)
+	require.True(t, ok)
 
-	assert.Equal(t, clusterID, x.ClusterId)
+	assert.Equal(t, clusterID, cm.ClusterId)
 }
 
 func TestQueueSpaceNotAvailable(t *testing.T) {
@@ -736,7 +729,7 @@ func (m *mockEndpoint) handleValidate(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	require.NoError(m.t, err)
 
 	err = req.Body.Close()
@@ -777,7 +770,7 @@ func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
 }
 
 func (m *mockEndpoint) handleEvents(w http.ResponseWriter, req *http.Request) {
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	require.NoError(m.t, err)
 
 	err = req.Body.Close()

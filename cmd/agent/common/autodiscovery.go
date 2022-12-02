@@ -7,6 +7,7 @@ package common
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,12 +30,18 @@ var (
 		"kubelet":   {"container": struct{}{}},
 		"container": {"kubelet": struct{}{}},
 	}
+
+	incompatibleProviders = []string{"kubelet", "container", "docker"}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
 	ad := autodiscovery.NewAutoConfig(metaScheduler)
 	providers.InitConfigFilesReader(confSearchPaths)
-	ad.AddConfigProvider(providers.NewFileConfigProvider(), false, 0)
+	ad.AddConfigProvider(
+		providers.NewFileConfigProvider(),
+		config.Datadog.GetBool("autoconf_config_files_poll"),
+		time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval"))*time.Second,
+	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
@@ -64,13 +72,28 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 			}
 		}
 
-		// The "docker" config provider was replaced with the "container" one
-		// that supports Docker, but also other runtimes. We need this
-		// conversion to avoid breaking configs that included "docker".
-		if options, found := uniqueConfigProviders["docker"]; found {
-			delete(uniqueConfigProviders, "docker")
-			options.Name = names.Container
-			uniqueConfigProviders["container"] = options
+		ccaInAD := util.CcaInAD()
+		if ccaInAD {
+			var enableContainerProvider bool
+			for _, p := range incompatibleProviders {
+				if _, found := uniqueConfigProviders[p]; found {
+					enableContainerProvider = true
+					delete(uniqueConfigProviders, p)
+				}
+			}
+
+			if enableContainerProvider {
+				uniqueConfigProviders[names.KubeContainer] = config.ConfigurationProviders{Name: names.KubeContainer}
+			}
+		} else {
+			// The "docker" config provider was replaced with the "container" one
+			// that supports Docker, but also other runtimes. We need this
+			// conversion to avoid breaking configs that included "docker".
+			if options, found := uniqueConfigProviders["docker"]; found {
+				delete(uniqueConfigProviders, "docker")
+				options.Name = names.Container
+				uniqueConfigProviders["container"] = options
+			}
 		}
 
 		for _, provider := range extraConfigProviders {
@@ -197,11 +220,34 @@ func (sf schedulerFunc) Stop() {
 }
 
 // WaitForConfigsFromAD waits until a count of discoveryMinInstances configs
-// with name checkName are scheduled by AD, and returns the matches.  It does
-// so by subscribing to the AD metascheduler.  If the context is cancelled
-// then any accumulated configs are returned, even if that is fewer than
-// discoveryMinInstances.
+// with names in checkNames are scheduled by AD, and returns the matches.
+//
+// If the context is cancelled, then any accumulated, matching changes are
+// returned, even if that is fewer than discoveryMinInstances.
 func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances)
+}
+
+// WaitForAllConfigsFromAD waits until its context expires, and then returns
+// the full set of checks scheduled by AD.
+func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0)
+}
+
+// waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
+//
+// AD scheduling is asynchronous, so this is a time-based process.
+//
+// If wildcard is false, this waits until at least discoveryMinInstances
+// configs with names in checkNames are scheduled by AD, and returns the
+// matches.  If the context is cancelled before that occurs, then any
+// accumulated configs are returned, even if that is fewer than
+// discoveryMinInstances.
+//
+// If wildcard is true, this gathers all configs scheduled before the context
+// is cancelled, and then returns.  It will not return before the context is
+// cancelled.
+func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue
@@ -216,24 +262,33 @@ func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMin
 		}
 	}()
 
+	var match func(cfg integration.Config) bool
+	if wildcard {
+		// match all configs
+		match = func(integration.Config) bool { return true }
+	} else {
+		// match configs with names in checkNames
+		match = func(cfg integration.Config) bool {
+			for _, checkName := range checkNames {
+				if cfg.Name == checkName {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		for _, cfg := range configs {
-			found := false
-			for _, checkName := range checkNames {
-				if cfg.Name == checkName {
-					found = true
-					break
-				}
-			}
-			if found && waiting.Load() {
+			if match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
 		}
 	}), true)
 
-	for len(configs) < discoveryMinInstances {
+	for wildcard || len(configs) < discoveryMinInstances {
 		select {
 		case cfg := <-configChan:
 			configs = append(configs, cfg)

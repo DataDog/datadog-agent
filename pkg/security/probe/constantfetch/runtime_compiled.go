@@ -12,13 +12,8 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io"
-	"path/filepath"
 	"sort"
-	"strings"
 	"text/template"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -114,23 +109,6 @@ func (cf *RuntimeCompilationConstantFetcher) getCCode() (string, error) {
 	return buffer.String(), nil
 }
 
-func (cf *RuntimeCompilationConstantFetcher) compileConstantFetcher(config *ebpf.Config, cCode string) (io.ReaderAt, error) {
-	provider := &constantFetcherRCProvider{
-		cCode: cCode,
-	}
-	runtimeCompiler := runtime.NewCompiler()
-	reader, err := runtimeCompiler.CompileObjectFile(config, nil, "constant_fetcher.c", provider)
-
-	if cf.statsdClient != nil {
-		telemetry := runtimeCompiler.GetRCTelemetry()
-		if err := telemetry.SendMetrics(cf.statsdClient); err != nil {
-			seclog.Errorf("failed to send telemetry for runtime compilation of constants: %v", err)
-		}
-	}
-
-	return reader, err
-}
-
 // FinishAndGetResults returns the results
 func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]uint64, error) {
 	cCode, err := cf.getCCode()
@@ -138,7 +116,7 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 		return nil, err
 	}
 
-	elfFile, err := cf.compileConstantFetcher(cf.config, cCode)
+	elfFile, err := runtime.ConstantFetcher.Compile(cf.config, cCode, nil, cf.statsdClient)
 	if err != nil {
 		return nil, err
 	}
@@ -178,30 +156,6 @@ func (cf *RuntimeCompilationConstantFetcher) FinishAndGetResults() (map[string]u
 
 	seclog.Infof("runtime compiled constants: %v", cf.result)
 	return cf.result, nil
-}
-
-type constantFetcherRCProvider struct {
-	cCode string
-}
-
-// GetInputReader implements CompilationFileProvider.GetInputReader
-func (p *constantFetcherRCProvider) GetInputReader(config *ebpf.Config, tm *runtime.CompilationTelemetry) (io.Reader, error) {
-	return strings.NewReader(p.cCode), nil
-}
-
-// GetOutputFilePath implements CompilationFileProvider.GetOutputFilePath
-func (p *constantFetcherRCProvider) GetOutputFilePath(config *ebpf.Config, uname *unix.Utsname, flagHash string, tm *runtime.CompilationTelemetry) (string, error) {
-	cCodeHash, err := runtime.Sha256hex([]byte(p.cCode))
-	if err != nil {
-		return "", err
-	}
-
-	unameHash, err := runtime.UnameHash(uname)
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(config.RuntimeCompilerOutputDir, fmt.Sprintf("constant_fetcher-%s-%s-%s.o", unameHash, cCodeHash, flagHash)), nil
 }
 
 func sortAndDedup(in []string) []string {

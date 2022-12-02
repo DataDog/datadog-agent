@@ -15,7 +15,7 @@ import (
 	"text/template"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -91,7 +91,7 @@ func (ad *ActivityDump) EncodeDOT() (*bytes.Buffer, error) {
 	t := template.Must(template.New("tmpl").Parse(GraphTemplate))
 	raw := bytes.NewBuffer(nil)
 	if err := t.Execute(raw, data); err != nil {
-		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), dump.DOT, err)
+		return nil, fmt.Errorf("couldn't encode %s in %s: %w", ad.getSelectorStr(), config.DOT, err)
 	}
 	return raw, nil
 }
@@ -111,8 +111,8 @@ func (ad *ActivityDump) prepareGraphData(title string) graph {
 
 func (ad *ActivityDump) prepareProcessActivityNode(p *ProcessActivityNode, data *graph) GraphID {
 	var args string
-	if ad.adm != nil && ad.adm.probe != nil {
-		if argv, _ := ad.adm.probe.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
+	if ad.adm != nil && ad.adm.resolvers != nil {
+		if argv, _ := ad.adm.resolvers.ProcessResolver.GetProcessScrubbedArgv(&p.Process); len(argv) > 0 {
 			args = strings.ReplaceAll(strings.Join(argv, " "), "\"", "\\\"")
 			args = strings.ReplaceAll(args, "\n", " ")
 			args = strings.ReplaceAll(args, ">", "\\>")
@@ -297,7 +297,6 @@ func (ad *ActivityDump) prepareSyscallsNode(p *ProcessActivityNode, data *graph)
 }
 
 // GraphID represents an ID used in a graph, combination of NodeIDs
-//msgp:ignore GraphID
 type GraphID struct {
 	raw string
 }
@@ -333,7 +332,6 @@ func (id GraphID) String() string {
 }
 
 // NodeID represents the ID of a Node
-//msgp:ignore NodeID
 type NodeID struct {
 	inner uint64
 }

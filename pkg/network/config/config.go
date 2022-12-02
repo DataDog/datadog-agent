@@ -75,8 +75,9 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
-	// EnableHTTPHTTPSMonitoringViaETW specifies whether the tracer (on Windows) should monitor HTTP and or HTTPS traffic
-	EnableHTTPHTTPSMonitoringViaETW bool
+	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Go's standard library's TLS implementation
+	EnableGoTLSSupport bool
 
 	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
 	// value is currently Windows only
@@ -146,6 +147,9 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
+	ConntrackRateLimitInterval time.Duration
+
 	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
 	ConntrackInitTimeout time.Duration
 
@@ -186,6 +190,10 @@ type Config struct {
 
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
+
+	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
+	// classifying the L7 protocols being used.
+	ProtocolClassificationEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -230,10 +238,12 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
-		EnableHTTPMonitoring:            cfg.GetBool(join(netNS, "enable_http_monitoring")),
-		EnableHTTPSMonitoring:           cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableHTTPHTTPSMonitoringViaETW: cfg.GetBool(join(netNS, "enable_http_https_monitoring_via_etw")),
-		MaxHTTPStatsBuffered:            cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
+
+		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
+		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableGoTLSSupport:    cfg.GetBool(join(spNS, "enable_go_tls_support")),
+		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
@@ -242,6 +252,7 @@ func New() *Config {
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
 		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
@@ -272,7 +283,7 @@ func New() *Config {
 		c.HTTPNotificationThreshold = c.MaxTrackedHTTPConnections / 2
 	}
 
-	maxHTTPFrag := uint64(64)
+	maxHTTPFrag := uint64(160)
 	if c.HTTPMaxRequestFragment > int64(maxHTTPFrag) { // dbtodo where is the actual max defined?
 		log.Warnf("Max HTTP fragment too large (%d) resetting to (%d) ", c.HTTPMaxRequestFragment, maxHTTPFrag)
 		c.HTTPMaxRequestFragment = int64(maxHTTPFrag)

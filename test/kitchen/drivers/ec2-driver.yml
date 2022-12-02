@@ -9,6 +9,10 @@ provisioner:
   # There is no arm64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
   download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.aarch64.rpm
   product_version: 14.15.6
+  <% elsif ENV['KITCHEN_PLATFORM'] == "amazonlinux" && ENV['KITCHEN_ARCH'] == "x86_64" %>
+  # There is no x86_64 distribution of Chef 14 for Amazon Linux 2022. Use the CentOS package instead
+  download_url: https://packages.chef.io/files/stable/chef/14.15.6/el/7/chef-14.15.6-1.el7.x86_64.rpm
+  product_version: 14.15.6
   <% else %>
   product_version: <%= ENV['CHEF_VERSION'] ||= '14.12.9' %>
   <% end %>
@@ -57,7 +61,7 @@ platforms:
       idx += 1
 
       host = "ec2"
-      platform_name = platform[0] + "-#{host}"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
@@ -84,6 +88,9 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
   driver:
     <% if windows %>
     connection_timeout: 20
@@ -136,6 +143,10 @@ platforms:
           let i+=${wait};
         done;
   <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>

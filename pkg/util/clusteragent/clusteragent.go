@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -318,7 +317,7 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 	defer resp.Body.Close()
 
 	if readResponseBody && resp.StatusCode == http.StatusOK {
-		respBody, err := ioutil.ReadAll(resp.Body)
+		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, errors.NewRemoteServiceError(url, err.Error())
 		}

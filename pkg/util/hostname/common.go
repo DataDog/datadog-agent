@@ -8,7 +8,6 @@ package hostname
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -57,7 +56,7 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
 	}
 
-	fileContent, err := ioutil.ReadFile(hostnameFilepath)
+	fileContent, err := os.ReadFile(hostnameFilepath)
 	if err != nil {
 		return "", fmt.Errorf("Could not read hostname from %s: %v", hostnameFilepath, err)
 	}

@@ -13,7 +13,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -30,12 +31,6 @@ var (
 
 	// DefaultConfPath points to the folder containing datadog.yaml
 	DefaultConfPath = "c:\\programdata\\datadog"
-
-	enabledVals = map[string]bool{"yes": true, "true": true, "1": true,
-		"no": false, "false": false, "0": false}
-	subServices = map[string]string{"logs_enabled": "logs_enabled",
-		"apm_enabled":     "apm_config.enabled",
-		"process_enabled": "process_config.enabled"}
 )
 
 func init() {
@@ -56,20 +51,18 @@ const ServiceName = "dogstatsd"
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.Dogstatsd)
-	config.Datadog.AddConfigPath(DefaultConfPath)
 
 	isIntSess, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Printf("failed to determine if we are running in an interactive session: %v\n", err)
 	}
 	if !isIntSess {
-		confPath = DefaultConfPath
 		runService(false)
 		return
 	}
 	defer log.Flush()
 
-	if err = dogstatsdCmd.Execute(); err != nil {
+	if err = MakeRootCommand().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
@@ -85,7 +78,11 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := runAgent(ctx)
+	cliParams := &cliParams{}
+	err := runDogstatsdFct(
+		cliParams,
+		DefaultConfPath,
+		func(config config.Component) error { return runAgent(ctx, cliParams, config) })
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
@@ -113,7 +110,7 @@ loop:
 				break loop
 			case svc.PreShutdown:
 				log.Info("Received pre-shutdown message from service control manager")
-				elog.Info(0x4000000d, config.ServiceName)
+				elog.Info(0x4000000d, pkgconfig.ServiceName)
 				break loop
 			case svc.Shutdown:
 				log.Info("Received shutdown message from service control manager")

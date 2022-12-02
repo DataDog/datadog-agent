@@ -81,7 +81,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(struct pt_regs *ct
 
             // The last dentry in the cgroup path should be `cgroup.procs`, thus the container ID should be its parent.
             bpf_probe_read(&container_d, sizeof(container_d), &dentry->d_parent);
-            bpf_probe_read(&container_qstr, sizeof(container_qstr), &dentry->d_name);
             bpf_probe_read(&container_qstr, sizeof(container_qstr), &container_d->d_name);
             container_id = (void*) container_qstr.name;
             break;

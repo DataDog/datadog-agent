@@ -11,8 +11,6 @@ import (
 	"fmt"
 
 	"github.com/theupdateframework/go-tuf/data"
-
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 )
 
 /*
@@ -24,17 +22,19 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductFeatures, ProductASMDD}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductASMFeatures, ProductASMDD, ProductASMData}
 
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
-	// ProductFeatures is a pseudo-product that lists whether or not a product should be enabled in a tracer
-	ProductFeatures = "FEATURES"
+	// ProductASMFeatures is the ASM product used form ASM activation through remote config
+	ProductASMFeatures = "ASM_FEATURES"
 	// ProductASMDD is the application security monitoring product managed by datadog employees
 	ProductASMDD = "ASM_DD"
+	// ProductASMData is the ASM product used to configure WAF rules data
+	ProductASMData = "ASM_DATA"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
@@ -46,12 +46,14 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 	switch product {
 	case ProductAPMSampling:
 		c, err = parseConfigAPMSampling(raw, metadata)
-	case ProductFeatures:
-		c, err = parseFeaturesConfing(raw, metadata)
+	case ProductASMFeatures:
+		c, err = parseASMFeaturesConfig(raw, metadata)
 	case ProductCWSDD:
 		c, err = parseConfigCWSDD(raw, metadata)
 	case ProductASMDD:
 		c, err = parseConfigASMDD(raw, metadata)
+	case ProductASMData:
+		c, err = parseConfigASMData(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}
@@ -62,18 +64,14 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 // APMSamplingConfig is a deserialized APM Sampling configuration file
 // along with its associated remote config metadata.
 type APMSamplingConfig struct {
-	Config   apmsampling.APMSampling
+	Config   []byte
 	Metadata Metadata
 }
 
 func parseConfigAPMSampling(data []byte, metadata Metadata) (APMSamplingConfig, error) {
-	var apmConfig apmsampling.APMSampling
-	_, err := apmConfig.UnmarshalMsg(data)
-	if err != nil {
-		return APMSamplingConfig{}, fmt.Errorf("could not parse apm sampling config: %v", err)
-	}
+	// We actually don't parse the payload here, we delegate this responsibility to the trace agent
 	return APMSamplingConfig{
-		Config:   apmConfig,
+		Config:   data,
 		Metadata: metadata,
 	}, nil
 }
@@ -163,45 +161,45 @@ func (r *Repository) ASMDDConfigs() map[string]ConfigASMDD {
 	return typedConfigs
 }
 
-// FeaturesConfig is a deserialized configuration file that indicates what features should be enabled
+// ASMFeaturesConfig is a deserialized configuration file that indicates whether ASM should be enabled
 // within a tracer, along with its associated remote config metadata.
-type FeaturesConfig struct {
-	Config   FeaturesData
+type ASMFeaturesConfig struct {
+	Config   ASMFeaturesData
 	Metadata Metadata
 }
 
-// FeaturesData describes the enabled state of features
-type FeaturesData struct {
+// ASMFeaturesData describes the enabled state of ASM features
+type ASMFeaturesData struct {
 	ASM struct {
 		Enabled bool `json:"enabled"`
 	} `json:"asm"`
 }
 
-func parseFeaturesConfing(data []byte, metadata Metadata) (FeaturesConfig, error) {
-	var f FeaturesData
+func parseASMFeaturesConfig(data []byte, metadata Metadata) (ASMFeaturesConfig, error) {
+	var f ASMFeaturesData
 
 	err := json.Unmarshal(data, &f)
 	if err != nil {
-		return FeaturesConfig{}, nil
+		return ASMFeaturesConfig{}, nil
 	}
 
-	return FeaturesConfig{
+	return ASMFeaturesConfig{
 		Config:   f,
 		Metadata: metadata,
 	}, nil
 }
 
-// FeaturesConfigs returns the currently active Features configs
-func (r *Repository) FeaturesConfigs() map[string]FeaturesConfig {
-	typedConfigs := make(map[string]FeaturesConfig)
+// ASMFeaturesConfigs returns the currently active ASMFeatures configs
+func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
+	typedConfigs := make(map[string]ASMFeaturesConfig)
 
-	configs := r.getConfigs(ProductFeatures)
+	configs := r.getConfigs(ProductASMFeatures)
 
 	for path, conf := range configs {
 		// We control this, so if this has gone wrong something has gone horribly wrong
-		typed, ok := conf.(FeaturesConfig)
+		typed, ok := conf.(ASMFeaturesConfig)
 		if !ok {
-			panic("unexpected config stored as FeaturesConfig")
+			panic("unexpected config stored as ASMFeaturesConfig")
 		}
 
 		typedConfigs[path] = typed
@@ -210,14 +208,84 @@ func (r *Repository) FeaturesConfigs() map[string]FeaturesConfig {
 	return typedConfigs
 }
 
+// ApplyState represents the status of a configuration application by a remote configuration client
+// Clients need to either ack the correct application of received configurations, or communicate that
+// they haven't applied it yet, or communicate any error that may have happened while doing so
+type ApplyState uint64
+
+const (
+	ApplyStateUnknown ApplyState = iota
+	ApplyStateUnacknowledged
+	ApplyStateAcknowledged
+	ApplyStateError
+)
+
+// ApplyStatus is the processing status for a given configuration.
+// It basically represents whether a config was successfully processed and apply, or if an error occurred
+type ApplyStatus struct {
+	State ApplyState
+	Error string
+}
+
+// ASMDataConfig is a deserialized configuration file that holds rules data that can be used
+// by the ASM WAF for specific features (example: ip blocking).
+type ASMDataConfig struct {
+	Config   ASMDataRulesData
+	Metadata Metadata
+}
+
+// ASMDataRulesData is a serializable array of rules data entries
+type ASMDataRulesData struct {
+	RulesData []ASMDataRuleData `json:"rules_data"`
+}
+
+// ASMDataRuleData is an entry in the rules data list held by an ASMData configuration
+type ASMDataRuleData struct {
+	ID   string                 `json:"id"`
+	Type string                 `json:"type"`
+	Data []ASMDataRuleDataEntry `json:"data"`
+}
+
+// ASMDataRuleDataEntry represents a data entry in a rule data file
+type ASMDataRuleDataEntry struct {
+	Expiration int64  `json:"expiration,omitempty"`
+	Value      string `json:"value"`
+}
+
+func parseConfigASMData(data []byte, metadata Metadata) (ASMDataConfig, error) {
+	cfg := ASMDataConfig{
+		Metadata: metadata,
+	}
+	err := json.Unmarshal(data, &cfg.Config)
+	return cfg, err
+}
+
+// ASMDataConfigs returns the currently active ASMData configs
+func (r *Repository) ASMDataConfigs() map[string]ASMDataConfig {
+	typedConfigs := make(map[string]ASMDataConfig)
+	configs := r.getConfigs(ProductASMData)
+
+	for path, cfg := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := cfg.(ASMDataConfig)
+		if !ok {
+			panic("unexpected config stored as ASMDataConfig")
+		}
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
 // Metadata stores remote config metadata for a given configuration
 type Metadata struct {
-	Product   string
-	ID        string
-	Name      string
-	Version   uint64
-	RawLength uint64
-	Hashes    map[string][]byte
+	Product     string
+	ID          string
+	Name        string
+	Version     uint64
+	RawLength   uint64
+	Hashes      map[string][]byte
+	ApplyStatus ApplyStatus
 }
 
 func newConfigMetadata(parsedPath configPath, tfm data.TargetFileMeta) (Metadata, error) {

@@ -52,7 +52,21 @@ package 'socat'
 
 package 'wget'
 
-package 'curl'
+package 'curl' do
+  case node[:platform]
+  when 'amazon'
+    case node[:platform_version]
+    when '2022'
+      package_name 'curl-minimal'
+    else
+      package_name 'curl'
+    end
+  else
+    package_name 'curl'
+  end
+end
+
+package 'iptables'
 
 # Enable IPv6 support
 kernel_module 'ipv6' do
@@ -86,6 +100,10 @@ directory "/opt/datadog-agent/embedded/include" do
   recursive true
 end
 
+directory "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf" do
+  recursive true
+end
+
 cookbook_file "/opt/datadog-agent/embedded/bin/clang-bpf" do
   source "clang-bpf"
   mode '0744'
@@ -96,4 +114,51 @@ cookbook_file "/opt/datadog-agent/embedded/bin/llc-bpf" do
   source "llc-bpf"
   mode '0744'
   action :create
+end
+
+cookbook_file "/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf/minimized-btfs.tar.xz" do
+  source "minimized-btfs.tar.xz"
+  action :create
+end
+
+directory "/go/bin" do
+  recursive true
+end
+
+cookbook_file "/go/bin/gotestsum" do
+  source "gotestsum"
+  mode '0744'
+  action :create
+end
+
+cookbook_file "/go/bin/test2json" do
+  source "test2json"
+  mode '0744'
+  action :create
+end
+
+directory "/tmp/junit" do
+  recursive true
+end
+
+cookbook_file "/tmp/junit/job_url.txt" do
+  source "job_url.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+cookbook_file "/tmp/junit/tags.txt" do
+  source "tags.txt"
+  mode '0444'
+  action :create
+  ignore_failure true
+end
+
+directory "/tmp/testjson" do
+  recursive true
+end
+
+directory "/tmp/pkgjson" do
+  recursive true
 end

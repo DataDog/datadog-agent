@@ -24,6 +24,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
+func makeContainer(id string) *model.Container {
+	return &model.Container{
+		Id: id,
+	}
+}
+
 // TestBasicProcessMessages tests basic cases for creating payloads by hard-coded scenarios
 func TestBasicProcessMessages(t *testing.T) {
 	const maxBatchBytes = 1000000

@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -60,8 +59,17 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		return http.NotFoundHandler()
 	}
 
+	underlyingTransport := r.conf.NewHTTPTransport()
+	// Fix and documentation taken from pkg/trace/api/profiles.go
+	// The intake's connection timeout is 60 seconds, which is similar to the default heartbeat periodicity of
+	// telemetry clients. When a new heartbeat is simultaneous to the intake closing the connection, Go's ReverseProxy
+	// returns a 502 error to the tracer. Ensuring that the agent closes the connection before the intake solves this
+	// race condition. A value of 47 was chosen as it's a prime number which doesn't divide 60, reducing the risk of
+	// overlap with other timeouts or periodicities. It provides sufficient buffer time compared to 60, whilst still
+	// allowing connection reuse.
+	underlyingTransport.IdleConnTimeout = 47 * time.Second
 	transport := telemetryMultiTransport{
-		Transport: r.conf.NewHTTPTransport(),
+		Transport: underlyingTransport,
 		Endpoints: endpoints,
 	}
 	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
@@ -100,20 +108,20 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	if len(m.Endpoints) == 1 {
 		return m.roundTrip(req, m.Endpoints[0])
 	}
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	newreq := req.Clone(req.Context())
-	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+	newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 	// despite the number of endpoints, we always return the response of the first
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
-		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

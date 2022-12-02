@@ -5,33 +5,9 @@
 include:
   - https://gitlab-templates.ddbuild.io/slack-notifier/v1/template.yml
 
-notify-on-success:
-  extends: .slack-notifier-base
-  rules:
-    !reference [.on_main_or_release_branch_or_deploy]
-  dependencies: []
-  script: |
-    COMMIT_URL="$CI_PROJECT_URL/commit/$CI_COMMIT_SHA"
-
-    AUTHOR=$(git show -s --format="%an" HEAD)
-
-    if [ "$DEPLOY_AGENT" = "true" ]; then
-      MESSAGE_TEXT=":host-green: :rocket: datadog-agent deploy pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
-      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
-    else
-      MESSAGE_TEXT=":host-green: :merged: datadog-agent merge pipeline <$CI_PIPELINE_URL|$CI_PIPELINE_ID> for $CI_COMMIT_REF_NAME succeeded.
-      $CI_COMMIT_TITLE (<$COMMIT_URL|$CI_COMMIT_SHORT_SHA>) by $AUTHOR"
-    fi
-    # Do not send notifications if this is a child pipeline of another repo
-    # The triggering repo should already have its own notification system
-    if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
-      postmessage "#datadog-agent-pipelines" "$MESSAGE_TEXT"
-    else
-      echo "This pipeline was triggered by another repository, skipping notification."
-    fi
-
 notify-on-tagged-success:
   extends: .slack-notifier-base
+  stage: notify
   rules:
     !reference [.on_deploy_stable_or_beta_repo_branch]
   dependencies: []
@@ -40,10 +16,11 @@ notify-on-tagged-success:
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
-notify-on-failure:
+notify:
   extends: .slack-notifier-base
+  stage: notify
   rules:
-    !reference [.on_main_or_release_branch_or_deploy_failure]
+    !reference [.on_main_or_release_branch_or_deploy_always]
   dependencies: []
   script:
     - set +x
@@ -54,10 +31,25 @@ notify-on-failure:
       # The triggering repo should already have its own notification system
       if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
         if [ "$DEPLOY_AGENT" = "true" ]; then
-          invoke -e pipeline.notify-failure --notification-type "deploy"
+          invoke -e pipeline.notify --notification-type "deploy"
         else
-          invoke -e pipeline.notify-failure --notification-type "merge"
+          invoke -e pipeline.notify --notification-type "merge"
         fi
       else
         echo "This pipeline was triggered by another repository, skipping notification."
       fi
+
+send_pipeline_stats:
+  stage: notify
+  # Using the buildimages image and not slack-notifier because we need Python 3.7+
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  when: always
+  dependencies: []
+  script:
+    - source /root/.bashrc && conda activate ddpy3
+    - set +x
+    - export GITLAB_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.gitlab_read_api_token --with-decryption --query "Parameter.Value" --out text)
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
+    - python3 -m pip install -r tasks/libs/requirements-stats.txt
+    - invoke -e pipeline.send-stats

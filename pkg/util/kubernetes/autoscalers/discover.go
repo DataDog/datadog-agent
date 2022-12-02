@@ -19,6 +19,12 @@ const (
 	hpaResource      = "horizontalpodautoscalers"
 )
 
+var preferredHPAVersions = map[string]int{
+	"v2":      3,
+	"v2beta2": 2,
+	"v2beta1": 1,
+}
+
 func DiscoverHPAGroupVersionResource(client kubernetes.Interface) (schema.GroupVersionResource, error) {
 	groups, _, err := client.Discovery().ServerGroupsAndResources()
 	if err != nil {
@@ -36,9 +42,30 @@ func DiscoverHPAGroupVersionResource(client kubernetes.Interface) (schema.GroupV
 			continue
 		}
 
+		var (
+			chosenVersion       string
+			chosenVersionWeight int
+		)
+
+		for _, version := range group.Versions {
+			weight, ok := preferredHPAVersions[version.Version]
+			if !ok {
+				continue
+			}
+
+			if weight > chosenVersionWeight {
+				chosenVersion = version.Version
+				chosenVersionWeight = weight
+			}
+		}
+
+		if chosenVersion == "" {
+			return schema.GroupVersionResource{}, fmt.Errorf("cannot find supported HPA version. available versions: %v", group.Versions)
+		}
+
 		return schema.GroupVersionResource{
 			Group:    autoscalingGroup,
-			Version:  group.PreferredVersion.Version,
+			Version:  chosenVersion,
 			Resource: hpaResource,
 		}, nil
 	}

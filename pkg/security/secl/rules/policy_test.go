@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -464,8 +464,8 @@ func TestRuleErrorLoading(t *testing.T) {
 	rs, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
 	assert.NotNil(t, err)
 	assert.Len(t, err.Errors, 2)
-	assert.ErrorContains(t, err.Errors[0], "rule `testA` definition error: multiple definition with the same ID")
-	assert.ErrorContains(t, err.Errors[1], "rule `testB` definition error: syntax error: 1:16: unexpected token")
+	assert.ErrorContains(t, err.Errors[0], "rule `testA` error: multiple definition with the same ID")
+	assert.ErrorContains(t, err.Errors[1], "rule `testB` error: syntax error `1:16: unexpected token \"-\" (expected \"~\")`")
 
 	assert.Contains(t, rs.rules, "testA")
 	assert.NotContains(t, rs.rules, "testB")
@@ -600,7 +600,13 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 
 	rs, err := loadPolicy(t, testPolicy, policyOpts)
-	assert.Nil(t, err)
+	for _, err := range err.(*multierror.Error).Errors {
+		if rerr, ok := err.(*ErrRuleLoad); ok {
+			if rerr.Definition.ID != "basic" && rerr.Definition.ID != "range_not" {
+				t.Errorf("unexpected error: %v", rerr)
+			}
+		}
+	}
 
 	for _, exp := range expected {
 		t.Run(exp.ruleID, func(t *testing.T) {
@@ -608,14 +614,6 @@ func TestRuleAgentConstraint(t *testing.T) {
 				assert.Contains(t, rs.rules, exp.ruleID)
 			} else {
 				assert.NotContains(t, rs.rules, exp.ruleID)
-
-				var present bool
-				for _, skipped := range rs.policies[0].RuleSkipped {
-					if skipped.ID == exp.ruleID {
-						present = true
-					}
-				}
-				assert.True(t, present)
 			}
 		})
 	}

@@ -286,12 +286,20 @@ func main() {
 				log.Warnf("Failed to set text for item %s %v", item.label, err)
 				continue
 			}
-			action.SetEnabled(item.enabled)
+			err = action.SetEnabled(item.enabled)
+			if err != nil {
+				log.Warnf("Failed to set enabled for item %s %v", item.label, err)
+				continue
+			}
 			if item.handler != nil {
-				action.Triggered().Attach(item.handler)
+				_ = action.Triggered().Attach(item.handler)
 			}
 		}
-		ni.ContextMenu().Actions().Add(action)
+		err = ni.ContextMenu().Actions().Add(action)
+		if err != nil {
+			log.Warnf("Failed to add action for item %s to context menu %v", item.label, err)
+			continue
+		}
 	}
 
 	// The notify icon is hidden initially, so we have to make it visible.
@@ -332,6 +340,7 @@ func enableLoggingToFile() {
 	log.ReplaceLogger(logger)
 }
 
+//nolint:deadcode // for debugging
 func enableLoggingToConsole() {
 	seeConfig := `
 	<seelog minlevel="debug">

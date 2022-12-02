@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Adding a configuration option, ``exclude_ec2_tags``, to exclude EC2 instance tags from being converted into host
+    tags.

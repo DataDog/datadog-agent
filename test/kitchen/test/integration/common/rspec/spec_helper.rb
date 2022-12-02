@@ -707,14 +707,14 @@ shared_examples_for 'an Agent with integrations' do
 
   before do
     freeze_content = File.read(integrations_freeze_file)
-    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==1.5.3')
+    freeze_content.gsub!(/datadog-cilium==.*/, 'datadog-cilium==2.2.1')
     File.write(integrations_freeze_file, freeze_content)
 
     integration_remove('datadog-cilium')
   end
 
   it 'can uninstall an installed package' do
-    integration_install('datadog-cilium==1.5.3')
+    integration_install('datadog-cilium==2.2.1')
 
     expect do
       integration_remove('datadog-cilium')
@@ -725,32 +725,32 @@ shared_examples_for 'an Agent with integrations' do
     integration_remove('datadog-cilium')
 
     expect do
-      integration_install('datadog-cilium==1.5.3')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.2.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.2\.1}) }.from(false).to(true)
   end
 
   it 'can upgrade an installed package' do
     expect do
-      integration_install('datadog-cilium==1.6.0')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.6\.0}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.3.0')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.3\.0}) }.from(false).to(true)
   end
 
   it 'can downgrade an installed package' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.6.0')
+    integration_install('datadog-cilium==2.3.0')
 
     expect do
-      integration_install('datadog-cilium==1.5.3')
-    end.to change { integration_freeze.match?(%r{datadog-cilium==1\.5\.3}) }.from(false).to(true)
+      integration_install('datadog-cilium==2.2.1')
+    end.to change { integration_freeze.match?(%r{datadog-cilium==2\.2\.1}) }.from(false).to(true)
   end
 
   it 'cannot downgrade an installed package to a version older than the one shipped with the agent' do
     integration_remove('datadog-cilium')
-    integration_install('datadog-cilium==1.5.3')
+    integration_install('datadog-cilium==2.2.1')
 
     expect do
-      integration_install('datadog-cilium==1.5.2')
-    end.to raise_error(/Failed to install integrations package 'datadog-cilium==1\.5\.2'/)
+      integration_install('datadog-cilium==2.2.0')
+    end.to raise_error(/Failed to install integrations package 'datadog-cilium==2\.2\.0'/)
   end
 end
 
@@ -918,43 +918,41 @@ def get_sddl_for_object(name)
   sddl
 end
 
-def equal_sddl?(left, right)
-  # First, split the sddl into the ownership (user and group), and the dacl
-  left_array = left.split("D:")
-  right_array = right.split("D:")
+RSpec::Matchers.define :have_sddl_equal_to do |expected|
+  match do |actual|
+    # First, split the sddl into the ownership (user and group), and the dacl
+    left_array = actual.split('D:')
+    right_array = expected.split('D:')
 
-  # compare the ownership & group.  Must be the same
-  if left_array[0] != right_array[0]
-    return false
-  end
-  left_dacl = left_array[1].scan(/(\([^)]*\))/)
-  right_dacl = right_array[1].scan(/(\([^)]*\))/)
+    # compare the ownership & group.  Must be the same
+    return false if left_array[0] != right_array[0]
 
+    left_dacl = left_array[1].scan(/(\([^)]*\))/)
+    right_dacl = right_array[1].scan(/(\([^)]*\))/)
 
-  # if they're different lengths, they're different
-  if left_dacl.length != right_dacl.length
-    return false
-  end
+    # if they're different lengths, they're different
+    return false if left_dacl.length != right_dacl.length
 
-  ## now need to break up the DACL list, because they may be listed in different
-  ## orders... the order doesn't matter but the components should be the same.  So..
+    ## now need to break up the DACL list, because they may be listed in different
+    ## orders... the order doesn't matter but the components should be the same.  So..
 
-  left_dacl.each do |left_entry|
-    found = false
-    right_dacl.each do |right_entry|
-      if left_entry == right_entry
+    left_dacl.each do |left_entry|
+      found = false
+      right_dacl.each do |right_entry|
+        next unless left_entry == right_entry
+
         found = true
         right_dacl.delete(right_entry)
         break
       end
+      return false unless found
     end
-    if !found
-      return false
-    end
+    return false unless right_dacl.empty?
+
+    return true
   end
-  return false if right_dacl.length != 0
-  return true
 end
+
 def get_security_settings
   fname = "secout.txt"
   system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"

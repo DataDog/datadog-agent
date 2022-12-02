@@ -17,18 +17,11 @@ import (
 	"strconv"
 
 	"github.com/DataDog/gohai/cpu"
-	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
-)
-
-var (
-	modkernel32 = windows.NewLazyDLL("kernel32.dll")
-
-	procGetSystemTimes = modkernel32.NewProc("GetSystemTimes")
 )
 
 const cpuCheckName = "cpu"
@@ -87,7 +80,7 @@ func (c *Check) Run() error {
 	if c.userCounter == nil {
 		c.userCounter, err = getProcessorPDHCounter("% User Time", "_Total")
 	}
-	if c.userCounter != nil{
+	if c.userCounter != nil {
 		val, err = c.userCounter.GetValue()
 	}
 	if err != nil {
@@ -123,11 +116,11 @@ func (c *Check) Run() error {
 // Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
 // you visibility about other applications running on the same processor as you
 func getProcessorPDHCounter(counterName, instance string) (*pdhutil.PdhSingleInstanceCounterSet, error) {
-	counter, err := pdhutil.GetUnlocalizedCounter("Processor Information", counterName, instance)
+	counter, err := pdhutil.GetEnglishCounterInstance("Processor Information", counterName, instance)
 	if err != nil {
-		counter, err = pdhutil.GetUnlocalizedCounter("Processor", counterName, instance)
+		counter, err = pdhutil.GetEnglishCounterInstance("Processor", counterName, instance)
 	}
-	return &counter, err
+	return counter, err
 }
 
 // Configure the CPU check doesn't need configuration

@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -105,7 +105,7 @@ func getLog(w http.ResponseWriter, r *http.Request) {
 		logFile = common.DefaultLogFile
 	}
 
-	logFileContents, e := ioutil.ReadFile(logFile)
+	logFileContents, e := os.ReadFile(logFile)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -134,6 +134,9 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(e.Error()))
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
+		return
+	} else if _, err := strconv.ParseInt(payload.CaseID, 10, 0); err != nil {
+		w.Write([]byte("Invalid CaseID (must be a number)"))
 		return
 	}
 
@@ -200,7 +203,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 // Sends the configuration (aka datadog.yaml) file
 func getConfigFile(w http.ResponseWriter, r *http.Request) {
 	path := config.Datadog.ConfigFileUsed()
-	settings, e := ioutil.ReadFile(path)
+	settings, e := os.ReadFile(path)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return
@@ -227,7 +230,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	path := config.Datadog.ConfigFileUsed()
-	e = ioutil.WriteFile(path, data, 0644)
+	e = os.WriteFile(path, data, 0644)
 	if e != nil {
 		w.Write([]byte("Error: " + e.Error()))
 		return

@@ -33,7 +33,6 @@ var (
 		KernelRelease:        "5.17.0-1-amd64",
 		KernelVersion:        "Debian_5.17.3-1",
 		OS:                   "GNU/Linux",
-		PythonVersion:        "3.10.4",
 		CPUArchitecture:      "unknown",
 		MemoryTotalKb:        1205632,
 		MemorySwapTotalKb:    1205632,
@@ -43,6 +42,10 @@ var (
 		AgentVersion:         version.AgentVersion,
 		CloudProvider:        "some_cloud_provider",
 		OsVersion:            "testOS",
+		HypervisorGuestUUID:  "",
+		DmiProductUUID:       "",
+		DmiBoardAssetTag:     "",
+		DmiBoardVendor:       "",
 	}
 )
 
@@ -86,7 +89,6 @@ func platformMock() (*platform.Platform, []string, error) {
 		KernelRelease:    "5.17.0-1-amd64",
 		KernelVersion:    "Debian_5.17.3-1",
 		OS:               "GNU/Linux",
-		PythonVersion:    "3.10.4",
 		HardwarePlatform: "unknown",
 		GoVersion:        "1.17.7",
 		GoOS:             "linux",
@@ -104,6 +106,7 @@ func setupHostMetadataMock() func() {
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
+		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 
 		inventoryMutex.Lock()
 		delete(agentMetadata, string(AgentCloudProvider))
@@ -115,6 +118,7 @@ func setupHostMetadataMock() func() {
 	memoryGet = memoryMock
 	networkGet = networkMock
 	platformGet = platformMock
+	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
 
 	SetAgentMetadata(AgentCloudProvider, "some_cloud_provider")
 	SetHostMetadata(HostOSVersion, "testOS")
@@ -141,12 +145,14 @@ func setupHostMetadataErrorMock() func() {
 		memoryGet = memory.Get
 		networkGet = network.Get
 		platformGet = platform.Get
+		systemSpecificHosttMetadataGet = getSystemSpecificHosttMetadata
 	}
 
 	cpuGet = cpuErrorMock
 	memoryGet = memoryErrorMock
 	networkGet = networkErrorMock
 	platformGet = platformErrorMock
+	systemSpecificHosttMetadataGet = func(*HostMetadata) {}
 	return reset
 }
 

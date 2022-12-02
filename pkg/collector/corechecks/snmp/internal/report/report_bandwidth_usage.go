@@ -28,22 +28,23 @@ func (ms *MetricSender) trySendBandwidthUsageMetric(symbol checkconfig.SymbolCon
 	}
 }
 
-/* sendBandwidthUsageMetric evaluate and report input/output bandwidth usage.
-   If any of `ifHCInOctets`, `ifHCOutOctets`  or `ifHighSpeed` is missing then bandwidth will not be reported.
+/*
+sendBandwidthUsageMetric evaluate and report input/output bandwidth usage.
+If any of `ifHCInOctets`, `ifHCOutOctets`  or `ifHighSpeed` is missing then bandwidth will not be reported.
 
-   Bandwidth usage is:
+Bandwidth usage is:
 
-   interface[In|Out]Octets(t+dt) - interface[In|Out]Octets(t)
-   ----------------------------------------------------------
-                   dt*interfaceSpeed
+interface[In|Out]Octets(t+dt) - interface[In|Out]Octets(t)
+----------------------------------------------------------
+dt*interfaceSpeed
 
-   Given:
-   * ifHCInOctets: the total number of octets received on the interface.
-   * ifHCOutOctets: The total number of octets transmitted out of the interface.
-   * ifHighSpeed: An estimate of the interface's current bandwidth in Mb/s (10^6 bits
-                  per second). It is constant in time, can be overwritten by the system admin.
-                  It is the total available bandwidth.
-   Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *Rate*
+Given:
+* ifHCInOctets: the total number of octets received on the interface.
+* ifHCOutOctets: The total number of octets transmitted out of the interface.
+* ifHighSpeed: An estimate of the interface's current bandwidth in Mb/s (10^6 bits
+per second). It is constant in time, can be overwritten by the system admin.
+It is the total available bandwidth.
+Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *Rate*
 */
 func (ms *MetricSender) sendBandwidthUsageMetric(symbol checkconfig.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error {
 	usageName, ok := bandwidthMetricNameToUsage[symbol.Name]

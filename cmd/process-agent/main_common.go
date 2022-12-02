@@ -15,10 +15,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
+	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/process-agent/app/subcommands/workloadlist"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/process-agent/commands/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -94,6 +97,18 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 
 func init() {
 	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
+
+	globalParams := command.GlobalParams{}
+
+	factories := []command.SubcommandFactory{
+		cmdworkloadlist.Commands,
+	}
+
+	for _, factory := range factories {
+		for _, subcmd := range factory(&globalParams) {
+			rootCmd.AddCommand(subcmd)
+		}
+	}
 }
 
 const (
@@ -162,6 +177,9 @@ func runAgent(exit chan struct{}) {
 	log.Infof("running on platform: %s", hostInfo.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
+
+	// Log any potential misconfigs that are related to the process agent
+	misconfig.ToLog(misconfig.ProcessAgent)
 
 	// Start workload metadata store before tagger (used for containerCollection)
 	store := workloadmeta.GetGlobalStore()

@@ -10,9 +10,7 @@ package tests
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"syscall"
@@ -21,6 +19,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -134,11 +133,11 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -190,7 +189,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	}
 
 	defer func() {
-		if err := test.StopActivityDumpComm(t, "testsuite"); err != nil {
+		if err := test.StopActivityDump("", "", "testsuite"); err != nil {
 			t.Fatal(err)
 		}
 	}()
@@ -206,8 +205,8 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}
@@ -270,11 +269,11 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -414,11 +413,11 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -498,11 +497,11 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		if d.event == nil || (d.eventType != "open") {
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		if event == nil || (eventType != "open") {
 			return false
 		}
-		v, _ := d.event.GetFieldValue("open.file.path")
+		v, _ := event.GetFieldValue("open.file.path")
 		return v == testFile
 	}); err != nil {
 		inode := getInode(t, testFile)
@@ -597,70 +596,6 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	}
 }
 
-func TestFilterOpenProcessPidDiscarder(t *testing.T) {
-	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/test-oba-1" && process.file.path == "/bin/aaa"`,
-	}
-
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	testFile, _, err := test.Path("test-oba-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(testFile)
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	args := []string{"open", testFile, ";", "getchar", ";", "open", testFile}
-
-	cmd := exec.Command(syscallTester, args...)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stdin.Close()
-
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := cmd.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	if err := test.GetEventDiscarder(t, func() error {
-		time.Sleep(probe.DiscardRetention)
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
-		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
-			return false
-		}
-		v, _ := e.GetFieldValue("open.file.path")
-		return v == testFile
-	}); err != nil {
-		t.Error(err)
-	}
-
-	if err := waitForOpenProbeEvent(test, func() error {
-		_, err := io.WriteString(stdin, "\n")
-		return err
-	}, testFile); err == nil {
-		t.Fatalf("shouldn't get an event")
-	}
-}
-
 func TestFilterDiscarderRetention(t *testing.T) {
 	// We need to write a rule with no approver on the file path, and that won't match the real opened file (so that
 	// a discarder is created).
@@ -669,7 +604,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
-	testDrive, err := newTestDrive(t, "xfs", nil)
+	testDrive, err := newTestDrive(t, "xfs", nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -701,8 +636,8 @@ func TestFilterDiscarderRetention(t *testing.T) {
 			return err
 		}
 		return syscall.Close(fd)
-	}, func(d *testDiscarder) bool {
-		e := d.event.(*probe.Event)
+	}, func(event eval.Event, field eval.Field, eventType eval.EventType) bool {
+		e := event.(*probe.Event)
 		if e == nil || (e != nil && e.GetEventType() != model.FileOpenEventType) {
 			return false
 		}

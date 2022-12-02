@@ -10,12 +10,17 @@ package hostinfo
 
 import "context"
 
-// GetNodeLabels returns node labels for this host
-func GetNodeLabels(ctx context.Context) (map[string]string, error) {
-	return nil, nil
+// NodeInfo is use to get Kubernetes Node metadata information
+type NodeInfo struct {
 }
 
-// GetNodeClusterNameLabel returns clustername by fetching a node label
-func GetNodeClusterNameLabel(ctx context.Context) (string, error) {
-	return "", nil
+// NewNodeInfo return a new NodeInfo instance
+// return an error if it fails to access the kubelet client.
+func NewNodeInfo() (*NodeInfo, error) {
+	return &NodeInfo{}, nil
+}
+
+// GetNodeLabels returns node labels for this host
+func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error) {
+	return nil, nil
 }
