@@ -8,6 +8,7 @@ package metrics
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -26,21 +27,25 @@ var Client StatsClient = (*statsd.Client)(nil)
 
 // Gauge calls Gauge on the global Client, if set.
 func Gauge(name string, value float64, tags []string, rate float64) error {
+	log.Debugf("skipping gauge metric %s", name)
 	return nil
 }
 
 // Count calls Count on the global Client, if set.
 func Count(name string, value int64, tags []string, rate float64) error {
+	log.Debugf("skipping count metric %s", name)
 	return nil
 }
 
 // Histogram calls Histogram on the global Client, if set.
 func Histogram(name string, value float64, tags []string, rate float64) error {
+	log.Debugf("skipping histo metric %s", name)
 	return nil
 }
 
 // Timing calls Timing on the global Client, if set.
 func Timing(name string, value time.Duration, tags []string, rate float64) error {
+	log.Debugf("skipping timing metric %s", name)
 	return nil
 }
 
