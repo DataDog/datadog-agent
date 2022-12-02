@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
+	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -99,7 +100,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		subconfig.Commands,
 		ComplianceCommands,
 		runtime.Commands,
-		VersionCommands,
+		subversion.Commands,
 		StartCommands,
 	}
 
