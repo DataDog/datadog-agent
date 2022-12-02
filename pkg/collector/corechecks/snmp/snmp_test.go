@@ -447,6 +447,19 @@ profiles:
 			},
 		},
 	}
+	packetRetry := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.2.3.4.5.0",
+				Type:  gosnmp.Null,
+				Value: nil,
+			},
+			{
+				Name: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0",
+				Type: gosnmp.Null,
+			},
+		},
+	}
 
 	bulkPacket := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
@@ -574,6 +587,10 @@ profiles:
 		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
 		"1.3.6.1.4.1.3375.2.1.3.3.3.0",
 	}).Return(&packet, nil)
+	sess.On("Get", []string{
+		"1.2.3.4.5.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0",
+	}).Return(&packetRetry, nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
