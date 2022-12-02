@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -21,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func eventRun(eventArgs *eventCliParams) error {
@@ -125,4 +127,20 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 	stopper.Add(ticker)
 
 	return agent, nil
+}
+
+// sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
+func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *time.Ticker {
+	// Retrieve the agent version using a dedicated package
+	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+
+	// Send the metric regularly
+	heartbeat := time.NewTicker(15 * time.Second)
+	go func() {
+		for range heartbeat.C {
+			statsdClient.Gauge(fmt.Sprintf("datadog.security_agent.%s.running", moduleName), 1, tags, 1) //nolint:errcheck
+		}
+	}()
+
+	return heartbeat
 }
