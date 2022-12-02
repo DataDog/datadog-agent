@@ -292,6 +292,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 				priorityByID[traceID] = p
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
+
+			// force computing trace stats on backend
+			ddspan.Meta["_dd.compute_stats"] = "1"
 		}
 	}
 	tags := tagstats.AsTags()
