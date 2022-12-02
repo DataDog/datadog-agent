@@ -1,4 +1,4 @@
-regression_detector_submit_job:
+single-machine-performance-regression_detector:
   stage: functional_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
