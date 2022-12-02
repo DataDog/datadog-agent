@@ -11,9 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -279,31 +277,6 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 func initRuntimeSettings() error {
 	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
-}
-
-// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
-// signal is received.
-func handleSignals(stopCh chan struct{}) {
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
-
-	// Block here until we receive the interrupt signal
-	for signo := range signalCh {
-		switch signo {
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			log.Infof("Received signal '%s', shutting down...", signo)
-
-			_ = tagger.Stop()
-
-			stopCh <- struct{}{}
-			return
-		}
-	}
 }
 
 // StopAgent stops the API server and clean up resources
