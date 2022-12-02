@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -199,6 +200,10 @@ func StartSystemProbe() error {
 
 	// if a debug port is specified, we expose the default handler to that port
 	if isValidPort(cfg.DebugPort) {
+		// Expose telemetry endpoint
+		if cfg.TelemetryEnabled {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		go func() {
 			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.DebugPort), http.DefaultServeMux)
 			if err != nil && err != http.ErrServerClosed {
