@@ -22,8 +22,10 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -42,10 +44,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const (
@@ -85,7 +91,14 @@ func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "check-policies",
 		Short: "check policies and return a report",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkPolicies(&cliParams)
+			return fxutil.OneShot(checkPolicies,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
@@ -162,7 +175,14 @@ func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Com
 		Use:   "check",
 		Short: "Check policies and return a report",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkPolicies(&cliParams)
+			return fxutil.OneShot(checkPolicies,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -451,7 +471,7 @@ func checkPoliciesInner(dir string) error {
 	return nil
 }
 
-func checkPolicies(args *checkPoliciesCliParams) error {
+func checkPolicies(log complog.Component, config compconfig.Component, args *checkPoliciesCliParams) error {
 	return checkPoliciesInner(args.dir)
 }
 
