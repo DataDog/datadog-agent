@@ -15,6 +15,10 @@ jobs:
       matrix:
         architecture: [amd64, arm64]
     steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.18'
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
