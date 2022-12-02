@@ -6,4 +6,4 @@ mkdir -p "${ARTIFACTS_DIR}"
 inv trace-agent.benchmarks --output="${ARTIFACTS_DIR}/pr_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
 
 git checkout main
-inv trace-agent.benchmarks --artifacts_dir="${ARTIFACTS_DIR}/main_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
+inv trace-agent.benchmarks --output="${ARTIFACTS_DIR}/main_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
