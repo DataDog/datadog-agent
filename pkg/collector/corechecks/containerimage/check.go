@@ -34,8 +34,52 @@ type Config struct {
 	periodicRefreshSeconds     int `yaml:"periodic_refresh_seconds"`
 }
 
+type configValueRange struct {
+	min      int
+	max      int
+	default_ int
+}
+
+var /* const */ (
+	chunkSizeValueRange = &configValueRange{
+		min:      1,
+		max:      100,
+		default_: 10,
+	}
+
+	newImagesMaxLatencySecondsValueRange = &configValueRange{
+		min:      1,   // 1 s
+		max:      300, // 5 min
+		default_: 30,  // 30 s
+	}
+
+	periodicRefreshSecondsValueRange = &configValueRange{
+		min:      60,    // 1 min
+		max:      86400, // 1 day
+		default_: 300,   // 5 min
+	}
+)
+
+func validateValue(val *int, range_ *configValueRange) {
+	if *val == 0 {
+		*val = range_.default_
+	} else if *val < range_.min {
+		*val = range_.min
+	} else if *val > range_.max {
+		*val = range_.max
+	}
+}
+
 func (c *Config) Parse(data []byte) error {
-	return yaml.Unmarshal(data, c)
+	if err := yaml.Unmarshal(data, c); err != nil {
+		return err
+	}
+
+	validateValue(&c.chunkSize, chunkSizeValueRange)
+	validateValue(&c.newImagesMaxLatencySeconds, newImagesMaxLatencySecondsValueRange)
+	validateValue(&c.periodicRefreshSeconds, periodicRefreshSecondsValueRange)
+
+	return nil
 }
 
 // Check reports container images
