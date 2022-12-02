@@ -1,0 +1,4 @@
+enhancements:
+  - |
+    New telemetry metrics to track memory usage in C libraries,
+    including the Python interpreter.
