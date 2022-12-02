@@ -366,7 +366,8 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TraceWriter.In <- ss
 	}
 	if len(statsInput.Traces) > 0 {
-		a.Concentrator.In <- statsInput
+		log.Debug("Trace stats skipped")
+		//a.Concentrator.In <- statsInput
 	}
 }
 

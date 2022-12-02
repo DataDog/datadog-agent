@@ -94,6 +94,7 @@ func (w *StatsWriter) Run() {
 	for {
 		select {
 		case stats := <-w.in:
+			log.Debug("Trace stats received, sending")
 			w.addStats(stats)
 			if !w.syncMode {
 				w.sendPayloads()
