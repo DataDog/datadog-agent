@@ -158,7 +158,14 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "eval",
 		Short: "Evaluate given event data against the give rule",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return evalRule(&evalArgs)
+			return fxutil.OneShot(evalRule,
+				fx.Supply(evalArgs),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -219,7 +226,13 @@ func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "self-test",
 		Short: "Run runtime self test",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRuntimeSelfTest()
+			return fxutil.OneShot(runRuntimeSelfTest,
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -242,7 +255,14 @@ func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command 
 		Use:   "download",
 		Short: "Download policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return downloadPolicy(&downloadPolicyArgs)
+			return fxutil.OneShot(downloadPolicy,
+				fx.Supply(downloadPolicyArgs),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -267,7 +287,14 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "dump",
 		Short: "dump the process cache",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpProcessCache(&cliParams)
+			return fxutil.OneShot(dumpProcessCache,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
@@ -296,7 +323,14 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 		Use:   "dump",
 		Short: "dumps the network namespaces held in cache",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpNetworkNamespace(&cliParams)
+			return fxutil.OneShot(dumpNetworkNamespace,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
@@ -316,7 +350,13 @@ func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "dump",
 		Short: "dump discarders",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return dumpDiscarders()
+			return fxutil.OneShot(dumpDiscarders,
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -329,7 +369,7 @@ func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-func dumpProcessCache(processCacheDumpArgs *processCacheDumpCliParams) error {
+func dumpProcessCache(log complog.Component, config compconfig.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -346,7 +386,7 @@ func dumpProcessCache(processCacheDumpArgs *processCacheDumpCliParams) error {
 	return nil
 }
 
-func dumpNetworkNamespace(dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+func dumpNetworkNamespace(log complog.Component, config compconfig.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -545,7 +585,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	return event, nil
 }
 
-func evalRule(evalArgs *evalCliParams) error {
+func evalRule(log complog.Component, config compconfig.Component, evalArgs *evalCliParams) error {
 	cfg := &secconfig.Config{
 		PoliciesDir:         evalArgs.dir,
 		EnableKernelFilters: true,
@@ -630,7 +670,7 @@ func evalRule(evalArgs *evalCliParams) error {
 	return nil
 }
 
-func runRuntimeSelfTest() error {
+func runRuntimeSelfTest(log complog.Component, config compconfig.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -727,7 +767,7 @@ func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	return agent, nil
 }
 
-func downloadPolicy(downloadPolicyArgs *downloadPolicyCliParams) error {
+func downloadPolicy(log complog.Component, config compconfig.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
 	apiKey := coreconfig.Datadog.GetString("api_key")
 	appKey := coreconfig.Datadog.GetString("app_key")
 
@@ -797,7 +837,7 @@ func downloadPolicy(downloadPolicyArgs *downloadPolicyCliParams) error {
 	return err
 }
 
-func dumpDiscarders() error {
+func dumpDiscarders(log complog.Component, config compconfig.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
