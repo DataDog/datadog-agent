@@ -347,7 +347,7 @@ func (r *regoCheck) buildNormalInput(env env.Env) (eval.RegoInputMap, error) {
 		}
 
 		switch res := resolved.(type) {
-		case nil:
+		case nil, *resources.Unresolved:
 			switch inputType {
 			case "array":
 				if err := addArrayInput(tagName, nil); err != nil {

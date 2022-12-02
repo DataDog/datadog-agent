@@ -128,7 +128,11 @@ func resolve(_ context.Context, e env.Env, ruleID string, res compliance.Resourc
 
 	if len(instances) == 0 {
 		if rego {
-			return nil, nil
+			inputType := "array"
+			if file.Path != "" {
+				inputType = "object"
+			}
+			return resources.NewUnresolvedInstance(inputType), nil
 		}
 		return nil, fmt.Errorf("no files found for file check %q", file.Path)
 	}

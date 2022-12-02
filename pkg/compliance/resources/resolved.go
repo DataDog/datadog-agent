@@ -7,15 +7,32 @@ package resources
 
 import (
 	"context"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 )
 
+// ErrUnresolvedResource must be returned by a resource handler when it failed to resolve the resource
+var ErrUnresolvedResource = errors.New("unresolved resource")
+
 // Resolved maps an evaluation instance and a resource
 type Resolved interface {
 	InputType() string
+}
+
+// Unresolved must be returned by a resource handler when it failed to resolve the resource
+type Unresolved struct {
+	resourceType string
+}
+
+func (u *Unresolved) InputType() string {
+	return u.resourceType
+}
+
+func NewUnresolvedInstance(resourceType string) *Unresolved {
+	return &Unresolved{resourceType: resourceType}
 }
 
 // ResolvedInstance maps an evaluation instance and a resource
