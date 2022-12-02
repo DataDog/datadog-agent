@@ -153,15 +153,15 @@ func TestExecCommandError(t *testing.T) {
 }
 
 func TestExecCommandWithHash(t *testing.T) {
-	prevCheckConfigRights := checkConfigRights
-	checkConfigRights = func(string) error { return nil }
+	prevCheckConfigFilePermissions := checkConfigFilePermissions
+	checkConfigFilePermissions = func(string) error { return nil }
 	defer func() {
 		secretBackendCommand = ""
 		secretBackendArguments = []string{}
 		secretBackendTimeout = defaultSecretBackendTimeout
 		secretBackendCommandSHA256 = ""
 		SecretBackendOutputMaxSize = defaultSecretBackendOutputMaxSize
-		checkConfigRights = prevCheckConfigRights
+		checkConfigFilePermissions = prevCheckConfigFilePermissions
 	}()
 
 	inputPayload := `{"version": ""` + PayloadVersion + `" , "secrets": ["sec1", "sec2"]}`
@@ -210,12 +210,12 @@ func TestExecCommandErrorHashMismatch(t *testing.T) {
 	secretBackendCommand, err = filepath.Abs("./test/simple/simple.go")
 	require.NoError(t, err)
 	secretBackendCommandSHA256 = "foo"
-	prevCheckConfigRights := checkConfigRights
-	checkConfigRights = func(string) error { return nil }
+	prevCheckConfigFilePermissions := checkConfigFilePermissions
+	checkConfigFilePermissions = func(string) error { return nil }
 	defer func() {
 		secretBackendCommand = ""
 		secretBackendCommandSHA256 = ""
-		checkConfigRights = prevCheckConfigRights
+		checkConfigFilePermissions = prevCheckConfigFilePermissions
 	}()
 	resp, err := execCommand("")
 	assert.Nil(t, resp)

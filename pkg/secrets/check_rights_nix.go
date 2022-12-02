@@ -93,8 +93,8 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 	return nil
 }
 
-// checkConfigRights validates that a config file has supported permissions when using secret_backend_command_sha256 hash
-var checkConfigRights = func(path string) error {
+// checkConfigFilePermissions validates that a config file has supported permissions when using secret_backend_command_sha256 hash
+var checkConfigFilePermissions = func(path string) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return fmt.Errorf("unable to check permissions for '%s': can't stat it: %s", path, err)
@@ -118,7 +118,7 @@ var hashIsRequired = func() (bool, error) {
 }
 
 // lockOpenFile opens the file and prevents overwrite and delete by another process
-var lockOpenFile = func(path string) (*os.File, error) {
+func lockOpenFile(path string) (*os.File, error) {
 	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDONLY, 0600)
 	if err != nil {
 		return nil, err

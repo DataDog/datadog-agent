@@ -64,7 +64,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 			return nil, fmt.Errorf("error while running '%s': absolute path required with SHA256", secretBackendCommand)
 		}
 
-		if err := checkConfigRights(configFileUsed); err != nil {
+		if err := checkConfigFilePermissions(configFileUsed); err != nil {
 			return nil, err
 		}
 
