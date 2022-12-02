@@ -226,7 +226,6 @@ func TestFileCheck(t *testing.T) {
 						Glob: "/etc/*.dat",
 					},
 				},
-				Type: "array",
 				// Condition: "file.permissions == 0644",
 			},
 			module: fmt.Sprintf(arrayModule, "true"),
@@ -238,7 +237,7 @@ func TestFileCheck(t *testing.T) {
 					env.On("RelativeToHostRoot", filePath).Return(path.Join("/etc/", path.Base(filePath)))
 				}
 
-				env.On("NormalizeToHostRoot", file.Path).Return(path.Join(tempDir, "/*.dat"))
+				env.On("NormalizeToHostRoot", file.Glob).Return(path.Join(tempDir, "/*.dat"))
 				setDefaultHooks(env)
 			},
 			validate: func(t *testing.T, file *compliance.File, report *compliance.Report) {
