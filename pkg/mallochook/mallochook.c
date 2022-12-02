@@ -92,9 +92,20 @@ static void* mallochook_loadsym(const char *name) {
     return ptr;
 }
 
+// Temporary calloc implementation to use while we are loading symbols using
+// dlsym, which in turn calls calloc. This codepath can handle allocation errors
+// and will use a global static buffer instead. mallochook_init will ensure that
+// all symbols are resolved during process startup when only one thread is
+// running.
+static void *mallochook_calloc_stub(size_t nmemb, size_t size) {
+    return NULL;
+}
+
 static void mallochook_load_all(void) {
-    mallochook_malloc = mallochook_loadsym("malloc");
+    mallochook_calloc = mallochook_calloc_stub;
     mallochook_calloc = mallochook_loadsym("calloc");
+
+    mallochook_malloc = mallochook_loadsym("malloc");
     mallochook_realloc = mallochook_loadsym("realloc");
     mallochook_reallocarray = mallochook_loadsym("reallocarray");
     mallochook_free = mallochook_loadsym("free");
@@ -108,7 +119,7 @@ static void mallochook_load_all(void) {
 }
 
 static void mallochook_ensure_loaded(void) {
-    if (mallochook_malloc == NULL) {
+    if (mallochook_calloc == NULL) {
         mallochook_load_all();
     }
 }
@@ -126,10 +137,7 @@ void *malloc(size_t size) {
 }
 
 void *calloc(size_t nmemb, size_t size) {
-    // dlsym calls calloc, but can handle allocation failures
-    if (mallochook_calloc == NULL) {
-        return NULL;
-    }
+    mallochook_ensure_loaded();
     void *ptr = mallochook_calloc(nmemb, size);
     mallochook_track_alloc(ptr);
     return ptr;
