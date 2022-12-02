@@ -31,7 +31,7 @@ func init() {
 type Config struct {
 	chunkSize                  int `yaml:"chunk_size"`
 	newImagesMaxLatencySeconds int `yaml:"new_images_max_latency_seconds"`
-	// periodicRefreshSeconds     int `yaml:"periodic_refresh_seconds"`
+	periodicRefreshSeconds     int `yaml:"periodic_refresh_seconds"`
 }
 
 func (c *Config) Parse(data []byte) error {
@@ -96,10 +96,14 @@ func (c *Check) Run() error {
 		),
 	)
 
+	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.periodicRefreshSeconds) * time.Second)
+
 	for {
 		select {
 		case eventBundle := <-imgEventsCh:
 			c.processor.processEvents(eventBundle)
+		case <-imgRefreshTicker.C:
+			c.processor.processRefresh(c.workloadmetaStore.ListImages())
 		case <-c.stopCh:
 			c.processor.stop()
 			return nil

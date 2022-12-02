@@ -39,13 +39,32 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
-		p.processNewImage(event)
+		p.processImage(event.Entity.(*workloadmeta.ContainerImageMetadata))
 	}
 }
 
-func (p *processor) processNewImage(ev workloadmeta.Event) {
+func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
+	// TODO: implement a less naive approach
+	for _, img := range allImages {
+		p.processImage(img)
+	}
+}
+
+func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	p.queue <- &model.ContainerImage{
-		Id: "0", // TODO: to fill
+		Id:         img.ID,
+		Registry:   "", // TODO: check what to put here
+		ShortName:  img.ShortName,
+		Tags:       img.RepoTags,
+		Digest:     img.ID, // TODO: check if this field is needed
+		Size_:      img.SizeBytes,
+		RepoDigest: img.RepoDigests[0], // TODO: update agent-payload to take a slice
+		Os: &model.ContainerImage_OperatingSystem{
+			Name:         img.OS,
+			Version:      img.Variant, // TODO: check if version should be renamed variant or the other way round.
+			Architecture: img.Architecture,
+		},
+		Layers: nil, // TODO: complete
 	}
 }
 
