@@ -48,6 +48,66 @@ func (ev *Event) ResolveFields(forADs bool) {
 	if ev.ProcessContext.Process.HasInterpreter() {
 		_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
 	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessArgs(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessArgsTruncated(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessArgv(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessArgv0(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessCreatedAt(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessEnvp(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessEnvs(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveProcessEnvsTruncated(ev.ProcessContext.Parent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFileFilesystem(&ev.ProcessContext.Parent.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFileFieldsGroup(&ev.ProcessContext.Parent.FileEvent.FileFields)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.ProcessContext.Parent.FileEvent.FileFields)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFileBasename(&ev.ProcessContext.Parent.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFilePath(&ev.ProcessContext.Parent.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() {
+		_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Parent.FileEvent.FileFields)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFileFilesystem(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFileFieldsGroup(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFileFieldsInUpperLayer(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFileBasename(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFilePath(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent)
+	}
+	if ev.ProcessContext.HasParent() && ev.ProcessContext.Parent.HasInterpreter() {
+		_ = ev.ResolveFileFieldsUser(&ev.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields)
+	}
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "bind":
@@ -212,6 +272,66 @@ func (ev *Event) ResolveFields(forADs bool) {
 		_ = ev.ResolveProcessEnvs(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessEnvp(&ev.PTrace.Tracee.Process)
 		_ = ev.ResolveProcessEnvsTruncated(&ev.PTrace.Tracee.Process)
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFileFieldsUser(&ev.PTrace.Tracee.Parent.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFileFieldsGroup(&ev.PTrace.Tracee.Parent.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFileFieldsInUpperLayer(&ev.PTrace.Tracee.Parent.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFilePath(&ev.PTrace.Tracee.Parent.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFileBasename(&ev.PTrace.Tracee.Parent.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveFileFilesystem(&ev.PTrace.Tracee.Parent.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsUser(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsGroup(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsInUpperLayer(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFilePath(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFileBasename(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFilesystem(&ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessCreatedAt(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessArgv0(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessArgs(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessArgv(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessArgsTruncated(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessEnvs(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessEnvp(ev.PTrace.Tracee.Parent)
+		}
+		if ev.PTrace.Tracee.HasParent() {
+			_ = ev.ResolveProcessEnvsTruncated(ev.PTrace.Tracee.Parent)
+		}
 	case "removexattr":
 		_ = ev.ResolveFileFieldsUser(&ev.RemoveXAttr.File.FileFields)
 		_ = ev.ResolveFileFieldsGroup(&ev.RemoveXAttr.File.FileFields)
@@ -293,6 +413,66 @@ func (ev *Event) ResolveFields(forADs bool) {
 		_ = ev.ResolveProcessEnvs(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessEnvp(&ev.Signal.Target.Process)
 		_ = ev.ResolveProcessEnvsTruncated(&ev.Signal.Target.Process)
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFileFieldsUser(&ev.Signal.Target.Parent.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFileFieldsGroup(&ev.Signal.Target.Parent.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFileFieldsInUpperLayer(&ev.Signal.Target.Parent.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFilePath(&ev.Signal.Target.Parent.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFileBasename(&ev.Signal.Target.Parent.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveFileFilesystem(&ev.Signal.Target.Parent.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsUser(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsGroup(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFieldsInUpperLayer(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFilePath(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFileBasename(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
+			_ = ev.ResolveFileFilesystem(&ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessCreatedAt(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessArgv0(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessArgs(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessArgv(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessArgsTruncated(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessEnvs(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessEnvp(ev.Signal.Target.Parent)
+		}
+		if ev.Signal.Target.HasParent() {
+			_ = ev.ResolveProcessEnvsTruncated(ev.Signal.Target.Parent)
+		}
 	case "splice":
 		_ = ev.ResolveFileFieldsUser(&ev.Splice.File.FileFields)
 		_ = ev.ResolveFileFieldsGroup(&ev.Splice.File.FileFields)

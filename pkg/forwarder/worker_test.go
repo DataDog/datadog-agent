@@ -74,8 +74,10 @@ func TestWorkerStart(t *testing.T) {
 	mock2.AssertExpectations(t)
 	mock2.AssertNumberOfCalls(t, "Process", 1)
 
-	assert.Equal(t, int64(mock.pointCount+mock2.pointCount), sender.count.Load())
+	// use Stop to wait for worker.process to update sender.count
 	w.Stop(false)
+
+	assert.Equal(t, int64(mock.pointCount+mock2.pointCount), sender.count.Load())
 }
 
 func TestWorkerRetry(t *testing.T) {

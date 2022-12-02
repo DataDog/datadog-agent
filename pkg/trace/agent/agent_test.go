@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1272,8 +1273,16 @@ func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 
 func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	wg := sync.WaitGroup{}
+	defer wg.Wait()
 	defer cancelFunc()
+
 	ta := NewAgent(ctx, c)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ta.Run()
+	}()
 
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1286,7 +1295,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	}
 }
 
-// Mimicks behaviour of agent Process function
+// Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
 		(&Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{})}).obfuscateSpan(span)

@@ -36,7 +36,7 @@ var spliceCapabilities = Capabilities{
 	},
 }
 
-func spliceOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
+func spliceOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -45,7 +45,7 @@ func spliceOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprov
 		return values
 	}
 
-	spliceApprovers, err := onNewBasenameApprovers(probe, model.SpliceEventType, "file", approvers)
+	spliceApprovers, err := onNewBasenameApprovers(model.SpliceEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}

@@ -23,13 +23,20 @@ func (ev *Event) ResolveFields(forADs bool) {
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
                 {{$Checks := $Field | GetChecks $.AllFields}}
                 {{if $Checks}}
+                    {{ $CheckStr := "" }}
                     {{range $Check := $Checks}}
-                        {{$Check = $Check | printf "ev.%s"}}
-                        if {{$Check}}() {
-                            {{ $resolver | FieldADPrint $Field }}
-                            {{ $_ := set $uniqueResolvers $resolver "" }}
-                        }
+                        {{$Check = $Check | printf "ev.%s()"}}
+                        {{if $CheckStr}}
+                            {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
+                        {{else}}
+                            {{$CheckStr = $Check}}
+                        {{end}}
                     {{end}}
+
+                    if {{$CheckStr}} {
+                        {{ $resolver | FieldADPrint $Field }}
+                        {{ $_ := set $uniqueResolvers $resolver "" }}
+                    }
                 {{else}}
                     {{ $resolver := $Field | GetFieldResolver $.AllFields }}
                     {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
@@ -52,12 +59,19 @@ func (ev *Event) ResolveFields(forADs bool) {
                 {{ if ne $resolver "" }}
                     {{$Checks := $Field | GetChecks $.AllFields}}
                     {{if $Checks}}
+                        {{ $CheckStr := "" }}
                         {{range $Check := $Checks}}
-                            {{$Check = $Check | printf "ev.%s"}}
-                            if {{$Check}}() {
-                                {{ $resolver | FieldADPrint $Field }}
-                            }
+                            {{$Check = $Check | printf "ev.%s()"}}
+                            {{if $CheckStr}}
+                                {{$CheckStr = $Check | printf "%s && %s" $CheckStr}}
+                            {{else}}
+                                {{$CheckStr = $Check}}
+                            {{end}}
                         {{end}}
+
+                        if {{$CheckStr}} {
+                            {{ $resolver | FieldADPrint $Field }}
+                        }
                     {{else}}
                         {{ $resolver | FieldADPrint $Field }}
                     {{end}}
