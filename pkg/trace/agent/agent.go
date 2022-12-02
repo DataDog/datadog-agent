@@ -52,6 +52,7 @@ type Agent struct {
 	PrioritySampler       *sampler.PrioritySampler
 	ErrorsSampler         *sampler.ErrorsSampler
 	RareSampler           *sampler.RareSampler
+	samplerConfigWatcher  *sampler.ConfigWatcher
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	EventProcessor        *event.Processor
 	TraceWriter           *writer.TraceWriter
@@ -111,6 +112,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
+	agnt.samplerConfigWatcher = sampler.NewConfigWatcher(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler)
 	return agnt
 }
 
@@ -123,6 +125,7 @@ func (a *Agent) Run() {
 		a.PrioritySampler,
 		a.ErrorsSampler,
 		a.NoPrioritySampler,
+		a.samplerConfigWatcher,
 		a.EventProcessor,
 		a.OTLPReceiver,
 		a.RemoteConfigHandler,
@@ -180,6 +183,8 @@ func (a *Agent) loop() {
 				log.Error(err)
 			}
 			for _, stopper := range []interface{ Stop() }{
+				a.RemoteConfigHandler,
+				a.samplerConfigWatcher,
 				a.Concentrator,
 				a.ClientStatsAggregator,
 				a.TraceWriter,
@@ -193,7 +198,6 @@ func (a *Agent) loop() {
 				a.obfuscator,
 				a.obfuscator,
 				a.cardObfuscator,
-				a.RemoteConfigHandler,
 			} {
 				stopper.Stop()
 			}

@@ -9,74 +9,39 @@ import (
 	gomock "github.com/golang/mock/gomock"
 )
 
-// MockprioritySampler is a mock of prioritySampler interface.
-type MockprioritySampler struct {
+// MocksamplerWithTPS is a mock of samplerWithTPS interface.
+type MocksamplerWithTPS struct {
 	ctrl     *gomock.Controller
-	recorder *MockprioritySamplerMockRecorder
+	recorder *MocksamplerWithTPSMockRecorder
 }
 
-// MockprioritySamplerMockRecorder is the mock recorder for MockprioritySampler.
-type MockprioritySamplerMockRecorder struct {
-	mock *MockprioritySampler
+// MocksamplerWithTPSMockRecorder is the mock recorder for MocksamplerWithTPS.
+type MocksamplerWithTPSMockRecorder struct {
+	mock *MocksamplerWithTPS
 }
 
-// NewMockprioritySampler creates a new mock instance.
-func NewMockprioritySampler(ctrl *gomock.Controller) *MockprioritySampler {
-	mock := &MockprioritySampler{ctrl: ctrl}
-	mock.recorder = &MockprioritySamplerMockRecorder{mock}
+// NewMocksamplerWithTPS creates a new mock instance.
+func NewMocksamplerWithTPS(ctrl *gomock.Controller) *MocksamplerWithTPS {
+	mock := &MocksamplerWithTPS{ctrl: ctrl}
+	mock.recorder = &MocksamplerWithTPSMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockprioritySampler) EXPECT() *MockprioritySamplerMockRecorder {
+func (m *MocksamplerWithTPS) EXPECT() *MocksamplerWithTPSMockRecorder {
 	return m.recorder
 }
 
 // UpdateTargetTPS mocks base method.
-func (m *MockprioritySampler) UpdateTargetTPS(targetTPS float64) {
+func (m *MocksamplerWithTPS) UpdateTargetTPS(targetTPS float64, remotelyConfigured bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
+	m.ctrl.Call(m, "UpdateTargetTPS", targetTPS, remotelyConfigured)
 }
 
 // UpdateTargetTPS indicates an expected call of UpdateTargetTPS.
-func (mr *MockprioritySamplerMockRecorder) UpdateTargetTPS(targetTPS interface{}) *gomock.Call {
+func (mr *MocksamplerWithTPSMockRecorder) UpdateTargetTPS(targetTPS, remotelyConfigured interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockprioritySampler)(nil).UpdateTargetTPS), targetTPS)
-}
-
-// MockerrorsSampler is a mock of errorsSampler interface.
-type MockerrorsSampler struct {
-	ctrl     *gomock.Controller
-	recorder *MockerrorsSamplerMockRecorder
-}
-
-// MockerrorsSamplerMockRecorder is the mock recorder for MockerrorsSampler.
-type MockerrorsSamplerMockRecorder struct {
-	mock *MockerrorsSampler
-}
-
-// NewMockerrorsSampler creates a new mock instance.
-func NewMockerrorsSampler(ctrl *gomock.Controller) *MockerrorsSampler {
-	mock := &MockerrorsSampler{ctrl: ctrl}
-	mock.recorder = &MockerrorsSamplerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockerrorsSampler) EXPECT() *MockerrorsSamplerMockRecorder {
-	return m.recorder
-}
-
-// UpdateTargetTPS mocks base method.
-func (m *MockerrorsSampler) UpdateTargetTPS(targetTPS float64) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "UpdateTargetTPS", targetTPS)
-}
-
-// UpdateTargetTPS indicates an expected call of UpdateTargetTPS.
-func (mr *MockerrorsSamplerMockRecorder) UpdateTargetTPS(targetTPS interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MockerrorsSampler)(nil).UpdateTargetTPS), targetTPS)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTargetTPS", reflect.TypeOf((*MocksamplerWithTPS)(nil).UpdateTargetTPS), targetTPS, remotelyConfigured)
 }
 
 // MockrareSampler is a mock of rareSampler interface.
@@ -103,13 +68,13 @@ func (m *MockrareSampler) EXPECT() *MockrareSamplerMockRecorder {
 }
 
 // SetEnabled mocks base method.
-func (m *MockrareSampler) SetEnabled(enabled bool) {
+func (m *MockrareSampler) SetEnabled(enabled, remotelyConfigured bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEnabled", enabled)
+	m.ctrl.Call(m, "SetEnabled", enabled, remotelyConfigured)
 }
 
 // SetEnabled indicates an expected call of SetEnabled.
-func (mr *MockrareSamplerMockRecorder) SetEnabled(enabled interface{}) *gomock.Call {
+func (mr *MockrareSamplerMockRecorder) SetEnabled(enabled, remotelyConfigured interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockrareSampler)(nil).SetEnabled), enabled)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockrareSampler)(nil).SetEnabled), enabled, remotelyConfigured)
 }

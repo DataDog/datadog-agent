@@ -20,9 +20,6 @@ const (
 	shrinkCardinality = 200
 )
 
-// ErrorsSampler is dedicated to catching traces containing spans with errors.
-type ErrorsSampler struct{ ScoreSampler }
-
 // NoPrioritySampler is dedicated to catching traces with no priority set.
 type NoPrioritySampler struct{ ScoreSampler }
 
@@ -45,14 +42,6 @@ func NewNoPrioritySampler(conf *config.AgentConfig) *NoPrioritySampler {
 	return &NoPrioritySampler{ScoreSampler{Sampler: s, samplingRateKey: noPriorityRateKey}}
 }
 
-// NewErrorsSampler returns an initialized Sampler dedicate to errors. It behaves
-// just like the the normal ScoreEngine except for its GetType method (useful
-// for reporting).
-func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
-	s := newSampler(conf.ExtraSampleRate, conf.ErrorTPS, []string{"sampler:error"})
-	return &ErrorsSampler{ScoreSampler{Sampler: s, samplingRateKey: errorsRateKey, disabled: conf.ErrorTPS == 0}}
-}
-
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
 func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env string) bool {
 	if s.disabled {
@@ -71,10 +60,6 @@ func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env 
 	rate := s.getSignatureSampleRate(signature)
 
 	return s.applySampleRate(root, rate)
-}
-
-func (e *ErrorsSampler) UpdateTargetTPS(targetTPS float64) {
-	e.ScoreSampler.Sampler.updateTargetTPS(targetTPS)
 }
 
 func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {

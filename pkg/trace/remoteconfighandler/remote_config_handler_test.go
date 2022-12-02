@@ -20,8 +20,8 @@ func TestStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient}
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
+	prioritySampler := NewMocksamplerWithTPS(ctrl)
+	errorsSampler := NewMocksamplerWithTPS(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
@@ -42,8 +42,8 @@ func TestStartNoRemoteClient(t *testing.T) {
 func TestPrioritySampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
+	prioritySampler := NewMocksamplerWithTPS(ctrl)
+	errorsSampler := NewMocksamplerWithTPS(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
@@ -60,9 +60,9 @@ func TestPrioritySampler(t *testing.T) {
 		Config: raw,
 	}
 
-	prioritySampler.EXPECT().UpdateTargetTPS(float64(42)).Times(1)
-	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
-	rareSampler.EXPECT().SetEnabled(true).Times(1)
+	prioritySampler.EXPECT().UpdateTargetTPS(float64(42), true).Times(1)
+	errorsSampler.EXPECT().UpdateTargetTPS(float64(41), false).Times(1)
+	rareSampler.EXPECT().SetEnabled(true, false).Times(1)
 
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
@@ -72,8 +72,8 @@ func TestPrioritySampler(t *testing.T) {
 func TestErrorsSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
+	prioritySampler := NewMocksamplerWithTPS(ctrl)
+	errorsSampler := NewMocksamplerWithTPS(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
@@ -90,9 +90,9 @@ func TestErrorsSampler(t *testing.T) {
 		Config: raw,
 	}
 
-	prioritySampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
-	errorsSampler.EXPECT().UpdateTargetTPS(float64(42)).Times(1)
-	rareSampler.EXPECT().SetEnabled(true).Times(1)
+	prioritySampler.EXPECT().UpdateTargetTPS(float64(41), false).Times(1)
+	errorsSampler.EXPECT().UpdateTargetTPS(float64(42), true).Times(1)
+	rareSampler.EXPECT().SetEnabled(true, false).Times(1)
 
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
@@ -102,8 +102,8 @@ func TestErrorsSampler(t *testing.T) {
 func TestRareSampler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
+	prioritySampler := NewMocksamplerWithTPS(ctrl)
+	errorsSampler := NewMocksamplerWithTPS(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true}
@@ -120,9 +120,9 @@ func TestRareSampler(t *testing.T) {
 		Config: raw,
 	}
 
-	prioritySampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
-	errorsSampler.EXPECT().UpdateTargetTPS(float64(41)).Times(1)
-	rareSampler.EXPECT().SetEnabled(false).Times(1)
+	prioritySampler.EXPECT().UpdateTargetTPS(float64(41), false).Times(1)
+	errorsSampler.EXPECT().UpdateTargetTPS(float64(41), false).Times(1)
+	rareSampler.EXPECT().SetEnabled(false, true).Times(1)
 
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 
@@ -132,8 +132,8 @@ func TestRareSampler(t *testing.T) {
 func TestEnvPrecedence(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	remoteClient := NewMockRemoteClient(ctrl)
-	prioritySampler := NewMockprioritySampler(ctrl)
-	errorsSampler := NewMockerrorsSampler(ctrl)
+	prioritySampler := NewMocksamplerWithTPS(ctrl)
+	errorsSampler := NewMocksamplerWithTPS(ctrl)
 	rareSampler := NewMockrareSampler(ctrl)
 
 	agentConfig := config.AgentConfig{RemoteSamplingClient: remoteClient, TargetTPS: 41, ErrorTPS: 41, RareSamplerEnabled: true, DefaultEnv: "agent-env"}
@@ -160,9 +160,9 @@ func TestEnvPrecedence(t *testing.T) {
 		Config: raw,
 	}
 
-	prioritySampler.EXPECT().UpdateTargetTPS(float64(43)).Times(1)
-	errorsSampler.EXPECT().UpdateTargetTPS(float64(43)).Times(1)
-	rareSampler.EXPECT().SetEnabled(false).Times(1)
+	prioritySampler.EXPECT().UpdateTargetTPS(float64(43), true).Times(1)
+	errorsSampler.EXPECT().UpdateTargetTPS(float64(43), true).Times(1)
+	rareSampler.EXPECT().SetEnabled(false, true).Times(1)
 
 	h.onUpdate(map[string]state.APMSamplingConfig{"datadog/2/APM_SAMPLING/samplerconfig/config": config})
 

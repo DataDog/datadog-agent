@@ -13,28 +13,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-type prioritySampler interface {
-	UpdateTargetTPS(targetTPS float64)
-}
-
-type errorsSampler interface {
-	UpdateTargetTPS(targetTPS float64)
+type samplerWithTPS interface {
+	UpdateTargetTPS(targetTPS float64, remotelyConfigured bool)
 }
 
 type rareSampler interface {
-	SetEnabled(enabled bool)
+	SetEnabled(enabled bool, remotelyConfigured bool)
 }
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
 	remoteClient    config.RemoteClient
-	prioritySampler prioritySampler
-	errorsSampler   errorsSampler
+	prioritySampler samplerWithTPS
+	errorsSampler   samplerWithTPS
 	rareSampler     rareSampler
 	agentConfig     *config.AgentConfig
 }
 
-func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler rareSampler, errorsSampler errorsSampler) *RemoteConfigHandler {
+func New(conf *config.AgentConfig, prioritySampler samplerWithTPS, rareSampler rareSampler, errorsSampler samplerWithTPS) *RemoteConfigHandler {
 	if conf.RemoteSamplingClient == nil {
 		return nil
 	}
@@ -98,32 +94,44 @@ func (h *RemoteConfigHandler) updateSamplers(config apmsampling.SamplerConfig) {
 	}
 
 	var prioritySamplerTargetTPS float64
+	var prioritySamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.PrioritySamplerTargetTPS != nil {
 		prioritySamplerTargetTPS = *confForEnv.PrioritySamplerTargetTPS
+		prioritySamplerRemotelyConfigured = true
 	} else if config.AllEnvs.PrioritySamplerTargetTPS != nil {
 		prioritySamplerTargetTPS = *config.AllEnvs.PrioritySamplerTargetTPS
+		prioritySamplerRemotelyConfigured = true
 	} else {
 		prioritySamplerTargetTPS = h.agentConfig.TargetTPS
+		prioritySamplerRemotelyConfigured = false
 	}
-	h.prioritySampler.UpdateTargetTPS(prioritySamplerTargetTPS)
+	h.prioritySampler.UpdateTargetTPS(prioritySamplerTargetTPS, prioritySamplerRemotelyConfigured)
 
 	var errorsSamplerTargetTPS float64
+	var errorsSamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.ErrorsSamplerTargetTPS != nil {
 		errorsSamplerTargetTPS = *confForEnv.ErrorsSamplerTargetTPS
+		errorsSamplerRemotelyConfigured = true
 	} else if config.AllEnvs.ErrorsSamplerTargetTPS != nil {
 		errorsSamplerTargetTPS = *config.AllEnvs.ErrorsSamplerTargetTPS
+		errorsSamplerRemotelyConfigured = true
 	} else {
 		errorsSamplerTargetTPS = h.agentConfig.ErrorTPS
+		errorsSamplerRemotelyConfigured = false
 	}
-	h.errorsSampler.UpdateTargetTPS(errorsSamplerTargetTPS)
+	h.errorsSampler.UpdateTargetTPS(errorsSamplerTargetTPS, errorsSamplerRemotelyConfigured)
 
 	var rareSamplerEnabled bool
+	var rareSamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.RareSamplerEnabled != nil {
 		rareSamplerEnabled = *confForEnv.RareSamplerEnabled
+		rareSamplerRemotelyConfigured = true
 	} else if config.AllEnvs.RareSamplerEnabled != nil {
 		rareSamplerEnabled = *config.AllEnvs.RareSamplerEnabled
+		rareSamplerRemotelyConfigured = true
 	} else {
 		rareSamplerEnabled = h.agentConfig.RareSamplerEnabled
+		rareSamplerRemotelyConfigured = false
 	}
-	h.rareSampler.SetEnabled(rareSamplerEnabled)
+	h.rareSampler.SetEnabled(rareSamplerEnabled, rareSamplerRemotelyConfigured)
 }

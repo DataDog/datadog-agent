@@ -40,19 +40,21 @@ type PrioritySampler struct {
 
 	// rateByService contains the sampling rates in % to communicate with trace-agent clients.
 	// This struct is shared with the agent API which sends the rates in http responses to spans post requests
-	rateByService *RateByService
-	catalog       *serviceKeyCatalog
-	exit          chan struct{}
+	rateByService      *RateByService
+	catalog            *serviceKeyCatalog
+	exit               chan struct{}
+	RemotelyConfigured bool
 }
 
 // NewPrioritySampler returns an initialized Sampler
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
-		agentEnv:      conf.DefaultEnv,
-		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		rateByService: &dynConf.RateByService,
-		catalog:       newServiceLookup(conf.MaxCatalogEntries),
-		exit:          make(chan struct{}),
+		agentEnv:           conf.DefaultEnv,
+		sampler:            newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
+		rateByService:      &dynConf.RateByService,
+		catalog:            newServiceLookup(conf.MaxCatalogEntries),
+		exit:               make(chan struct{}),
+		RemotelyConfigured: false,
 	}
 	return s
 }
@@ -73,8 +75,9 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
-func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
+func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64, remotelyConfigured bool) {
 	s.sampler.updateTargetTPS(targetTPS)
+	s.RemotelyConfigured = remotelyConfigured
 }
 
 // update sampling rates

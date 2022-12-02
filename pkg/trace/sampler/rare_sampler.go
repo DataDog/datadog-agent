@@ -35,11 +35,12 @@ const (
 // The resulting sampled traces will likely be incomplete and will be flagged with
 // a exceptioKey metric set at 1.
 type RareSampler struct {
-	enabled *atomic.Bool
-	hits    *atomic.Int64
-	misses  *atomic.Int64
-	shrinks *atomic.Int64
-	mu      sync.RWMutex
+	enabled            *atomic.Bool
+	RemotelyConfigured *atomic.Bool
+	hits               *atomic.Int64
+	misses             *atomic.Int64
+	shrinks            *atomic.Int64
+	mu                 sync.RWMutex
 
 	tickStats   *time.Ticker
 	limiter     *rate.Limiter
@@ -53,16 +54,17 @@ type RareSampler struct {
 // of env, service, name, resource, http-status, error type for each top level or measured spans
 func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 	e := &RareSampler{
-		enabled:     atomic.NewBool(conf.RareSamplerEnabled),
-		hits:        atomic.NewInt64(0),
-		misses:      atomic.NewInt64(0),
-		shrinks:     atomic.NewInt64(0),
-		limiter:     rate.NewLimiter(rate.Limit(conf.RareSamplerTPS), rareSamplerBurst),
-		ttl:         conf.RareSamplerCooldownPeriod,
-		priorityTTL: priorityTTL,
-		cardinality: conf.RareSamplerCardinality,
-		seen:        make(map[Signature]*seenSpans),
-		tickStats:   time.NewTicker(10 * time.Second),
+		enabled:            atomic.NewBool(conf.RareSamplerEnabled),
+		RemotelyConfigured: atomic.NewBool(false),
+		hits:               atomic.NewInt64(0),
+		misses:             atomic.NewInt64(0),
+		shrinks:            atomic.NewInt64(0),
+		limiter:            rate.NewLimiter(rate.Limit(conf.RareSamplerTPS), rareSamplerBurst),
+		ttl:                conf.RareSamplerCooldownPeriod,
+		priorityTTL:        priorityTTL,
+		cardinality:        conf.RareSamplerCardinality,
+		seen:               make(map[Signature]*seenSpans),
+		tickStats:          time.NewTicker(10 * time.Second),
 	}
 	if e.ttl > e.priorityTTL {
 		e.priorityTTL = e.ttl
@@ -94,8 +96,13 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) SetEnabled(enabled bool) {
+func (e *RareSampler) SetEnabled(enabled bool, remotelyConfigured bool) {
 	e.enabled.Store(enabled)
+	e.RemotelyConfigured.Store(remotelyConfigured)
+}
+
+func (e *RareSampler) GetEnabled() bool {
+	return e.enabled.Load()
 }
 
 func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
