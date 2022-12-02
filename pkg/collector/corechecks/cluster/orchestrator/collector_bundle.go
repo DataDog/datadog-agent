@@ -300,7 +300,6 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && collector.Metadata().SupportsManifestBuffering {
 				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
 			} else {
-				// We don't buffer manifests for the pod check
 				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 			}
 		}
