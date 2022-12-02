@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
@@ -28,11 +29,14 @@ const (
 	datadogConfigPath            = "/var/task/datadog.yaml"
 	routeEventNext               = "/2020-01-01/extension/event/next"
 	headerExtID                  = "Lambda-Extension-Identifier"
+	logLevelEnvVar               = "DD_LOG_LEVEL"
 	extensionRegistrationTimeout = 5 * time.Second
+
+	loggerName config.LoggerName = "DD_EXTENSION"
 )
 
 func init() {
-	os.Setenv("DD_API_KEY", "INVALID_KEY")
+	os.Setenv("DD_API_KEY", "INVALID")
 }
 
 var (
@@ -49,6 +53,9 @@ var (
 )
 
 func main() {
+	configureLogging()
+	log.Info("starting dd otel extension")
+
 	traceAgent := &trace.ServerlessTraceAgent{}
 	traceAgent.Start(true, &trace.LoadConfig{Path: datadogConfigPath}, nil)
 	defer traceAgent.Stop()
@@ -71,6 +78,27 @@ func main() {
 		traceAgent.Flush()
 		if shutdown {
 			break
+		}
+	}
+}
+
+func configureLogging() {
+	// init the logger configuring it to not log in a file (the first empty string)
+	if err := config.SetupLogger(
+		loggerName,
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
+	); err != nil {
+		log.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			log.Errorf("While changing the loglevel: %s", err)
 		}
 	}
 }
