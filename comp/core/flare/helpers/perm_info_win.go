@@ -10,6 +10,9 @@ package helpers
 
 import "io"
 
+// filePermsInfo represents file rights on windows.
+type filePermsInfo struct{}
+
 func (p permissionsInfos) add(filePath string) error {
 	return nil
 }
