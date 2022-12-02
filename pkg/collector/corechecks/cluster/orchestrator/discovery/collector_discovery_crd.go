@@ -79,5 +79,5 @@ func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion s
 	}]; ok {
 		return collector, nil
 	}
-	return nil, fmt.Errorf("failed to discover resource resource: %s", resource)
+	return nil, fmt.Errorf("failed to discover resource %s", resource)
 }
