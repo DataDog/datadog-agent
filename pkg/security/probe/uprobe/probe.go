@@ -18,7 +18,8 @@ import (
 const UprobeUID = "vuln_detector"
 const UprobeSection = "uprobe/vuln_detector"
 const UprobeFuncName = "uprobe_vuln_detector"
-const UprobeConstantName = "vuln_id"
+const UprobeIDConstantName = "vuln_id"
+const UprobeRuleIDConstantName = "rule_vuln_id"
 
 func attachProbe(m *manager.Manager, u *uprobe) error {
 	pID := manager.ProbeIdentificationPair{
@@ -33,12 +34,21 @@ func attachProbe(m *manager.Manager, u *uprobe) error {
 		CopyProgram:             true,
 		Enabled:                 true,
 	}
-	ce := manager.ConstantEditor{
-		Name:                     UprobeConstantName,
-		Value:                    uint64(u.id),
-		ProbeIdentificationPairs: []manager.ProbeIdentificationPair{pID},
+
+	constants := []manager.ConstantEditor{
+		{
+			Name:                     UprobeIDConstantName,
+			Value:                    u.id,
+			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{pID},
+		},
+		{
+			Name:                     UprobeRuleIDConstantName,
+			Value:                    u.ruleID,
+			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{pID},
+		},
 	}
-	err := m.CloneProgram(UprobeUID, p, []manager.ConstantEditor{ce}, nil)
+
+	err := m.CloneProgram(UprobeUID, p, constants, nil)
 	if err != nil {
 		return err
 	}

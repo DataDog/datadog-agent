@@ -13,7 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -22,16 +22,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-type uprobe struct {
-	desc model.UProbeDesc
-	id   uint64
-	pID  manager.ProbeIdentificationPair
-}
-
-var allUProbes = make(map[uint64]*uprobe)         // id to uprobe map
-var ruleFilesUprobes = make(map[string][]*uprobe) // path to list of uprobe map
-var containerUProbes = make(map[uint32][]*uprobe) // container pid one to uprobe map
-var m *manager.Manager
+const DefaultMaxConcurrentUProbes = uint64(100)
 
 var (
 	ErrUProbeRuleMissingPath                 = errors.New("uprobe rule is missing a path value")
@@ -40,30 +31,101 @@ var (
 	ErrUProbeRuleInvalidFunctionName         = errors.New("uprobe rule has invalid function name value")
 	ErrUProbeRuleInvalidOffset               = errors.New("uprobe rule has invalid offset value")
 	ErrUProbeRuleMissingFunctionNameOrOffset = errors.New("uprobe rule requires either a function name or an offset value")
+	ErrMaxConcurrentUProbes                  = errors.New("max concurrent uprobe reached")
 )
 
-func Init(manager *manager.Manager) {
-	m = manager
+type UProbeManagerOptions struct {
+	MaxConcurrentUProbes uint64
 }
 
-func getNextID() uint64 {
-	return uint64(time.Now().UnixNano())
+var uman *uprobeManager
+
+type uprobeManager struct {
+	lock             sync.Mutex
+	options          UProbeManagerOptions
+	allUProbes       map[uint64]*uprobe   // id to uprobe map
+	ruleFilesUprobes map[string][]*uprobe // path to list of uprobe map
+	containerUProbes map[uint32][]*uprobe // container pid one to uprobe map
+	m                *manager.Manager
+	uprobeFreeList   chan *uprobe
+	nextRuleID       uint64
+}
+
+type uprobe struct {
+	desc   model.UProbeDesc
+	id     uint64
+	ruleID uint64
+	pID    manager.ProbeIdentificationPair
+}
+
+func Init(manager *manager.Manager, options UProbeManagerOptions) {
+	if uman == nil {
+		uman = &uprobeManager{
+			allUProbes:       make(map[uint64]*uprobe),
+			ruleFilesUprobes: make(map[string][]*uprobe),
+			containerUProbes: make(map[uint32][]*uprobe),
+			m:                manager,
+			options:          options,
+		}
+
+		if options.MaxConcurrentUProbes == 0 {
+			uman.options.MaxConcurrentUProbes = DefaultMaxConcurrentUProbes
+		}
+		uman.uprobeFreeList = make(chan *uprobe, uman.options.MaxConcurrentUProbes)
+		for i := uint64(0); i < uman.options.MaxConcurrentUProbes; i++ {
+			putUProbe(&uprobe{id: i})
+		}
+	}
+}
+
+func getNextRuleID() uint64 {
+	id := uman.nextRuleID
+	uman.nextRuleID++
+	return id
+}
+
+func getUProbe() *uprobe {
+	select {
+	case up := <-uman.uprobeFreeList:
+		return up
+	default:
+		return nil
+	}
+}
+
+func putUProbe(up *uprobe) {
+	if up != nil {
+		uman.uprobeFreeList <- up
+	}
 }
 
 func GetUProbeDesc(id uint64) *model.UProbeDesc {
-	if up, exists := allUProbes[id]; exists {
+	uman.lock.Lock()
+	defer uman.lock.Unlock()
+
+	if up, exists := uman.allUProbes[id]; exists {
 		return &up.desc
 	}
 	return nil
 }
 
 func CreateUProbeFromRule(rule *rules.Rule) error {
+	uman.lock.Lock()
+	defer uman.lock.Unlock()
+
+	up := getUProbe()
+	if up == nil {
+		return ErrMaxConcurrentUProbes
+	}
+
 	pathValues := rule.GetFieldValues("uprobe.path")
 	if len(pathValues) == 0 {
+		putUProbe(up)
 		return ErrUProbeRuleMissingPath
 	}
 	pathValue, ok := pathValues[0].Value.(string)
 	if !ok {
+		putUProbe(up)
 		return ErrUProbeRuleInvalidPath
 	}
 
@@ -72,6 +134,7 @@ func CreateUProbeFromRule(rule *rules.Rule) error {
 	if len(versionValues) != 0 {
 		versionValue, ok = versionValues[0].Value.(string)
 		if !ok {
+			putUProbe(up)
 			return ErrUProbeRuleInvalidVersion
 		}
 	}
@@ -81,6 +144,7 @@ func CreateUProbeFromRule(rule *rules.Rule) error {
 	if len(functionNameValues) != 0 {
 		functionNameValue, ok = functionNameValues[0].Value.(string)
 		if !ok {
+			putUProbe(up)
 			return ErrUProbeRuleInvalidFunctionName
 		}
 	}
@@ -91,46 +155,48 @@ func CreateUProbeFromRule(rule *rules.Rule) error {
 	if len(offsetValues) != 0 {
 		offsetValue, ok = offsetValues[0].Value.(string)
 		if !ok {
+			putUProbe(up)
 			return ErrUProbeRuleInvalidOffset
 		}
 		var err error
 		offsetInt, err = strconv.ParseUint(offsetValue, 0, 64)
 		if err != nil {
+			putUProbe(up)
 			return ErrUProbeRuleInvalidOffset
 		}
 	}
 
 	if len(functionNameValue) == 0 && len(offsetValue) == 0 {
+		putUProbe(up)
 		return ErrUProbeRuleMissingFunctionNameOrOffset
 	}
 
-	up := &uprobe{
-		id: getNextID(),
-		desc: model.UProbeDesc{
-			Path:         pathValue,
-			Version:      versionValue,
-			FunctionName: functionNameValue,
-			OffsetStr:    offsetValue,
-			Offset:       offsetInt,
-		},
-	}
+	up.desc.Path = pathValue
+	up.desc.Version = versionValue
+	up.desc.FunctionName = functionNameValue
+	up.desc.OffsetStr = offsetValue
+	up.desc.Offset = offsetInt
+	up.ruleID = getNextRuleID()
 
-	err := attachProbe(m, up)
+	err := attachProbe(uman.m, up)
 	if err != nil {
+		putUProbe(up)
 		return err
 	}
 
-	allUProbes[up.id] = up
-	ruleFilesUprobes[up.desc.Path] = append(ruleFilesUprobes[up.desc.Path], up)
+	uman.allUProbes[up.id] = up
+	uman.ruleFilesUprobes[up.desc.Path] = append(uman.ruleFilesUprobes[up.desc.Path], up)
 
 	return nil
 }
 
 func GetActivatedProbes() []manager.ProbesSelector {
+	uman.lock.Lock()
+	defer uman.lock.Unlock()
 
 	selector := &manager.BestEffort{}
 
-	for _, up := range allUProbes {
+	for _, up := range uman.allUProbes {
 		selector.Selectors = append(selector.Selectors, &manager.ProbeSelector{
 			ProbeIdentificationPair: up.pID,
 		})
@@ -139,10 +205,13 @@ func GetActivatedProbes() []manager.ProbesSelector {
 	return []manager.ProbesSelector{selector}
 }
 
-func HandleNewMountNamespace(event *model.NewMountNSEvent) {
+func HandleNewMountNamespace(event *model.NewMountNSEvent) error {
+	uman.lock.Lock()
+	defer uman.lock.Unlock()
+
 	rootPath := utils.RootPath(int32(event.PidOne))
 
-	for path, uProbesForPath := range ruleFilesUprobes {
+	for path, uProbesForPath := range uman.ruleFilesUprobes {
 		fullPath := filepath.Join(rootPath, path)
 		fInfo, err := os.Stat(fullPath)
 		if err != nil || fInfo.IsDir() {
@@ -150,39 +219,48 @@ func HandleNewMountNamespace(event *model.NewMountNSEvent) {
 		}
 
 		for _, up := range uProbesForPath {
-			newUprobe := &uprobe{
-				id: getNextID(),
-				desc: model.UProbeDesc{
-					Path:         fullPath,
-					Version:      up.desc.Version,
-					FunctionName: up.desc.FunctionName,
-					OffsetStr:    up.desc.OffsetStr,
-					Offset:       up.desc.Offset,
-				},
+
+			newUProbe := getUProbe()
+			if newUProbe == nil {
+				return ErrMaxConcurrentUProbes
 			}
 
-			err := attachProbe(m, newUprobe)
+			newUProbe.desc.Path = fullPath
+			newUProbe.desc.Version = up.desc.Version
+			newUProbe.desc.FunctionName = up.desc.FunctionName
+			newUProbe.desc.OffsetStr = up.desc.OffsetStr
+			newUProbe.desc.Offset = up.desc.Offset
+			newUProbe.ruleID = up.ruleID
+
+			err := attachProbe(uman.m, newUProbe)
 			if err != nil {
-				seclog.Errorf("failed to attach container uprobe %s/%s:%s err: %w", newUprobe.pID.UID, newUprobe.desc.Path, newUprobe.desc.FunctionName, err)
+				putUProbe(newUProbe)
+				seclog.Errorf("failed to attach container uprobe %s %s:%s err: %w", newUProbe.pID.UID, newUProbe.desc.Path, newUProbe.desc.FunctionName, err)
 				continue
 			}
 
-			allUProbes[up.id] = newUprobe
-			containerUProbes[event.PidOne] = append(containerUProbes[event.PidOne], newUprobe)
+			uman.allUProbes[up.id] = newUProbe
+			uman.containerUProbes[event.PidOne] = append(uman.containerUProbes[event.PidOne], newUProbe)
 
-			seclog.Infof("attached uprobe %s/%s:%s", newUprobe.pID.UID, newUprobe.desc.Path, newUprobe.desc.FunctionName)
+			seclog.Infof("attached uprobe %s %s:%s", newUProbe.pID.UID, newUProbe.desc.Path, newUProbe.desc.FunctionName)
 		}
 	}
+
+	return nil
 }
 
 func HandleProcessExit(event *model.ExitEvent) {
-	for _, up := range containerUProbes[event.PIDContext.Tid] {
-		if err := m.DetachHook(up.pID); err != nil {
-			seclog.Warnf("failed to detach uprobe %s/%s:%s err: %w", up.pID.UID, up.desc.Path, up.desc.FunctionName, err)
+	uman.lock.Lock()
+	defer uman.lock.Unlock()
+
+	for _, up := range uman.containerUProbes[event.PIDContext.Tid] {
+		if err := uman.m.DetachHook(up.pID); err != nil {
+			seclog.Warnf("failed to detach uprobe %s %s:%s err: %w", up.pID.UID, up.desc.Path, up.desc.FunctionName, err)
 		} else {
-			seclog.Infof("detached uprobe %s/%s:%s", up.pID.UID, up.desc.Path, up.desc.FunctionName)
+			seclog.Infof("detached uprobe %s %s:%s", up.pID.UID, up.desc.Path, up.desc.FunctionName)
 		}
-		delete(allUProbes, up.id)
+		delete(uman.allUProbes, up.id)
+		putUProbe(up)
 	}
-	delete(containerUProbes, event.PIDContext.Tid)
+	delete(uman.containerUProbes, event.PIDContext.Tid)
 }

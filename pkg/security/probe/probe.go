@@ -308,7 +308,7 @@ func (p *Probe) Init() error {
 
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
-	uprobe.Init(p.manager)
+	uprobe.Init(p.manager, uprobe.UProbeManagerOptions{MaxConcurrentUProbes: 10})
 
 	return nil
 }
@@ -506,7 +506,9 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		if event.NewMountNS.PidOne != 0 {
-			uprobe.HandleNewMountNamespace(&event.NewMountNS)
+			if err := uprobe.HandleNewMountNamespace(&event.NewMountNS); err != nil {
+				seclog.Infof("not all uprobe rules could be applied to the newly started container, try increasing maximum number of concurrent uprobes: %s", err)
+			}
 		}
 
 		return
