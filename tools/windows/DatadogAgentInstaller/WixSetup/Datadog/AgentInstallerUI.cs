@@ -65,6 +65,8 @@ namespace WixSetup.Datadog
             On(NativeDialogs.MaintenanceTypeDlg, Buttons.Back, new ShowDialog(NativeDialogs.MaintenanceWelcomeDlg));
 
             On(NativeDialogs.ExitDialog, Buttons.Finish, new CloseDialog { Order = 9999 });
+
+            On(Dialogs.FatalErrorDialog, "OpenMsiLog", new ExecuteCustomAction(agentCustomActions.OpenMsiLog));
         }
 
         public void OnWixSourceGenerated(XDocument document)
