@@ -27,7 +27,7 @@ func init() {
 	registerCheck("proc mount", procMount, map[AgentType]struct{}{CoreAgent: {}, ProcessAgent: {}})
 }
 
-func isHidePid2Set(mountsOptsLookup map[string]struct{}) (setting string, isSet bool) {
+func isHidepid2Set(mountsOptsLookup map[string]struct{}) (setting string, isSet bool) {
 	if _, hidepid2Set := mountsOptsLookup["hidepid=2"]; hidepid2Set {
 		return "hidepid=2", true
 	}
@@ -101,7 +101,7 @@ func checkProcMountHidePid(path string, uid int, groups []int) error {
 			mountOptsLookup[opt] = struct{}{}
 		}
 
-		hidepidSetting, hidepid2Set := isHidePid2Set(mountOptsLookup)
+		hidepidSetting, hidepid2Set := isHidepid2Set(mountOptsLookup)
 		if !hidepid2Set {
 			// hidepid is not set, no further checks necessary
 			log.Tracef("Proc mounts hidepid=2 or hidepid=invisible option is not set")
