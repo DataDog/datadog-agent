@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -92,8 +94,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 
 	factories := []common.SubcommandFactory{
 		status.Commands,
-		FlareCommands,
-		ConfigCommands,
+		flare.Commands,
+		subconfig.Commands,
 		ComplianceCommands,
 		RuntimeCommands,
 		VersionCommands,
