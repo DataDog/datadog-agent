@@ -252,7 +252,7 @@ snmp_listener:
    - network_address: 127.0.0.2/30
      snmp_version: 2
      community_string: publicX
-   - network_address: 127.0.0.3/30
+   - network_address: 127.0.0.4/30
      snmp_version: 3
 `))
 	assert.NoError(t, err)
@@ -271,7 +271,7 @@ snmp_listener:
 		},
 		{
 			Version:    "3",
-			NetAddress: "127.0.0.3/30",
+			NetAddress: "127.0.0.4/30",
 		},
 	}
 
