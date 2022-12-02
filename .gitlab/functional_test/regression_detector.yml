@@ -52,3 +52,20 @@ regression_detector_submit_job:
             --target-memory-allotment ${MEMORY}
             --target-name agent
             --submission-metadata submission_metadata
+    # Wait for job to complete.
+    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+            job status
+            --wait
+            --wait-delay-seconds 60
+            --submission-metadata submission_metadata
+    # Now that the job is completed pull the analysis report, output it to stdout.
+    - mkdir outputs
+    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+            job sync
+            --submission-metadata submission_metadata
+            --output-path outputs
+    - cat outputs/report.html
+    # Finally, exit 1 if the job signals a regression else 0.
+    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+            job result
+            --submission-metadata submission_metadata
