@@ -96,13 +96,13 @@ func checkRights(filename string, allowGroupExec bool) error {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
 			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("invalid executable '%s': explicit deny access for LOCAL_SYSTEM, Administrators or %s", filename, secretUser)
+				return fmt.Errorf("invalid executable '%s': explicit deny access for LOCAL_SYSTEM, Administrators or %s", filename, secretuser)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
 			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretUser)
+				return fmt.Errorf("invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretuser)
 			}
 			if compareIsSecretUser {
 				bSecretUserExplicitlyAllowed = true
@@ -178,22 +178,24 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 	return sid, err
 }
 
+// checkConfigRights validates that a config file has supported permissions when using secret_backend_command_sha256 hash
 var checkConfigRights = func(filename string) error {
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("config file %s does not exist", filename)
+			return fmt.Errorf("config file '%s' does not exist", filename)
 		}
+		return fmt.Errorf("unable to check permissions for config file '%s': %s", filename, err)
 	}
 
 	fileDacl, err := getACL(filename)
 	if err != nil {
-		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+		return fmt.Errorf("could not query ACLs for config file '%s': %s", filename, err)
 	}
 
 	var aclSizeInfo winutil.AclSizeInformation
 	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
 	if err != nil {
-		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+		return fmt.Errorf("could not query ACLs for config file '%s': %s", filename, err)
 	}
 
 	// create the sids that are acceptable to us (local system account and
@@ -213,7 +215,7 @@ var checkConfigRights = func(filename string) error {
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
 		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
-			return fmt.Errorf("Could not query a ACE on %s: %s", filename, err)
+			return fmt.Errorf("could not query a ACE on '%s': %s", filename, err)
 		}
 
 		compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
@@ -237,11 +239,9 @@ var checkConfigRights = func(filename string) error {
 }
 
 // hashIsRequired returns true if we consider the hash to be required for verification of the secret backend
-var hashIsRequired = func() bool {
-	elevated, _ := winutil.IsProcessElevated()
-	return elevated
-}
+var hashIsRequired = winutil.IsProcessElevated
 
+// lockOpenFile opens the file and prevents overwrite and delete by another process
 func lockOpenFile(name string) (*os.File, error) {
 	h, err := winOpenFileShareRead(name)
 	if err != nil {
@@ -250,6 +250,7 @@ func lockOpenFile(name string) (*os.File, error) {
 	return os.NewFile(uintptr(h), name), nil
 }
 
+// winOpenFileShareRead opens the file in FILE_SHARE_READ sharing mode
 func winOpenFileShareRead(path string) (syscall.Handle, error) {
 	const fileFlagNormal = 0x00000080
 	filename, err := syscall.UTF16PtrFromString(path)

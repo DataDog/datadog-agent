@@ -87,7 +87,7 @@ func TestLimitBuffer(t *testing.T) {
 
 func TestExecCommandError(t *testing.T) {
 	prevHashIsRequired := hashIsRequired
-	hashIsRequired = func() bool { return false }
+	hashIsRequired = func() (bool, error) { return false, nil }
 
 	defer func() {
 		secretBackendCommand = ""
@@ -164,7 +164,7 @@ func TestExecCommandWithHash(t *testing.T) {
 		checkConfigRights = prevCheckConfigRights
 	}()
 
-	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := `{"version": ""` + PayloadVersion + `" , "secrets": ["sec1", "sec2"]}`
 
 	// test simple with hash (no error)
 	secretBackendCommand, _ = filepath.Abs("./test/simple/simple" + binExtension)
@@ -177,20 +177,20 @@ func TestExecCommandWithHash(t *testing.T) {
 	secretBackendCommandSHA256 = hash
 	resp, err := execCommand(inputPayload)
 	require.NoError(t, err)
-	require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
+	require.Equal(t, []byte(`{"handle1":{"value":"simple_password"}}`), resp)
 }
 
 func TestExecCommandErrorElevatedNoHash(t *testing.T) {
 	prevHashIsRequired := hashIsRequired
 	defer func() { hashIsRequired = prevHashIsRequired }()
-	hashIsRequired = func() bool { return true }
+	hashIsRequired = func() (bool, error) { return true, nil }
 	secretBackendCommand = "foo"
 	defer func() {
 		secretBackendCommand = ""
 	}()
 	resp, err := execCommand("")
 	assert.Nil(t, resp)
-	assert.EqualError(t, err, `error while running 'foo': running elevated and no configured SHA256`)
+	assert.EqualError(t, err, `error while running 'foo': running elevated and 'secret_backend_command_sha256' is not set`)
 }
 
 func TestExecCommandErrorNotAbsPath(t *testing.T) {
@@ -219,7 +219,7 @@ func TestExecCommandErrorHashMismatch(t *testing.T) {
 	}()
 	resp, err := execCommand("")
 	assert.Nil(t, resp)
-	assert.EqualError(t, err, `error while running '`+secretBackendCommand+`': SHA256 mismatch`)
+	assert.EqualError(t, err, `error while running '`+secretBackendCommand+`': SHA256 mismatch, actual '0e47e4f4749aa31a8d0c92607b75c251efdf9602fec15f060a18ad4aabbf0d1f' expected 'foo'`)
 }
 
 func TestFetchSecretExecError(t *testing.T) {
