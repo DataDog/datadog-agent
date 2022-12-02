@@ -113,7 +113,13 @@ func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command 
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reloadRuntimePolicies()
+			return fxutil.OneShot(reloadRuntimePolicies,
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 		Deprecated: "please use `security-agent runtime policy reload` instead",
 	}
@@ -196,7 +202,13 @@ func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Co
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return reloadRuntimePolicies()
+			return fxutil.OneShot(reloadRuntimePolicies,
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 	return []*cobra.Command{commonReloadPoliciesCmd}
@@ -638,7 +650,7 @@ func runRuntimeSelfTest() error {
 	return nil
 }
 
-func reloadRuntimePolicies() error {
+func reloadRuntimePolicies(log complog.Component, config compconfig.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
