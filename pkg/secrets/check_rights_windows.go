@@ -178,8 +178,8 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 	return sid, err
 }
 
-// checkConfigRights validates that a config file has supported permissions when using secret_backend_command_sha256 hash
-var checkConfigRights = func(filename string) error {
+// checkConfigFilePermissions validates that a config file has supported permissions when using secret_backend_command_sha256 hash
+var checkConfigFilePermissions = func(filename string) error {
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("config file '%s' does not exist", filename)
