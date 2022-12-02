@@ -36,7 +36,6 @@ func TestMockBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Invoke(func(config.Component) {}),
 		fx.Invoke(func(log.Component) {}),
-		fx.Invoke(func(flare.Component) {}),
 
 		fx.Supply(BundleParams{}),
 		MockBundle))

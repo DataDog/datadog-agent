@@ -38,5 +38,4 @@ var MockBundle = fxutil.Bundle(
 	config.Module,
 	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
-	flare.Module,
 )

@@ -23,17 +23,10 @@ type Component interface {
 	Create(local bool, distPath, pyChecksPath string, logFilePaths []string, pdata pkgFlare.ProfileData, ipcError error) (string, error)
 }
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
-
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newFlare),
 )
 
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+// The flare component doesn't provides a mock since other component don't use it directly. Other component will use the
+// mock for the FlareBuilder instead.

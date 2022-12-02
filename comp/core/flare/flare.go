@@ -8,7 +8,6 @@ package flare
 import (
 	"reflect"
 	"runtime"
-	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -52,8 +51,4 @@ func (f *flare) Create(local bool, distPath, pyChecksPath string, logFilePaths [
 	pkgFlare.CompleteFlare(fb, local, distPath, pyChecksPath, logFilePaths, pdata, ipcError)
 
 	return fb.Save()
-}
-
-func newMock(deps dependencies, t testing.TB) Component {
-	return &flare{}
 }
