@@ -12,9 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// ProcData is a singleton ProcessData.
-var ProcData = NewProcessData()
-
 // ProcessData collects a basic state of process data such as cmdline args.
 // This is currently used for metadata extraction from processes. This is a starting point for providing
 // process data across all checks as part of the migration to components.
