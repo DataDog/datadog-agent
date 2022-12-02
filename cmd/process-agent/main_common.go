@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
-	cmdworkloadlist "github.com/DataDog/datadog-agent/cmd/process-agent/app/subcommands/workloadlist"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app/subcommands"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/process-agent/commands/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -96,15 +96,11 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
+	rootCmd.AddCommand(configCommand, app.StatusCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
 
 	globalParams := command.GlobalParams{}
 
-	factories := []command.SubcommandFactory{
-		cmdworkloadlist.Commands,
-	}
-
-	for _, factory := range factories {
+	for _, factory := range subcommands.ProcessAgentSubcommands() {
 		for _, subcmd := range factory(&globalParams) {
 			rootCmd.AddCommand(subcmd)
 		}
