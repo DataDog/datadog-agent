@@ -279,7 +279,7 @@ func InitConfig(config Config) {
 
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
-	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
+	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
