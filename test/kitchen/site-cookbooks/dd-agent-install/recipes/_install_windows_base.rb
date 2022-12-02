@@ -92,6 +92,7 @@ ruby_block "Print install logs" do
 end
 
 ruby_block "Check install sucess" do
+  not_if agent_install_options.include?('WIXFAILWHENDEFERRED')
   block do
     raise "Could not find installation log file, did the installer run ?" if !File.file?(log_file_name)
     logfile = File.open(log_file_name, "rb:UTF-16LE", &:read).encode('UTF-8')
