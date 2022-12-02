@@ -292,12 +292,12 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		nt := collector.Metadata().NodeType
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
 
-		if result.Result.IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
+		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
 			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
 		}
 
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && result.Result.SupportsManifestBuffering {
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && collector.Metadata().SupportsManifestBuffering {
 				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
 			} else {
 				// We don't buffer manifests for the pod check

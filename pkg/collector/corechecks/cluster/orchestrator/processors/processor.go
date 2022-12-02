@@ -83,15 +83,6 @@ type Handlers interface {
 	// ScrubBeforeMarshalling replaces sensitive information in the resource
 	// before resource marshalling.
 	ScrubBeforeMarshalling(ctx *ProcessorContext, resource interface{})
-
-	// IsMetadataProducer returns whether this resource collects metadata
-	IsMetadataProducer(ctx *ProcessorContext) bool
-
-	// IsManifestProducer returns whether this resource collects manifests
-	IsManifestProducer(ctx *ProcessorContext) bool
-
-	// SupportsManifestBuffering returns whether this resource supports manifest buffering
-	SupportsManifestBuffering(ctx *ProcessorContext) bool
 }
 
 // Processor is a generic resource processing component. It relies on a set of
@@ -106,11 +97,8 @@ type Processor struct {
 // ManifestMessages is a list of payload, each payload contains a list of k8s resources manifest.
 // ManifestMessages is a copy of part of MetadataMessages
 type ProcessResult struct {
-	MetadataMessages          []model.MessageBody
-	ManifestMessages          []model.MessageBody
-	SupportsManifestBuffering bool
-	IsMetadataProducer        bool
-	IsManifestProducer        bool
+	MetadataMessages []model.MessageBody
+	ManifestMessages []model.MessageBody
 }
 
 // NewProcessor creates a new processor for a resource type.
@@ -186,16 +174,8 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 	}
 
 	processResult = ProcessResult{
-		SupportsManifestBuffering: p.h.SupportsManifestBuffering(ctx),
-		IsMetadataProducer:        p.h.IsMetadataProducer(ctx),
-		IsManifestProducer:        p.h.IsManifestProducer(ctx),
-	}
-
-	if p.h.IsMetadataProducer(ctx) {
-		processResult.MetadataMessages = ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels)
-	}
-	if p.h.IsManifestProducer(ctx) {
-		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
+		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
+		ManifestMessages: ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels),
 	}
 
 	return processResult, len(resourceMetadataModels)

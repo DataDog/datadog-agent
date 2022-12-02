@@ -34,18 +34,6 @@ func (cr *CRHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourc
 	return nil
 }
 
-func (cr *CRHandlers) IsManifestProducer(ctx *processors.ProcessorContext) bool {
-	return true
-}
-
-func (cr *CRHandlers) IsMetadataProducer(ctx *processors.ProcessorContext) bool {
-	return false
-}
-
-func (cr *CRHandlers) SupportsManifestBuffering(ctx *processors.ProcessorContext) bool {
-	return false
-}
-
 func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCR{

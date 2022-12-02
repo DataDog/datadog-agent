@@ -32,18 +32,6 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContex
 	}
 }
 
-func (crd *CRDHandlers) IsManifestProducer(ctx *processors.ProcessorContext) bool {
-	return true
-}
-
-func (crd *CRDHandlers) IsMetadataProducer(ctx *processors.ProcessorContext) bool {
-	return false
-}
-
-func (crd *CRDHandlers) SupportsManifestBuffering(ctx *processors.ProcessorContext) bool {
-	return false
-}
-
 // AfterMarshalling is a handler called after resource marshalling.
 func (crd *CRDHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return

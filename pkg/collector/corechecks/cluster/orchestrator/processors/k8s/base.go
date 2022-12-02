@@ -23,12 +23,6 @@ func (BaseHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource
 	return
 }
 
-func (BaseHandlers) IsMetadataProducer(ctx *processors.ProcessorContext) bool { return true }
-
-func (BaseHandlers) IsManifestProducer(ctx *processors.ProcessorContext) bool { return true }
-
-func (BaseHandlers) SupportsManifestBuffering(ctx *processors.ProcessorContext) bool { return true }
-
 func (BaseHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {}
 
 func (BaseHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
