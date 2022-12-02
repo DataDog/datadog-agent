@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    Add an option (`hostname_trust_uts_namespace`) to force the Agent to trust hostname value retrieved from non-root UTS namespaces (Linux only).
+    Add an option (`hostname_trust_uts_namespace`) to force the Agent to trust the hostname value retrieved from non-root UTS namespaces (Linux only).
