@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package app
+package runtime
 
 import (
 	"context"
@@ -52,7 +52,7 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
-func RuntimeCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
@@ -662,7 +662,7 @@ func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, err
 	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
 }
 
-func startRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")

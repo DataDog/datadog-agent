@@ -6,7 +6,7 @@
 //go:build linux
 // +build linux
 
-package app
+package runtime
 
 import (
 	"fmt"

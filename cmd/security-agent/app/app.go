@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -97,7 +98,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		flare.Commands,
 		subconfig.Commands,
 		ComplianceCommands,
-		RuntimeCommands,
+		runtime.Commands,
 		VersionCommands,
 		StartCommands,
 	}
@@ -251,7 +252,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostnameDetected, stopper, statsdClient)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
