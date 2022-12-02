@@ -9,13 +9,13 @@
 package gotls
 
 /*
-#include "../../ebpf/c/tracer.h"
-#include "../../ebpf/c/protocols/http-types.h"
+#include "../../ebpf/c/protocols/go-tls-types.h"
 */
 import "C"
 
 type Location C.location_t
 type SliceLocation C.slice_location_t
 type GoroutineIDMetadata C.goroutine_id_metadata_t
+type TlsBinaryId C.go_tls_offsets_data_key_t
 type TlsConnLayout C.tls_conn_layout_t
 type TlsOffsetsData C.tls_offsets_data_t
