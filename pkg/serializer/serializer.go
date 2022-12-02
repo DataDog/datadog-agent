@@ -463,22 +463,31 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 		return errors.New("container lifecycle forwarder is not setup")
 	}
 
+	payloads := make([]*[]byte, 0, len(msgs))
+
 	for _, msg := range msgs {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set("Content-Type", protobufContentType)
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
 			return log.Errorf("Unable to encode message: %v", err)
 		}
 
-		payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&encoded})
-		if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container lifecycle payload: %v", err)
-		}
-
-		log.Tracef("Sent container lifecycle event %+v", msg)
+		payloads = append(payloads, &encoded)
 	}
+
+	bytePayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+
+	if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(bytePayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit container lifecycle payloads: %v", err)
+	}
+
+	log.Tracef("Sent container lifecycle events %+v", msgs)
 
 	return nil
 }
@@ -489,22 +498,31 @@ func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname s
 		return errors.New("container image forwarder is not setup")
 	}
 
+	payloads := make([]*[]byte, 0, len(msgs))
+
 	for _, msg := range msgs {
-		extraHeaders := make(http.Header)
-		extraHeaders.Set("Content-Type", protobufContentType)
 		msg.Host = hostname
 		encoded, err := proto.Marshal(&msg)
 		if err != nil {
-			return log.Errorf("Unable to encode message: %v", err)
+			return log.Errorf("Unable to encode message: %+v", err)
 		}
 
-		payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&encoded})
-		if err := s.contimageForwarder.SubmitContainerImages(payloads, extraHeaders); err != nil {
-			return log.Errorf("Unable to submit container image payload: %v", err)
-		}
-
-		log.Tracef("Send container image %+v", msg)
+		payloads = append(payloads, &encoded)
 	}
+
+	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+
+	if err := s.contimageForwarder.SubmitContainerImages(bytesPayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit container image payload: %v", err)
+	}
+
+	log.Tracef("Send container images %+v", msgs)
 
 	return nil
 }
