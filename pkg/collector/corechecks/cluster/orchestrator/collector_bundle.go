@@ -127,7 +127,8 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 		groupVersion := collectorName[:idx]
 		resource := collectorName[idx+1:]
 		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
-			_ = cb.check.Warnf("Unsupported collecting a crd resource which is already collected by default. To fix please remove %s", collectorName)
+			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
+
 			return
 		}
 		collector, err = cb.crdDiscovery.VerifyForInventory(resource, groupVersion)

@@ -48,8 +48,7 @@ type OrchestratorInstance struct {
 	//   - nodes
 	//   - services
 	Collectors []string `yaml:"collectors"`
-	// CRDCollectors defines the crd resources type collectors
-	// Example: Enable services and nodes collectors.
+	// CRDCollectors defines collectors for custom Kubernetes resource types.
 	// crd_collectors:
 	//   - datadoghq.com/v1alpha1/datadogmetrics
 	//   - stable.example.com/v1/crontabs

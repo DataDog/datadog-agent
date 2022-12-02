@@ -27,7 +27,8 @@ func NewCRCollectorVersions(resource string, groupVersion string) (*CRCollector,
 	return NewCRCollector(resource, groupVersion)
 }
 
-// CRCollector is a collector for Kubernetes CRs.
+// CRCollector is a collector for Kubernetes Custom Resources.
+// See https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/ for more detail.
 type CRCollector struct {
 	gvr       schema.GroupVersionResource
 	informer  informers.GenericInformer
@@ -36,8 +37,7 @@ type CRCollector struct {
 	processor *processors.Processor
 }
 
-// NewCRCollector creates a new collector for the Kubernetes CR
-// resource.
+// NewCRCollector creates a new collector for Kubernetes CRs.
 func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 	gv, err := schema.ParseGroupVersion(groupVersion)
 	if err != nil {
