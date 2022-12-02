@@ -201,7 +201,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 }
 
 func getVersionHistory(fb flarehelpers.FlareBuilder) {
-	fb.CopyFileRename(config.Datadog.GetString("run_path"), "version-history.json")
+	fb.CopyFileTo(config.Datadog.GetString("run_path"), "version-history.json")
 }
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
@@ -334,14 +334,14 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
-		fb.CopyFileToRename(mainConfpath, "etc", "datadog-agent.yaml")
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog-agent.yaml"))
 
 		// figure out system-probe file path based on main config path, and use best effort to include
 		// system-probe.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), "etc")
+		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml"))
 
 		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), "etc")
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "system-probe.yaml"))
 	}
 }
 

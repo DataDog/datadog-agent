@@ -59,38 +59,16 @@ type FlareBuilder interface {
 	// "datadog.yaml", at the root of the flare.
 	CopyFile(srcFile string) error
 
-	// CopyFileRename copies the content of 'srcFile' to the root of the flare under a new filename.
-	//
-	// 'destFile' is a path relative to the flare root (ex: "some/path/to/a/file"). Any necessary directory will
-	// automatically be created.
+	// CopyFileTo copies the content of 'srcFile' to 'destFile' in the flare.
 	//
 	// The data is automatically scrubbed of any sensitive informations before being copied.
 	//
-	// Example: CopyFile("/etc/datadog/datadog.yaml", "new_name.yaml") will create a copy of "/etc/datadog/datadog.yaml", named
-	// "new_name.yaml", at the root of the flare.
-	CopyFileRename(srcFile string, filename string) error
-
-	// CopyFileTo copies the content of 'srcFile' to 'destDir' in the flare.
-	//
-	// The data is automatically scrubbed of any sensitive informations before being copied.
-	//
-	// 'destDir' is a path relative to the flare root (ex: "path/to/a/dir"). Any necessary directory will
+	// 'destFile' is a path relative to the flare root (ex: "path/to/a/file"). Any necessary directory will
 	// automatically be created.
 	//
-	// Example: CopyFile("/etc/datadog/datadog.yaml", "etc") will create a copy of "/etc/datadog/datadog.yaml"
+	// Example: CopyFile("/etc/datadog/datadog.yaml", "etc/datadog.yaml") will create a copy of "/etc/datadog/datadog.yaml"
 	// at "etc/datadog.yaml" at the root of the flare.
-	CopyFileTo(srcFile string, destDir string) error
-
-	// CopyFileToRename copies the content of 'srcFile' to 'destDir' in the flare under a new filename.
-	//
-	// The data is automatically scrubbed of any sensitive informations before being copied.
-	//
-	// 'destDir' is a path relative to the flare root (ex: "path/to/a/dir"). Any necessary directory will
-	// automatically be created.
-	//
-	// Example: CopyFile("/etc/datadog/datadog.yaml", "etc", "new_name.yaml") will create a copy of "/etc/datadog/datadog.yaml"
-	// at "etc/new_name.yaml" at the root of the flare.
-	CopyFileToRename(srcFile string, destDir string, filename string) error
+	CopyFileTo(srcFile string, destFile string) error
 
 	// CopyDirTo copies files from the 'srcDir' to a specific directory in the flare.
 	//

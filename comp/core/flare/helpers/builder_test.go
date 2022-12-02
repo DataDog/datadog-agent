@@ -159,23 +159,12 @@ func TestCopyFileTo(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.data")
 	os.WriteFile(path, []byte("some data"), os.ModePerm)
 
-	assert.NoError(t, fb.CopyFileTo(path, FromSlash("test/copy")))
+	assert.NoError(t, fb.CopyFileTo(path, FromSlash("test/copy/test.data")))
 	assertFileContent(t, fb, "some data", "test/copy/test.data")
-	assert.NoError(t, fb.CopyFileTo(path, FromSlash("test/copy2/")))
-	assertFileContent(t, fb, "some data", "test/copy2/test.data")
-}
-
-func TestCopyFileToRename(t *testing.T) {
-	fb := getNewBuilder(t)
-	defer fb.clean()
-
-	path := filepath.Join(t.TempDir(), "test.data")
-	os.WriteFile(path, []byte("some data"), os.ModePerm)
-
-	assert.NoError(t, fb.CopyFileToRename(path, FromSlash("test/copy"), "new_name.data"))
-	assertFileContent(t, fb, "some data", "test/copy/new_name.data")
-	assert.NoError(t, fb.CopyFileToRename(path, FromSlash("test/copy2/"), "new_name2.data"))
-	assertFileContent(t, fb, "some data", "test/copy2/new_name2.data")
+	assert.NoError(t, fb.CopyFileTo(path, FromSlash("test/copy2/new.data")))
+	assertFileContent(t, fb, "some data", "test/copy2/new.data")
+	assert.NoError(t, fb.CopyFileTo(path, FromSlash("new.data")))
+	assertFileContent(t, fb, "some data", "new.data")
 }
 
 func TestCopyFile(t *testing.T) {
@@ -187,17 +176,6 @@ func TestCopyFile(t *testing.T) {
 
 	assert.NoError(t, fb.CopyFile(path))
 	assertFileContent(t, fb, "some data", "test.data")
-}
-
-func TestCopyFileRename(t *testing.T) {
-	fb := getNewBuilder(t)
-	defer fb.clean()
-
-	path := filepath.Join(t.TempDir(), "test.data")
-	os.WriteFile(path, []byte("some data"), os.ModePerm)
-
-	assert.NoError(t, fb.CopyFileRename(path, "new_name.data"))
-	assertFileContent(t, fb, "some data", "new_name.data")
 }
 
 func TestCopyDirTo(t *testing.T) {

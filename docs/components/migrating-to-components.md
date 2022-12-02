@@ -6,20 +6,22 @@ This page documents how to fully integrate your component in the Agent life cycl
 
 ## Flare
 
-Migrate the code related to your component's domain from `pkg/flare` to your component. After migrating
-the Agent to components, you can delete it from `pkg/flare`.
+The general idea is to register a callback within your component to be called each time a flare is created. This use fx
+groups under the hood, but helpers are there to abstract all of that for you.
+
+Then, migrate the code related to your component's domain from `pkg/flare` to your component and delete it from `pkg/flare` once done.
 
 ### Creating a callback
 
-To add data to a flare you will fiest need to register a `FlareBuilder`.
+To add data to a flare you will first need to register a callback, aka a `FlareBuilder`.
 
-First create a `flare.go` file in your component (the file name is a convention) and create a `func (c *yourComp) fillFlare(fb flarehelpers.FlareBuilder) error` function.
+Within your component create a method with the following signature `func (c *yourComp) fillFlare(fb flarehelpers.FlareBuilder) error`.
 
 This function is called every time the Agent generates a flare, either from the CLI or from the running Agent. This
-callback receives a `comp/core/flare/helpers:FlareBuilder`. The `FlareBuilder` interface provides the
-helpers required to add data to a flare: adding files, copying directories, scrubbing data, and so on.
+callback receives a `comp/core/flare/helpers:FlareBuilder`. The `FlareBuilder` interface provides all the
+helpers functions needed to add data to a flare (adding files, copying directories, scrubbing data, and so on).
 
-Example of `flare.go`:
+Example:
 
 ```golang
 import (
@@ -41,30 +43,20 @@ func (c *myComponent) fillFlare(fb flarehelpers.FlareBuilder) error {
 }
 ```
 
-Read the package documentation for `FlareBuilder` for more information. 
-All errors are automatically 
-added to a log file shipped within the flare. Ship as much data as possible in a flare instead of
-stopping at the first error. Returning an error does not stop the flare from being created or sent.
+Read the package documentation for `FlareBuilder` for more information on the API.
 
-### Register the callback
+All errors returned by the `FlareBuilder` are automatically added to a log file shipped within the flare. Ship as much
+data as possible in a flare instead of stopping at the first error. Returning an error does not stop the flare from
+being created or sent.
 
-Finally, to Register your callback, provide a new `comp/core/flare/helpers:Provider` by using
-`comp/core/flare/helpers:NewProvider`.
+While you can register multiple callbacks from the same component, keep all the flare code in a single callback.
 
-For this the constructor of your component must return a `helpers.Provider` that will be called for each flare creation
-(`NewProvider` does all the underlying work for you).
+### Register your callback
 
-Example from the `config` component:
+Now you need to register you callback to be called each time a flare is created. To do so your component constructor
+need to provide a new `comp/core/flare/helpers:Provider`. Use `comp/core/flare/helpers:NewProvider` for this.
 
-In `component.go`:
-```golang
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
-```
-
-In `config.go`:
+Example:
 ```golang
 import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -74,15 +66,15 @@ type provides struct {
 	fx.Out
 
 	// [...]
-	FlareProvider flarehelpers.Provider
+	FlareProvider flarehelpers.Provider // Your component will provides a new FlareProvider
 	// [...]
 }
 
-func newConfig(deps dependencies) (provides, error) {
+func newComponent(deps dependencies) (provides, error) {
 	// [...]
 	return provides{
 		// [...]
-		FlareProvider: flarehelpers.NewProvider(myComponent.fillFlare),
+		FlareProvider: flarehelpers.NewProvider(myComponent.fillFlare), // NewProvider will wrap your callback in order to be use as a 'FlareProvider'
 		// [...]
 	}, nil
 }
@@ -90,5 +82,8 @@ func newConfig(deps dependencies) (provides, error) {
 
 ### Migrating your code
 
-The code in `pkg/flare` uses the `FlareBuilder` interface, simplifying migration. Locate the code
-related to your component domain from `pkg/flare` and move it to your `fillFlare` function.
+Now migrate the require code from `pkg/flare` to you component callback. The code in `pkg/flare` already uses the
+`FlareBuilder` interface, simplifying migration. Don't forget to migrate the tests too and expand them (most of the
+flare features are not tested). `flarehelpers.NewFlareBuilderMock` will provides helpers for your tests.
+
+Keep in mind that the goal is to delete `pkg/flare` once the migration to component is done.

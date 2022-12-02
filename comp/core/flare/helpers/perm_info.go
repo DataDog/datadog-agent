@@ -9,11 +9,3 @@ package helpers
 // in the flare.
 // The key is the filepath of the file.
 type permissionsInfos map[string]*filePermsInfo
-
-type filePermsInfo struct {
-	path  string
-	mode  string
-	owner string
-	group string
-	err   error
-}

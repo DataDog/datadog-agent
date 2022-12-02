@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -40,7 +42,10 @@ func (f *flare) Create(local bool, distPath, pyChecksPath string, logFilePaths [
 	}
 
 	for _, p := range f.providers {
-		p.Callback(fb) //nolint:errcheck
+		err = p.Callback(fb)
+		f.log.Error("error calling '%s' for flare creation: %s",
+			runtime.FuncForPC(reflect.ValueOf(p.Callback).Pointer()).Name(), // reflect p.Callback function name
+			err)
 	}
 
 	// Legacy flare code

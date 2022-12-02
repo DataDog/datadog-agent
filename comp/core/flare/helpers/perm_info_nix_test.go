@@ -35,9 +35,9 @@ func TestPermsFileAdd(t *testing.T) {
 
 	pi := permissionsInfos{}
 
-	require.NoError(t, pi.add(f1))
-	require.NoError(t, pi.add(f2))
-	require.Error(t, pi.add(f3))
+	pi.add(f1)
+	pi.add(f2)
+	pi.add(f3)
 
 	require.Len(t, pi, 3)
 

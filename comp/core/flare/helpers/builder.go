@@ -118,8 +118,8 @@ func getArchiveName() string {
 func (fb *builder) Save() (string, error) {
 	defer fb.clean()
 
-	fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit) //nolint:errcheck
-	fb.logFile.Close()                                          //nolint:errcheck
+	_ = fb.AddFileFromFunc("permissions.log", fb.permsInfos.commit)
+	_ = fb.logFile.Close()
 
 	archivePath := filepath.Join(os.TempDir(), getArchiveName())
 
@@ -138,7 +138,7 @@ func (fb *builder) clean() {
 
 func (fb *builder) logError(format string, params ...interface{}) error {
 	err := log.Errorf(format, params...)
-	fb.logFile.WriteString(err.Error() + "\n") //nolint:errcheck
+	_, _ = fb.logFile.WriteString(err.Error() + "\n")
 	return err
 }
 
@@ -168,14 +168,9 @@ func (fb *builder) AddFile(destFile string, content []byte) error {
 	return nil
 }
 
-func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destDir string, destFilename string) error {
-	fb.permsInfos.add(srcFile) //nolint:errcheck
+func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string) error {
+	fb.permsInfos.add(srcFile)
 
-	if destFilename == "" {
-		destFilename = filepath.Base(srcFile)
-	}
-
-	destFile := filepath.Join(destDir, destFilename)
 	path, err := fb.PrepareFilePath(destFile)
 	if err != nil {
 		return err
@@ -202,20 +197,12 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destDir string, 
 	return nil
 }
 
-func (fb *builder) CopyFileTo(srcFile string, destDir string) error {
-	return fb.copyFileTo(true, srcFile, destDir, "")
-}
-
-func (fb *builder) CopyFileToRename(srcFile string, destDir string, filename string) error {
-	return fb.copyFileTo(true, srcFile, destDir, filename)
+func (fb *builder) CopyFileTo(srcFile string, destFile string) error {
+	return fb.copyFileTo(true, srcFile, destFile)
 }
 
 func (fb *builder) CopyFile(srcFile string) error {
-	return fb.copyFileTo(true, srcFile, "", "")
-}
-
-func (fb *builder) CopyFileRename(srcFile string, filename string) error {
-	return fb.copyFileTo(true, srcFile, "", filename)
+	return fb.copyFileTo(true, srcFile, filepath.Base(srcFile))
 }
 
 func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, shouldInclude func(string) bool) error {
@@ -223,7 +210,7 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 	if err != nil {
 		return fb.logError("error getting absolute path for '%s': %s", srcDir, err)
 	}
-	fb.permsInfos.add(srcDir) //nolint:errcheck
+	fb.permsInfos.add(srcDir)
 
 	err = filepath.Walk(srcDir, func(src string, f os.FileInfo, err error) error {
 		if f == nil {
@@ -237,8 +224,8 @@ func (fb *builder) copyDirTo(shouldScrub bool, srcDir string, destDir string, sh
 			return nil
 		}
 
-		targetDir := filepath.Join(destDir, filepath.Dir(strings.Replace(src, srcDir, "", 1)))
-		fb.copyFileTo(shouldScrub, src, targetDir, "") //nolint:errcheck
+		targetFile := filepath.Join(destDir, strings.Replace(src, srcDir, "", 1))
+		_ = fb.copyFileTo(shouldScrub, src, targetFile)
 		return nil
 	})
 	if err != nil {
@@ -266,5 +253,5 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 }
 
 func (fb *builder) RegisterFilePerm(path string) {
-	fb.permsInfos.add(path) //nolint:errcheck
+	fb.permsInfos.add(path)
 }
