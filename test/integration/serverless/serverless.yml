@@ -28,10 +28,10 @@ provider:
     DD_CAPTURE_LAMBDA_PAYLOAD: true
   timeout: 15
   deploymentBucket:
-    name: integration-tests-deployment-bucket-lambda-extension
+    name: integration-tests-serververless-deployment-bucket
   iam:
     # IAM permissions require that all functions are deployed with this role
-    role: "arn:aws:iam::601427279990:role/serverless-integration-test-lambda-role"
+    role: "arn:aws:iam::425362996713:role/serverless-integration-test-lambda-role"
   architecture: ${self:custom.altArchitectureNames.${env:ARCHITECTURE}}
 
 package:
