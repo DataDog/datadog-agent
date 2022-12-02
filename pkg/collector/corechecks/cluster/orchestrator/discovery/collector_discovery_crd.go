@@ -69,7 +69,7 @@ func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion s
 		d.cache.filled = true
 	}
 
-	collector, err := k8sCollectors.NewCRCollectorVersions(resource, groupVersion)
+	collector, err := k8sCollectors.NewCRCollectorVersion(resource, groupVersion)
 	if err != nil {
 		return nil, err
 	}

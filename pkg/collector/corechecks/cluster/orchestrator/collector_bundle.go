@@ -290,18 +290,17 @@ func (cb *CollectorBundle) Run(sender aggregator.Sender) {
 		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
 		nt := collector.Metadata().NodeType
-
 		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
 
-		if !orchestrator.IsCRDType(nt) { // for CR and CRD we don't have metadata but only manifests
+		if result.Result.IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
 			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
 		}
 
 		if cb.runCfg.Config.IsManifestCollectionEnabled {
-			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && !orchestrator.IsCRDType(nt) {
+			if cb.manifestBuffer.Cfg.BufferedManifestEnabled && result.Result.SupportsManifestBuffering {
 				BufferManifestProcessResult(result.Result.ManifestMessages, cb.manifestBuffer)
 			} else {
-				// We don't buffer manifests for the pod or crd/cr checks
+				// We don't buffer manifests for the pod check
 				sender.OrchestratorManifest(result.Result.ManifestMessages, cb.check.clusterID)
 			}
 		}

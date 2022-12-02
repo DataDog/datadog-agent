@@ -349,11 +349,11 @@ func (c *APIClient) connect() error {
 			return err
 		}
 		if c.CRDInformerFactory, err = getCRDInformerFactory(); err != nil {
-			_ = log.Errorf("Error getting datadoghq Client: %s", err.Error())
+			_ = log.Errorf("Error getting crd informer Client: %s", err.Error())
 			return err
 		}
 		if c.DynamicInformerFactory, err = getDDInformerFactory(); err != nil {
-			_ = log.Errorf("Error getting datadoghq Client: %s", err.Error())
+			_ = log.Errorf("Error getting datadoghq informer Client: %s", err.Error())
 			return err
 		}
 	}

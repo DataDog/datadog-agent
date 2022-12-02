@@ -22,8 +22,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// NewCRCollectorVersions builds the group of collector versions.
-func NewCRCollectorVersions(resource string, groupVersion string) (*CRCollector, error) {
+// NewCRCollectorVersion builds the group of collector versions.
+func NewCRCollectorVersion(resource string, groupVersion string) (*CRCollector, error) {
 	return NewCRCollector(resource, groupVersion)
 }
 
@@ -96,7 +96,6 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 	}
 
 	processResult, processed := c.processor.Process(ctx, list)
-	processResult.MetadataMessages = nil
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic

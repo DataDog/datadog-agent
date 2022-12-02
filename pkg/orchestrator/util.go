@@ -170,7 +170,7 @@ func (n NodeType) Orchestrator() string {
 		K8sUnsetType:
 		return "k8s"
 	default:
-		_ = log.Errorf("Unknown NodeType %v", n)
+		log.Errorf("Unknown NodeType %v", n)
 		return ""
 	}
 }
@@ -178,7 +178,7 @@ func (n NodeType) Orchestrator() string {
 // TelemetryTags return tags used for telemetry.
 func (n NodeType) TelemetryTags() []string {
 	if n.String() == "" {
-		_ = log.Errorf("Unknown NodeType %v", n)
+		log.Errorf("Unknown NodeType %v", n)
 		return []string{"unknown", "unknown"}
 	}
 	tags := getTelemetryTags(n)
@@ -200,12 +200,4 @@ func SetCacheStats(resourceListLen int, resourceMsgLen int, nodeType NodeType) {
 		NodeType:  nodeType,
 	}
 	KubernetesResourceCache.Set(BuildStatsKey(nodeType), stats, NoExpiration)
-}
-
-func IsCRDType(n NodeType) bool {
-	switch n {
-	case K8sCRD, K8sCR:
-		return true
-	}
-	return false
 }

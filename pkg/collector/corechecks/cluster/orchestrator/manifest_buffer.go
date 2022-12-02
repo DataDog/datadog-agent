@@ -80,7 +80,7 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 			MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
 		},
 	}
-	manifestMessages := processors.ChunkManifest(ctx, processors.NewProcessor(new(k8s.ClusterRoleBindingHandlers)), manifests) // TODO: own buffer or let know if crd and chunk accordingly
+	manifestMessages := processors.ChunkManifest(ctx, k8s.BaseHandlers{}.BuildManifestMessageBody, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
 }

@@ -90,7 +90,6 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	}
 
 	processResult, processed := c.processor.Process(ctx, list)
-	processResult.MetadataMessages = nil
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
