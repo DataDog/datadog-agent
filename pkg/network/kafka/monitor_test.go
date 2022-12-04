@@ -98,6 +98,18 @@ func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	cfg := config.New()
+	monitor, err := NewMonitor(cfg, nil)
+	require.NoError(t, err)
+	err = monitor.Start()
+	require.NoError(t, err)
+	defer monitor.Stop()
+}
+
+// This test will help us identify if there is any verifier problems while loading the Kafka binary in the CI environment
+func TestLoadKafkaDebugBinary(t *testing.T) {
+	skipTestIfKernelNotSupported(t)
+
+	cfg := config.New()
 	cfg.BPFDebug = true
 	monitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
