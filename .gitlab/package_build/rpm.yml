@@ -3,7 +3,6 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
-    - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -58,7 +57,7 @@ agent_rpm-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "generate_minimized_btfs_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -76,7 +75,7 @@ agent_rpm-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "generate_minimized_btfs_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
@@ -94,7 +93,7 @@ agent_rpm-arm64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "generate_minimized_btfs_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: '2,3'
@@ -111,7 +110,7 @@ agent_rpm-arm64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "go_deps", "generate_minimized_btfs_arm64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-arm64", "generate_minimized_btfs_arm64"]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: '3'
@@ -124,7 +123,6 @@ agent_rpm-arm64-a7:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
-    - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -153,7 +151,7 @@ iot_agent_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
 
 iot_agent_rpm-arm64:
   extends: .iot_agent_build_common_rpm
@@ -162,7 +160,7 @@ iot_agent_rpm-arm64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
 
 iot_agent_rpm-armhf:
   extends: .iot_agent_build_common_rpm
@@ -172,7 +170,7 @@ iot_agent_rpm-armhf:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf:$DATADOG_AGENT_ARMBUILDIMAGES
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -183,11 +181,10 @@ dogstatsd_rpm-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache

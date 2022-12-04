@@ -6,9 +6,8 @@ build_dogstatsd_static-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["tests_deb-x64-py3", "go_deps"]
+  needs: ["tests_deb-x64-py3"]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
@@ -21,11 +20,10 @@ build_dogstatsd_static-binary_arm64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["tests_deb-x64-py3", "go_deps"]
+  needs: ["tests_deb-x64-py3"]
   variables:
     ARCH: arm64
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
@@ -38,9 +36,8 @@ build_dogstatsd-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["tests_deb-x64-py3", "go_deps"]
+  needs: ["tests_deb-x64-py3"]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
@@ -53,11 +50,10 @@ build_dogstatsd-binary_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["tests_deb-arm64-py3", "go_deps"]
+  needs: ["tests_deb-arm64-py3"]
   variables:
     ARCH: arm64
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
@@ -71,9 +67,7 @@ build_iot_agent-binary_x64:
     !reference [.on_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["tests_deb-x64-py3", "go_deps"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
+  needs: ["tests_deb-x64-py3"]
   script:
     - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
@@ -85,11 +79,9 @@ build_iot_agent-binary_arm64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["tests_deb-arm64-py3", "go_deps"]
+  needs: ["tests_deb-arm64-py3"]
   variables:
     ARCH: arm64
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
   script:
     - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
