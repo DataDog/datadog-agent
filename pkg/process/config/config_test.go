@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -135,7 +134,7 @@ func TestYamlConfig(t *testing.T) {
 	// Reset the config
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
-	f, err := ioutil.TempFile("", "yamlConfigTest*.yaml")
+	f, err := os.CreateTemp("", "yamlConfigTest*.yaml")
 	defer os.Remove(f.Name())
 	assert.NoError(t, err)
 

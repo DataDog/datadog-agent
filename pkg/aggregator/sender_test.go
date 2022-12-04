@@ -50,22 +50,36 @@ func testDemux() *AgentDemultiplexer {
 	return demux
 }
 
+func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
+	assert.Eventually(t, func() bool {
+		agg.mu.Lock()
+		defer agg.mu.Unlock()
+		return len(agg.checkSamplers) == n
+	}, time.Second, 10*time.Millisecond)
+
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	// This provides a nicer error message than Eventually if the test fails
+	assert.Len(t, agg.checkSamplers, n)
+}
+
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
+	go aggregatorInstance.run()
+	defer aggregatorInstance.Stop()
 
 	s, err := demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender1 := s.(*checkSender)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender2 := s.(*checkSender)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 	assert.Equal(t, defaultSender1.id, defaultSender2.id)
 }
 
@@ -75,22 +89,24 @@ func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
+	go aggregatorInstance.run()
+	defer aggregatorInstance.Stop()
 
 	s, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	sender1 := s.(*checkSender)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	s, err = demux.GetSender(checkID2)
 	assert.Nil(t, err)
 	sender2 := s.(*checkSender)
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
+	assertAggSamplersLen(t, aggregatorInstance, 2)
 	assert.NotEqual(t, sender1.id, sender2.id)
 
 	s, err = demux.GetDefaultSender()
 	assert.Nil(t, err)
 	defaultSender := s.(*checkSender)
-	assert.Len(t, aggregatorInstance.checkSamplers, 3)
+	assertAggSamplersLen(t, aggregatorInstance, 3)
 	assert.NotEqual(t, sender1.id, defaultSender.id)
 	assert.NotEqual(t, sender2.id, defaultSender.id)
 }
@@ -101,17 +117,19 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 
 	demux := testDemux()
 	aggregatorInstance := demux.Aggregator()
+	go aggregatorInstance.run()
+	defer aggregatorInstance.Stop()
 
 	sender1, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assertAggSamplersLen(t, aggregatorInstance, 1)
+
 	assert.Len(t, demux.senderPool.senders, 1)
 
 	sender2, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, sender1, sender2)
 
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
 	assert.Len(t, demux.senderPool.senders, 1)
 }
 
@@ -126,38 +144,22 @@ func TestDestroySender(t *testing.T) {
 
 	_, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
-	assert.Len(t, aggregatorInstance.checkSamplers, 1)
+	assertAggSamplersLen(t, aggregatorInstance, 1)
 
 	_, err = demux.GetSender(checkID2)
 	assert.Nil(t, err)
-
-	aggregatorInstance.mu.Lock()
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
-	aggregatorInstance.mu.Unlock()
+	assertAggSamplersLen(t, aggregatorInstance, 2)
 
 	demux.DestroySender(checkID1)
 
-	aggregatorInstance.mu.Lock()
-	assert.Len(t, aggregatorInstance.checkSamplers, 2)
-	aggregatorInstance.mu.Unlock()
-
-	for tries := 100; tries > 0 && !aggregatorInstance.IsInputQueueEmpty(); tries-- {
-		time.Sleep(100 * time.Millisecond)
-	}
+	assert.Eventually(t, func() bool {
+		aggregatorInstance.mu.Lock()
+		defer aggregatorInstance.mu.Unlock()
+		return aggregatorInstance.checkSamplers[checkID1].deregistered
+	}, time.Second, 10*time.Millisecond)
 
 	aggregatorInstance.Flush(testNewFlushTrigger(time.Now(), false))
-
-	for tries := 100; tries > 0; tries-- {
-		aggregatorInstance.mu.Lock()
-		ok := len(aggregatorInstance.checkSamplers) == 1
-		aggregatorInstance.mu.Unlock()
-		if !ok && tries > 1 {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		assert.True(t, ok)
-
-	}
+	assertAggSamplersLen(t, aggregatorInstance, 1)
 }
 
 func TestGetAndSetSender(t *testing.T) {
@@ -191,15 +193,13 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
 
-	aggregatorInstance.SetHostname(altDefaultHostname)
-
 	sender, err := demux.GetSender(checkID1)
 	require.NoError(t, err)
 
 	checksender, ok := sender.(*checkSender)
 	require.True(t, ok)
 
-	assert.Equal(t, altDefaultHostname, checksender.defaultHostname)
+	assert.Equal(t, demux.Aggregator().hostname, checksender.defaultHostname)
 	assert.Equal(t, false, checksender.defaultHostnameDisabled)
 
 	aggregatorInstance.Stop()
@@ -594,28 +594,4 @@ func TestCheckSenderHostname(t *testing.T) {
 			assert.Equal(t, []string{"foo", "bar"}, event.Tags)
 		})
 	}
-}
-
-func TestChangeAllSendersDefaultHostname(t *testing.T) {
-	// this test not using anything global
-	// -
-
-	demux := testDemux()
-
-	s := initSender(checkID1, "hostname1")
-	demux.SetSender(s.sender, checkID1)
-
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample := (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
-
-	demux.ChangeAllSendersDefaultHostname("hostname2")
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname2", gaugeSenderSample.metricSample.Host)
-
-	demux.ChangeAllSendersDefaultHostname("hostname1")
-	s.sender.Gauge("my.metric", 1.0, "", nil)
-	gaugeSenderSample = (<-s.itemChan).(*senderMetricSample)
-	assert.Equal(t, "hostname1", gaugeSenderSample.metricSample.Host)
 }

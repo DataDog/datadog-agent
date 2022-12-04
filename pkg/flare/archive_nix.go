@@ -40,6 +40,12 @@ func zipDatadogRegistry(tempDir, hostname string) error {
 	return nil
 }
 
+type filePermsInfo struct {
+	mode  os.FileMode
+	owner string
+	group string
+}
+
 // Add puts the given filepath in the map
 // of files to process later during the commit phase.
 func (p permissionsInfos) add(filePath string) {

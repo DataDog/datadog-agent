@@ -27,9 +27,9 @@ type DriverExpvar string
 
 const (
 	totalFlowStats  DriverExpvar = "driver_total_flow_stats"
-	flowHandleStats              = "driver_flow_handle_stats"
-	flowStats                    = "flows"
-	driverStats                  = "driver"
+	flowHandleStats DriverExpvar = "driver_flow_handle_stats"
+	flowStats       DriverExpvar = "flows"
+	driverStats     DriverExpvar = "driver"
 )
 
 const (
@@ -213,6 +213,7 @@ func (di *DriverInterface) GetStats() (map[DriverExpvar]interface{}, error) {
 	}, nil
 }
 
+//nolint:deadcode,unused // debugging helper normally commented out
 func printClassification(fd *driver.PerFlowData) {
 	if fd.ClassificationStatus != driver.ClassificationUnclassified {
 		if fd.ClassifyRequest == driver.ClassificationRequestTLS || fd.ClassifyResponse == driver.ClassificationResponseTLS {

@@ -14,15 +14,15 @@ import (
 
 	"github.com/cilium/ebpf"
 
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 var (
 	// TracedEventTypesReductionOrder is the order by which event types are reduced
-	TracedEventTypesReductionOrder = []model.EventType{model.FileOpenEventType, model.SyscallsEventType, model.DNSEventType, model.BindEventType}
+	TracedEventTypesReductionOrder = []model.EventType{model.BindEventType, model.DNSEventType, model.SyscallsEventType, model.FileOpenEventType}
 	// MinDumpTimeout is the shortest timeout for a dump
 	MinDumpTimeout = 10 * time.Minute
 )
@@ -37,7 +37,7 @@ type ActivityDumpLoadController struct {
 
 // NewActivityDumpLoadController returns a new activity dump load controller
 func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadController, error) {
-	activityDumpConfigDefaultsMap, found, err := adm.probe.manager.GetMap("activity_dump_config_defaults")
+	activityDumpConfigDefaultsMap, found, err := adm.manager.GetMap("activity_dump_config_defaults")
 	if err != nil {
 		return nil, err
 	}
@@ -55,14 +55,14 @@ func NewActivityDumpLoadController(adm *ActivityDumpManager) (*ActivityDumpLoadC
 func (lc *ActivityDumpLoadController) PushCurrentConfig() error {
 	// push default load config values
 	defaults := NewActivityDumpLoadConfig(
-		lc.adm.probe.config.ActivityDumpTracedEventTypes,
-		lc.adm.probe.config.ActivityDumpCgroupDumpTimeout,
+		lc.adm.config.ActivityDumpTracedEventTypes,
+		lc.adm.config.ActivityDumpCgroupDumpTimeout,
 		0,
-		lc.adm.probe.config.ActivityDumpRateLimiter,
+		lc.adm.config.ActivityDumpRateLimiter,
 		time.Now(),
-		lc.adm.probe.resolvers.TimeResolver,
+		lc.adm.resolvers.TimeResolver,
 	)
-	defaults.WaitListTimestampRaw = uint64(lc.adm.probe.config.ActivityDumpCgroupWaitListTimeout)
+	defaults.WaitListTimestampRaw = uint64(lc.adm.config.ActivityDumpCgroupWaitListTimeout)
 	if err := lc.activityDumpConfigDefaults.Put(uint32(0), defaults); err != nil {
 		return fmt.Errorf("couldn't update default activity dump load config: %w", err)
 	}
@@ -81,7 +81,7 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 	// copy storage requests
 	for _, reqList := range ad.StorageRequests {
 		for _, req := range reqList {
-			newDump.AddStorageRequest(dump.NewStorageRequest(
+			newDump.AddStorageRequest(config.NewStorageRequest(
 				req.Type,
 				req.Format,
 				req.Compression,
@@ -106,13 +106,13 @@ func (lc *ActivityDumpLoadController) NextPartialDump(ad *ActivityDump) *Activit
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/4 && ad.LoadConfig.Timeout > MinDumpTimeout {
+	if timeToThreshold < MinDumpTimeout/2 && ad.LoadConfig.Timeout > MinDumpTimeout {
 		if err := lc.reduceDumpTimeout(newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
 	}
 
-	if timeToThreshold < MinDumpTimeout/10 {
+	if timeToThreshold < MinDumpTimeout/4 {
 		if err := lc.reduceTracedEventTypes(ad, newDump); err != nil {
 			seclog.Errorf("%v", err)
 		}
@@ -173,7 +173,7 @@ func (lc *ActivityDumpLoadController) reduceDumpTimeout(new *ActivityDump) error
 }
 
 func (lc *ActivityDumpLoadController) sendLoadControllerTriggeredMetric(tags []string) error {
-	if err := lc.adm.probe.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
+	if err := lc.adm.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
 		return fmt.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
 	}
 	return nil

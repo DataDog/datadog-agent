@@ -9,7 +9,6 @@
 package tailerfactory
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -80,7 +79,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
@@ -139,7 +138,7 @@ func TestDockerOverride(t *testing.T) {
 
 	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
@@ -167,7 +166,7 @@ func TestMakeK8sSource(t *testing.T) {
 	dir := filepath.Join(podLogsBasePath, filepath.FromSlash("podns_podname_poduuid/cname"))
 	require.NoError(t, os.MkdirAll(dir, 0o777))
 	filename := filepath.Join(dir, "somefile.log")
-	require.NoError(t, ioutil.WriteFile(filename, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(filename, []byte("{}"), 0o666))
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
@@ -211,7 +210,7 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 
 	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
@@ -243,7 +242,7 @@ func TestFindK8sLogPath(t *testing.T) {
 			expectedPattern := filepath.FromSlash(test.expectedPattern)
 			p := filepath.Join(podLogsBasePath, pathExists)
 			require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-			require.NoError(t, ioutil.WriteFile(p, []byte("xx"), 0o666))
+			require.NoError(t, os.WriteFile(p, []byte("xx"), 0o666))
 			defer func() {
 				require.NoError(t, os.RemoveAll(podLogsBasePath))
 			}()

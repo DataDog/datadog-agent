@@ -8,7 +8,7 @@ package clusteragent
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -98,7 +98,7 @@ func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
 		return version, fmt.Errorf("unexpected status code from CLC runner: %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return version, err
 	}
@@ -131,7 +131,7 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 		return stats, fmt.Errorf("unexpected status code from CLC runner: %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return stats, err
 	}

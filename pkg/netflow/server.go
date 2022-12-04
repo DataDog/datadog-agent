@@ -7,12 +7,14 @@ package netflow
 
 import (
 	"context"
+	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
@@ -46,6 +48,17 @@ func NewNetflowServer(sender aggregator.Sender) (*Server, error) {
 
 	flowAgg := flowaggregator.NewFlowAggregator(sender, mainConfig, hostnameDetected)
 	go flowAgg.Start()
+
+	if mainConfig.PrometheusListenerEnabled {
+		go func() {
+			serverMux := http.NewServeMux()
+			serverMux.Handle("/metrics", promhttp.Handler())
+			err := http.ListenAndServe(mainConfig.PrometheusListenerAddress, serverMux)
+			if err != nil {
+				log.Errorf("error starting prometheus server `%s`", mainConfig.PrometheusListenerAddress)
+			}
+		}()
+	}
 
 	log.Debugf("NetFlow Server configs (aggregator_buffer_size=%d, aggregator_flush_interval=%d, aggregator_flow_context_ttl=%d)", mainConfig.AggregatorBufferSize, mainConfig.AggregatorFlushInterval, mainConfig.AggregatorFlowContextTTL)
 	for _, listenerConfig := range mainConfig.Listeners {

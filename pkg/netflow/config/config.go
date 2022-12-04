@@ -27,6 +27,9 @@ type NetflowConfig struct {
 
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
+
+	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
+	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -95,6 +98,10 @@ func ReadConfig() (*NetflowConfig, error) {
 	}
 	if mainConfig.AggregatorRollupTrackerRefreshInterval == 0 {
 		mainConfig.AggregatorRollupTrackerRefreshInterval = common.DefaultAggregatorRollupTrackerRefreshInterval
+	}
+
+	if mainConfig.PrometheusListenerAddress == "" {
+		mainConfig.PrometheusListenerAddress = common.DefaultPrometheusListenerAddress
 	}
 
 	return &mainConfig, nil

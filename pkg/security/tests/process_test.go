@@ -93,6 +93,10 @@ func TestProcessContext(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name in ["dash", "bash"]`,
 		},
 		{
+			ID:         "test_rule_parent",
+			Expression: `open.file.path == "{{.Root}}/test-process-parent" && process.parent.file.name in ["dash", "bash"]`,
+		},
+		{
 			ID:         "test_rule_pid1",
 			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
 		},
@@ -721,6 +725,31 @@ func TestProcessContext(t *testing.T) {
 		})
 	})
 
+	test.Run(t, "parent", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-process-parent")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		executable := "touch"
+
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("sh", args, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_parent")
+			assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
+			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+		})
+	})
+
 	test.Run(t, "pid1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-process-pid1")
 		if err != nil {
@@ -873,6 +902,7 @@ func TestProcessContext(t *testing.T) {
 			if kind == dockerWrapperType {
 				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.ContainerID)
 				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Ancestor.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Parent.ContainerID)
 			}
 		}))
 	})
@@ -1106,7 +1136,7 @@ func TestProcessExec(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: fmt.Sprintf(`exec.file.path == "%s"`, executable),
+		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args == "/dev/null"`, executable),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
@@ -1126,7 +1156,7 @@ func TestProcessExec(t *testing.T) {
 			return cmd.Run()
 		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
-			// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
 			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 		}))
 	})
@@ -1138,6 +1168,7 @@ func TestProcessExec(t *testing.T) {
 			return cmd.Run()
 		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
+			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
 		}))
 	})
 }
@@ -1499,6 +1530,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
 		})
 	})
@@ -1514,6 +1546,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
 		})
 	})
@@ -1777,7 +1810,7 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 		scriptName      string
 		executedScript  string
 		innerScriptName string
-		check           func(event *sprobe.Event, rule *rules.Rule)
+		check           func(event *sprobe.Event)
 	}{
 		{
 			name: "regular exec",
@@ -1791,11 +1824,16 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 echo "Executing echo inside a bash script"
 
 %s - << EOF
-print('Executing print inside a python (%s) script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
 echo "Back to bash"`, python, python),
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "regularExec.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExec.sh"}, "ancestor file name not an option")
+			},
 		},
 		{
 			name: "regular exec without interpreter rule",
@@ -1811,12 +1849,14 @@ echo "Executing echo inside a bash script"
 %s <<__HERE__
 #!%s
 
-print "Executing print inside a perl (%s) script\n";
+print "Executing print inside a perl (%s) script inside a bash script\n";
 __HERE__
 
 echo "Back to bash"`, perl, perl, perl),
-			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "")
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExecWithInterpreterRule.sh"}, "ancestor file name not an option")
 			},
 		},
 		{
@@ -1834,7 +1874,7 @@ echo "Executing echo inside a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print inside a python (%s) script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
@@ -1842,8 +1882,10 @@ echo "Back to bash"
 
 chmod 755 pyscript.py
 ./pyscript.py`, python, python),
-			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python), "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "interpretedExec.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"interpretedExec.sh"}, "ancestor file name not an option")
 			},
 		},
 		// TODO: Test for snapshotted processes
@@ -1899,7 +1941,7 @@ chmod 755 pyscript.py
 	defer testModule.Close()
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
+		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 			scriptLocation := fmt.Sprintf("/tmp/%s", test.scriptName)
 			if scriptWriteErr := os.WriteFile(scriptLocation, []byte(test.executedScript), 0755); scriptWriteErr != nil {
 				t.Fatalf("could not write %s: %s", scriptLocation, scriptWriteErr)
@@ -1919,12 +1961,10 @@ chmod 755 pyscript.py
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
-			}, func(event *sprobe.Event, rule *rules.Rule) {
+			}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
-				if test.check != nil {
-					test.check(event, rule)
-				}
-			})
+				test.check(event)
+			}))
 		})
 	}
 }

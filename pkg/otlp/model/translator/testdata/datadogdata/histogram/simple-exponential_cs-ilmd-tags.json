@@ -1,0 +1,75 @@
+{
+  "Sketches": [
+    {
+      "Name": "double.exponential.delta.histogram",
+      "Tags": [
+        "custom_attribute:custom_value",
+        "deployment.environment:dev",
+        "instrumentation_library:foo",
+        "instrumentation_library_version:1.0.0"
+      ],
+      "Host": "res-hostname",
+      "OriginID": "",
+      "Timestamp": 1667560641226420924,
+      "Summary": {
+        "Min": -100000,
+        "Max": 100000,
+        "Sum": 3.141592653589793,
+        "Avg": 0.10471975511965977,
+        "Cnt": 30
+      },
+      "Keys": [
+        -1341,
+        -1340,
+        -1339,
+        0,
+        1340,
+        1341,
+        1342,
+        1343,
+        1344
+      ],
+      "Counts": [
+        5,
+        4,
+        1,
+        10,
+        0,
+        2,
+        1,
+        3,
+        4
+      ]
+    }
+  ],
+  "TimeSeries": [
+    {
+      "Name": "double.exponential.delta.histogram.count",
+      "Tags": [
+        "custom_attribute:custom_value",
+        "deployment.environment:dev",
+        "instrumentation_library:foo",
+        "instrumentation_library_version:1.0.0"
+      ],
+      "Host": "res-hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420924,
+      "Value": 30
+    },
+    {
+      "Name": "double.exponential.delta.histogram.sum",
+      "Tags": [
+        "custom_attribute:custom_value",
+        "deployment.environment:dev",
+        "instrumentation_library:foo",
+        "instrumentation_library_version:1.0.0"
+      ],
+      "Host": "res-hostname",
+      "OriginID": "",
+      "Type": "count",
+      "Timestamp": 1667560641226420924,
+      "Value": 3.141592653589793
+    }
+  ]
+}

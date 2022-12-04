@@ -1,28 +1,22 @@
 #include "kconfig.h"
+
 #include "tracer.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "ip.h"
 #include "ipv6.h"
-#include "http.h"
-#include "https.h"
-#include "http-buffer.h"
+#include "sock.h"
 #include "sockfd.h"
-#include "tags-types.h"
 #include "port_range.h"
-#include "go-tls-types.h"
-#include "go-tls-goid.h"
-#include "go-tls-location.h"
-#include "go-tls-conn.h"
-#include "protocol-dispatcher-helpers.h"
-#include "skb.h"
+#include "protocols/http.h"
+#include "protocols/https.h"
+#include "protocols/http-buffer.h"
+#include "protocols/tags-types.h"
+#include "protocols/protocol-dispatcher-helpers.h"
 
 #include "sock.h"
-#include "http2.h"
-#include "protocol-classification-helpers.h"
 
 #define SO_SUFFIX_SIZE 3
-
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
@@ -639,7 +633,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs* ctx) {
     bpf_memcpy(&lib_path, path, sizeof(lib_path));
 
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
+    bpf_perf_event_output_with_telemetry(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;
@@ -908,52 +902,4 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
     #else
         #error "Unsupported platform"
     #endif
-}
-
-// Represents the parameters being passed to the tracepoint net/net_dev_queue
-struct net_dev_queue_ctx {
-    u64 unused;
-    void* skb;
-};
-
-static __always_inline __u64 offset_sk_buff_sock() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_sk_buff_sock", val);
-     return val;
-}
-
-SEC("tracepoint/net/net_dev_queue")
-int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
-    void* skb;
-    bpf_probe_read(&skb, sizeof(skb), &ctx->skb);
-    if (!skb) {
-        return 0;
-    }
-    struct sock* sk;
-    bpf_probe_read(&sk, sizeof(struct sock*), skb + offset_sk_buff_sock());
-    if (!sk) {
-        return 0;
-    }
-
-    conn_tuple_t skb_tup;
-    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
-        return 0;
-    }
-
-    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    sock_tup.netns = 0;
-
-    bpf_map_update_with_telemetry(skb_conn_tuple_to_socket_conn_tuple, &skb_tup, &sock_tup, BPF_ANY);
-    bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_ANY);
-
-    return 0;
 }

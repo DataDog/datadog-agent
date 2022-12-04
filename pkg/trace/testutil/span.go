@@ -167,7 +167,7 @@ var metas = map[string][]string{
 	},
 }
 
-var metrics = []string{
+var spanMetrics = []string{
 	"rowcount",
 	"size",
 	"payloads",
@@ -294,9 +294,9 @@ func RandomSpanMetrics() map[string]float64 {
 	res := make(map[string]float64)
 
 	// choose some keys
-	n := rand.Intn(len(metrics))
+	n := rand.Intn(len(spanMetrics))
 	for _, i := range rand.Perm(n) {
-		res[metrics[i]] = rand.Float64()
+		res[spanMetrics[i]] = rand.Float64()
 	}
 
 	return res

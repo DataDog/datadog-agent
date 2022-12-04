@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -113,7 +113,7 @@ func requestStatus() error {
 	}
 
 	if statusFilePath != "" {
-		ioutil.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
+		os.WriteFile(statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
