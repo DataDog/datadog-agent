@@ -8,6 +8,7 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
+#include "http2.h"
 
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -23,16 +24,35 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
             return false;                                                   \
         }                                                                   \
 
+// The method checks if the given buffer includes the prefix of the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+static __always_inline bool http2_marker_prefix(const char* buf) {
+
+#define HTTP2_PREFIX_SIGNATURE "PRI * HTT"
+
+    bool match = !bpf_memcmp(buf, HTTP2_PREFIX_SIGNATURE, sizeof(HTTP2_PREFIX_SIGNATURE)-1);
+
+    return match;
+}
+
+// The method checks if the given buffer includes the suffix of the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+static __always_inline bool http2_marker_suffix(const char* buf) {
+#define HTTP2_SUFFIX_SIGNATURE "P/2.0\r\n\r\nSM\r\n\r\n"
+
+    bool match = !bpf_memcmp(buf, HTTP2_SUFFIX_SIGNATURE, sizeof(HTTP2_SUFFIX_SIGNATURE)-1);
+
+    return match;
+
+}
+
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
-#define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
-
-    bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
-
-    return match;
+    if (http2_marker_prefix(buf)){
+        return http2_marker_suffix(buf+HTTP2_FRAME_HEADER_SIZE);
+    }
+    return false;
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents

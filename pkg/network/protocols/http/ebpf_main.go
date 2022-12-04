@@ -40,7 +40,7 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 
-	httpSocketFilter = "socket/http_filter"
+	httpSocketFilter  = "socket/http_filter"
 	http2SocketFilter = "socket/http2_filter"
 
 	// maxActive configures the maximum number of instances of the
@@ -167,8 +167,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 					EBPFSection:  protocolDispatcherSocketFilterSection,
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
-					EBPFFuncName: "tracepoint__net__net_dev_queue",
-					EBPFSection:  "tracepoint/net/net_dev_queue",
 				},
 			},
 		},
