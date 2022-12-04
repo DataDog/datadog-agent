@@ -26,22 +26,22 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
-static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
+static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
 
-#define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+#define HTTP2_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
-    bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
+    bool match = !bpf_memcmp(buf, HTTP2_PREFACE, sizeof(HTTP2_PREFACE)-1);
 
     return match;
 }
 
 // According to the https://www.rfc-editor.org/rfc/rfc7540#section-3.5
-// a HTTP2 server must reply with a settings frame to the preface of HTTP2.
+// an HTTP2 server must reply with a settings frame to the preface of HTTP2.
 // The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
 // of 6 bytes.
 static __always_inline bool is_http2_server_settings(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE )
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE)
 
     struct http2_frame frame_header;
     if (!read_http2_frame_header(buf, buf_size, &frame_header)) {
@@ -49,6 +49,12 @@ static __always_inline bool is_http2_server_settings(const char* buf, __u32 buf_
     }
 
     return frame_header.type == kSettingsFrame && frame_header.stream_id == 0 && frame_header.length % HTTP2_SETTINGS_SIZE == 0;
+}
+
+// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+// We check that the given buffer is not empty and its size is at least 24 bytes.
+static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
+    return is_http2_preface(buf, buf_size) || is_http2_server_settings(buf, buf_size);
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
@@ -91,7 +97,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
 
     if (is_http(buf, size)) {
         *protocol = PROTOCOL_HTTP;
-    } else if (is_http2(buf, size) || is_http2_server_settings(buf, size)) {
+    } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
