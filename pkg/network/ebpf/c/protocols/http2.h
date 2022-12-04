@@ -1,10 +1,6 @@
 #ifndef __HTTP2_H
 #define __HTTP2_H
 
-// A limit of max frames we will upload from a single connection to the user mode.
-// NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 40
-
 // All types of http2 frames exist in the protocol.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.
 typedef enum {
@@ -70,39 +66,3 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
 
     return true;
 }
-
-// This function filters the needed frames from the http2 session.
-static __always_inline void process_http2_frames(struct __sk_buff *skb, size_t pos) {
-    struct http2_frame current_frame = {};
-    char buf[HTTP2_FRAME_HEADER_SIZE];
-
-#pragma unroll
-    // Iterate till max frames to avoid high connection rate.
-    for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
-        if (pos + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-          return;
-        }
-
-        // Load the current HTTP2_FRAME_HEADER_SIZE into the buffer.
-        bpf_skb_load_bytes(skb, pos, buf, HTTP2_FRAME_HEADER_SIZE);
-        pos += HTTP2_FRAME_HEADER_SIZE;
-
-        // Load the current frame into http2_frame strct in order to filter the needed frames.
-        if (!read_http2_frame_header(buf, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
-            log_debug("unable to read http2 frame header");
-            break;
-        }
-
-        // Filter all types of frames except header frame.
-        if (current_frame.type != kHeadersFrame) {
-            pos += (__u32)current_frame.length;
-            continue;
-        }
-
-        // TODO: read headers frame
-        pos += (__u32)current_frame.length;
-    }
-
-}
-
-#endif

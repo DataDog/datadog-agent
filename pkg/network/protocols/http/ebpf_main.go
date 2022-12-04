@@ -40,8 +40,7 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 
-	httpSocketFilter  = "socket/http_filter"
-	http2SocketFilter = "socket/http2_filter"
+	httpSocketFilter = "socket/http_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -103,14 +102,6 @@ var tailCalls = []manager.TailCallRoute{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			EBPFSection:  httpSocketFilter,
 			EBPFFuncName: "socket__http_filter",
-		},
-	},
-	{
-		ProgArrayName: protocolDispatcherProgramsMap,
-		Key:           uint32(ProtocolHTTP2),
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFSection:  http2SocketFilter,
-			EBPFFuncName: "socket__http2_filter",
 		},
 	},
 }
@@ -260,13 +251,6 @@ func (e *ebpfProgram) Init() error {
 					EBPFSection:  "tracepoint/net/netif_receive_skb",
 					EBPFFuncName: "tracepoint__net__netif_receive_skb",
 					UID:          probeUID,
-				},
-			},
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					UID:          probeUID,
-					EBPFFuncName: "tracepoint__net__net_dev_queue",
-					EBPFSection:  "tracepoint/net/net_dev_queue",
 				},
 			},
 		},
