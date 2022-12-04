@@ -201,23 +201,28 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     if (topic_name_size <= 0) {
         return false;
     }
-//    __builtin_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
-    if (topic_name_size > sizeof(kafka_transaction->topic_name)) {
+
+    if (topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
         return false;
     }
-    const uint16_t topic_name_size_final = topic_name_size < sizeof(kafka_transaction->topic_name) ? topic_name_size : sizeof(kafka_transaction->topic_name);
-    if (kafka_transaction->current_offset_in_request_fragment + topic_name_size_final  > sizeof(kafka_transaction->request_fragment)) {
+
+    char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
+
+    // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
+    if (topic_name_beginning_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
-    char* topic_name_offset =  kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
-    for (uint32_t i = 0; i < topic_name_size_final; i++) {
-        kafka_transaction->topic_name[i] = topic_name_offset[i];
+
+#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE)
+    for (int current_offset = 0; current_offset < TOPIC_NAME_MAX_STRING_SIZE; current_offset++) {
+        char *source_address = topic_name_beginning_offset + current_offset;
+        char *destination_address = kafka_transaction->topic_name + current_offset;
+
+        if (current_offset >= topic_name_size) {
+            break;
+        }
+        *destination_address = *source_address;
     }
-//    bpf_probe_read_kernel(
-//        kafka_transaction->topic_name,
-//        topic_name_size_final,
-//        (void*)(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment));
-//    log_debug("topic_name: %s", kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
     return true;
 }
 
