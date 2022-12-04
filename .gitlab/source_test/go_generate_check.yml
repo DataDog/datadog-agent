@@ -2,6 +2,7 @@
 # check that go generate has been run in the pkg/security directory
 security_go_generate_check:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  needs: []
   tags: [ "runner:main" ]
   stage: source_test
   before_script:

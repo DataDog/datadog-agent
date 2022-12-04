@@ -1,5 +1,6 @@
 ---
 .rtloader_tests:
+  needs: []
   stage: source_test
   before_script:
     - source /root/.bashrc && conda activate $CONDA_ENV
@@ -11,6 +12,7 @@
   script: [ "# Skipping go tests" ]
 
 .linux_tests:
+  needs: []
   stage: source_test
   variables:
     FLAVORS: '--flavors base'

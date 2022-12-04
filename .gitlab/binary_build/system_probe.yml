@@ -37,6 +37,7 @@
 
 build_system-probe-x64:
   stage: binary_build
+  needs: []
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:main"]
   extends: .system-probe_build_common
@@ -45,6 +46,7 @@ build_system-probe-x64:
 
 build_system-probe-arm64:
   stage: binary_build
+  needs: []
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   extends: .system-probe_build_common

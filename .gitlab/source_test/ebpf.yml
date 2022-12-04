@@ -31,6 +31,7 @@
 # Run tests for eBPF code
 .tests_linux_ebpf:
   stage: source_test
+  needs: []
   artifacts:
     when: always
     paths:
@@ -50,6 +51,7 @@
 
 .tests_windows_sysprobe:
   stage: source_test
+  needs: []
   tags: [ "runner:windows-docker", "windowsversion:1809" ]
   script:
     - $ErrorActionPreference = "Stop"
