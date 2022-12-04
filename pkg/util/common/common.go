@@ -22,7 +22,7 @@ func NewStringSet(initItems ...string) StringSet {
 	return newSet
 }
 
-// Add adds a item to the set
+// Add adds an item to the set
 func (s StringSet) Add(item string) {
 	s[item] = struct{}{}
 }
@@ -34,6 +34,16 @@ func (s StringSet) GetAll() []string {
 		res = append(res, item)
 	}
 	return res
+}
+
+// Clone returns a duplication of the set.
+func (s StringSet) Clone() StringSet {
+	clone := make(StringSet, len(s))
+	for entry := range s {
+		clone[entry] = struct{}{}
+	}
+
+	return clone
 }
 
 // StructToMap converts a struct to a map[string]interface{} based on `json` annotations defaulting to field names
