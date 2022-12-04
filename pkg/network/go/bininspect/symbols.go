@@ -65,8 +65,10 @@ func readSymbolEntryInStringTable(symbolSectionReader io.ReaderAt, byteOrder bin
 
 // readRestOfSymbol64 reads the symbol entry from the symbol section with the first 4 bytes of the name entry (which
 // we read using readSymbolEntryInStringTable).
-func readRestOfSymbol64(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte) {
-	symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation)
+func readRestOfSymbol64(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte) error {
+	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
+		return err
+	}
 
 	infoAndOther := byteOrder.Uint16(allocatedBufferForRead[0:2])
 	symbol.Name = symbolName
@@ -75,13 +77,15 @@ func readRestOfSymbol64(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byt
 	symbol.Section = elf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[2:4]))
 	symbol.Value = byteOrder.Uint64(allocatedBufferForRead[4:12])
 	symbol.Size = byteOrder.Uint64(allocatedBufferForRead[12:20])
+	return nil
 }
 
 // readRestOfSymbol32 reads the symbol entry from the symbol section with the first 4 bytes of the name entry (which
 // we read using readSymbolEntryInStringTable).
-func readRestOfSymbol32(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte) {
-	symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation)
-
+func readRestOfSymbol32(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byteOrder binary.ByteOrder, symbolName string, readLocation int64, allocatedBufferForRead []byte) error {
+	if _, err := symbolSectionReader.ReadAt(allocatedBufferForRead, readLocation); err != nil {
+		return err
+	}
 	symbol.Name = symbolName
 	symbol.Value = uint64(byteOrder.Uint32(allocatedBufferForRead[0:4]))
 	symbol.Size = uint64(byteOrder.Uint32(allocatedBufferForRead[4:8]))
@@ -90,6 +94,7 @@ func readRestOfSymbol32(symbol *elf.Symbol, symbolSectionReader io.ReaderAt, byt
 	symbol.Info = uint8(infoAndOther >> 8)
 	symbol.Other = uint8(infoAndOther)
 	symbol.Section = elf.SectionIndex(byteOrder.Uint16(allocatedBufferForRead[10:12]))
+	return nil
 }
 
 // getSymbols64 extracts the given symbol list from the binary.
@@ -146,13 +151,15 @@ func getSymbols64(f *elf.File, typ elf.SectionType, wantedSymbols common.StringS
 			continue
 		}
 
+		// Complete the symbol reading.
+		var symbol elf.Symbol
+		if err := readRestOfSymbol64(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead); err != nil {
+			continue
+		}
+		symbols = append(symbols, symbol)
 		// If relevant, delete it for optimization purposes.
 		delete(copyOfWantedSymbols, symbolName)
 
-		// Complete the symbol reading.
-		var symbol elf.Symbol
-		readRestOfSymbol64(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead)
-		symbols = append(symbols, symbol)
 		// If no symbols left, stop running.
 		if len(copyOfWantedSymbols) == 0 {
 			break
@@ -216,13 +223,14 @@ func getSymbols32(f *elf.File, typ elf.SectionType, wantedSymbols common.StringS
 			continue
 		}
 
-		// If relevant, delete it for optimization purposes.
-		delete(copyOfWantedSymbols, symbolName)
-
 		// Complete the symbol reading.
 		var symbol elf.Symbol
-		readRestOfSymbol32(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead)
+		if err := readRestOfSymbol32(&symbol, symbolSection.ReaderAt, f.ByteOrder, symbolName, readLocation+4, allocatedBufferForSymbolRead); err != nil {
+			continue
+		}
 		symbols = append(symbols, symbol)
+		// If relevant, delete it for optimization purposes.
+		delete(copyOfWantedSymbols, symbolName)
 		// If no symbols left, stop running.
 		if len(copyOfWantedSymbols) == 0 {
 			break
