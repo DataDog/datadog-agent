@@ -1,3 +1,6 @@
+#ifndef __HTTP2_H
+#define __HTTP2_H
+
 // All types of http2 frames exist in the protocol.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.
 typedef enum {
@@ -63,3 +66,5 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
 
     return true;
 }
+
+#endif
