@@ -83,8 +83,6 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     kafka_transaction->correlation_id = correlation_id;
 
     const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
-    //__builtin_memset(kafka_transaction->client_id, 0, sizeof(kafka_transaction->client_id));
-//    uint16_t client_id_size_final = 0;
     if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
         int16_t client_id_size = 0;
         if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
@@ -92,19 +90,6 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         }
         kafka_transaction->current_offset_in_request_fragment += client_id_size;
         log_debug("kafka: client_id_size: %d", client_id_size);
-
-//        // The following code is to avoid verifier problems
-//        uint32_t max_size_of_client_id_string = sizeof(kafka_transaction->client_id);
-//        client_id_size_final = client_id_size < max_size_of_client_id_string ? client_id_size : max_size_of_client_id_string;
-//
-//        // A nullable string length might be -1 to signify null, it is supported here
-//        if (client_id_size <= 0 || client_id_size > max_size_of_client_id_string) {
-//            log_debug("kafka: client_id <= 0 || client_id_size > MAX_LENGTH_FOR_CLIENT_ID_STRING");
-//        } else {
-////            const char* client_id_in_buf = request_fragment + kafka_transaction->current_offset_in_request_fragment;
-////            bpf_probe_read_kernel(kafka_transaction->client_id, client_id_size_final, (void*)client_id_in_buf);
-////            log_debug("client_id: %s", kafka_transaction->client_id);
-//        }
     }
     return true;
 }

@@ -27,7 +27,6 @@ type ebpfKafkaTx struct {
 	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
 	Request_fragment                   [160]byte
-	Client_id                          [80]int8
 	Topic_name                         [80]int8
 }
 type kafkaBatch struct {
