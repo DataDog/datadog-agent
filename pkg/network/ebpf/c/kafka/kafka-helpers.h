@@ -19,6 +19,7 @@ static __inline int16_t read_big_endian_int16(const char* buf) {
 }
 
 static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result) {
+    barrier();
     char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
@@ -29,6 +30,7 @@ static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_tran
 }
 
 static __inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result) {
+    barrier();
     char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
