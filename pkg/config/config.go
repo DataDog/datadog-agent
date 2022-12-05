@@ -355,6 +355,12 @@ func InitConfig(config Config) {
 	// canonical hostname, otherwise the instance-id is used as canonical hostname.
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
 
+	// By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
+	// When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+	// hostname resolution.
+	// (Linux only)
+	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 
@@ -1011,6 +1017,7 @@ func InitConfig(config Config) {
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
