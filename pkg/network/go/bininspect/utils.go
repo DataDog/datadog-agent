@@ -137,8 +137,9 @@ func SymbolToOffset(f *elf.File, symbol elf.Symbol) (uint32, error) {
 	// Find what section the symbol is in by checking the executable section's
 	// addr space.
 	for m := range sectionsToSearchForSymbol {
-		if symbol.Value > sectionsToSearchForSymbol[m].Addr &&
-			symbol.Value < sectionsToSearchForSymbol[m].Addr+sectionsToSearchForSymbol[m].Size {
+		sectionStart := sectionsToSearchForSymbol[m].Addr
+		sectionEnd := sectionStart + sectionsToSearchForSymbol[m].Size
+		if symbol.Value >= sectionStart && symbol.Value < sectionEnd {
 			executableSection = sectionsToSearchForSymbol[m]
 			break
 		}

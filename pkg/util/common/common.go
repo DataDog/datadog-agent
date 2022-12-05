@@ -36,16 +36,6 @@ func (s StringSet) GetAll() []string {
 	return res
 }
 
-// Clone returns a duplication of the set.
-func (s StringSet) Clone() StringSet {
-	clone := make(StringSet, len(s))
-	for entry := range s {
-		clone[entry] = struct{}{}
-	}
-
-	return clone
-}
-
 // StructToMap converts a struct to a map[string]interface{} based on `json` annotations defaulting to field names
 func StructToMap(obj interface{}) map[string]interface{} {
 	rt, rv := reflect.TypeOf(obj), reflect.ValueOf(obj)
