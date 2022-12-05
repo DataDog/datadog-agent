@@ -125,11 +125,6 @@ type ArgsEntry struct {
 	Truncated bool
 }
 
-// ToArray returns args as array
-func (p *ArgsEntry) ToArray() ([]string, bool) {
-	return p.Values, p.Truncated
-}
-
 // Equals compares two ArgsEntry
 func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 	if p == o {
@@ -148,11 +143,6 @@ type EnvsEntry struct {
 
 	filteredEnvs []string
 	kv           map[string]string
-}
-
-// ToArray returns envs as an array
-func (p *EnvsEntry) ToArray() ([]string, bool) {
-	return p.Values, p.Truncated
 }
 
 // FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter

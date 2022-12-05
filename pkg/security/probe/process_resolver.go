@@ -828,12 +828,12 @@ func (p *ProcessResolver) GetProcessArgv(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray()
+	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
 		argv = argv[1:]
 	}
 
-	return argv, pr.ArgsTruncated || truncated
+	return argv, pr.ArgsTruncated || pr.ArgsEntry.Truncated
 }
 
 // GetProcessArgv0 returns the first arg of the event
@@ -842,12 +842,12 @@ func (p *ProcessResolver) GetProcessArgv0(pr *model.Process) (string, bool) {
 		return "", false
 	}
 
-	argv, truncated := pr.ArgsEntry.ToArray()
+	argv := pr.ArgsEntry.Values
 	if len(argv) > 0 {
-		return argv[0], pr.ArgsTruncated || truncated
+		return argv[0], pr.ArgsTruncated || pr.ArgsEntry.Truncated
 	}
 
-	return "", pr.ArgsTruncated || truncated
+	return "", pr.ArgsTruncated || pr.ArgsEntry.Truncated
 }
 
 // GetProcessScrubbedArgv returns the scrubbed args of the event as an array
@@ -905,9 +905,7 @@ func (p *ProcessResolver) GetProcessEnvp(pr *model.Process) ([]string, bool) {
 		return nil, false
 	}
 
-	envp, truncated := pr.EnvsEntry.ToArray()
-
-	return envp, pr.EnvsTruncated || truncated
+	return pr.EnvsEntry.Values, pr.EnvsTruncated || pr.EnvsEntry.Truncated
 }
 
 // SetProcessTTY resolves TTY and cache the result
