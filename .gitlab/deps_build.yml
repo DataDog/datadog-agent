@@ -164,6 +164,8 @@ build_processed_btfhub_archive:
     - tar -czf btfs-amd64.tar.gz btfs-amd64
     - $S3_CP_CMD btfs-arm64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-arm64.tar.gz
     - $S3_CP_CMD btfs-amd64.tar.gz $S3_PERMANENT_ARTIFACTS_URI/btfs-amd64.tar.gz
+    - $S3_CP_CMD btfs-arm64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/btfs-arm64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD btfs-amd64.tar.gz $S3_DD_AGENT_OMNIBUS_BTFS_URI/btfs-amd64.tar.gz --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
   artifacts:
     expire_in: 2 weeks
     paths:
