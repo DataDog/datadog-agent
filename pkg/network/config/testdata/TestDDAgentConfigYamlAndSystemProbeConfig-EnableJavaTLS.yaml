@@ -1,0 +1,2 @@
+system_probe_config:
+  enable_java_tls_support: true
