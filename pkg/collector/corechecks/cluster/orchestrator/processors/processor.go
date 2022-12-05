@@ -153,7 +153,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		}
 
 		// Stop sending yaml if manifest collecion is enabled
-		if ctx.Cfg.IsManifestCollectionEnabled {
+		if !ctx.Cfg.IsManifestCollectionEnabled {
 			// Execute code after marshalling.
 			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
 				continue
