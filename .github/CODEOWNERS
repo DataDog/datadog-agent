@@ -193,6 +193,7 @@
 /pkg/version/                           @DataDog/agent-shared-components
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
+/pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
