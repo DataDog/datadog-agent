@@ -236,9 +236,13 @@ func load(configPath string) (*Config, error) {
 	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	cfg.Set(key(spNS, "enabled"), c.Enabled)
 
-	if !usmEnabled && cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
-		log.Info("service monitoring is disabled, disabling process service inference")
-		cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
+		if !usmEnabled {
+			log.Info("service monitoring is disabled, disabling process service inference")
+			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+		} else {
+			log.Info("process service inference is enabled")
+		}
 	}
 
 	return c, nil
