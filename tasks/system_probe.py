@@ -644,6 +644,8 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
+    kitchen_prepare_btfs(ctx, files_dir)
+
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
 
@@ -1131,6 +1133,10 @@ def check_for_ninja(ctx):
         ctx.run("which ninja")
 
 
+def check_for_bpftool_compatability(ctx):
+    ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
+
+
 @contextlib.contextmanager
 def tempdir():
     """
@@ -1141,6 +1147,51 @@ def tempdir():
         yield dirpath
     finally:
         shutil.rmtree(dirpath)
+
+
+def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
+    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
+
+    if arch == "x64":
+        arch = "amd64"
+
+    download_btfs(ctx, btf_dir, arch)
+
+    try:
+        co_re_programs = glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o")
+        print(co_re_programs)
+
+        generate_minimized_btfs(
+            ctx,
+            source_dir=f"{btf_dir}/btfs-{arch}",
+            output_dir=f"{btf_dir}/minimized-btfs",
+            input_bpf_programs=co_re_programs
+        )
+
+        ctx.run(f"cd {btf_dir}/minimized-btfs && " +
+                "tar -cJf minimized-btfs.tar.xz * && " +
+                f"mv minimized-btfs.tar.xz {files_dir}")
+    except:
+        print("cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead.")
+
+        ctx.run(f"cd {btf_dir}/btfs-{arch} && " +
+                "tar -cJf minimized-btfs.tar.xz * && " +
+                f"mv minimized-btfs.tar.xz {files_dir}")
+
+
+def download_btfs(ctx, btf_dir, arch):
+    sudo = "sudo" if not is_root() else ""
+
+    if not os.path.exists(btf_dir):
+        ctx.run(f"{sudo} mkdir -p {btf_dir}")
+
+    if not os.path.exists(f"{btf_dir}/btfs-{arch}.tar.gz"):
+        btfs_url = f"https://dd-agent-omnibus.s3.amazonaws.com/btfs/btfs-{arch}.tar.gz"
+        ctx.run(f"{sudo} wget -q {btfs_url} -O {btf_dir}/btfs-{arch}.tar.gz")
+
+    if not os.path.exists(f"{btf_dir}/btfs-{arch}"):
+        ctx.run(f"{sudo} tar xf {btf_dir}/btfs-{arch}.tar.gz -C {btf_dir}")
+        ctx.run(f"{sudo} chmod 777 -R {btf_dir}/btfs-{arch}")
 
 
 @task
@@ -1161,6 +1212,8 @@ def generate_minimized_btfs(
     if input_bpf_programs == "":
         ctx.run(f"mkdir -p {output_dir}/dummy_data")
         return
+
+    check_for_bpftool_compatability(ctx)
 
     ctx.run(f"mkdir -p {output_dir}")
     for root, dirs, files in os.walk(source_dir):
