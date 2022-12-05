@@ -195,7 +195,7 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 
 	exclude := []string{
 		"socket__http_filter",
-		"socket__http_filter_entry",
+		"socket__protocol_dispatcher",
 		"kprobe__tcp_sendmsg",
 		"kretprobe__security_sock_rcv_skb",
 		"tracepoint__net__netif_receive_skb",

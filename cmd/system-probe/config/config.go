@@ -59,9 +59,10 @@ type Config struct {
 	SocketAddress      string
 	MaxConnsPerMessage int
 
-	LogFile   string
-	LogLevel  string
-	DebugPort int
+	LogFile          string
+	LogLevel         string
+	DebugPort        int
+	TelemetryEnabled bool
 
 	StatsdHost string
 	StatsdPort int
@@ -166,9 +167,10 @@ func load(configPath string) (*Config, error) {
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
 		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
 
-		LogFile:   cfg.GetString(key(spNS, "log_file")),
-		LogLevel:  cfg.GetString(key(spNS, "log_level")),
-		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
+		LogFile:          cfg.GetString(key(spNS, "log_file")),
+		LogLevel:         cfg.GetString(key(spNS, "log_level")),
+		DebugPort:        cfg.GetInt(key(spNS, "debug_port")),
+		TelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),

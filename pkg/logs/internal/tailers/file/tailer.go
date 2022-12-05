@@ -30,7 +30,7 @@ import (
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
 //
-// Operational Overview
+// # Operational Overview
 //
 // Tailers have three components, organized as a pipeline.  The first,
 // readForever, polls the file, trying to read more data.  That data is passed
@@ -209,10 +209,10 @@ func (t *Tailer) Stop() {
 // This is only used on UNIX.
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
-	bytesReadAtRotationTime := t.Source().BytesRead.Load()
+	bytesReadAtRotationTime := t.Source().BytesRead.Get()
 	go func() {
 		time.Sleep(t.closeTimeout)
-		if newBytesRead := t.Source().BytesRead.Load() - bytesReadAtRotationTime; newBytesRead > 0 {
+		if newBytesRead := t.Source().BytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
 			log.Infof("After rotation close timeout (%ds), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
 			fileStat, err := t.osFile.Stat()
 			if err != nil {
@@ -233,7 +233,7 @@ func (t *Tailer) readForever() {
 	defer func() {
 		t.osFile.Close()
 		t.decoder.Stop()
-		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Load(), "bytes and", t.decoder.GetLineCount(), "lines")
+		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
 
 	for {

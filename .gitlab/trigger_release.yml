@@ -30,7 +30,7 @@
 trigger_auto_staging_release:
   extends: .agent_release_management_trigger
   variables:
-    AUTO_RELEASE: "false"  # TODO: change to true after we validate this works fine
+    AUTO_RELEASE: "true"
     TARGET_REPO: staging
   rules:
     !reference [.on_deploy]

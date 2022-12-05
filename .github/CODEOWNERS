@@ -193,6 +193,7 @@
 /pkg/version/                           @DataDog/agent-shared-components
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
+/pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
@@ -279,6 +280,7 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
+/pkg/network/encoding/http*             @DataDog/universal-service-monitoring
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
