@@ -1,1 +1,0 @@
-C:/dev/fix_kitchen_tests/test/kitchen/test/integration/common/rspec/sddl_parser.rb
