@@ -9,8 +9,4 @@
 fixes:
   - |
     APM: Fix SQL parsing of negative numbers and improve error message.
-other:
-  - |
-    Add here every other information you want in the CHANGELOG that
-    don't fit in any other section. This section should rarely be
-    used.
+
