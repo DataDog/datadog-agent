@@ -122,7 +122,7 @@ type ProcessResolver struct {
 	envsSize       *atomic.Int64
 
 	entryCache    map[uint32]*model.ProcessCacheEntry
-	argsEnvsCache *simplelru.LRU[uint32, *model.ArgsEnvsCacheEntry]
+	argsEnvsCache *simplelru.LRU[uint32, *argsEnvsCacheEntry]
 
 	processCacheEntryPool *ProcessCacheEntryPool
 
@@ -303,8 +303,7 @@ func (e *argsEnvsCacheEntry) extend(event *model.ArgsEnvsEvent) {
 
 // UpdateArgsEnvs updates arguments or environment variables of the given id
 func (p *ProcessResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
-	if e, found := p.argsEnvsCache.Get(event.ID); found {
-		list := e.(*argsEnvsCacheEntry)
+	if list, found := p.argsEnvsCache.Get(event.ID); found {
 		list.extend(event)
 	} else {
 		p.argsEnvsCache.Add(event.ID, newArgsEnvsCacheEntry(event))
@@ -1217,7 +1216,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
 	scrubber *pconfig.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
-	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
+	argsEnvsCache, err := simplelru.NewLRU[uint32, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
 	}
