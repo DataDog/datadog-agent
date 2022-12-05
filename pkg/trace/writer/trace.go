@@ -170,27 +170,24 @@ func (w *TraceWriter) FlushSync() error {
 }
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
-	if pkg.APIKey != "" && pkg.APIKey != w.cfg.Endpoints[0].APIKey {
-		// Stop the existing senders, and create a new one.
-		stopSenders(w.senders)
-		w.cfg.Endpoints = []*config.Endpoint{{APIKey: pkg.APIKey, Host: w.cfg.Endpoints[0].Host, NoProxy: w.cfg.Endpoints[0].NoProxy}}
-		w.updateSenders()
-	}
+	// Stop the existing senders, and create a new one.
+	stopSenders(w.senders)
+	w.cfg.Endpoints = []*config.Endpoint{{APIKey: pkg.APIKey, Host: w.cfg.Endpoints[0].Host, NoProxy: w.cfg.Endpoints[0].NoProxy}}
+	w.updateSenders()
 
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
 
 	size := pkg.Size
-	if size+w.bufferedSize > MaxPayloadSize {
-		// reached maximum allowed buffered size
-		w.flush()
-	}
 	if len(pkg.TracerPayload.Chunks) > 0 {
 		log.Tracef("Handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
 		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
 	}
 	w.bufferedSize += size
+
+	// always trigger a flush at this point
+	w.flush()
 }
 
 func (w *TraceWriter) drainAndFlush() {
@@ -242,31 +239,27 @@ func (w *TraceWriter) flush() {
 
 	w.stats.BytesUncompressed.Add(int64(len(b)))
 
-	w.wg.Add(1)
-	go func() {
-		defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
-		defer w.wg.Done()
-		p := newPayload(map[string]string{
-			"Content-Type":     "application/x-protobuf",
-			"Content-Encoding": "gzip",
-			headerLanguages:    strings.Join(info.Languages(), "|"),
-		})
-		gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
-		if err != nil {
-			// it will never happen, unless an invalid compression is chosen;
-			// we know gzip.BestSpeed is valid.
-			log.Errorf("gzip.NewWriterLevel: %d", err)
-			return
-		}
-		if _, err := gzipw.Write(b); err != nil {
-			log.Errorf("Error gzipping trace payload: %v", err)
-		}
-		if err := gzipw.Close(); err != nil {
-			log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
-		}
+	defer timing.Since("datadog.trace_agent.trace_writer.compress_ms", time.Now())
+	pl := newPayload(map[string]string{
+		"Content-Type":     "application/x-protobuf",
+		"Content-Encoding": "gzip",
+		headerLanguages:    strings.Join(info.Languages(), "|"),
+	})
+	gzipw, err := gzip.NewWriterLevel(pl.body, gzip.BestSpeed)
+	if err != nil {
+		// it will never happen, unless an invalid compression is chosen;
+		// we know gzip.BestSpeed is valid.
+		log.Errorf("gzip.NewWriterLevel: %d", err)
+		return
+	}
+	if _, err := gzipw.Write(b); err != nil {
+		log.Errorf("Error gzipping trace payload: %v", err)
+	}
+	if err := gzipw.Close(); err != nil {
+		log.Errorf("Error closing gzip stream when writing trace payload: %v", err)
+	}
 
-		sendPayloads(w.senders, p, w.syncMode)
-	}()
+	sendPayloads(w.senders, pl, w.syncMode)
 }
 
 func (w *TraceWriter) report() {
