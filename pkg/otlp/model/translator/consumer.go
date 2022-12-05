@@ -95,7 +95,7 @@ type Consumer interface {
 // a Translator.
 type APMStatsConsumer interface {
 	// ConsumeAPMStats consumes the given StatsPayload.
-	ConsumeAPMStats(pb.StatsPayload)
+	ConsumeAPMStats(pb.ClientStatsPayload)
 }
 
 // HostConsumer is a hostname consumer.

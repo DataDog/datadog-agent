@@ -308,85 +308,78 @@ func (a *aggregations) Stats() []pb.ClientGroupedStats {
 // that we are in a Lambda environment. Thus, we must use a placeholder.
 const UnsetHostnamePlaceholder = "__unset__"
 
-// StatsPayloadToMetrics converts OTLP Metrics to an APM Stats Payload.
-func (t *Translator) StatsPayloadFromMetrics(mx pmetric.Metrics) (pb.StatsPayload, error) {
-	var stats pb.StatsPayload
-	rmxs := mx.ResourceMetrics()
-	for i := 0; i < rmxs.Len(); i++ {
-		rmx := rmxs.At(i)
-		attr := rmx.Resource().Attributes()
-		if v, ok := attr.Get(keyAPMStats); !ok || !v.Bool() {
-			t.logger.Debug(fmt.Sprintf("Was asked to convert metrics to stats payload, but identifier key %q was not present. Skipping.", keyAPMStats))
-			continue
-		}
-		hostname := getStr(attr, statsKeyHostname)
-		tags := strings.Split(getStr(attr, statsKeyTags), ",")
-		if hostname == UnsetHostnamePlaceholder {
-			src, err := t.source(attr)
-			if err != nil {
-				return pb.StatsPayload{}, err
-			}
-			switch src.Kind {
-			case source.HostnameKind:
-				hostname = src.Identifier
-			case source.AWSECSFargateKind:
-				hostname = ""
-				tags = append(tags, src.Tag())
-			}
-		}
-		cp := pb.ClientStatsPayload{
-			Hostname:         hostname,
-			Env:              getStr(attr, statsKeyEnv),
-			Version:          getStr(attr, statsKeyVersion),
-			Lang:             getStr(attr, statsKeyLang),
-			TracerVersion:    getStr(attr, statsKeyTracerVersion),
-			RuntimeID:        getStr(attr, statsKeyRuntimeID),
-			Sequence:         getInt(attr, statsKeySequence),
-			AgentAggregation: getStr(attr, statsKeyAgentAggregation),
-			Service:          getStr(attr, statsKeyService),
-			ContainerID:      getStr(attr, statsKeyContainerID),
-			Tags:             tags,
-		}
-		smxs := rmx.ScopeMetrics()
-		for j := 0; j < smxs.Len(); j++ {
-			mxs := smxs.At(j).Metrics()
-			var (
-				buck pb.ClientStatsBucket
-				agg  aggregations
-			)
-			for k := 0; k < mxs.Len(); k++ {
-				m := mxs.At(k)
-				switch m.Type() {
-				case pmetric.MetricTypeSum:
-					key, val := t.extractSum(m.Sum(), &buck)
-					switch m.Name() {
-					case "dd.apm_stats.hits":
-						agg.Value(key).Hits = val
-					case "dd.apm_stats.errors":
-						agg.Value(key).Errors = val
-					case "dd.apm_stats.duration":
-						agg.Value(key).Duration = val
-					case "dd.apm_stats.top_level_hits":
-						agg.Value(key).TopLevelHits = val
-					}
-				case pmetric.MetricTypeExponentialHistogram:
-					key, val := t.extractSketch(m.ExponentialHistogram(), &buck)
-					switch m.Name() {
-					case "dd.apm_stats.ok_summary":
-						agg.Value(key).OkSummary = val
-					case "dd.apm_stats.error_summary":
-						agg.Value(key).ErrorSummary = val
-					}
-				default:
-					return pb.StatsPayload{}, fmt.Errorf(`metric named %q in Stats Payload should be of type "Sum" or "ExponentialHistogram" but is %q instead`, m.Name(), m.Type())
-				}
-			}
-			buck.Stats = agg.Stats()
-			cp.Stats = append(cp.Stats, buck)
-		}
-		stats.Stats = append(stats.Stats, cp)
+// statsPayloadFromMetrics converts Resource Metrics to an APM Client Stats Payload.
+func (t *Translator) statsPayloadFromMetrics(rmx pmetric.ResourceMetrics) (pb.ClientStatsPayload, error) {
+	attr := rmx.Resource().Attributes()
+	if v, ok := attr.Get(keyAPMStats); !ok || !v.Bool() {
+		return pb.ClientStatsPayload{}, fmt.Errorf("was asked to convert metrics to stats payload, but identifier key %q was not present. Skipping.", keyAPMStats)
 	}
-	return stats, nil
+	hostname := getStr(attr, statsKeyHostname)
+	tags := strings.Split(getStr(attr, statsKeyTags), ",")
+	if hostname == UnsetHostnamePlaceholder {
+		src, err := t.source(attr)
+		if err != nil {
+			return pb.ClientStatsPayload{}, err
+		}
+		switch src.Kind {
+		case source.HostnameKind:
+			hostname = src.Identifier
+		case source.AWSECSFargateKind:
+			hostname = ""
+			tags = append(tags, src.Tag())
+		}
+	}
+	cp := pb.ClientStatsPayload{
+		Hostname:         hostname,
+		Env:              getStr(attr, statsKeyEnv),
+		Version:          getStr(attr, statsKeyVersion),
+		Lang:             getStr(attr, statsKeyLang),
+		TracerVersion:    getStr(attr, statsKeyTracerVersion),
+		RuntimeID:        getStr(attr, statsKeyRuntimeID),
+		Sequence:         getInt(attr, statsKeySequence),
+		AgentAggregation: getStr(attr, statsKeyAgentAggregation),
+		Service:          getStr(attr, statsKeyService),
+		ContainerID:      getStr(attr, statsKeyContainerID),
+		Tags:             tags,
+	}
+	smxs := rmx.ScopeMetrics()
+	for j := 0; j < smxs.Len(); j++ {
+		mxs := smxs.At(j).Metrics()
+		var (
+			buck pb.ClientStatsBucket
+			agg  aggregations
+		)
+		for k := 0; k < mxs.Len(); k++ {
+			m := mxs.At(k)
+			switch m.Type() {
+			case pmetric.MetricTypeSum:
+				key, val := t.extractSum(m.Sum(), &buck)
+				switch m.Name() {
+				case "dd.apm_stats.hits":
+					agg.Value(key).Hits = val
+				case "dd.apm_stats.errors":
+					agg.Value(key).Errors = val
+				case "dd.apm_stats.duration":
+					agg.Value(key).Duration = val
+				case "dd.apm_stats.top_level_hits":
+					agg.Value(key).TopLevelHits = val
+				}
+			case pmetric.MetricTypeExponentialHistogram:
+				key, val := t.extractSketch(m.ExponentialHistogram(), &buck)
+				switch m.Name() {
+				case "dd.apm_stats.ok_summary":
+					agg.Value(key).OkSummary = val
+				case "dd.apm_stats.error_summary":
+					agg.Value(key).ErrorSummary = val
+				}
+			default:
+				return pb.ClientStatsPayload{}, fmt.Errorf(`metric named %q in Stats Payload should be of type "Sum" or "ExponentialHistogram" but is %q instead`, m.Name(), m.Type())
+			}
+		}
+		buck.Stats = agg.Stats()
+		cp.Stats = append(cp.Stats, buck)
+	}
+	return cp, nil
 }
 
 // extractSketch extracts a proto-encoded version of the DDSketch found in the first data point of the given

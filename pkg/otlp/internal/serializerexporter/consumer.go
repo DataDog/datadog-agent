@@ -62,17 +62,15 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 	return enrichedTags
 }
 
-func (c *serializerConsumer) ConsumeAPMStats(stats pb.StatsPayload) {
-	log.Tracef("Serializing %d ClientStatsPayloads.", len(stats.Stats))
-	for _, ss := range stats.Stats {
-		ss.Tags = append(ss.Tags, c.extraTags...)
-		body := new(bytes.Buffer)
-		if err := msgp.Encode(body, &ss); err != nil {
-			log.Errorf("Error encoding ClientStatsPayload: %v", err)
-			return
-		}
-		c.apmstats = append(c.apmstats, body)
+func (c *serializerConsumer) ConsumeAPMStats(ss pb.ClientStatsPayload) {
+	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
+	ss.Tags = append(ss.Tags, c.extraTags...)
+	body := new(bytes.Buffer)
+	if err := msgp.Encode(body, &ss); err != nil {
+		log.Errorf("Error encoding ClientStatsPayload: %v", err)
+		return
 	}
+	c.apmstats = append(c.apmstats, body)
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {

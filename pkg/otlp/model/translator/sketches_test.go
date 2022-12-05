@@ -35,7 +35,7 @@ type sketchConsumer struct {
 	sk *quantile.Sketch
 }
 
-func (c *sketchConsumer) ConsumeAPMStats(_ pb.StatsPayload) {
+func (c *sketchConsumer) ConsumeAPMStats(_ pb.ClientStatsPayload) {
 	// TODO(gbbr)
 }
 

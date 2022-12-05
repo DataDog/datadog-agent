@@ -118,7 +118,7 @@ type testConsumer struct {
 	testMetrics TestMetrics
 }
 
-func (t *testConsumer) ConsumeAPMStats(_ pb.StatsPayload) {
+func (t *testConsumer) ConsumeAPMStats(_ pb.ClientStatsPayload) {
 	// TODO(gbbr)
 }
 

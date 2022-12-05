@@ -439,21 +439,17 @@ func (t *Translator) source(m pcommon.Map) (source.Source, error) {
 func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
 	rms := md.ResourceMetrics()
 
-	if rms.Len() > 0 {
-		if v, ok := rms.At(0).Resource().Attributes().Get(keyAPMStats); ok && v.Bool() {
-			// if the first ResourceMetrics in md contain the keyAPMStats attribute,
-			// the entire payload needs to converted and consumed as APM Stats.
-			sp, err := t.StatsPayloadFromMetrics(md)
+	for i := 0; i < rms.Len(); i++ {
+		rm := rms.At(i)
+		if v, ok := rm.Resource().Attributes().Get(keyAPMStats); ok && v.Bool() {
+			// these resource metrics are an APM Stats payload; consume it as such
+			sp, err := t.statsPayloadFromMetrics(rm)
 			if err != nil {
 				return fmt.Errorf("error extracting APM Stats from Metrics: %w", err)
 			}
 			consumer.ConsumeAPMStats(sp)
-			return nil // do not consume these metrics
+			continue
 		}
-	}
-	for i := 0; i < rms.Len(); i++ {
-		rm := rms.At(i)
-
 		src, err := t.source(rm.Resource().Attributes())
 		if err != nil {
 			return err

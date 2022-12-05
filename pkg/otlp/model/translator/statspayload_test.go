@@ -328,7 +328,7 @@ func TestSketchPoint(t *testing.T) {
 }
 
 func TestConversion(t *testing.T) {
-	sp := pb.StatsPayload{
+	want := pb.StatsPayload{
 		Stats: []pb.ClientStatsPayload{
 			{
 				Hostname:         "host",
@@ -437,10 +437,16 @@ func TestConversion(t *testing.T) {
 
 	t.Run("same", func(t *testing.T) {
 		trans := &Translator{logger: zap.NewNop()}
-		out, err := trans.StatsPayloadFromMetrics(trans.StatsPayloadToMetrics(sp))
-		if err != nil {
-			t.Fatal(err)
+		var got pb.StatsPayload
+		mx := trans.StatsPayloadToMetrics(want)
+		for i := 0; i < mx.ResourceMetrics().Len(); i++ {
+			rm := mx.ResourceMetrics().At(i)
+			out, err := trans.statsPayloadFromMetrics(rm)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got.Stats = append(got.Stats, out)
 		}
-		require.EqualValues(t, out, sp)
+		require.ElementsMatch(t, want.Stats, got.Stats)
 	})
 }

@@ -583,7 +583,7 @@ type mockFullConsumer struct {
 	sketches []sketch
 }
 
-func (c *mockFullConsumer) ConsumeAPMStats(_ pb.StatsPayload) {
+func (c *mockFullConsumer) ConsumeAPMStats(_ pb.ClientStatsPayload) {
 	// TODO(gbbr)
 }
 
