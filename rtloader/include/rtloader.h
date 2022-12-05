@@ -450,6 +450,20 @@ public:
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
 
+    //! initPymallocStats member.
+    /*!
+      Install pymalloc tracking hooks, if available.
+    */
+    virtual void initPymallocStats() {}
+
+    //! getPymallocStats member.
+    /*!
+      \param stats Stats snapshot output.
+
+      Retrieve a snapshot of pymalloc allocator stats.
+    */
+    virtual void getPymallocStats(pymalloc_stats_t &stats) {}
+
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */
     mutable bool _errorFlag; /*!< boolean indicating whether an error was set on RtLoader */

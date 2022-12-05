@@ -600,3 +600,17 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setIsExcludedCb(cb);
 }
+
+/*
+ * pymalloc stats API
+ */
+void init_pymalloc_stats(rtloader_t *rtloader) {
+    AS_TYPE(RtLoader, rtloader)->initPymallocStats();
+}
+
+void get_pymalloc_stats(rtloader_t *rtloader, pymalloc_stats_t *stats) {
+    if (stats == NULL) {
+        return;
+    }
+    AS_TYPE(RtLoader, rtloader)->getPymallocStats(*stats);
+}

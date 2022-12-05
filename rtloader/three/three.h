@@ -17,6 +17,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <atomic>
 
 #include <Python.h>
 #include <rtloader.h>
@@ -110,6 +111,9 @@ public:
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
 
+    void initPymallocStats();
+    void getPymallocStats(pymalloc_stats_t &);
+
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);
 
@@ -185,6 +189,36 @@ private:
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */
+
+    //! pymallocAlloc member.
+    /*!
+      \brief This member function calls _pymallocPrev.alloc and updates allocation statistics if the allocation was successful.
+      \return Pointer value returned by _pymallocPrev.alloc.
+    */
+    void *pymallocAlloc(size_t size);
+
+    //! pymallocFree member.
+    /*!
+      \brief This member function calls _pymallocPrev.free and updates allocation statistics.
+    */
+    void pymallocFree(void *ptr, size_t size);
+
+    //! pymallocAllocCb static member.
+    /*!
+      \brief Static trampoline function for pymallocAlloc to comply with the PyObjectArenaAllocator API.
+      \return See pymallocAllooc.
+    */
+
+    static void *pymallocAllocCb(void *ctx, size_t size);
+    //! pymallocFreeCb static member.
+    /*!
+      \brief Static trampoline function for pymallocFree to comply with the PyObjectArenaAllocator API.
+    */
+    static void pymallocFreeCb(void *ctx, void *ptr, size_t size);
+
+    PyObjectArenaAllocator _pymallocPrev; //!< Previous value of the global python arena allocator backend.
+    std::atomic_size_t _pymallocInuse; //!< Number of bytes currently requested by pymalloc for small object storage.
+    std::atomic_size_t _pymallocAlloc; //!< Total number of bytes requested by pymalloc for small object storage since the start of the process.
 };
 
 #endif

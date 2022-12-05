@@ -16,12 +16,14 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -403,6 +405,10 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.pymalloc") {
+		initPymallocTelemetry()
+	}
+
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
 		// bounded but never released allocations with CString
@@ -457,4 +463,26 @@ func Initialize(paths ...string) error {
 // tooling, use the rtloader_t struct at your own risk
 func GetRtLoader() *C.rtloader_t {
 	return rtloader
+}
+
+func initPymallocTelemetry() {
+	C.init_pymalloc_stats(rtloader)
+
+	// "Requested" here means requested from the OS, not allocated to Python objects.
+	// "alloc" for consistency with go memstats and mallochook metrics.
+	alloc := telemetry.NewSimpleCounter("pymalloc", "alloc", "Total number of bytes requested by pymalloc since process start.")
+	inuse := telemetry.NewSimpleGauge("pymalloc", "inuse", "Number of bytes currently requested by pymalloc.")
+
+	go func() {
+		t := time.NewTicker(1 * time.Second)
+		var prevAlloc C.size_t
+
+		for range t.C {
+			var s C.pymalloc_stats_t
+			C.get_pymalloc_stats(rtloader, &s)
+			inuse.Set(float64(s.inuse))
+			alloc.Add(float64(s.alloc - prevAlloc))
+			prevAlloc = s.alloc
+		}
+	}()
 }

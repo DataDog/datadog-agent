@@ -621,6 +621,19 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
 
+/*! \fn void init_pymalloc_stats(rtloader_t *)
+    \brief Start tracking requests for system memory from the python small objects allocator.
+    \param rtloader A pointer to the RtLoader instance.
+*/
+DATADOG_AGENT_RTLOADER_API void init_pymalloc_stats(rtloader_t *);
+
+/*! \fn void get_pymalloc_stats(rtloader_t *, pymalloc_stats_t *)
+    \brief Retrieve a snapshot of pymalloc allocator stats.
+    \param rtloader A pointer to the RtLoader instance.
+    \param stats A pointer to pymalloc_stats_t structure that will be updated with the new values.
+*/
+DATADOG_AGENT_RTLOADER_API void get_pymalloc_stats(rtloader_t *, pymalloc_stats_t *);
+
 #ifdef __cplusplus
 }
 #endif
