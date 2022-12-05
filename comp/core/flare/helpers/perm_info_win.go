@@ -17,6 +17,6 @@ func (p permissionsInfos) add(filePath string) error {
 	return nil
 }
 
-func (p permissionsInfos) commit(f io.Writer) error {
+func (p permissionsInfos) commit() ([]byte, error) {
 	return nil
 }
