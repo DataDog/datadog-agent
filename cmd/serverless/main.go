@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -54,7 +56,7 @@ const (
 	// to calls from the client libraries and to logs from the AWS environment.
 	httpServerAddr = ":8124"
 
-	logsAPIRegistrationRoute   = "/2020-08-15/logs"
+	logsAPIRegistrationRoute   = "/2022-07-01/telemetry"
 	logsAPIRegistrationTimeout = 5 * time.Second
 	logsAPIHttpServerPort      = 8124
 	logsAPICollectionRoute     = "/lambda/logs"
@@ -65,6 +67,7 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
+	config.Datadog.Set("use_v2_api.series", false)
 	stopCh := make(chan struct{})
 
 	// run the agent
@@ -116,6 +119,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Debug("Unable to restore the state from file")
 	} else {
 		serverlessDaemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts
 	// ----------------
@@ -213,37 +217,53 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"))
 
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	// Concurrently start heavyweight features
+	var wg sync.WaitGroup
+	wg.Add(3)
 
 	// starts trace agent
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath})
+		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, serverlessDaemon.ExecutionContext)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
-	// enable logs collection
+	// enable telemetry collection
 	go func() {
 		defer wg.Done()
-		log.Debug("Enabling logs collection HTTP route")
+		log.Debug("Enabling telemetry collection HTTP route")
 		logRegistrationURL := registration.BuildURL(os.Getenv(runtimeAPIEnvVar), logsAPIRegistrationRoute)
-		logRegistrationError := registration.EnableLogsCollection(
-			serverlessID,
-			logRegistrationURL,
-			logsAPIRegistrationTimeout,
-			os.Getenv(logsLogsTypeSubscribed),
-			logsAPIHttpServerPort,
-			logsAPICollectionRoute,
-			logsAPITimeout,
-			logsAPIMaxBytes,
-			logsAPIMaxItems)
+		logRegistrationError := registration.EnableTelemetryCollection(
+			registration.EnableTelemetryCollectionArgs{
+				ID:                  serverlessID,
+				RegistrationURL:     logRegistrationURL,
+				RegistrationTimeout: logsAPIRegistrationTimeout,
+				LogsType:            os.Getenv(logsLogsTypeSubscribed),
+				Port:                logsAPIHttpServerPort,
+				CollectionRoute:     logsAPICollectionRoute,
+				Timeout:             logsAPITimeout,
+				MaxBytes:            logsAPIMaxBytes,
+				MaxItems:            logsAPIMaxItems,
+			})
 
 		if logRegistrationError != nil {
 			log.Error("Can't subscribe to logs:", logRegistrationError)
 		} else {
 			serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda")
+		}
+	}()
+
+	// start appsec
+	var httpsecSubProcessor invocationlifecycle.InvocationSubProcessor
+	go func() {
+		defer wg.Done()
+		appsec, err := appsec.New()
+		if err != nil {
+			log.Error("appsec: could not start: ", err)
+		} else if appsec != nil {
+			log.Info("appsec: started successfully")
+			httpsecSubProcessor = httpsec.NewInvocationSubProcessor(appsec) // note that the receiving variable is in the parent scope
 		}
 	}()
 
@@ -256,6 +276,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		ProcessTrace:         serverlessDaemon.TraceAgent.Get().Process,
 		DetectLambdaLibrary:  func() bool { return serverlessDaemon.LambdaLibraryDetected },
 		InferredSpansEnabled: inferredspan.IsInferredSpansEnabled(),
+		SubProcessor:         httpsecSubProcessor,
 	}
 
 	// start the experimental proxy if enabled

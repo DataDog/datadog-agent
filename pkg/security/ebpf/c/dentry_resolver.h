@@ -134,9 +134,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         return DENTRY_INVALID;
     }
 
-    /*u64 max_discarder_depth;
-    LOAD_CONSTANT("max_discarder_depth", max_discarder_depth);*/
-
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {

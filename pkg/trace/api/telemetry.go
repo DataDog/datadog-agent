@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -103,20 +102,20 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	if len(m.Endpoints) == 1 {
 		return m.roundTrip(req, m.Endpoints[0])
 	}
-	slurp, err := ioutil.ReadAll(req.Body)
+	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	newreq := req.Clone(req.Context())
-	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+	newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 	// despite the number of endpoints, we always return the response of the first
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
-		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
+			io.Copy(io.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

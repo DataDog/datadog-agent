@@ -355,6 +355,12 @@ func InitConfig(config Config) {
 	// canonical hostname, otherwise the instance-id is used as canonical hostname.
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
 
+	// By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
+	// When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+	// hostname resolution.
+	// (Linux only)
+	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
+
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
 
@@ -652,6 +658,7 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.discovery_allowed_failures")
 	config.SetKnown("snmp_listener.collect_device_metadata")
+	config.SetKnown("snmp_listener.collect_topology")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
@@ -724,6 +731,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
+	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -769,6 +777,11 @@ func InitConfig(config Config) {
 	// Cloud Foundry Garden
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_network", "unix")
 	config.BindEnvAndSetDefault("cloud_foundry_garden.listen_address", "/var/vcap/data/garden/garden.sock")
+
+	// Cloud Foundry Container Tagger
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.shell_path", "/bin/sh")
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_count", 10)
+	config.BindEnvAndSetDefault("cloud_foundry_container_tagger.retry_interval", 10)
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
@@ -1004,6 +1017,7 @@ func InitConfig(config Config) {
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1037,6 +1051,8 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
+	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1123,7 +1139,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", false)
+	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	config.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
@@ -1364,11 +1380,11 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":            {},
-		"DD_DOTNET_TRACER_HOME": {},
-		// these variables are used by system-probe, but not via the Config struct
+		"DD_SERVICE":                   {},
+		"DD_DOTNET_TRACER_HOME":        {},
+		"DD_SERVERLESS_APPSEC_ENABLED": {},
+		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
-		"DD_TESTS_CO_RE":            {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

@@ -68,11 +68,12 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 	}
 
 	ctx := &processors.ProcessorContext{
-		ClusterID:  clusterID,
-		Cfg:        cfg.Orchestrator,
-		HostName:   cfg.HostName,
-		MsgGroupID: groupID,
-		NodeType:   orchestrator.K8sPod,
+		ClusterID:          clusterID,
+		Cfg:                cfg.Orchestrator,
+		HostName:           cfg.HostName,
+		MsgGroupID:         groupID,
+		NodeType:           orchestrator.K8sPod,
+		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 
 	processResult, processed := c.processor.Process(ctx, podList)

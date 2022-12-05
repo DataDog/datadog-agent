@@ -41,6 +41,7 @@ const defaultWorkers = 5
 const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
+const defaultDetectMetricsRefreshInterval = 3600
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
@@ -60,14 +61,17 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles              profileConfigMap `yaml:"profiles"`
-	GlobalMetrics         []MetricsConfig  `yaml:"global_metrics"`
-	OidBatchSize          Number           `yaml:"oid_batch_size"`
-	BulkMaxRepetitions    Number           `yaml:"bulk_max_repetitions"`
-	CollectDeviceMetadata Boolean          `yaml:"collect_device_metadata"`
-	UseDeviceIDAsHostname Boolean          `yaml:"use_device_id_as_hostname"`
-	MinCollectionInterval int              `yaml:"min_collection_interval"`
-	Namespace             string           `yaml:"namespace"`
+	Profiles                     profileConfigMap `yaml:"profiles"`
+	GlobalMetrics                []MetricsConfig  `yaml:"global_metrics"`
+	OidBatchSize                 Number           `yaml:"oid_batch_size"`
+	BulkMaxRepetitions           Number           `yaml:"bulk_max_repetitions"`
+	CollectDeviceMetadata        Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology              Boolean          `yaml:"collect_topology"`
+	UseDeviceIDAsHostname        Boolean          `yaml:"use_device_id_as_hostname"`
+	MinCollectionInterval        int              `yaml:"min_collection_interval"`
+	Namespace                    string           `yaml:"namespace"`
+	DetectMetricsEnabled         Boolean          `yaml:"experimental_detect_metrics_enabled"`
+	DetectMetricsRefreshInterval int              `yaml:"experimental_detect_metrics_refresh_interval"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -90,6 +94,7 @@ type InstanceConfig struct {
 	Profile               string            `yaml:"profile"`
 	UseGlobalMetrics      bool              `yaml:"use_global_metrics"`
 	CollectDeviceMetadata *Boolean          `yaml:"collect_device_metadata"`
+	CollectTopology       *Boolean          `yaml:"collect_topology"`
 	UseDeviceIDAsHostname *Boolean          `yaml:"use_device_id_as_hostname"`
 
 	// ExtraTags is a workaround to pass tags from snmp listener to snmp integration via AD template
@@ -120,6 +125,11 @@ type InstanceConfig struct {
 	DiscoveryWorkers         int      `yaml:"discovery_workers"`
 	Workers                  int      `yaml:"workers"`
 	Namespace                string   `yaml:"namespace"`
+
+	// When DetectMetricsEnabled is enabled, instead of using profile detection using sysObjectID
+	// the integration will fetch OIDs from the devices and deduct which metrics  can be monitored (from all OOTB profile metrics definition)
+	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
+	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
 }
 
 // CheckConfig holds config needed for an integration instance to run
@@ -150,6 +160,7 @@ type CheckConfig struct {
 	ExtraTags             []string
 	InstanceTags          []string
 	CollectDeviceMetadata bool
+	CollectTopology       bool
 	UseDeviceIDAsHostname bool
 	DeviceID              string
 	DeviceIDTags          []string
@@ -157,6 +168,9 @@ type CheckConfig struct {
 	Namespace             string
 	AutodetectProfile     bool
 	MinCollectionInterval time.Duration
+
+	DetectMetricsEnabled         bool
+	DetectMetricsRefreshInterval int
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -177,20 +191,25 @@ func (c *CheckConfig) RefreshWithProfile(profile string) error {
 	c.ProfileDef = &definition
 	c.Profile = profile
 
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(definition.Metadata)
-	c.Metrics = append(c.Metrics, definition.Metrics...)
-	c.MetricTags = append(c.MetricTags, definition.MetricTags...)
-
-	c.OidConfig.clean()
-	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
-	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
-
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
 	}
 	tags = append(tags, definition.StaticTags...)
 	c.ProfileTags = tags
+
+	c.UpdateConfigMetadataMetricsAndTags(definition.Metadata, definition.Metrics, definition.MetricTags, c.CollectTopology)
+
 	return nil
+}
+
+func (c *CheckConfig) UpdateConfigMetadataMetricsAndTags(metadata MetadataConfig, metrics []MetricsConfig, metricTags []MetricTagConfig, collectTopology bool) {
+	c.Metadata = updateMetadataDefinitionWithDefaults(metadata, collectTopology)
+	c.Metrics = append(c.Metrics, metrics...)
+	c.MetricTags = append(c.MetricTags, metricTags...)
+
+	c.OidConfig.clean()
+	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
+	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 }
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
@@ -199,7 +218,7 @@ func (c *CheckConfig) UpdateDeviceIDAndTags() {
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
-func (c *CheckConfig) addUptimeMetric() {
+func (c *CheckConfig) AddUptimeMetric() {
 	c.Metrics = append(c.Metrics, uptimeMetricConfig)
 }
 
@@ -269,6 +288,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	// Set defaults before unmarshalling
 	instance.UseGlobalMetrics = true
 	initConfig.CollectDeviceMetadata = true
+	initConfig.CollectTopology = false // TODO: Make CollectTopology default to true when GA
 
 	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -306,6 +326,26 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.CollectDeviceMetadata = bool(*instance.CollectDeviceMetadata)
 	} else {
 		c.CollectDeviceMetadata = bool(initConfig.CollectDeviceMetadata)
+	}
+
+	if instance.CollectTopology != nil {
+		c.CollectTopology = bool(*instance.CollectTopology)
+	} else {
+		c.CollectTopology = bool(initConfig.CollectTopology)
+	}
+
+	if instance.DetectMetricsEnabled != nil {
+		c.DetectMetricsEnabled = bool(*instance.DetectMetricsEnabled)
+	} else {
+		c.DetectMetricsEnabled = bool(initConfig.DetectMetricsEnabled)
+	}
+
+	if instance.DetectMetricsRefreshInterval != 0 {
+		c.DetectMetricsRefreshInterval = int(instance.DetectMetricsRefreshInterval)
+	} else if initConfig.DetectMetricsRefreshInterval != 0 {
+		c.DetectMetricsRefreshInterval = int(initConfig.DetectMetricsRefreshInterval)
+	} else {
+		c.DetectMetricsRefreshInterval = defaultDetectMetricsRefreshInterval
 	}
 
 	if instance.UseDeviceIDAsHostname != nil {
@@ -438,9 +478,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.InstanceTags = instance.Tags
 	c.MetricTags = instance.MetricTags
 
-	c.addUptimeMetric()
+	c.AddUptimeMetric()
 
-	c.Metadata = updateMetadataDefinitionWithLegacyFallback(nil)
+	c.Metadata = updateMetadataDefinitionWithDefaults(nil, c.CollectTopology)
 	c.OidConfig.addScalarOids(c.parseScalarOids(c.Metrics, c.MetricTags, c.Metadata))
 	c.OidConfig.addColumnOids(c.parseColumnOids(c.Metrics, c.Metadata))
 
@@ -578,6 +618,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
 	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
 	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
+	newConfig.CollectTopology = c.CollectTopology
 	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
 	newConfig.DeviceID = c.DeviceID
 
@@ -585,6 +626,8 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
 	newConfig.Namespace = c.Namespace
 	newConfig.AutodetectProfile = c.AutodetectProfile
+	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
+	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 
 	return &newConfig

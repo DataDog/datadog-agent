@@ -25,8 +25,7 @@ import (
 var (
 	modkernel32 = windows.NewLazyDLL("kernel32.dll")
 
-	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
-	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
+	procGetDriveType = modkernel32.NewProc("GetDriveTypeW")
 
 	driveLetterPattern    = regexp.MustCompile(`[A-Za-z]:`)
 	unmountedDrivePattern = regexp.MustCompile(`HarddiskVolume([0-9])+`)
@@ -141,7 +140,7 @@ func (c *IOCheck) Run() error {
 			}
 
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
-				val /= 1024
+				val /= kB
 			}
 			if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
 				// r_await/w_await are in milliseconds, but the performance counter

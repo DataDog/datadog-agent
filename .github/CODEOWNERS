@@ -193,6 +193,7 @@
 /pkg/version/                           @DataDog/agent-shared-components
 /pkg/obfuscate/                         @DataDog/agent-apm
 /pkg/trace/                             @DataDog/agent-apm
+/pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/autodiscovery/                     @DataDog/container-integrations @DataDog/agent-metrics-logs
 /pkg/autodiscovery/listeners/           @DataDog/container-integrations
 /pkg/autodiscovery/listeners/cloudfoundry*.go  @DataDog/platform-integrations
@@ -279,13 +280,16 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
+/pkg/network/encoding/http*             @DataDog/universal-service-monitoring
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
-/pkg/network/protocols/http/driver_*.go   @DataDog/windows-kernel-integrations
-/pkg/network/protocols/http/*_windows*.go @DataDog/windows-kernel-integrations
-/pkg/network/tracer/*classification*.go @DataDog/universal-service-monitoring
-/pkg/network/tracer/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
+/pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
+/pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
+/pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks
 /pkg/ebpf/bytecode/runtime/http.go      @DataDog/universal-service-monitoring

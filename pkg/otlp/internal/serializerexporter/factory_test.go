@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/collector/config/configtest"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -22,7 +21,7 @@ import (
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(&serializer.MockSerializer{})
 	cfg := factory.CreateDefaultConfig()
-	assert.NoError(t, configtest.CheckConfigStruct(cfg))
+	assert.NoError(t, componenttest.CheckConfigStruct(cfg))
 	_, ok := factory.CreateDefaultConfig().(*exporterConfig)
 	assert.True(t, ok)
 }

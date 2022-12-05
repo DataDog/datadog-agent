@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -106,11 +105,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigName:        globalParams.ConfigName,
-					ConfigLoadSecrets: true,
-				}.LogForOneShot(globalParams.LoggerName, "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithConfigName(globalParams.ConfigName)).
+					LogForOneShot(globalParams.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},
@@ -237,7 +233,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	if cliParams.profileMemory {
 		// If no directory is specified, make a temporary one
 		if cliParams.profileMemoryDir == "" {
-			cliParams.profileMemoryDir, err = ioutil.TempDir("", "datadog-agent-memory-profiler")
+			cliParams.profileMemoryDir, err = os.MkdirTemp("", "datadog-agent-memory-profiler")
 			if err != nil {
 				return err
 			}
@@ -386,7 +382,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 			snapshotDir := filepath.Join(profileDataDir, "snapshots")
 			if _, err := os.Stat(snapshotDir); !os.IsNotExist(err) {
-				snapshots, err := ioutil.ReadDir(snapshotDir)
+				snapshots, err := os.ReadDir(snapshotDir)
 				if err != nil {
 					return err
 				}
@@ -394,7 +390,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 				numSnapshots := len(snapshots)
 				if numSnapshots > 0 {
 					lastSnapshot := snapshots[numSnapshots-1]
-					snapshotContents, err := ioutil.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
+					snapshotContents, err := os.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
 					if err != nil {
 						return err
 					}
@@ -409,7 +405,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 			diffDir := filepath.Join(profileDataDir, "diffs")
 			if _, err := os.Stat(diffDir); !os.IsNotExist(err) {
-				diffs, err := ioutil.ReadDir(diffDir)
+				diffs, err := os.ReadDir(diffDir)
 				if err != nil {
 					return err
 				}
@@ -417,7 +413,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 				numDiffs := len(diffs)
 				if numDiffs > 0 {
 					lastDiff := diffs[numDiffs-1]
-					diffContents, err := ioutil.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
+					diffContents, err := os.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
 					if err != nil {
 						return err
 					}
@@ -524,7 +520,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	if err != nil {
 		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
+	err = os.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)

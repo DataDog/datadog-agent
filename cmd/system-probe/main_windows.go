@@ -11,25 +11,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/app"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/windows/service"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
-
-var (
-	defaultSysProbeConfigPath = "c:\\programdata\\datadog\\system-probe.yaml"
-)
-
-func init() {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		defaultSysProbeConfigPath = filepath.Join(pd, "system-probe.yaml")
-	}
-}
 
 func main() {
 	// if command line arguments are supplied, even in a non interactive session,

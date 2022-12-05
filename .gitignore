@@ -108,7 +108,7 @@ system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
-*.d
+pkg/ebpf/bytecode/build/**/*.d
 
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
@@ -138,6 +138,7 @@ pkg/ebpf/bytecode/build/
 
 # CGo generated object files
 pkg/network/**/_obj/
+pkg/util/winutil/**/_obj/
 
 # windows container build output
 build.out/

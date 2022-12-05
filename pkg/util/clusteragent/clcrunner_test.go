@@ -7,7 +7,6 @@ package clusteragent
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -191,7 +190,7 @@ func TestCLCRunnerSuite(t *testing.T) {
 
 	fakeDir := t.TempDir()
 
-	f, err := ioutil.TempFile(fakeDir, "fake-datadog-yaml-")
+	f, err := os.CreateTemp(fakeDir, "fake-datadog-yaml-")
 	require.Nil(t, err, fmt.Errorf("%v", err))
 	t.Cleanup(func() {
 		require.NoError(t, f.Close())

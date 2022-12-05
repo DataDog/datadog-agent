@@ -718,9 +718,11 @@ def _update_release_json(release_json, release_entry, new_version: Version, max_
         "jmxfetch", release_json, new_version.major, github_token, "JMXFETCH_VERSION"
     )
 
-    security_agent_policies_version = _fetch_independent_dependency_repo_version(
-        "security-agent-policies", release_json, new_version.major, github_token, "SECURITY_AGENT_POLICIES_VERSION"
+    # security agent policies are updated directly by the CWS team
+    security_agent_policies_version = _get_release_version_from_release_json(
+        release_json, new_version.major, VERSION_RE, "SECURITY_AGENT_POLICIES_VERSION"
     )
+    print(TAG_FOUND_TEMPLATE.format("security-agent-policies", security_agent_policies_version))
 
     windows_ddnpm_driver, windows_ddnpm_version, windows_ddnpm_shasum = _get_windows_ddnpm_release_json_info(
         release_json, new_version.major, is_first_rc=(new_version.rc == 1)

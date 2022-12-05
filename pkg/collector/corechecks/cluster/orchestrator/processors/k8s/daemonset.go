@@ -46,7 +46,7 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		DaemonSets:  models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

@@ -191,6 +191,7 @@ func TestInfoHandler(t *testing.T) {
 		"/v0.1/pipeline_stats",
 		"/evp_proxy/v1/",
 		"/evp_proxy/v2/",
+		"/evp_proxy/v3/",
 		"/debugger/v1/input"
 		"/dogstatsd/v1/proxy"
 	],
