@@ -84,7 +84,7 @@ func (cb *CollectorBundle) prepare() {
 func (cb *CollectorBundle) prepareCollectors() {
 	// we still need to collect non crd resources except if otherwise configured
 	if ok := cb.importCRDCollectorsFromCheckConfig(); ok {
-		if cb.check.instance.Collectors != nil && len(cb.check.instance.Collectors) == 0 {
+		if cb.skipImportingDefaultCollectors() {
 			return
 		}
 	}
@@ -99,6 +99,19 @@ func (cb *CollectorBundle) prepareCollectors() {
 	cb.importCollectorsFromInventory()
 
 	return
+}
+
+// skipImportingDefaultCollectors skips importing the default collectors if the collector list is explicitly set to an
+// empty string. Example:
+/*
+init_config:
+instances:
+  - collectors: []
+    crd_collectors:
+      - datadoghq.com/v1alpha1/datadogmetrics
+*/
+func (cb *CollectorBundle) skipImportingDefaultCollectors() bool {
+	return cb.check.instance.Collectors != nil && len(cb.check.instance.Collectors) == 0
 }
 
 // addCollectorFromConfig appends a collector to the bundle based on the
