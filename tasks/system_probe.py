@@ -1159,8 +1159,6 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
 
     try:
         co_re_programs = glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o")
-        print(co_re_programs)
-
         generate_minimized_btfs(
             ctx,
             source_dir=f"{btf_dir}/btfs-{arch}",
@@ -1172,7 +1170,8 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
                 "tar -cJf minimized-btfs.tar.xz * && " +
                 f"mv minimized-btfs.tar.xz {files_dir}")
     except:
-        print("cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead.")
+        print("cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead. " +
+              "In order to minimize BTFs, you will need to have bpftool version 6 or higher.")
 
         ctx.run(f"cd {btf_dir}/btfs-{arch} && " +
                 "tar -cJf minimized-btfs.tar.xz * && " +
