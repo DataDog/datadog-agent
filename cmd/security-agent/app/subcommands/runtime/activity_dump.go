@@ -74,7 +74,7 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -128,7 +128,7 @@ func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -200,7 +200,7 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 

@@ -83,7 +83,7 @@ type checkPoliciesCliParams struct {
 }
 
 func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := checkPoliciesCliParams{
+	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -150,7 +150,7 @@ type evalCliParams struct {
 }
 
 func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	evalArgs := evalCliParams{
+	evalArgs := &evalCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -180,7 +180,7 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := checkPoliciesCliParams{
+	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -247,7 +247,7 @@ type downloadPolicyCliParams struct {
 }
 
 func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	downloadPolicyArgs := downloadPolicyCliParams{
+	downloadPolicyArgs := &downloadPolicyCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -279,7 +279,7 @@ type processCacheDumpCliParams struct {
 }
 
 func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := processCacheDumpCliParams{
+	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -315,7 +315,7 @@ type dumpNetworkNamespaceCliParams struct {
 }
 
 func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := dumpNetworkNamespaceCliParams{
+	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -768,8 +768,8 @@ func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 }
 
 func downloadPolicy(log complog.Component, config compconfig.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
-	apiKey := coreconfig.Datadog.GetString("api_key")
-	appKey := coreconfig.Datadog.GetString("app_key")
+	apiKey := config.GetString("api_key")
+	appKey := config.GetString("app_key")
 
 	if apiKey == "" {
 		return errors.New("API key is empty")
@@ -779,7 +779,7 @@ func downloadPolicy(log complog.Component, config compconfig.Component, download
 		return errors.New("application key is empty")
 	}
 
-	site := coreconfig.Datadog.GetString("site")
+	site := config.GetString("site")
 	if site == "" {
 		site = "datadoghq.com"
 	}
