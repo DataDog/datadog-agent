@@ -195,6 +195,7 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
+    barrier();
     char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
 
     // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
@@ -202,16 +203,32 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
-#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE)
-    for (int current_offset = 0; current_offset < TOPIC_NAME_MAX_STRING_SIZE; current_offset++) {
-        char *source_address = topic_name_beginning_offset + current_offset;
-        char *destination_address = kafka_transaction->topic_name + current_offset;
-
-        if (current_offset >= topic_name_size) {
-            break;
-        }
-        *destination_address = *source_address;
+    if (topic_name_beginning_offset + TOPIC_NAME_MAX_STRING_SIZE > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+        return false;
     }
+    __builtin_memcpy(kafka_transaction->topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
+
+//#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE)
+//    for (int current_offset = 0; current_offset < TOPIC_NAME_MAX_STRING_SIZE; current_offset++) {
+//        if (current_offset >= topic_name_size) {
+//            break;
+//        }
+//
+//        barrier();
+//        char *source_address = topic_name_beginning_offset + current_offset;
+//        if (source_address >= kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+//            break;
+//        }
+//        if (source_address >= topic_name_beginning_offset + TOPIC_NAME_MAX_STRING_SIZE) {
+//            break;
+//        }
+//        char *destination_address = kafka_transaction->topic_name + current_offset;
+//        if (destination_address >= kafka_transaction->topic_name + TOPIC_NAME_MAX_STRING_SIZE) {
+//            break;
+//        }
+//
+//        *destination_address = *source_address;
+//    }
     return true;
 }
 
