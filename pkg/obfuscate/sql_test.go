@@ -1943,35 +1943,26 @@ func TestUnicodeDigit(t *testing.T) {
 }
 
 func TestParseNumber(t *testing.T) {
-	var testCases = []struct {
-		in       string
-		expected string
-		error    string
-	}{
-		{"1234", "?", ""},
-		{"-1234", "?", ""},
-		{"1234e12", "?", ""},
-		{"0xfa", "?", ""},
-		{"01234567", "?", ""},
-		{"09", "?", ""},
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
 		// Negatives are always parsed as decimals (not octal).
-		{"-01234567", "?", ""},
-		{"-012345678", "?", ""},
+		"-01234567",
+		"-012345678",
 	}
 
 	o := NewObfuscator(Config{})
 	for _, testCase := range testCases {
-		t.Run(testCase.in, func(t *testing.T) {
+		t.Run(testCase, func(t *testing.T) {
 			assert := assert.New(t)
-			oq, err := o.ObfuscateSQLString(testCase.in)
-			if testCase.error != "" {
-				require.NotNil(t, err)
-				assert.Equal(testCase.error, err.Error())
-			} else {
-				assert.NoError(err)
-				if assert.NotNil(oq) {
-					assert.Equal(testCase.expected, oq.Query)
-				}
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
 			}
 		})
 	}
