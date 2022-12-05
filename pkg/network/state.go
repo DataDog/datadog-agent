@@ -501,7 +501,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 			delete(active, cookie)
 		}
 
-		ns.updateConnWithStats(client, cookie, closedConn, true)
+		ns.updateConnWithStats(client, cookie, closedConn)
 
 		if closedConn.Last.IsZero() {
 			continue
@@ -518,7 +518,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	// Active connections
 	for cookie, c := range active {
 		ns.createStatsForCookie(client, cookie)
-		ns.updateConnWithStats(client, cookie, c, false)
+		ns.updateConnWithStats(client, cookie, c)
 
 		if c.Last.IsZero() {
 			continue
@@ -532,7 +532,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 	aggrConns.Write(buffer)
 }
 
-func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats, isClosed bool) {
+func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats) {
 	c.Last = StatCounters{}
 	if sts, ok := client.stats[cookie]; ok {
 		var last StatCounters
@@ -727,7 +727,7 @@ func newConnectionAggregator(size int) *connectionAggregator {
 }
 
 // Aggregate aggregates a connection. The connection is only
-// aggregated it:
+// aggregated if:
 // - it is not in the collection
 // - it is in the collection and:
 //   - the ip translation is nil OR
