@@ -28,53 +28,56 @@ var (
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(flareCmd)
+	ClusterAgentCmd.AddCommand(GetFlareCobraCmd(customerEmail, autoconfirm, loggerName))
+}
 
+func GetFlareCobraCmd(customerEmail string, autoconfirm bool, loggerName config.LoggerName) *cobra.Command {
+
+	var flareCmd = &cobra.Command{
+		Use:   "flare [caseID]",
+		Short: "Collect a flare and send it to Datadog",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			if flagNoColor {
+				color.NoColor = true
+			}
+
+			// we'll search for a config file named `datadog-cluster.yaml`
+			config.Datadog.SetConfigName("datadog-cluster")
+			err := common.SetupConfig(confPath)
+			if err != nil {
+				return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
+			}
+
+			// The flare command should not log anything, all errors should be reported directly to the console without the log format
+			err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
+			if err != nil {
+				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
+				return err
+			}
+
+			caseID := ""
+			if len(args) > 0 {
+				caseID = args[0]
+			}
+
+			if customerEmail == "" {
+				var err error
+				customerEmail, err = input.AskForEmail()
+				if err != nil {
+					fmt.Println("Error reading email, please retry or contact support")
+					return err
+				}
+			}
+
+			return requestFlare(caseID)
+		},
+	}
 	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
 	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
-}
-
-var flareCmd = &cobra.Command{
-	Use:   "flare [caseID]",
-	Short: "Collect a flare and send it to Datadog",
-	Long:  ``,
-	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if flagNoColor {
-			color.NoColor = true
-		}
-
-		// we'll search for a config file named `datadog-cluster.yaml`
-		config.Datadog.SetConfigName("datadog-cluster")
-		err := common.SetupConfig(confPath)
-		if err != nil {
-			return fmt.Errorf("unable to set up global cluster agent configuration: %v", err)
-		}
-
-		// The flare command should not log anything, all errors should be reported directly to the console without the log format
-		err = config.SetupLogger(loggerName, "off", "", "", false, true, false)
-		if err != nil {
-			fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-			return err
-		}
-
-		caseID := ""
-		if len(args) > 0 {
-			caseID = args[0]
-		}
-
-		if customerEmail == "" {
-			var err error
-			customerEmail, err = input.AskForEmail()
-			if err != nil {
-				fmt.Println("Error reading email, please retry or contact support")
-				return err
-			}
-		}
-
-		return requestFlare(caseID)
-	},
+	return flareCmd
 }
 
 func requestFlare(caseID string) error {
