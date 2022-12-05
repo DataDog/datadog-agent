@@ -134,7 +134,7 @@ func (n NodeType) String() string {
 	case K8sCRD:
 		return "CustomResourceDefinition"
 	case K8sCR:
-		return "CustomResources"
+		return "CustomResource"
 	case K8sUnsetType:
 		return "UnsetType"
 	default:
