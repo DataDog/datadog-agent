@@ -6,7 +6,7 @@
 //go:build kubeapiserver
 // +build kubeapiserver
 
-package app
+package config
 
 import (
 	"fmt"
@@ -21,13 +21,13 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-func ConfigCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	cmd := cmdconfig.Config(getSettingsClient)
 	return []*cobra.Command{cmd}
 }
 
 func setupConfig(cmd *cobra.Command) error {
-	err := config.SetupLogger(loggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err := config.SetupLogger(common.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err
