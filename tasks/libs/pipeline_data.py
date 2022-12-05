@@ -100,6 +100,15 @@ infra_failure_logs = [
         re.compile(r'ERROR: The kitchen tests failed due to infrastructure failures\.'),
         FailedJobReason.KITCHEN,
     ),
+    # End to end tests EC2 Spot instances allocation failures
+    (
+        re.compile(r'Failed to allocate end to end test EC2 Spot instance after [0-9]+ attempts'),
+        FailedJobReason.EC2_SPOT,
+    ),
+    (
+        re.compile(r'Connection to [0-9]+\.[0-9]+\.[0-9]+\.[0-9]+ closed by remote host\.'),
+        FailedJobReason.EC2_SPOT,
+    ),
 ]
 
 

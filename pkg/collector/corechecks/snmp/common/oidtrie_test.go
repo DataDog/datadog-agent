@@ -39,14 +39,17 @@ func TestBuildTries(t *testing.T) {
 
 func Test_oidTrie_LeafExist(t *testing.T) {
 	trie := BuildOidTrie([]string{"1.2.3", "1.3.4.5"})
+	assert.Equal(t, false, trie.LeafExist(""))
 	assert.Equal(t, true, trie.LeafExist("1.2.3"))
 	assert.Equal(t, true, trie.LeafExist("1.3.4.5"))
 	assert.Equal(t, false, trie.LeafExist("1.2"))
 	assert.Equal(t, false, trie.LeafExist("1.4"))
+	assert.Equal(t, false, trie.LeafExist("1"))
 }
 
 func Test_oidTrie_NodeExist(t *testing.T) {
 	trie := BuildOidTrie([]string{"1", "1.2.3", "1.3.4.5"})
+	assert.Equal(t, false, trie.NonLeafNodeExist(""))
 	assert.Equal(t, true, trie.NonLeafNodeExist("1.2"))
 	assert.Equal(t, false, trie.NonLeafNodeExist("1.2.3")) // this is a leaf, not a node
 	assert.Equal(t, true, trie.NonLeafNodeExist("1.3.4"))

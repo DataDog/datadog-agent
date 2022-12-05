@@ -1063,11 +1063,7 @@ ip_address: 1.2.3.4
 community_string: public
 `)
 	// language=yaml
-	rawInitConfig := []byte(`
-profiles:
- f5-big-ip:
-   definition_file: f5-big-ip.yaml
-`)
+	rawInitConfig := []byte(``)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
@@ -1081,13 +1077,14 @@ profiles:
 	deviceCk.SetSender(report.NewMetricSender(sender, ""))
 
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.13.1", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.1.5.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.1.5.0"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.13.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.14"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.14.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.15"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.15.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.16"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0"}).Return(session.CreateGetNextPacket("", gosnmp.EndOfMibView, nil), nil)
 
-	metricsConfigs := deviceCk.detectAvailableMetrics()
+	metricsConfigs, metricTagConfigs := deviceCk.detectAvailableMetrics()
 
 	expectedMetricsConfigs := []checkconfig.MetricsConfig{
 		{
@@ -1109,4 +1106,23 @@ profiles:
 		},
 	}
 	assert.Equal(t, expectedMetricsConfigs, metricsConfigs)
+
+	expectedMetricsTagConfigs := []checkconfig.MetricTagConfig{
+		{
+			OID:   "1.3.6.1.2.1.1.5.0",
+			Name:  "sysName",
+			Match: "(\\w)(\\w+)",
+			Tags: map[string]string{
+				"some_tag": "some_tag_value",
+				"prefix":   "\\1",
+				"suffix":   "\\2",
+			},
+		},
+		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+	}
+
+	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+
+	assert.ElementsMatch(t, expectedMetricsTagConfigs, metricTagConfigs)
 }

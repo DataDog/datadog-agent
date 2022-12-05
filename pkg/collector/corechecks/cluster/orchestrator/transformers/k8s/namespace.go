@@ -10,17 +10,22 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
 )
 
 // ExtractNamespace returns the protobuf model corresponding to a Kubernetes Namespace resource.
 func ExtractNamespace(ns *corev1.Namespace) *model.Namespace {
-	return &model.Namespace{
+	n := &model.Namespace{
 		Metadata: extractMetadata(&ns.ObjectMeta),
 		// status value based on https://github.com/kubernetes/kubernetes/blob/1e12d92a5179dbfeb455c79dbf9120c8536e5f9c/pkg/printers/internalversion/printers.go#L1350
 		Status:           string(ns.Status.Phase),
 		ConditionMessage: getNamespaceConditionMessage(ns),
 	}
+
+	n.Tags = append(n.Tags, transformers.RetrieveUnifiedServiceTags(ns.ObjectMeta.Labels)...)
+
+	return n
 }
 
 // getNamespaceConditionMessage loops through the namespace conditions, and reports the message of the first one

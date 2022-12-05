@@ -16,14 +16,14 @@
 #include "protocols/go-tls-location.h"
 #include "protocols/go-tls-conn.h"
 #include "protocols/tags-types.h"
+#include "protocols/protocol-dispatcher-helpers.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/http_filter_entry")
-int socket__http_filter_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+// The entrypoint for all packets classification & decoding in universal service monitoring.
+SEC("socket/protocol_dispatcher")
+int socket__protocol_dispatcher(struct __sk_buff *skb) {
+    protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 
@@ -600,7 +600,7 @@ static __always_inline int do_sys_open_helper_exit(struct pt_regs *ctx) {
     bpf_memcpy(&lib_path, path, sizeof(lib_path));
 
     u32 cpu = bpf_get_smp_processor_id();
-    bpf_perf_event_output(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
+    bpf_perf_event_output_with_telemetry(ctx, &shared_libraries, cpu, &lib_path, sizeof(lib_path));
 cleanup:
     bpf_map_delete_elem(&open_at_args, &pid_tgid);
     return 0;

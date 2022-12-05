@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
-// DirectorTargetsCustomMetadata TODO (<remote-config>): RCM-228
+// ConfigFileMetaCustom is the custom metadata of a config
 type ConfigFileMetaCustom struct {
 	Predicates *pbgo.TracerPredicates `json:"tracer-predicates,omitempty"`
 	Expires    int64                  `json:"expires"`

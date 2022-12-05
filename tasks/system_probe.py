@@ -304,7 +304,12 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http-types.h",
+                "pkg/network/ebpf/c/protocols/protocol-classification-defs.h",
+            ],
+            "pkg/network/telemetry/telemetry_types.go": [
+                "pkg/ebpf/c/telemetry_types.h",
             ],
         }
         nw.rule(

@@ -11,6 +11,7 @@ package hostname
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -19,6 +20,10 @@ import (
 // in a non-root UTS namespace because in that case, the OS hostname characterizes the
 // identity of the agent container and not the one of the nodes it is running on.
 func isOSHostnameUsable(ctx context.Context) bool {
+	if config.Datadog.GetBool("hostname_trust_uts_namespace") {
+		return true
+	}
+
 	selfUTSInode, err := system.GetProcessNamespaceInode("/proc", "self", "uts")
 	if err != nil {
 		// If we are not able to gather our own UTS Inode, in doubt, return true.

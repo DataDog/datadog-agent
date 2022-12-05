@@ -23,7 +23,6 @@ include:
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
-  - /.gitlab/deploy_invalidate.yml
   - /.gitlab/internal_image_deploy.yml
   - /.gitlab/trigger_release.yml
   - /.gitlab/e2e.yml
@@ -76,7 +75,6 @@ stages:
   - deploy_dca
   - choco_build
   - choco_deploy
-  - deploy_invalidate
   - internal_image_deploy
   - trigger_release
   - e2e
@@ -587,6 +585,19 @@ variables:
   - <<: *if_deploy
     when: manual
     allow_failure: true
+
+# This rule will add the job as manual when running on beta deploy branch
+# and will add it as a regular automatically running job when running
+# on stable deploy branch.
+.on_deploy_stable_or_beta_manual_auto_on_stable:
+  - <<: *if_not_stable_or_beta_repo_branch
+    when: never
+  - <<: *if_not_deploy
+    when: never
+  - <<: *if_not_stable_repo_branch
+    when: manual
+    allow_failure: true
+  - when: on_success
 
 .on_deploy_stable_repo_branch_a7_manual:
   - <<: *if_not_version_7

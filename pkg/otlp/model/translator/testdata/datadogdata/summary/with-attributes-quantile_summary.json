@@ -9,7 +9,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "count",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 10
     },
     {
@@ -20,7 +20,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "count",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 100
     },
     {
@@ -32,7 +32,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "gauge",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 0
     },
     {
@@ -44,7 +44,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "gauge",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 100
     },
     {
@@ -56,7 +56,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "gauge",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 500
     },
     {
@@ -68,7 +68,7 @@
       "Host": "hostname",
       "OriginID": "",
       "Type": "gauge",
-      "Timestamp": 1667560641226420924,
+      "Timestamp": 1669802350921840070,
       "Value": 600
     }
   ]

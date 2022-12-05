@@ -34,7 +34,7 @@ var openCapabilities = Capabilities{
 	},
 }
 
-func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
+func openOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -43,7 +43,7 @@ func openOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprover
 		return values
 	}
 
-	openApprovers, err := onNewBasenameApprovers(probe, model.FileOpenEventType, "file", approvers)
+	openApprovers, err := onNewBasenameApprovers(model.FileOpenEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}

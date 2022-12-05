@@ -489,8 +489,6 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 
-	t.Skip("skipping temporarily")
-
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
@@ -540,8 +538,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		initTracerState(t, tr)
 		require.NoError(t, err)
 		done := make(chan struct{})
-		defer close(done)
-		server := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
+		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))
 			if err == nil {
@@ -549,8 +546,8 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			}
 			c.Close()
 		})
-		require.NoError(t, server.Run(done))
-		_, port, err := net.SplitHostPort(server.address)
+		require.NoError(t, HTTPServer.Run(done))
+		_, port, err := net.SplitHostPort(HTTPServer.address)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
 
@@ -565,20 +562,28 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 		resp, err := client.Get("http://" + targetAddr + "/test")
 		if err == nil {
+			io.Copy(io.Discard, resp.Body)
 			resp.Body.Close()
 		}
 
 		client.CloseIdleConnections()
-		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP)
+		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
+		close(done)
 
 		time.Sleep(2 * time.Second)
+
+		gRPCServer, err := grpc.NewServer(HTTPServer.address)
+		require.NoError(t, err)
+		gRPCServer.Run()
+
 		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
 			CustomDialer: dialer,
 		})
 		require.NoError(t, err)
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
-		waitForConnectionsWithProtocol(t, tr, targetAddr, server.address, network.ProtocolHTTP2)
+		gRPCServer.Stop()
+		waitForConnectionsWithProtocol(t, tr, targetAddr, gRPCServer.Address, network.ProtocolHTTP2)
 	})
 }
 
