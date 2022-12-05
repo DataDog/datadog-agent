@@ -322,7 +322,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	log.SetupLogger(l, "debug", nil)
 
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()

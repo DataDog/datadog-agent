@@ -53,7 +53,7 @@ func TestBasicLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
 	assert.Nil(t, err)
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, "debug", nil)
 	assert.NotNil(t, Logger)
 
 	Tracef("%s", "foo")
@@ -120,7 +120,7 @@ func TestLogBuffer(t *testing.T) {
 	Errorf("%s", "foo")
 	Criticalf("%s", "foo")
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, "debug", nil)
 	assert.NotNil(t, Logger)
 
 	w.Flush()
@@ -147,7 +147,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	Errorc("baz", "number", 1, "str", "hello")
 	Criticalc("baz", "number", 1, "str", "hello")
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, "debug", nil)
 	assert.NotNil(t, Logger)
 	w.Flush()
 
@@ -176,7 +176,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
 
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 	assert.NotNil(t, Logger)
 
 	Info("don't tell anyone: ", "SECRET")
@@ -200,7 +200,7 @@ func TestExtraLogging(t *testing.T) {
 	lA, err := seelog.LoggerFromWriterWithMinLevelAndFormat(wA, seelog.DebugLvl, "[%LEVEL] %Msg")
 	assert.Nil(t, err)
 
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 	assert.NotNil(t, Logger)
 
 	err = RegisterAdditionalLogger("extra", lA)
@@ -248,7 +248,7 @@ func TestWarnNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Warn("test"))
 
@@ -264,7 +264,7 @@ func TestWarnfNotNil(t *testing.T) {
 	assert.NotNil(t, Warn("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Warn("test"))
 
@@ -281,7 +281,7 @@ func TestWarncNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Warnc("test", "key", "val"))
 
@@ -297,7 +297,7 @@ func TestErrorNotNil(t *testing.T) {
 	assert.NotNil(t, Error("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Error("test"))
 
@@ -313,7 +313,7 @@ func TestErrorfNotNil(t *testing.T) {
 	assert.NotNil(t, Errorf("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Errorf("test"))
 
@@ -330,7 +330,7 @@ func TestErrorcNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.CriticalLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "critical")
+	SetupLogger(l, "critical", nil)
 
 	assert.NotNil(t, Errorc("test", "key", "val"))
 
@@ -346,7 +346,7 @@ func TestCriticalNotNil(t *testing.T) {
 	assert.NotNil(t, Critical("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 
 	assert.NotNil(t, Critical("test"))
 }
@@ -358,7 +358,7 @@ func TestCriticalfNotNil(t *testing.T) {
 	assert.NotNil(t, Criticalf("test"))
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 
 	assert.NotNil(t, Criticalf("test"))
 }
@@ -371,7 +371,7 @@ func TestCriticalcNotNil(t *testing.T) {
 
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 
 	assert.NotNil(t, Criticalc("test", "key", "val"))
 }
@@ -381,7 +381,7 @@ func TestDebugFuncNoExecute(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "info")
+	SetupLogger(l, "info", nil)
 
 	i := 0
 	DebugFunc(func() string { i = 1; return "hello" })
@@ -397,7 +397,7 @@ func TestDebugFuncExecute(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-	SetupLogger(l, "debug")
+	SetupLogger(l, "debug", nil)
 
 	i := 0
 	DebugFunc(func() string {
@@ -444,7 +444,7 @@ func TestFuncVersions(t *testing.T) {
 		w := bufio.NewWriter(&b)
 
 		l, _ := seelog.LoggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %FuncShort: %Msg")
-		SetupLogger(l, tc.strLogLevel)
+		SetupLogger(l, tc.strLogLevel, nil)
 
 		i := 0
 		tc.logFunc(func() string { i = 1; return "hello" })

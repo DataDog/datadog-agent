@@ -18,7 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	log.SetupLogger(seelog.Default, "trace")
+	log.SetupLogger(seelog.Default, "trace", nil)
 	os.Exit(m.Run())
 }
 

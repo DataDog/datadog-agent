@@ -106,7 +106,8 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 
 	var verboseLoggerInterface seelog.LoggerInterface = nil
 	if verboseLogging {
-		seelogConfig, err = buildLoggerConfig("my logger", "trace", "/var/log/datadog/agent-verbose.log", "", false, false, false)
+		verboseFile := getVerboseLogFile(logFile)
+		seelogConfig, err = buildLoggerConfig("my logger", "trace", verboseFile, "", false, false, false)
 		verboseLoggerInterface, err = GenerateLoggerInterface(seelogConfig)
 		if err != nil {
 			return err
@@ -116,6 +117,15 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	log.SetupLogger(loggerInterface, seelogLogLevel, verboseLoggerInterface)
 	scrubber.AddStrippedKeys(Datadog.GetStringSlice("flare_stripped_keys"))
 	return nil
+}
+
+func getVerboseLogFile(logFile string) string {
+	verboseFile := logFile[:len(logFile)-len(filepath.Ext(logFile))]
+	if len(filepath.Ext(logFile)) != 0 {
+		return verboseFile + "-verbose.log"
+	} else {
+		return verboseFile + "-verbose"
+	}
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level

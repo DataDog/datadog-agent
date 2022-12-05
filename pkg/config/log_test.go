@@ -45,6 +45,24 @@ func TestSeelogConfig(t *testing.T) {
 	assert.NotNil(t, logger)
 }
 
+func TestVerboseLogFileName(t *testing.T) {
+	var tests = []struct {
+		input    string
+		expected string
+	}{
+		{"agent.log", "agent-verbose.log"},
+		{"agent", "agent-verbose"},
+		{"/var/log/datadog/agent.log", "/var/log/datadog/agent-verbose.log"},
+		{"/opt/datadog-agent/logs/agent.log", "/opt/datadog-agent/logs/agent-verbose.log"},
+		{"c:\\programdata\\datadog\\logs\\agent.log", "c:\\programdata\\datadog\\logs\\agent-verbose.log"},
+	}
+	// verboseFile := getVerboseLogFile("agent.log")
+	// assert.Equal(t, verboseFile, "agent-verbose.log")
+	for _, e := range tests {
+		assert.Equal(t, e.expected, getVerboseLogFile(e.input))
+	}
+}
+
 func benchmarkLogFormat(logFormat string, b *testing.B) {
 	var buff bytes.Buffer
 	w := bufio.NewWriter(&buff)

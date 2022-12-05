@@ -276,7 +276,7 @@ func TestSendMetric(t *testing.T) {
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "debug", nil)
 
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}
@@ -337,7 +337,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "debug", nil)
 
 			mockSender := mocksender.NewMockSender("foo")
 			mockSender.SetupAcceptAll()
@@ -420,7 +420,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "debug", nil)
 
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}

@@ -766,7 +766,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	require.NoError(t, err)
-	log.SetupLogger(l, "debug")
+	log.SetupLogger(l, "debug", nil)
 
 	sess := session.CreateMockSession()
 

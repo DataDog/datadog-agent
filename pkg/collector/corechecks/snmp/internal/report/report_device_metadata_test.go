@@ -30,7 +30,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	log.SetupLogger(l, "debug", nil)
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ScalarValues: valuestore.ScalarResultValuesType{

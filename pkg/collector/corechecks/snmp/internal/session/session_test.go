@@ -238,7 +238,7 @@ func Test_snmpSession_traceLog_disabled(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "info")
+	log.SetupLogger(l, "info", nil)
 
 	s, err := NewGosnmpSession(&config)
 	gosnmpSess := s.(*GosnmpSession)
@@ -255,7 +255,7 @@ func Test_snmpSession_traceLog_enabled(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "trace")
+	log.SetupLogger(l, "trace", nil)
 
 	s, err := NewGosnmpSession(&config)
 	gosnmpSess := s.(*GosnmpSession)

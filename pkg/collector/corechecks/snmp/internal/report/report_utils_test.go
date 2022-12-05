@@ -670,7 +670,7 @@ metric_tags:
 
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "debug", nil)
 
 			m := checkconfig.MetricsConfig{}
 			yaml.Unmarshal(tt.rawMetricConfig, &m)

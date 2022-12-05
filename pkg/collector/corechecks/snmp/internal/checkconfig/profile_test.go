@@ -302,7 +302,7 @@ func Test_loadProfiles(t *testing.T) {
 			w := bufio.NewWriter(&b)
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			log.SetupLogger(l, "debug", nil)
 
 			config.Datadog.Set("confd_path", tt.confdPath)
 
@@ -440,7 +440,7 @@ func Test_loadDefaultProfiles_invalidExtendProfile(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	log.SetupLogger(l, "debug", nil)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
@@ -462,7 +462,7 @@ func Test_loadDefaultProfiles_validAndInvalidProfiles(t *testing.T) {
 	w := bufio.NewWriter(&b)
 	l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "debug")
+	log.SetupLogger(l, "debug", nil)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "valid_invalid.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)

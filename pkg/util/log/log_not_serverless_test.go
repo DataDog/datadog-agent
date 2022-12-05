@@ -24,7 +24,7 @@ func TestServerlessLoggingNotInServerlessContext(t *testing.T) {
 	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
 	assert.Nil(t, err)
 
-	SetupLogger(l, "debug")
+	SetupLogger(l, "debug", nil)
 	assert.NotNil(t, Logger)
 
 	DebugfServerless("%s %d", "foo", 10)
