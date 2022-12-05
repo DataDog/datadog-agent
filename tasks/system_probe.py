@@ -1150,6 +1150,7 @@ def tempdir():
 
 
 def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
+    sudo = "sudo" if not is_root() else ""
     btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
 
     if arch == "x64":
@@ -1167,15 +1168,15 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         )
 
         ctx.run(f"cd {btf_dir}/minimized-btfs && " +
-                "tar -cJf minimized-btfs.tar.xz * && " +
-                f"mv minimized-btfs.tar.xz {files_dir}")
+                f"{sudo} tar -cJf minimized-btfs.tar.xz * && " +
+                f"{sudo} mv minimized-btfs.tar.xz {files_dir}")
     except:
         print("cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead. " +
               "In order to minimize BTFs, you will need to have bpftool version 6 or higher.")
 
         ctx.run(f"cd {btf_dir}/btfs-{arch} && " +
-                "tar -cJf minimized-btfs.tar.xz * && " +
-                f"mv minimized-btfs.tar.xz {files_dir}")
+                f"{sudo} tar -cJf minimized-btfs.tar.xz * && " +
+                f"{sudo} mv minimized-btfs.tar.xz {files_dir}")
 
 
 def download_btfs(ctx, btf_dir, arch):
@@ -1190,7 +1191,8 @@ def download_btfs(ctx, btf_dir, arch):
 
     if not os.path.exists(f"{btf_dir}/btfs-{arch}"):
         ctx.run(f"{sudo} tar xf {btf_dir}/btfs-{arch}.tar.gz -C {btf_dir}")
-        ctx.run(f"{sudo} chmod 777 -R {btf_dir}/btfs-{arch}")
+
+    ctx.run(f"{sudo} chmod 0755 {btf_dir}")
 
 
 @task
