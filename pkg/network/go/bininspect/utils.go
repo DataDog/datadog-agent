@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
@@ -48,36 +47,6 @@ func HasDwarfInfo(elfFile *elf.File) (*dwarf.Data, bool) {
 	}
 
 	return nil, false
-}
-
-// GetAllSymbolsByName returns all the elf file's symbols mapped by their name.
-func GetAllSymbolsByName(elfFile *elf.File) (map[string]elf.Symbol, error) {
-	regularSymbols, regularSymbolsErr := elfFile.Symbols()
-	if regularSymbolsErr != nil {
-		log.Debugf("Failed getting regular symbols of elf file: %s", regularSymbolsErr)
-	}
-
-	dynamicSymbols, dynamicSymbolsErr := elfFile.DynamicSymbols()
-	if dynamicSymbolsErr != nil {
-		log.Debugf("Failed getting dynamic symbols of elf file: %s", dynamicSymbolsErr)
-	}
-
-	// Only if we failed getting both regular and dynamic symbols - then we abort.
-	if regularSymbolsErr != nil && dynamicSymbolsErr != nil {
-		return nil, fmt.Errorf("could not open symbol sections to resolve symbol offset: %v, %v", regularSymbolsErr, dynamicSymbolsErr)
-	}
-
-	symbolByName := make(map[string]elf.Symbol, len(regularSymbols)+len(dynamicSymbols))
-
-	for _, regularSymbol := range regularSymbols {
-		symbolByName[regularSymbol.Name] = regularSymbol
-	}
-
-	for _, dynamicSymbol := range dynamicSymbols {
-		symbolByName[dynamicSymbol.Name] = dynamicSymbol
-	}
-
-	return symbolByName, nil
 }
 
 // FindGoVersion attempts to determine the Go version
@@ -146,14 +115,9 @@ func FindReturnLocations(elfFile *elf.File, sym elf.Symbol, functionOffset uint6
 }
 
 // SymbolToOffset returns the offset of the given symbol name in the given elf file.
-func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
+func SymbolToOffset(f *elf.File, symbol elf.Symbol) (uint32, error) {
 	if f == nil {
 		return 0, errors.New("got nil elf file")
-	}
-
-	syms, err := GetAllSymbolsByName(f)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get all symbols from file: %w", err)
 	}
 
 	var sectionsToSearchForSymbol []*elf.Section
@@ -170,25 +134,21 @@ func SymbolToOffset(f *elf.File, symbol string) (uint32, error) {
 
 	var executableSection *elf.Section
 
-	for symbolName, symbolData := range syms {
-		if symbolName == symbol {
-			// Find what section the symbol is in by checking the executable section's
-			// addr space.
-			for m := range sectionsToSearchForSymbol {
-				if symbolData.Value > sectionsToSearchForSymbol[m].Addr &&
-					symbolData.Value < sectionsToSearchForSymbol[m].Addr+sectionsToSearchForSymbol[m].Size {
-					executableSection = sectionsToSearchForSymbol[m]
-					break
-				}
-			}
-
-			if executableSection == nil {
-				return 0, errors.New("could not find symbol in executable sections of binary")
-			}
-
-			return uint32(symbolData.Value - executableSection.Addr + executableSection.Offset), nil
+	// Find what section the symbol is in by checking the executable section's
+	// addr space.
+	for m := range sectionsToSearchForSymbol {
+		sectionStart := sectionsToSearchForSymbol[m].Addr
+		sectionEnd := sectionStart + sectionsToSearchForSymbol[m].Size
+		if symbol.Value >= sectionStart && symbol.Value < sectionEnd {
+			executableSection = sectionsToSearchForSymbol[m]
+			break
 		}
 	}
 
-	return 0, fmt.Errorf("symbol %s not found in file", symbol)
+	if executableSection == nil {
+		return 0, errors.New("could not find symbol in executable sections of binary")
+	}
+
+	return uint32(symbol.Value - executableSection.Addr + executableSection.Offset), nil
+
 }
