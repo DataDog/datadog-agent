@@ -918,41 +918,6 @@ def get_sddl_for_object(name)
   sddl
 end
 
-RSpec::Matchers.define :have_sddl_equal_to do |expected|
-  match do |actual|
-    # First, split the sddl into the ownership (user and group), and the dacl
-    left_array = actual.split('D:')
-    right_array = expected.split('D:')
-
-    # compare the ownership & group.  Must be the same
-    return false if left_array[0] != right_array[0]
-
-    left_dacl = left_array[1].scan(/(\([^)]*\))/)
-    right_dacl = right_array[1].scan(/(\([^)]*\))/)
-
-    # if they're different lengths, they're different
-    return false if left_dacl.length != right_dacl.length
-
-    ## now need to break up the DACL list, because they may be listed in different
-    ## orders... the order doesn't matter but the components should be the same.  So..
-
-    left_dacl.each do |left_entry|
-      found = false
-      right_dacl.each do |right_entry|
-        next unless left_entry == right_entry
-
-        found = true
-        right_dacl.delete(right_entry)
-        break
-      end
-      return false unless found
-    end
-    return false unless right_dacl.empty?
-
-    return true
-  end
-end
-
 def get_security_settings
   fname = "secout.txt"
   system "secedit /export /cfg  #{fname} /areas USER_RIGHTS"
@@ -1000,4 +965,49 @@ def get_username_from_tasklist(exename)
   #username is fully qualified <domain>\username
   uname = output.split(' ')[7].partition('\\').last
   uname
+end
+
+if os == :windows
+  require 'sddl_parser'
+  RSpec::Matchers.define :have_sddl_equal_to do |expected|
+    def get_difference(actual, expected)
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+
+      difference = ''
+      if expected_sddl.owner != actual_sddl.owner
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+      if expected_sddl.group != actual_sddl.group
+        difference += " => expected owner to be \"#{SDDLHelper.lookup_trustee(expected_sddl.owner)}\" but was \"#{SDDLHelper.lookup_trustee(actual_sddl.owner)}\"\n"
+      end
+
+      expected_sddl.dacls.each do |expected_dacl|
+        actual_dacl = actual_sddl.dacls.find { |d| expected_dacl == d }
+        if actual_dacl.eql? nil
+          difference += " => expected missing DACL\n#{expected_dacl}\n"
+        end
+      end
+
+      actual_sddl.dacls.each do |actual_dacl|
+        expected_dacl = expected_sddl.dacls.find { |d| actual_dacl == d }
+        if expected_dacl.eql? nil
+          difference += " => found unexpected DACL\n#{actual_dacl}\n"
+        end
+      end
+
+      difference
+    end
+
+    match do |actual|
+      actual_sddl = SDDL.new(actual)
+      expected_sddl = SDDL.new(expected)
+      return actual_sddl == expected_sddl
+    end
+
+    failure_message do |actual|
+      get_difference(actual, expected)
+    end
+  end
+
 end
