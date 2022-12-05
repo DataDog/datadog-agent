@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package compliance
 
 import (
 	"fmt"
 	"os"
-	"strings"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -21,39 +21,10 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func eventRun(eventArgs *eventCliParams) error {
-	stopper := startstop.NewSerialStopper()
-	defer stopper.Stop()
-
-	endpoints, dstContext, err := common.NewLogContextCompliance()
-	if err != nil {
-		return err
-	}
-
-	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
-	reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
-	if err != nil {
-		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
-	}
-
-	eventData := event.Data{}
-	for _, d := range eventArgs.data {
-		kv := strings.SplitN(d, ":", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		eventData[kv[0]] = kv[1]
-	}
-	eventArgs.event.Data = eventData
-
-	reporter.Report(&eventArgs.event)
-
-	return nil
-}
-
-func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
+func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
 	enabled := coreconfig.Datadog.GetBool("compliance_config.enabled")
 	if !enabled {
 		return nil, nil
@@ -125,4 +96,20 @@ func startCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 	stopper.Add(ticker)
 
 	return agent, nil
+}
+
+// sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
+func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *time.Ticker {
+	// Retrieve the agent version using a dedicated package
+	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
+
+	// Send the metric regularly
+	heartbeat := time.NewTicker(15 * time.Second)
+	go func() {
+		for range heartbeat.C {
+			statsdClient.Gauge(fmt.Sprintf("datadog.security_agent.%s.running", moduleName), 1, tags, 1) //nolint:errcheck
+		}
+	}()
+
+	return heartbeat
 }

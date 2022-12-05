@@ -6,7 +6,7 @@
 //go:build !kubeapiserver
 // +build !kubeapiserver
 
-package app
+package config
 
 import (
 	"github.com/spf13/cobra"
@@ -14,6 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 )
 
-func ConfigCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	return nil
 }
