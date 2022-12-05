@@ -162,9 +162,12 @@ func (m *Monitor) ProcessEvent(event *Event) {
 
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {
-		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, err),
-		)
+		var notCriticalErr *ErrResolutionNotCritical
+		if !errors.As(err, &notCriticalErr) {
+			m.probe.DispatchCustomEvent(
+				NewAbnormalPathEvent(event, err),
+			)
+		}
 	} else {
 		if m.activityDumpManager != nil {
 			m.activityDumpManager.ProcessEvent(event)

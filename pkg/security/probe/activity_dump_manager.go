@@ -425,14 +425,8 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
-
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
-		return
-	}
-
-	// reject event with abnormal path
-	if event.GetPathResolutionError() != nil {
 		return
 	}
 

@@ -38,6 +38,8 @@ var (
 	ErrMountLoop = errors.New("mount resolution loop")
 	// ErrMountPathEmpty is returned when the resolved mount path is empty
 	ErrMountPathEmpty = errors.New("mount resolution return empty path")
+	// ErrMountNotFatal
+	ErrMountNotFatal = errors.New("not a fatal error")
 )
 
 const (
@@ -98,6 +100,7 @@ type MountResolver struct {
 	mounts          map[uint32]*model.MountEvent
 	devices         map[uint32]map[uint32]*model.MountEvent
 	deleteQueue     []deleteRequest
+	minMountID      uint32
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -106,12 +109,38 @@ type MountResolver struct {
 	procMissStats  *atomic.Int64
 }
 
+// IsMountIDValid returns whether the mountID is valid
+func (mr *MountResolver) IsMountIDValid(mountID uint32) (bool, error) {
+	if mountID == 0 {
+		return false, ErrMountUndefined
+	}
+
+	if mountID < mr.minMountID {
+		return false, ErrMountNotFatal
+	}
+
+	return true, nil
+}
+
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
 func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.syncCache(pid, "")
+	if err := mr.syncCache(pid, ""); err != nil {
+		return err
+	}
+
+	// store the minimal mount ID found to use it a reference
+	if pid == 1 {
+		for mountID := range mr.mounts {
+			if mr.minMountID == 0 || mr.minMountID > mountID {
+				mr.minMountID = mountID
+			}
+		}
+	}
+
+	return nil
 }
 
 func (mr *MountResolver) syncCache(pid uint32, containerID string) error {
@@ -202,6 +231,10 @@ func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32, containerID stri
 
 // Insert a new mount point in the cache
 func (mr *MountResolver) Insert(e *model.MountEvent, pid uint32, containerID string) error {
+	if e.MountID == 0 {
+		return ErrMountUndefined
+	}
+
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -229,9 +262,17 @@ func (mr *MountResolver) insert(e *model.MountEvent, pid uint32, containerID str
 	}
 	deviceMounts[e.MountID] = e
 	mr.mounts[e.MountID] = e
+
+	if mr.minMountID > e.MountID {
+		mr.minMountID = e.MountID
+	}
 }
 
 func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
+	if mountID < mr.minMountID {
+		return "", ErrMountNotFatal
+	}
+
 	mount, exists := mr.mounts[mountID]
 	if !exists {
 		return "", ErrMountNotFound
@@ -350,6 +391,10 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 		return "", ErrMountUndefined
 	}
 
+	if mountID < mr.minMountID {
+		return "", ErrMountNotFatal
+	}
+
 	path, err := mr.getMountPath(mountID)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
@@ -378,7 +423,7 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 
 	mr.procMissStats.Inc()
 
-	return "", ErrMountNotFound
+	return "", err
 }
 
 // ResolveMount returns the mount
@@ -392,6 +437,10 @@ func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (
 func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.MountEvent, error) {
 	if mountID == 0 {
 		return nil, ErrMountUndefined
+	}
+
+	if mountID < mr.minMountID {
+		return nil, ErrMountNotFatal
 	}
 
 	mount, exists := mr.mounts[mountID]

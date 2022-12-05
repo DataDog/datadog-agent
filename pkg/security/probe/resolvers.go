@@ -24,6 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// ErrResolutionNotCritical defines a non critical error
+type ErrResolutionNotCritical struct {
+	Err error
+}
+
+// Error implements the error interface
+func (e *ErrResolutionNotCritical) Error() string {
+	return fmt.Errorf("non critical resolution error: %w", e.Err).Error()
+}
+
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	probe             *Probe
@@ -99,16 +109,25 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
+		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
+			return pathStr, &ErrResolutionNotCritical{Err: err}
+		}
 		return pathStr, err
 	}
 
 	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
+		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
+			return pathStr, &ErrResolutionNotCritical{Err: err}
+		}
 		return pathStr, err
 	}
 
 	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
+		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
+			return pathStr, &ErrResolutionNotCritical{Err: err}
+		}
 		return pathStr, err
 	}
 
