@@ -40,8 +40,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 			},
 		},
 		containerProvider: mockContainerProvider(t),
-		nextGroupTime:     time.Now().Unix(),
-		secsBetweenHints:  1,
+		checkCount:        0,
+		skipAmount:        2,
 	}, probe
 }
 
@@ -206,6 +206,22 @@ func TestProcessCheckHints(t *testing.T) {
 	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expectedUnspecified, actual.Standard) // ordering is not guaranteed
+
+	expectedDiscovery := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintUnspecified,
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
+		},
+	}
+
+	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedDiscovery, actual.Standard) // ordering is not guaranteed
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

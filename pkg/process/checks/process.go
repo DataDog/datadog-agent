@@ -62,8 +62,8 @@ type ProcessCheck struct {
 	maxBatchSize  int
 	maxBatchBytes int
 
-	nextGroupTime    int64
-	secsBetweenHints int64
+	checkCount int64
+	skipAmount int64
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -82,8 +82,8 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
 
-	p.nextGroupTime = time.Now().Unix()
-	p.secsBetweenHints = 600
+	p.checkCount = 0
+	p.skipAmount = 10
 
 }
 
@@ -252,12 +252,10 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 }
 
 func (p *ProcessCheck) processDiscoveryHintCheck(hints *[]model.CollectorProcHint) {
-	log.Warn("hi")
-	currentTime := time.Now().Unix()
-	if currentTime >= p.nextGroupTime {
+	if p.checkCount%p.skipAmount == 0 {
 		*hints = append(*hints, model.CollectorProcHint_hintProcessDiscovery)
-		p.nextGroupTime = currentTime + p.secsBetweenHints
 	}
+	p.checkCount++
 }
 
 func createProcCtrMessages(
