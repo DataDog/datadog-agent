@@ -1175,20 +1175,11 @@ def generate_minimized_btfs(
     with open(ninja_file_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=180)
 
-        nw.rule(
-            name="decompress_btf",
-            command="tar -xf $in -C $target_directory"
-        )
+        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
 
-        nw.rule(
-            name="minimize_btf",
-            command="bpftool gen min_core_btf $in $out $input_bpf_programs"
-        )
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
 
-        nw.rule(
-            name="compress_minimized_btf",
-            command="tar -C $tar_working_directory -cJf $out $in && rm $in"
-        )
+        nw.rule(name="compress_minimized_btf", command="tar -C $tar_working_directory -cJf $out $in && rm $in")
 
         for root, dirs, files in os.walk(source_dir):
             path_from_root = os.path.relpath(root, source_dir)
@@ -1210,7 +1201,7 @@ def generate_minimized_btfs(
                     outputs=[os.path.join(root, btf_filename)],
                     variables={
                         "target_directory": root,
-                    }
+                    },
                 )
 
                 nw.build(
@@ -1219,16 +1210,14 @@ def generate_minimized_btfs(
                     outputs=[minimized_btf_path],
                     variables={
                         "input_bpf_programs": input_bpf_programs,
-                    }
+                    },
                 )
 
                 nw.build(
                     rule="compress_minimized_btf",
                     inputs=[minimized_btf_path],
                     outputs=[f"{minimized_btf_path}.tar.xz"],
-                    variables={
-                        "tar_working_directory": os.path.join(output_dir, path_from_root)
-                    }
+                    variables={"tar_working_directory": os.path.join(output_dir, path_from_root)},
                 )
 
     ctx.run(f"ninja -f {ninja_file_path}")
