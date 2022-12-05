@@ -14,10 +14,11 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -27,41 +28,50 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-var (
-	waitInterval time.Duration
-)
+const defaultWaitInterval = time.Second
 
-const (
-	defaultWaitInterval = time.Second
-)
-
-func init() {
-	CheckCmd.Flags().BoolVar(&checkOutputJSON, "json", false, "Output check results in JSON")
-	CheckCmd.Flags().DurationVarP(&waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
+type cliParams struct {
+	*command.GlobalParams
+	checkName       string
+	checkOutputJSON bool
+	waitInterval    time.Duration
 }
 
-// CheckCmd is a command that runs the process-agent version data
-var CheckCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+// Commands returns a slice of subcommands for the 'process-agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
 
-	Args:         cobra.ExactArgs(1),
-	RunE:         runCheckCmd,
-	SilenceUsage: true,
+	checkCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery, process_events",
+
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.checkName = args[0]
+			return fxutil.OneShot(runCheckCmd,
+				fx.Supply(cliParams),
+			)
+		},
+		SilenceUsage: true,
+	}
+
+	checkCmd.Flags().BoolVar(&cliParams.checkOutputJSON, "json", false, "Output check results in JSON")
+	checkCmd.Flags().DurationVarP(&cliParams.waitInterval, "wait", "w", defaultWaitInterval, "How long to wait before running the check")
+
+	return []*cobra.Command{checkCmd}
 }
 
-const loggerName ddconfig.LoggerName = "PROCESS"
-
-var checkOutputJSON = false
-
-func runCheckCmd(cmd *cobra.Command, args []string) error {
+func runCheckCmd(cliParams *cliParams) error {
 	// Override the log_to_console setting if `--json` is specified. This way the check command will output proper json.
-	if checkOutputJSON {
+	if cliParams.checkOutputJSON {
 		ddconfig.Datadog.Set("log_to_console", false)
 	}
 
@@ -72,23 +82,17 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	configPath := cmd.Flag(flags.CfgPath).Value.String()
-	var sysprobePath string
-	if cmd.Flag(flags.SysProbeConfig) != nil {
-		sysprobePath = cmd.Flag(flags.SysProbeConfig).Value.String()
-	}
-
-	if err := config.LoadConfigIfExists(configPath); err != nil {
+	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	// For system probe, there is an additional config file that is shared with the system-probe
-	syscfg, err := sysconfig.Merge(sysprobePath)
+	syscfg, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
 	}
 
-	cfg, err := config.NewAgentConfig(loggerName, configPath, syscfg)
+	cfg, err := config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, syscfg)
 	if err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
@@ -137,8 +141,6 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		log.Errorf("failed to collect system info: %s", err)
 	}
 
-	check := args[0]
-
 	cleanups := make([]func(), 0)
 	defer func() {
 		for _, c := range cleanups {
@@ -154,7 +156,7 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	// Connections check requires process-check to have occurred first (for process creation ts),
-	if check == checks.Connections.Name() {
+	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
 		checks.Process.Init(cfg, sysInfo)
@@ -167,32 +169,32 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
 
-		if ch.Name() == check {
+		if ch.Name() == cliParams.checkName {
 			ch.Init(cfg, sysInfo)
 			cleanups = append(cleanups, ch.Cleanup)
-			return runCheck(cfg, ch)
+			return runCheck(cliParams, cfg, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
-		if ok && withRealTime.RealTimeName() == check {
+		if ok && withRealTime.RealTimeName() == cliParams.checkName {
 			withRealTime.Init(cfg, sysInfo)
 			cleanups = append(cleanups, withRealTime.Cleanup)
-			return runCheckAsRealTime(cfg, withRealTime)
+			return runCheckAsRealTime(cliParams, cfg, withRealTime)
 		}
 	}
-	return log.Errorf("invalid check '%s', choose from: %v", check, names)
+	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
+func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) error {
 	// Run the check once to prime the cache.
 	if _, err := ch.Run(cfg, 0); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	log.Infof("Waiting %s before running the check", waitInterval.String())
-	time.Sleep(waitInterval)
+	log.Infof("Waiting %s before running the check", cliParams.waitInterval.String())
+	time.Sleep(cliParams.waitInterval)
 
-	if !checkOutputJSON {
+	if !cliParams.checkOutputJSON {
 		printResultsBanner(ch.Name())
 	}
 
@@ -200,10 +202,10 @@ func runCheck(cfg *config.AgentConfig, ch checks.Check) error {
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
-	return printResults(ch.Name(), msgs)
+	return printResults(ch.Name(), msgs, cliParams.checkOutputJSON)
 }
 
-func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
+func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
 	options := checks.RunOptions{
 		RunStandard: true,
 		RunRealTime: true,
@@ -222,10 +224,10 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	log.Infof("Waiting %s before running the check", waitInterval.String())
-	time.Sleep(waitInterval)
+	log.Infof("Waiting %s before running the check", cliParams.waitInterval.String())
+	time.Sleep(cliParams.waitInterval)
 
-	if !checkOutputJSON {
+	if !cliParams.checkOutputJSON {
 		printResultsBanner(ch.RealTimeName())
 	}
 
@@ -234,7 +236,7 @@ func runCheckAsRealTime(cfg *config.AgentConfig, ch checks.CheckWithRealTime) er
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	return printResults(ch.RealTimeName(), run.RealTime)
+	return printResults(ch.RealTimeName(), run.RealTime, cliParams.checkOutputJSON)
 }
 
 func printResultsBanner(name string) {
@@ -243,7 +245,7 @@ func printResultsBanner(name string) {
 	fmt.Printf("-----------------------------\n\n")
 }
 
-func printResults(check string, msgs []process.MessageBody) error {
+func printResults(check string, msgs []process.MessageBody, checkOutputJSON bool) error {
 	if checkOutputJSON {
 		return printResultsJSON(msgs)
 	}

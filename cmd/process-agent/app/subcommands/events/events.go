@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package events
 
 import (
 	"context"
@@ -12,11 +12,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	payload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -24,12 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-var (
-	pullInterval     time.Duration
-	eventsOutputJSON bool
 )
 
 const (
@@ -37,57 +35,73 @@ const (
 	defaultEventsOutputJSON = false
 )
 
-// EventsCmd is a command to interact with process lifecycle events
-var EventsCmd = &cobra.Command{
-	Use:          "events",
-	Short:        "Interact with process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
-	SilenceUsage: true,
+type cliParams struct {
+	*command.GlobalParams
+
+	pullInterval     time.Duration
+	eventsOutputJSON bool
 }
 
-// EventsListenCmd is a command to listen for process lifecycle events
-var EventsListenCmd = &cobra.Command{
-	Use:          "listen",
-	Short:        "Open a session to listen for process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
-	RunE:         runEventListener,
-	SilenceUsage: true,
-}
-
-// EventsPullCmd is a command to pull process lifecycle events
-var EventsPullCmd = &cobra.Command{
-	Use:          "pull",
-	Short:        "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
-	RunE:         runEventStore,
-	SilenceUsage: true,
-}
-
-func init() {
-	EventsCmd.AddCommand(EventsListenCmd, EventsPullCmd)
-	EventsListenCmd.Flags().BoolVar(&eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
-	EventsPullCmd.Flags().BoolVar(&eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
-	EventsPullCmd.Flags().DurationVarP(&pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
-}
-
-func bootstrapEventsCmd(cmd *cobra.Command) error {
-	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
-
-	configPath := cmd.Flag(flags.CfgPath).Value.String()
-	var sysprobePath string
-	if cmd.Flag(flags.SysProbeConfig) != nil {
-		sysprobePath = cmd.Flag(flags.SysProbeConfig).Value.String()
+// Commands returns a slice of subcommands for the 'process-agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
 	}
 
-	if err := config.LoadConfigIfExists(configPath); err != nil {
+	// eventsCmd is a command to interact with process lifecycle events
+	eventsCmd := &cobra.Command{
+		Use:          "events",
+		Short:        "Interact with process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
+		SilenceUsage: true,
+	}
+
+	// eventsListenCmd is a command to listen for process lifecycle events
+	eventsListenCmd := &cobra.Command{
+		Use:   "listen",
+		Short: "Open a session to listen for process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(runEventListener,
+				fx.Supply(cliParams),
+			)
+		},
+		SilenceUsage: true,
+	}
+
+	// eventsPullCmd is a command to pull process lifecycle events
+	eventsPullCmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Periodically pull process lifecycle events. This feature is currently in alpha version and needs root privilege to run.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(runEventStore,
+				fx.Supply(cliParams),
+			)
+		},
+		SilenceUsage: true,
+	}
+
+	eventsCmd.AddCommand(eventsListenCmd, eventsPullCmd)
+	eventsListenCmd.Flags().BoolVar(&cliParams.eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
+	eventsPullCmd.Flags().BoolVar(&cliParams.eventsOutputJSON, "json", defaultEventsOutputJSON, "Output events as JSON")
+	eventsPullCmd.Flags().DurationVarP(&cliParams.pullInterval, "tick", "t", defaultPullInterval, "The period between 2 consecutive pulls to fetch process events")
+
+	return []*cobra.Command{eventsCmd}
+}
+
+func bootstrapEventsCmd(cliParams *cliParams) error {
+	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
+
+	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	// Load system-probe.yaml file and merge it to the global Datadog config
-	sysCfg, err := sysconfig.Merge(sysprobePath)
+	sysCfg, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
 	}
 
 	// Set up logger
-	_, err = config.NewAgentConfig(loggerName, configPath, sysCfg)
+	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, sysCfg)
 	if err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
@@ -95,13 +109,13 @@ func bootstrapEventsCmd(cmd *cobra.Command) error {
 	return nil
 }
 
-func printEvents(events ...*model.ProcessEvent) error {
+func printEvents(cliParams *cliParams, events ...*model.ProcessEvent) error {
 	// Return early to avoid printing new lines without any event
 	if len(events) == 0 {
 		return nil
 	}
 
-	if eventsOutputJSON {
+	if cliParams.eventsOutputJSON {
 		return printEventsJSON(events)
 	}
 
@@ -123,15 +137,15 @@ func printEventsJSON(events []*model.ProcessEvent) error {
 	return nil
 }
 
-func runEventListener(cmd *cobra.Command, args []string) error {
-	err := bootstrapEventsCmd(cmd)
+func runEventListener(cliParams *cliParams) error {
+	err := bootstrapEventsCmd(cliParams)
 	if err != nil {
 		return err
 	}
 
 	// Create a handler to print the collected event to stdout
 	handler := func(e *model.ProcessEvent) {
-		err = printEvents(e)
+		err = printEvents(cliParams, e)
 		if err != nil {
 			log.Error(err)
 		}
@@ -153,8 +167,8 @@ func runEventListener(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runEventStore(cmd *cobra.Command, args []string) error {
-	err := bootstrapEventsCmd(cmd)
+func runEventStore(cliParams *cliParams) error {
+	err := bootstrapEventsCmd(cliParams)
 	if err != nil {
 		return err
 	}
@@ -178,7 +192,7 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 	exit := make(chan struct{})
 	go util.HandleSignals(exit)
 
-	ticker := time.NewTicker(pullInterval)
+	ticker := time.NewTicker(cliParams.pullInterval)
 	defer ticker.Stop()
 	go func() {
 		for {
@@ -190,7 +204,7 @@ func runEventStore(cmd *cobra.Command, args []string) error {
 					continue
 				}
 
-				err = printEvents(events...)
+				err = printEvents(cliParams, events...)
 				if err != nil {
 					log.Error(err)
 				}

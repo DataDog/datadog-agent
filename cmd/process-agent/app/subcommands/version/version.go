@@ -6,7 +6,7 @@
 package version
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 
 	"github.com/spf13/cobra"

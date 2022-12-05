@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package status
 
 import (
 	"encoding/json"
@@ -13,11 +13,14 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,6 +45,31 @@ Error
 
 `
 )
+
+type cliParams struct {
+	*command.GlobalParams
+}
+
+// Commands returns a slice of subcommands for the 'process-agent' command.
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
+	// statusCmd is a cobra command that prints the current status
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Print the current status",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(runStatus,
+				fx.Supply(cliParams),
+			)
+		},
+	}
+
+	return []*cobra.Command{statusCmd}
+}
 
 func writeNotRunning(w io.Writer) {
 	_, err := fmt.Fprint(w, notRunning)
@@ -124,16 +152,8 @@ func getStatusURL() (string, error) {
 	return fmt.Sprintf("http://%s/agent/status", addressPort), nil
 }
 
-// StatusCmd is a cobra command that prints the current status
-var StatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Print the current status",
-	Long:  ``,
-	RunE:  runStatus,
-}
-
-func runStatus(cmd *cobra.Command, _ []string) error {
-	if err := initConfig(os.Stdout, cmd); err != nil {
+func runStatus(cliParams *cliParams) error {
+	if err := command.BootstrapConfig(cliParams.GlobalParams); err != nil {
 		return err
 	}
 
