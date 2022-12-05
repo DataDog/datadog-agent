@@ -78,7 +78,7 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
 	return &Translator{
 		prevPts: cache,
-		logger:  logger,
+		logger:  logger.With(zap.String("component", "metrics translator")),
 		cfg:     cfg,
 	}, nil
 }

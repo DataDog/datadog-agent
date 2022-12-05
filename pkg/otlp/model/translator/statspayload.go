@@ -88,18 +88,18 @@ func (t *Translator) StatsPayloadToMetrics(sp pb.StatsPayload) pmetric.Metrics {
 				ngroups++
 				mxs := smx.Metrics()
 				for name, val := range map[string]uint64{
-					"hits":           cgs.Hits,
-					"errors":         cgs.Errors,
-					"duration":       cgs.Duration,
-					"top_level_hits": cgs.TopLevelHits,
+					"dd.apm_stats.hits":           cgs.Hits,
+					"dd.apm_stats.errors":         cgs.Errors,
+					"dd.apm_stats.duration":       cgs.Duration,
+					"dd.apm_stats.top_level_hits": cgs.TopLevelHits,
 				} {
 					appendSum(mxs, name, int64(val), sb.Start, sb.Start+sb.Duration, &cgs)
 				}
-				if err := appendSketch(mxs, "ok_summary", cgs.OkSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
-					t.logger.Error("StatsPayload Translator: error exporting ok_summary", zap.Error(err))
+				if err := appendSketch(mxs, "dd.apm_stats.ok_summary", cgs.OkSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
+					t.logger.Error("Error exporting APM Stats ok_summary", zap.Error(err))
 				}
-				if err := appendSketch(mxs, "error_summary", cgs.ErrorSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
-					t.logger.Error("StatsPayload Translator: error exporting error_summary", zap.Error(err))
+				if err := appendSketch(mxs, "dd.apm_stats.error_summary", cgs.ErrorSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
+					t.logger.Error("Error exporting APM Stats error_summary", zap.Error(err))
 				}
 			}
 		}
@@ -316,7 +316,7 @@ func (t *Translator) StatsPayloadFromMetrics(mx pmetric.Metrics) (pb.StatsPayloa
 		rmx := rmxs.At(i)
 		attr := rmx.Resource().Attributes()
 		if v, ok := attr.Get(keyAPMStats); !ok || !v.Bool() {
-			t.logger.Debug(fmt.Sprintf("StatsPayload Translator: was asked to convert metrics to stats payload, but identifier key %q was not present. Skipping.", keyAPMStats))
+			t.logger.Debug(fmt.Sprintf("Was asked to convert metrics to stats payload, but identifier key %q was not present. Skipping.", keyAPMStats))
 			continue
 		}
 		hostname := getStr(attr, statsKeyHostname)
@@ -360,25 +360,25 @@ func (t *Translator) StatsPayloadFromMetrics(mx pmetric.Metrics) (pb.StatsPayloa
 				case pmetric.MetricTypeSum:
 					key, val := t.extractSum(m.Sum(), &buck)
 					switch m.Name() {
-					case "hits":
+					case "dd.apm_stats.hits":
 						agg.Value(key).Hits = val
-					case "errors":
+					case "dd.apm_stats.errors":
 						agg.Value(key).Errors = val
-					case "duration":
+					case "dd.apm_stats.duration":
 						agg.Value(key).Duration = val
-					case "top_level_hits":
+					case "dd.apm_stats.top_level_hits":
 						agg.Value(key).TopLevelHits = val
 					}
 				case pmetric.MetricTypeExponentialHistogram:
 					key, val := t.extractSketch(m.ExponentialHistogram(), &buck)
 					switch m.Name() {
-					case "ok_summary":
+					case "dd.apm_stats.ok_summary":
 						agg.Value(key).OkSummary = val
-					case "error_summary":
+					case "dd.apm_stats.error_summary":
 						agg.Value(key).ErrorSummary = val
 					}
 				default:
-					t.logger.Debug(fmt.Sprintf(`StatsPayload Translator: metric named %q in Stats Payload should be of type "Sum" or "ExponentialHistogram" but is %q instead`, m.Name(), m.Type()))
+					return pb.StatsPayload{}, fmt.Errorf(`metric named %q in Stats Payload should be of type "Sum" or "ExponentialHistogram" but is %q instead`, m.Name(), m.Type())
 				}
 			}
 			buck.Stats = agg.Stats()
@@ -394,11 +394,11 @@ func (t *Translator) StatsPayloadFromMetrics(mx pmetric.Metrics) (pb.StatsPayloa
 func (t *Translator) extractSketch(eh pmetric.ExponentialHistogram, buck *pb.ClientStatsBucket) (pcommon.Map, []byte) {
 	dps := eh.DataPoints()
 	if dps.Len() == 0 {
-		t.logger.Debug("StatsPayload Translator: exponential histogram with no data points.")
+		t.logger.Debug("Stats payload exponential histogram with no data points.")
 		return pcommon.NewMap(), nil
 	}
 	if dps.Len() > 1 {
-		t.logger.Debug("StatsPayload Translator: metrics should not have more than one data point. This could be an error.")
+		t.logger.Debug("Stats payload metrics should not have more than one data point. This could be an error.")
 	}
 	dp := dps.At(0)
 	t.recordStatsBucketTimestamp(buck, dp.StartTimestamp(), dp.Timestamp())
@@ -407,18 +407,18 @@ func (t *Translator) extractSketch(eh pmetric.ExponentialHistogram, buck *pb.Cli
 	// use relative accuracy 0.01; same as pkg/trace/stats/statsraw.go
 	index, err := mapping.NewLogarithmicMapping(0.01)
 	if err != nil {
-		t.logger.Debug("StatsPayload Translator: error creating LogarithmicMapping.", zap.Error(err))
+		t.logger.Debug("Error creating LogarithmicMapping.", zap.Error(err))
 		return dp.Attributes(), nil
 	}
 	sketch := ddsketch.NewDDSketch(index, positive, negative)
 	if err := sketch.AddWithCount(0, float64(dp.ZeroCount())); err != nil {
-		t.logger.Debug("StatsPayload Translator: error adding zero counts.", zap.Error(err))
+		t.logger.Debug("Error adding zero counts.", zap.Error(err))
 		return dp.Attributes(), nil
 	}
 	pb := sketch.ToProto()
 	b, err := proto.Marshal(pb)
 	if err != nil {
-		t.logger.Debug("StatsPayload Translator: error marshalling sketch into proto.", zap.Error(err))
+		t.logger.Debug("Error marshalling stats payload sketch into proto.", zap.Error(err))
 		return dp.Attributes(), nil
 	}
 	return dp.Attributes(), b
@@ -429,11 +429,11 @@ func (t *Translator) extractSketch(eh pmetric.ExponentialHistogram, buck *pb.Cli
 func (t *Translator) extractSum(sum pmetric.Sum, buck *pb.ClientStatsBucket) (pcommon.Map, uint64) {
 	dps := sum.DataPoints()
 	if dps.Len() == 0 {
-		t.logger.Debug("StatsPayload Translator: sum with no data points.")
+		t.logger.Debug("APM stats payload sum with no data points.")
 		return pcommon.NewMap(), 0
 	}
 	if dps.Len() > 1 {
-		t.logger.Debug("StatsPayload Translator: metrics should not have more than one data point. This could be an error.")
+		t.logger.Debug("APM stats metrics should not have more than one data point. This could be an error.")
 	}
 	dp := dps.At(0)
 	t.recordStatsBucketTimestamp(buck, dp.StartTimestamp(), dp.Timestamp())
@@ -444,13 +444,13 @@ func (t *Translator) extractSum(sum pmetric.Sum, buck *pb.ClientStatsBucket) (pc
 func (t *Translator) recordStatsBucketTimestamp(buck *pb.ClientStatsBucket, startt, endt pcommon.Timestamp) {
 	start := uint64(startt)
 	if buck.Start != 0 && buck.Start != start {
-		t.logger.Debug("StatsPayload Translator: data point start timestamp did not match bucket. This could be an error.")
+		t.logger.Debug("APM stats data point start timestamp did not match bucket. This could be an error.")
 	}
 	buck.Start = start
 	duration := uint64(endt) - uint64(startt)
 	buck.Duration = duration
 	if buck.Duration != 0 && buck.Duration != duration {
-		t.logger.Debug("StatsPayload Translator: data point duration did not match bucket. This could be an error.")
+		t.logger.Debug("APM Stats data point duration did not match bucket. This could be an error.")
 	}
 }
 

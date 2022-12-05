@@ -140,27 +140,27 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 			serieErr = s.SendIterableSeries(serieSource)
 		}, func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
-		})
+		},
+	)
 
-	c.sendAPMStats()
-	return multierr.Append(serieErr, sketchesErr)
+	apmErr := c.sendAPMStats()
+	return multierr.Combine(serieErr, sketchesErr, apmErr)
 }
 
-func (c *serializerConsumer) sendAPMStats() {
+func (c *serializerConsumer) sendAPMStats() error {
 	addr := fmt.Sprintf("http://localhost:%s/v0.6/stats", config.Datadog.GetString("apm_config.receiver_port"))
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
 		resp, err := http.Post(addr, "application/msgpack", body)
 		if err != nil {
-			log.Errorf("Could not flush StatsPayload: %v", err)
-			return
+			return fmt.Errorf("could not flush StatsPayload: %v", err)
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			peek := make([]byte, 1024)
 			n, _ := resp.Body.Read(peek)
-			log.Errorf("Could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
-			return
+			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
 		}
 	}
+	return nil
 }
