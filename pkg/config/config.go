@@ -1085,6 +1085,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
+	// workloadmeta
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
+
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
