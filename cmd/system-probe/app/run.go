@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
@@ -126,6 +127,10 @@ func run(_ *cobra.Command, _ []string) error {
 	return err
 }
 
+func isValidPort(port int) bool {
+	return port > 0 && port < 65536
+}
+
 // StartSystemProbe Initializes the system-probe process
 func StartSystemProbe() error {
 	cfg, err := config.New(configPath)
@@ -194,7 +199,11 @@ func StartSystemProbe() error {
 	}
 
 	// if a debug port is specified, we expose the default handler to that port
-	if cfg.DebugPort > 0 {
+	if isValidPort(cfg.DebugPort) {
+		// Expose telemetry endpoint
+		if cfg.TelemetryEnabled {
+			http.Handle("/telemetry", telemetry.Handler())
+		}
 		go func() {
 			err := http.ListenAndServe(fmt.Sprintf("localhost:%d", cfg.DebugPort), http.DefaultServeMux)
 			if err != nil && err != http.ErrServerClosed {
