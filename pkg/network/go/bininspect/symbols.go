@@ -13,10 +13,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"io"
 	"math"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // getSymbolNameByEntry extracts from the string data section the string in the given position.
