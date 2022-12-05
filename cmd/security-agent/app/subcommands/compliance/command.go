@@ -45,7 +45,7 @@ type eventCliParams struct {
 }
 
 func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
-	eventArgs := eventCliParams{
+	eventArgs := &eventCliParams{
 		GlobalParams: globalParams,
 	}
 
