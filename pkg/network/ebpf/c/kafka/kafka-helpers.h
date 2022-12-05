@@ -24,7 +24,7 @@ static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_tran
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
-    *result = read_big_endian_int32(kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment);
+    *result = read_big_endian_int32(current_offset);
     kafka_transaction->current_offset_in_request_fragment += 4;
     return true;
 }
