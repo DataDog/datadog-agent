@@ -2069,6 +2069,16 @@ func TestProcessResolution(t *testing.T) {
 
 func TestProcessFilelessExecution(t *testing.T) {
 
+	filelessDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless",
+		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == ""`, model.FilelessExecutionFilenamePrefix),
+	}
+
+	filelessWithInterpreterDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless_with_interpreter",
+		Expression: fmt.Sprintf(`exec.file.name == "%sscript" && exec.file.path == "" && exec.interpreter.file.name == "bash"`, model.FilelessExecutionFilenamePrefix),
+	}
+
 	tests := []struct {
 		name                             string
 		rule                             *rules.RuleDefinition
@@ -2077,23 +2087,18 @@ func TestProcessFilelessExecution(t *testing.T) {
 		check                            func(event *sprobe.Event, rule *rules.Rule)
 	}{
 		{
-			name: "fileless",
-			rule: &rules.RuleDefinition{
-				ID:         "test_fileless",
-				Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == "" && process.ancestors.file.name == "syscall_tester"`, filelessExecutionPrefix),
-			},
+			name:                             "fileless",
+			rule:                             filelessDetectionRule,
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
 				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
 			},
 		},
-		/*{
-			name: "fileless with script name",
-			rule: &rules.RuleDefinition{
-				ID:         "test_fileless_with_interpreter",
-				Expression: `exec.file.name == "memfd:script" && exec.file.path == "" && exec.interpreter.file.name == "bash"`,
-			},
+		{
+			name:                             "fileless with script name",
+			rule:                             filelessWithInterpreterDetectionRule,
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "script",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
@@ -2101,20 +2106,19 @@ func TestProcessFilelessExecution(t *testing.T) {
 			},
 		},
 		{
-			name: "non-fileless with fileless prefix",
-			rule: &rules.RuleDefinition{
-				ID:         "test_non_fileless",
-				Expression: `exec.file.name =~ ~"memfd:*" && exec.file.path != "" && exec.interpreter.file.name == "bash"`,
-			},
-			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
-			},
-		},*/
+			name:               "real file with fileless prefix",
+			syscallTesterToRun: "none",
+			rule:               filelessDetectionRule,
+		},
 	}
 
 	var ruleList []*rules.RuleDefinition
+	alreadyAddedRules := make(map[string]bool)
 	for _, test := range tests {
-		ruleList = append(ruleList, test.rule)
+		if _, ok := alreadyAddedRules[test.rule.ID]; !ok {
+			alreadyAddedRules[test.rule.ID] = true
+			ruleList = append(ruleList, test.rule)
+		}
 	}
 
 	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
@@ -2130,10 +2134,10 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testModule.WaitSignal(t, func() error {
-				if strings.Contains(test.name, "non-fileless") {
-					fileMode := 0o477
-					testFile, _, err := testModule.CreateWithOptions("memfd:test", 98, 99, fileMode)
+			if test.syscallTesterToRun == "none" {
+				err = testModule.GetSignal(t, func() error {
+					fileMode := 0o444
+					testFile, _, err := testModule.CreateWithOptions(model.FilelessExecutionFilenamePrefix, 98, 99, fileMode)
 					if err != nil {
 						return err
 					}
@@ -2148,15 +2152,20 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 					cmd := exec.Command(testFile)
 					return cmd.Run()
-				} else {
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					t.Errorf("shouldn't get an event: got event: %s", event)
+				})
+				if err == nil {
+					t.Fatal("shouldn't get an event")
+				}
+			} else {
+				testModule.WaitSignal(t, func() error {
 					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
-				}
-			}, func(event *sprobe.Event, rule *rules.Rule) {
-				assertTriggeredRule(t, rule, test.rule.ID)
-				if test.check != nil {
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					assertTriggeredRule(t, rule, test.rule.ID)
 					test.check(event, rule)
-				}
-			})
+				})
+			}
 		})
 	}
 }
