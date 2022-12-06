@@ -148,7 +148,8 @@ func (pc *processCache) handleProcessEvent(entry *smodel.ProcessCacheEntry) {
 func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
 	var envs map[string]string
 	if entry.EnvsEntry != nil {
-		for _, v := range entry.EnvsEntry.Values {
+		values, _ := entry.EnvsEntry.ToArray()
+		for _, v := range values {
 			kv := strings.SplitN(v, "=", 2)
 			k := kv[0]
 

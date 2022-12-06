@@ -62,10 +62,12 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 				pc, err := newProcessCache(10, te.filter)
 				require.NoError(t, err)
 
-				entry.EnvsEntry.Values = nil
+				var values []string
 				for _, e := range te.envs {
-					entry.EnvsEntry.Values = append(entry.EnvsEntry.Values, e+"="+envs[e])
+					values = append(values, e+"="+envs[e])
 				}
+
+				entry.EnvsEntry.SetValues(values)
 
 				p := pc.processEvent(entry)
 				if entry.ContainerID == "" && len(te.filter) > 0 && len(te.filtered) == 0 {
