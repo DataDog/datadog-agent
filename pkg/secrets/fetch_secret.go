@@ -53,7 +53,11 @@ func execCommand(inputPayload string) ([]byte, error) {
 		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
 
 	if secretBackendCommandSHA256 != "" {
 		if !filepath.IsAbs(secretBackendCommand) {
@@ -113,7 +117,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	// datadog.yaml.
 	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 	elapsed := time.Since(start)
 	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 
