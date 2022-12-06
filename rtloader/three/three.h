@@ -13,11 +13,11 @@
 #    error "DATADOG_AGENT_TWO and DATADOG_AGENT_THREE are mutually exclusive - define only one of the two."
 #endif
 
+#include <atomic>
 #include <map>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <atomic>
 
 #include <Python.h>
 #include <rtloader.h>
@@ -192,8 +192,10 @@ private:
 
     //! pymallocAlloc member.
     /*!
-      \brief This member function calls _pymallocPrev.alloc and updates allocation statistics if the allocation was successful.
       \return Pointer value returned by _pymallocPrev.alloc.
+
+      This member function calls _pymallocPrev.alloc and updates allocation statistics if the
+      allocation was successful.
     */
     void *pymallocAlloc(size_t size);
 
@@ -218,7 +220,8 @@ private:
 
     PyObjectArenaAllocator _pymallocPrev; //!< Previous value of the global python arena allocator backend.
     std::atomic_size_t _pymallocInuse; //!< Number of bytes currently requested by pymalloc for small object storage.
-    std::atomic_size_t _pymallocAlloc; //!< Total number of bytes requested by pymalloc for small object storage since the start of the process.
+    std::atomic_size_t _pymallocAlloc; //!< Total number of bytes requested by pymalloc for small object storage since
+                                       //!< the start of the process.
 };
 
 #endif

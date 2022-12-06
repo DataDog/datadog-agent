@@ -454,7 +454,9 @@ public:
     /*!
       Install pymalloc tracking hooks, if available.
     */
-    virtual void initPymallocStats() {}
+    virtual void initPymallocStats()
+    {
+    }
 
     //! getPymallocStats member.
     /*!
@@ -462,7 +464,9 @@ public:
 
       Retrieve a snapshot of pymalloc allocator stats.
     */
-    virtual void getPymallocStats(pymalloc_stats_t &stats) {}
+    virtual void getPymallocStats(pymalloc_stats_t &stats)
+    {
+    }
 
 private:
     mutable std::string _error; /*!< string containing a RtLoader error */

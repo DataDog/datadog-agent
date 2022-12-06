@@ -604,11 +604,13 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 /*
  * pymalloc stats API
  */
-void init_pymalloc_stats(rtloader_t *rtloader) {
+void init_pymalloc_stats(rtloader_t *rtloader)
+{
     AS_TYPE(RtLoader, rtloader)->initPymallocStats();
 }
 
-void get_pymalloc_stats(rtloader_t *rtloader, pymalloc_stats_t *stats) {
+void get_pymalloc_stats(rtloader_t *rtloader, pymalloc_stats_t *stats)
+{
     if (stats == NULL) {
         return;
     }
