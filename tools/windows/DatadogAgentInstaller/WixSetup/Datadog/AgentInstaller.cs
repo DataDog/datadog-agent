@@ -1,14 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Windows.Forms;
 using System.Xml.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
-using WixSharp.Controls;
-using static WixSharp.SetupEventArgs;
 using File = WixSharp.File;
 
 namespace WixSetup.Datadog

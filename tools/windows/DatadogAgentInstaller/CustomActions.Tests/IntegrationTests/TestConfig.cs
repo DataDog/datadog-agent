@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using AutoFixture.Xunit2;
 using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;

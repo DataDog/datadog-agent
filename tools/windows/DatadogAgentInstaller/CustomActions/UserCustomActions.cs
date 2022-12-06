@@ -1,15 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.DirectoryServices.ActiveDirectory;
 using System.IO;
-using System.IO.Pipes;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
-using Cave;
 using System.Windows.Forms;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Native;
