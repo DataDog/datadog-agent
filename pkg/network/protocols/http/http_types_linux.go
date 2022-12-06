@@ -55,12 +55,20 @@ type libPath struct {
 	Buf [120]byte
 }
 
+type ProtocolType uint8
+
+const (
+	ProtocolUnknown ProtocolType = 0x1
+	ProtocolHTTP    ProtocolType = 0x2
+	ProtocolHTTP2   ProtocolType = 0x3
+	ProtocolTLS     ProtocolType = 0x4
+	ProtocolMax     ProtocolType = 0x5
+)
+
 const (
 	HTTPBatchSize  = 0xf
 	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
-
-	httpProg = 0x0
 
 	libPathMaxSize = 0x78
 )

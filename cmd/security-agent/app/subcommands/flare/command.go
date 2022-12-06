@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package flare
 
 import (
 	"bytes"
@@ -11,11 +11,14 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
 
@@ -24,10 +27,11 @@ type flareCliParams struct {
 
 	customerEmail string
 	autoconfirm   bool
+	caseID        string
 }
 
-func FlareCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := flareCliParams{
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+	cliParams := &flareCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -36,28 +40,19 @@ func FlareCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// The flare command should not log anything, all errors should be reported directly to the console without the log format
-			err := config.SetupLogger(loggerName, "off", "", "", false, true, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			caseID := ""
 			if len(args) > 0 {
-				caseID = args[0]
+				cliParams.caseID = args[0]
 			}
 
-			if cliParams.customerEmail == "" {
-				var err error
-				cliParams.customerEmail, err = input.AskForEmail()
-				if err != nil {
-					fmt.Println("Error reading email, please retry or contact support")
-					return err
-				}
-			}
-
-			return requestFlare(caseID, &cliParams)
+			// The flare command should not log anything, all errors should be reported directly to the console without the log format
+			return fxutil.OneShot(requestFlare,
+				fx.Supply(cliParams),
+				fx.Supply(core.CreateBundleParams(
+					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
+					core.WithConfigLoadSecurityAgent(true),
+				).LogForOneShot(common.LoggerName, "off", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -68,13 +63,22 @@ func FlareCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(caseID string, params *flareCliParams) error {
+func requestFlare(log config.Component, config config.Component, params *flareCliParams) error {
+	if params.customerEmail == "" {
+		var err error
+		params.customerEmail, err = input.AskForEmail()
+		if err != nil {
+			fmt.Println("Error reading email, please retry or contact support")
+			return err
+		}
+	}
+
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Security Agent to build the flare archive."))
 	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.Datadog.GetInt("security_agent.cmd_port"))
+	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.GetInt("security_agent.cmd_port"))
 
-	logFile := config.Datadog.GetString("security_agent.log_file")
+	logFile := config.GetString("security_agent.log_file")
 
 	// Set session token
 	e = util.SetAuthToken()
@@ -110,7 +114,7 @@ func requestFlare(caseID string, params *flareCliParams) error {
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, caseID, params.customerEmail)
+	response, e := flare.SendFlare(filePath, params.caseID, params.customerEmail)
 	fmt.Println(response)
 	if e != nil {
 		return e

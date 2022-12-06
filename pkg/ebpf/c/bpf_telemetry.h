@@ -6,24 +6,6 @@
 #include "map-defs.h"
 #include "defs.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || RHEL_MAJOR == 7
-#define IS_PROBE_READ(fn) \
-    ((((unsigned long)fn) == BPF_FUNC_probe_read) || (((unsigned long)fn) == BPF_FUNC_probe_read_str))
-#else
-#define IS_PROBE_READ(fn) \
-    (((unsigned long)fn) == BPF_FUNC_probe_read)
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
-#define IS_PROBE_READ_USER_STR(fn) (((unsigned long)fn) == (BPF_FUNC_probe_read_user_str))
-#define IS_PROBE_READ_USER(fn) (IS_PROBE_READ_USER_STR(fn) || (((unsigned long)fn) == BPF_FUNC_probe_read_user))
-#define IS_PROBE_READ_KERNEL_STR(fn) (((unsigned long)fn) == (BPF_FUNC_probe_read_kernel_str))
-#define IS_PROBE_READ_KERNEL(fn) (IS_PROBE_READ_KERNEL_STR(fn) || (((unsigned long)fn) == BPF_FUNC_probe_read_kernel))
-#else
-#define IS_PROBE_READ_USER(fn) 0
-#define IS_PROBE_READ_KERNEL(fn) 0
-#endif
-
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 

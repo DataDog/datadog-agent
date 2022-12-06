@@ -219,7 +219,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

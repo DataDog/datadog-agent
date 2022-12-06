@@ -68,6 +68,9 @@ windows_package 'Datadog Agent' do
     :path => temp_file
   })
   returns expected_msi_result_code
+  # It's ok to ignore failure, the kitchen test will fail anyway
+  # but we need to print the install logs.
+  ignore_failure true
 end
 
 # This runs during the converge phase and will return a non-zero exit
@@ -85,5 +88,14 @@ ruby_block "Print install logs" do
     # Use warn, because Chef's default "log" is too chatty
     # and the kitchen tests default to "warn"
     Chef::Log.warn(File.open(log_file_name, "rb:UTF-16LE", &:read).encode('UTF-8'))
+  end
+end
+
+ruby_block "Check install sucess" do
+  not_if { agent_install_options.include?('WIXFAILWHENDEFERRED') }
+  block do
+    raise "Could not find installation log file, did the installer run ?" if !File.file?(log_file_name)
+    logfile = File.open(log_file_name, "rb:UTF-16LE", &:read).encode('UTF-8')
+    raise "The Agent failed to install" if logfile.include? "Product: Datadog Agent -- Installation failed."
   end
 end

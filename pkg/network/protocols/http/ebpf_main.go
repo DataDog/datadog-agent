@@ -35,10 +35,12 @@ const (
 	httpBatchEvents   = "http_batch_events"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
-	// to inspect plain HTTP traffic
-	httpSocketFilterStub = "socket/http_filter_entry"
-	httpSocketFilter     = "socket/http_filter"
-	httpProgsMap         = "http_progs"
+	// to classify protocols and dispatch the correct handlers.
+	protocolDispatcherSocketFilterSection  = "socket/protocol_dispatcher"
+	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
+	protocolDispatcherProgramsMap          = "protocols_progs"
+
+	httpSocketFilter = "socket/http_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -93,10 +95,10 @@ type subprogram interface {
 	Stop()
 }
 
-var tailCalls []manager.TailCallRoute = []manager.TailCallRoute{
+var tailCalls = []manager.TailCallRoute{
 	{
-		ProgArrayName: httpProgsMap,
-		Key:           httpProg,
+		ProgArrayName: protocolDispatcherProgramsMap,
+		Key:           uint32(ProtocolHTTP),
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			EBPFSection:  httpSocketFilter,
 			EBPFFuncName: "socket__http_filter",
@@ -117,7 +119,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
-			{Name: httpProgsMap},
+			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
@@ -153,8 +155,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFSection:  protocolDispatcherSocketFilterSection,
+					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
 				},
 			},
@@ -232,8 +234,8 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  httpSocketFilterStub,
-					EBPFFuncName: "socket__http_filter_entry",
+					EBPFSection:  protocolDispatcherSocketFilterSection,
+					EBPFFuncName: protocolDispatcherSocketFilterFunction,
 					UID:          probeUID,
 				},
 			},

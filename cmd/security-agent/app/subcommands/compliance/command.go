@@ -3,17 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package compliance
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
+	"github.com/DataDog/datadog-agent/comp/core"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func ComplianceCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
@@ -35,7 +45,7 @@ type eventCliParams struct {
 }
 
 func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
-	eventArgs := eventCliParams{
+	eventArgs := &eventCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -43,7 +53,14 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 		Use:   "event",
 		Short: "Issue logs to test Security Agent compliance events",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return eventRun(&eventArgs)
+			return fxutil.OneShot(eventRun,
+				fx.Supply(eventArgs),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 		Hidden: true,
 	}
@@ -57,4 +74,34 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
 
 	return eventCmd
+}
+
+func eventRun(log complog.Component, config compconfig.Component, eventArgs *eventCliParams) error {
+	stopper := startstop.NewSerialStopper()
+	defer stopper.Stop()
+
+	endpoints, dstContext, err := common.NewLogContextCompliance()
+	if err != nil {
+		return err
+	}
+
+	runPath := coreconfig.Datadog.GetString("compliance_config.run_path")
+	reporter, err := event.NewLogReporter(stopper, eventArgs.sourceName, eventArgs.sourceType, runPath, endpoints, dstContext)
+	if err != nil {
+		return fmt.Errorf("failed to set up compliance log reporter: %w", err)
+	}
+
+	eventData := event.Data{}
+	for _, d := range eventArgs.data {
+		kv := strings.SplitN(d, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		eventData[kv[0]] = kv[1]
+	}
+	eventArgs.event.Data = eventData
+
+	reporter.Report(&eventArgs.event)
+
+	return nil
 }

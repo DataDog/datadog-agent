@@ -18,8 +18,7 @@ int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
     __u32 packets_out = 0;
     get_tcp_segment_counts(skp, &packets_in, &packets_out);
 
-    protocol_t protocol = get_protocol(&t);
-    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, protocol, skp);
+    return handle_message(&t, 0, recv, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, skp);
 }
 
 SEC("kprobe/tcp_recvmsg")

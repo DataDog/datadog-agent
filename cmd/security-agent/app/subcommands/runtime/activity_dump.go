@@ -6,17 +6,23 @@
 //go:build linux
 // +build linux
 
-package app
+package runtime
 
 import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/comp/core"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 type activityDumpCliParams struct {
@@ -54,7 +60,13 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "list",
 		Short: "get the list of running activity dumps",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return listActivityDumps()
+			return fxutil.OneShot(listActivityDumps,
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -62,7 +74,7 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -70,7 +82,14 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "stop",
 		Short: "stops the first activity dump that matches the provided selector",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return stopActivityDump(&cliParams)
+			return fxutil.OneShot(stopActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -109,7 +128,7 @@ func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -117,7 +136,14 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Use:   "dump",
 		Short: "generate an activity dump",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generateActivityDump(&cliParams)
+			return fxutil.OneShot(generateActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -174,7 +200,7 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := activityDumpCliParams{
+	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -182,7 +208,14 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 		Use:   "encoding",
 		Short: "encode an activity dump to the requested formats",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return generateEncodingFromActivityDump(&cliParams)
+			return fxutil.OneShot(generateEncodingFromActivityDump,
+				fx.Supply(cliParams),
+				fx.Supply(core.BundleParams{
+					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
+					ConfigLoadSecurityAgent:      true,
+				}.LogForOneShot(common.LoggerName, "info", true)),
+				core.Bundle,
+			)
 		},
 	}
 
@@ -233,7 +266,7 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 	return []*cobra.Command{activityDumpGenerateEncodingCmd}
 }
 
-func generateActivityDump(activityDumpArgs *activityDumpCliParams) error {
+func generateActivityDump(log complog.Component, config compconfig.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -262,7 +295,7 @@ func generateActivityDump(activityDumpArgs *activityDumpCliParams) error {
 	return nil
 }
 
-func generateEncodingFromActivityDump(activityDumpArgs *activityDumpCliParams) error {
+func generateEncodingFromActivityDump(log complog.Component, config compconfig.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
 	if activityDumpArgs.remoteRequest {
@@ -300,7 +333,7 @@ func generateEncodingFromActivityDump(activityDumpArgs *activityDumpCliParams) e
 			return err
 		}
 
-		storageRequests, err := config.ParseStorageRequests(parsedRequests)
+		storageRequests, err := secconfig.ParseStorageRequests(parsedRequests)
 		if err != nil {
 			return fmt.Errorf("couldn't parse transcoding request for [%s]: %v", ad.GetSelectorStr(), err)
 		}
@@ -335,7 +368,7 @@ func generateEncodingFromActivityDump(activityDumpArgs *activityDumpCliParams) e
 	return nil
 }
 
-func listActivityDumps() error {
+func listActivityDumps(log complog.Component, config compconfig.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -383,7 +416,7 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 	}, nil
 }
 
-func stopActivityDump(activityDumpArgs *activityDumpCliParams) error {
+func stopActivityDump(log complog.Component, config compconfig.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
