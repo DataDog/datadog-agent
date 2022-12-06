@@ -7,6 +7,13 @@
 #include "rtloader.h"
 #include "rtloader_mem.h"
 
+RtLoader::RtLoader(cb_memory_tracker_t memtrack_cb)
+    : _error()
+    , _errorFlag(false)
+{
+    _set_memory_tracker_cb(memtrack_cb);
+};
+
 void RtLoader::setError(const std::string &msg) const
 {
     _errorFlag = true;

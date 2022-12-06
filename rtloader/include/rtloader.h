@@ -6,7 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_RTLOADER_H
 #define DATADOG_AGENT_RTLOADER_RTLOADER_H
 
-#include "rtloader_mem.h"
 #include "rtloader_types.h"
 
 #include <map>
@@ -33,12 +32,7 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader(cb_memory_tracker_t memtrack_cb)
-        : _error()
-        , _errorFlag(false)
-    {
-        _set_memory_tracker_cb(memtrack_cb);
-    };
+    RtLoader(cb_memory_tracker_t memtrack_cb);
 
     //! Destructor.
     virtual ~RtLoader(){};
