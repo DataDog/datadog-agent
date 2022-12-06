@@ -86,9 +86,9 @@ func newAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
 
 // ClientGetConfigs implements the ConfigUpdater interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-	// This client is running, at the moment, in the trace-agent or the security-agent. The auth token is handled
-	// by the core-agent, running independently. It's not guaranteed it starts before us, or that if it restarts that
-	// the auth token remains the same. Thus we need to do this every request.
+	// When communicating with the core service via grpc, the auth token is handled
+	// by the core-agent, which runs independently. It's not guaranteed it starts before us,
+	// or that if it restarts that the auth token remains the same. Thus we need to do this every request.
 	token, err := security.FetchAuthToken()
 	if err != nil {
 		return nil, errors.Wrap(err, "could not acquire agent auth token")
