@@ -577,6 +577,11 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+// IsContainerInit returns whether this is the entrypoint of the container
+func (pc *ProcessCacheEntry) IsContainerInit() bool {
+	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+}
+
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
@@ -640,10 +645,16 @@ func (it *ProcessAncestorsIterator) Next() unsafe.Pointer {
 	return nil
 }
 
+// HasParent returns whether the process has a parent
+func (p *ProcessContext) HasParent() bool {
+	return p.Parent != nil
+}
+
 // ProcessContext holds the process context of an event
 type ProcessContext struct {
 	Process
 
+	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
 }
 

@@ -6,6 +6,7 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/http"
@@ -29,7 +30,7 @@ func (tp *testProcessorResponseValid) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }
@@ -49,7 +50,7 @@ func (tp *testProcessorResponseError) OnInvokeStart(startDetails *invocationlife
 	if startDetails.StartTime.IsZero() {
 		panic("isZero")
 	}
-	if !strings.HasSuffix(startDetails.InvokeEventRawPayload, "ok") {
+	if !bytes.HasSuffix(startDetails.InvokeEventRawPayload, []byte("ok")) {
 		panic("payload")
 	}
 }

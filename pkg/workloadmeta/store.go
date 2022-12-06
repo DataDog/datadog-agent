@@ -311,6 +311,19 @@ func (s *store) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
+// ListImages implements Store#ListImages
+func (s *store) ListImages() []*ContainerImageMetadata {
+	entities := s.listEntitiesByKind(KindContainerImageMetadata)
+
+	images := make([]*ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
 // Notify implements Store#Notify
 func (s *store) Notify(events []CollectorEvent) {
 	if len(events) > 0 {

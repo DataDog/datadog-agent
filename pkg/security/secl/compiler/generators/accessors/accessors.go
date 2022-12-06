@@ -77,6 +77,7 @@ func qualifiedType(module *common.Module, kind string) string {
 	}
 }
 
+// handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
 	if verbose {
 		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s\n", name, kind, alias)
@@ -172,14 +173,15 @@ func getFieldIdentName(expr ast.Expr) (name string, isPointer bool, isArray bool
 }
 
 type seclField struct {
-	name                string
-	iterator            string
-	handler             string
-	cachelessResolution bool
-	skipADResolution    bool
-	lengthField         bool
-	weight              int64
-	check               string
+	name                   string
+	iterator               string
+	handler                string
+	cachelessResolution    bool
+	skipADResolution       bool
+	lengthField            bool
+	weight                 int64
+	check                  string
+	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -220,6 +222,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.lengthField = true
 					case "skip_ad":
 						field.skipADResolution = true
+					case "exposed_at_event_root_only":
+						field.exposedAtEventRootOnly = true
 					}
 				}
 			}
@@ -229,6 +233,7 @@ func parseFieldDef(def string) (seclField, error) {
 	return field, nil
 }
 
+// handleSpec is a recursive function that walks through the fields of a module
 func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, prefix, aliasPrefix, event string, iterator *common.StructField, dejavu map[string]bool) {
 	if verbose {
 		fmt.Printf("handleSpec spec: %+v, prefix: %s, aliasPrefix %s, event %s, iterator %+v\n", spec, prefix, aliasPrefix, event, iterator)
@@ -251,18 +256,18 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 					event = e
 					if _, ok = module.EventTypes[e]; !ok {
 						module.EventTypes[e] = common.NewEventTypeMetada()
+						dejavu = make(map[string]bool) // clear dejavu map when it's a new event type
 					}
 					module.EventTypes[e].Doc = fieldCommentText
 				}
 
 				if isEmbedded := len(field.Names) == 0; !isEmbedded {
-					fieldName := field.Names[0].Name
-
-					if !unicode.IsUpper(rune(fieldName[0])) {
+					fieldBasename := field.Names[0].Name
+					if !unicode.IsUpper(rune(fieldBasename[0])) {
 						continue
 					}
 
-					if dejavu[fieldName] {
+					if dejavu[fieldBasename] {
 						continue
 					}
 
@@ -297,24 +302,24 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							}
 						}
 					} else {
-						fields = append(fields, seclField{name: fieldName})
+						fields = append(fields, seclField{name: fieldBasename})
 					}
 
 					for _, seclField := range fields {
-						fieldAlias := seclField.name
-						alias := fieldAlias
+						fieldBasenameSECLNormalized := seclField.name
+						alias := fieldBasenameSECLNormalized
 						if aliasPrefix != "" {
-							alias = aliasPrefix + "." + fieldAlias
+							alias = aliasPrefix + "." + fieldBasenameSECLNormalized
 						}
 
-						name := fmt.Sprintf("%s.%s", prefix, fieldName)
+						prefixedFieldName := fmt.Sprintf("%s.%s", prefix, fieldBasename)
 						if len(prefix) == 0 {
-							name = fieldName
+							prefixedFieldName = fieldBasename
 						}
 
-						// maintain a list of all the fields
-						module.AllFields[name] = &common.StructField{
-							Name:          name,
+						// maintain a list of all the fields, including their prefixes
+						module.AllFields[prefixedFieldName] = &common.StructField{
+							Name:          prefixedFieldName,
 							Event:         event,
 							OrigType:      qualifiedType(module, fieldType),
 							IsOrigTypePtr: isPointer,
@@ -325,7 +330,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 						if iterator := seclField.iterator; iterator != "" {
 							module.Iterators[alias] = &common.StructField{
-								Name:                name,
+								Name:                prefixedFieldName,
 								ReturnType:          qualifiedType(module, iterator),
 								Event:               event,
 								OrigType:            qualifiedType(module, fieldType),
@@ -345,12 +350,12 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 
 						if handler := seclField.handler; handler != "" {
 							if aliasPrefix != "" {
-								fieldAlias = aliasPrefix + "." + fieldAlias
+								fieldBasenameSECLNormalized = aliasPrefix + "." + fieldBasenameSECLNormalized
 							}
 
-							module.Fields[fieldAlias] = &common.StructField{
+							module.Fields[fieldBasenameSECLNormalized] = &common.StructField{
 								Prefix:              prefix,
-								Name:                name,
+								Name:                prefixedFieldName,
 								BasicType:           origTypeToBasicType(fieldType),
 								Struct:              typeSpec.Name.Name,
 								Handler:             handler,
@@ -370,38 +375,40 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 							}
 
 							if seclField.lengthField {
-								var lengthField common.StructField = *module.Fields[fieldAlias]
+								var lengthField common.StructField = *module.Fields[fieldBasenameSECLNormalized]
 								lengthField.IsLength = true
 								lengthField.Name += ".length"
 								lengthField.OrigType = "int"
 								lengthField.BasicType = "int"
 								lengthField.ReturnType = "int"
-								module.Fields[fieldAlias+".length"] = &lengthField
-								lengthField.CommentText = "Length of '" + fieldAlias + "' string"
+								module.Fields[fieldBasenameSECLNormalized+".length"] = &lengthField
+								lengthField.CommentText = "Length of '" + fieldBasenameSECLNormalized + "' string"
 							}
 
 							if _, ok = module.EventTypes[event]; !ok {
-								module.EventTypes[event] = common.NewEventTypeMetada(fieldAlias)
+								module.EventTypes[event] = common.NewEventTypeMetada(fieldBasenameSECLNormalized)
 							} else {
-								module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, fieldAlias)
+								module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, fieldBasenameSECLNormalized)
 							}
-							delete(dejavu, fieldName)
+							delete(dejavu, fieldBasename)
 
 							continue
 						}
 
-						dejavu[fieldName] = true
+						dejavu[fieldBasename] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText, seclField); err != nil {
+							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText, seclField); err != nil {
 								log.Print(err)
 							}
 
-							delete(dejavu, fieldName)
+							if !seclField.exposedAtEventRootOnly {
+								delete(dejavu, fieldBasename)
+							}
 						}
 
 						if verbose {
-							log.Printf("Don't know what to do with %s: %s", fieldName, spew.Sdump(field.Type))
+							log.Printf("Don't know what to do with %s: %s", fieldBasename, spew.Sdump(field.Type))
 						}
 					}
 				} else {
@@ -422,15 +429,15 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 								log.Printf("Embedded struct %s", ident.Name)
 							}
 
-							name := fmt.Sprintf("%s.%s", prefix, ident.Name)
+							prefixedFieldName := fmt.Sprintf("%s.%s", prefix, ident.Name)
 							if len(prefix) == 0 {
-								name = ident.Name
+								prefixedFieldName = ident.Name
 							}
 							fieldType, isPointer, isArray := getFieldIdentName(field.Type)
 
 							// maintain a list of all the fields
-							module.AllFields[name] = &common.StructField{
-								Name:          name,
+							module.AllFields[prefixedFieldName] = &common.StructField{
+								Name:          prefixedFieldName,
 								Event:         event,
 								OrigType:      qualifiedType(module, fieldType),
 								IsOrigTypePtr: isPointer,

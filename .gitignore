@@ -108,7 +108,8 @@ system-probe-msg.h
 **/.ninja_log
 **/.ninja_deps
 *.ninja
-*.d
+pkg/ebpf/bytecode/build/**/*.d
+pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc

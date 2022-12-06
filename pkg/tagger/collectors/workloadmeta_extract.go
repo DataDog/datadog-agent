@@ -133,6 +133,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
+			case workloadmeta.KindContainerImageMetadata:
+				// No tags for now
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -594,6 +596,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
+	case workloadmeta.KindContainerImageMetadata:
+		return fmt.Sprintf("container_image_metadata://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)

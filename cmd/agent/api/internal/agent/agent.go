@@ -37,18 +37,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
-
-type contextKey struct {
-	key string
-}
-
-// ConnContextKey key to reference the http connection from the request context
-var ConnContextKey = &contextKey{"http-connection"}
 
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(r *mux.Router) *mux.Router {
@@ -463,5 +457,5 @@ func max(a, b int) int {
 
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(ConnContextKey).(net.Conn)
+	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }

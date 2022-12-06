@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -29,9 +30,14 @@ const (
 	readIndx int = iota
 	readUserIndx
 	readKernelIndx
+	skbLoadBytes
+	perfEventOutput
 )
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel"}
+var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
+var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
+
+var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
@@ -83,6 +89,9 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		}
 		if count := getMapErrCount(&val); len(count) > 0 {
 			t[m] = count
+			for errStr, errCount := range count {
+				ebpfMapOpsErrorsGauge.Set(float64(errCount), m, errStr)
+			}
 		}
 	}
 
@@ -98,26 +107,31 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 	var val HelperErrTelemetry
 	helperTelemMap := make(map[string]interface{})
 
-	for m, k := range b.probeKeys {
+	for probeName, k := range b.probeKeys {
 		err := b.HelperErrMap.Lookup(&k, &val)
 		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
+			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
 			continue
 		}
-		if t := getHelperTelemetry(&val); len(t) > 0 {
-			helperTelemMap[m] = t
+
+		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge); len(t) > 0 {
+			helperTelemMap[probeName] = t
 		}
 	}
 
 	return helperTelemMap
 }
 
-func getHelperTelemetry(v *HelperErrTelemetry) map[string]interface{} {
+func getHelperTelemetry(v *HelperErrTelemetry, probeName string, gauge telemetry.Gauge) map[string]interface{} {
 	helper := make(map[string]interface{})
 
-	for indx, name := range helperNames {
+	for indx, helperName := range helperNames {
 		if count := getErrCount(v, indx); len(count) > 0 {
-			helper[name] = count
+			helper[helperName] = count
+
+			for errStr, errCount := range count {
+				gauge.Set(float64(errCount), helperName, probeName, errStr)
+			}
 		}
 	}
 
@@ -203,6 +217,12 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 	h := fnv.New64a()
 
 	for _, m := range maps {
+		// Some maps, such as the telemetry maps, are
+		// redefined in multiple programs.
+		if _, ok := b.mapKeys[m.Name]; ok {
+			continue
+		}
+
 		h.Write([]byte(m.Name))
 		key := h.Sum64()
 		err := b.MapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
@@ -212,6 +232,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 		h.Reset()
 
 		b.mapKeys[m.Name] = key
+
 	}
 
 	return nil
@@ -222,6 +243,12 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe)
 	h := fnv.New64a()
 
 	for _, p := range probes {
+		// Some hook points, like tcp_sendmsg, are probed in
+		// multiple different programs.
+		if _, ok := b.probeKeys[p.EBPFFuncName]; ok {
+			continue
+		}
+
 		h.Write([]byte(p.EBPFFuncName))
 		key := h.Sum64()
 		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
