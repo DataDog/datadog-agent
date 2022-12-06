@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
 // Monitor is responsible for:
@@ -34,6 +35,7 @@ type Monitor struct {
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry
+	processMonitor         *monitor.ProcessMonitor
 
 	pollRequests chan chan map[Key]*RequestStats
 	statkeeper   *httpStatKeeper
@@ -94,6 +96,8 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
 	}
 
+	processMonitor := monitor.GetProcessMonitor(c)
+
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
@@ -103,6 +107,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		pollRequests:           make(chan chan map[Key]*RequestStats),
 		closeFilterFn:          closeFilterFn,
 		statkeeper:             statkeeper,
+		processMonitor:         processMonitor,
 	}, nil
 }
 
@@ -149,6 +154,10 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
+	if m.processMonitor != nil {
+		m.processMonitor.InitWithAllCurrentProcess()
+	}
+
 	return nil
 }
 
@@ -183,6 +192,7 @@ func (m *Monitor) Stop() {
 		return
 	}
 
+	m.processMonitor.Stop()
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
 	close(m.pollRequests)

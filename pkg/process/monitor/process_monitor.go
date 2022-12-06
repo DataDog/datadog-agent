@@ -1,0 +1,247 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux
+// +build linux
+
+package monitor
+
+import (
+	"regexp"
+	"runtime"
+	"sync"
+
+	"github.com/vishvananda/netlink"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/gopsutil/process"
+)
+
+const (
+	processMonitorMaxEvents = 2048
+)
+
+const (
+	STOPPED = iota
+	RUNNING
+)
+
+var (
+	processMonitor *ProcessMonitor
+)
+
+type ProcessMonitor struct {
+	m  sync.Mutex
+	wg sync.WaitGroup
+
+	state int
+
+	events chan netlink.ProcEvent
+	done   chan struct{}
+	errors chan error
+
+	procEventCallbacks map[ProcessEventType][]*ProcessCallback
+	callbackRunner     chan func()
+	callbackRunnerDone chan struct{}
+}
+
+type ProcessEventType int
+
+const (
+	EXEC ProcessEventType = iota
+	FORK
+	EXIT
+)
+
+type ProcessMetadataField int
+
+const (
+	ANY ProcessMetadataField = iota
+	NAME
+	MAPFILE
+)
+
+type ProcessCallback struct {
+	Event    ProcessEventType
+	Metadata ProcessMetadataField
+	Regex    *regexp.Regexp
+	Callback func(pid uint32)
+}
+
+func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
+	pm.callbackRunner <- func() { callback.Callback(pid) }
+}
+
+func (pm *ProcessMonitor) InitWithAllCurrentProcess() {
+	fn := func(pid int) error {
+		pm.m.Lock()
+		for _, c := range pm.procEventCallbacks[EXEC] {
+			pm.evalEXECCallback(c, uint32(pid))
+		}
+		pm.m.Unlock()
+		return nil
+	}
+
+	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
+		log.Errorf("process monitor init, scanning all process failed %s", err)
+	}
+
+	pm.state = RUNNING
+}
+
+func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
+	if c.Metadata == ANY {
+		p.enqueueCallback(c, pid)
+		return
+	}
+
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		log.Errorf("process %d parsing failed %s", pid, err)
+		return
+	}
+	switch c.Metadata {
+	case NAME:
+		pname, err := proc.Name()
+		if err != nil {
+			log.Errorf("process %d name parsing failed %s", pid, err)
+			return
+		}
+		if c.Regex.MatchString(pname) {
+			p.enqueueCallback(c, pid)
+		}
+	case MAPFILE:
+		mmaps, err := proc.MemoryMaps(true)
+		if err != nil {
+			log.Errorf("process %d maps parsing failed %s", pid, err)
+			return
+		}
+		if mmaps == nil {
+			return
+		}
+		for _, mmap := range *mmaps {
+			if c.Regex.MatchString(mmap.Path) {
+				p.enqueueCallback(c, pid)
+			}
+		}
+	}
+}
+
+func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func()) {
+	pm.m.Lock()
+	defer pm.m.Unlock()
+
+	pm.procEventCallbacks[callback.Event] = append(pm.procEventCallbacks[callback.Event], callback)
+
+	return func() {
+		pm.m.Lock()
+		defer pm.m.Unlock()
+
+		for i, c := range pm.procEventCallbacks[callback.Event] {
+			if c == callback {
+				l := len(pm.procEventCallbacks[callback.Event])
+				pm.procEventCallbacks[callback.Event][i] = pm.procEventCallbacks[callback.Event][l-1]
+				pm.procEventCallbacks[callback.Event] = pm.procEventCallbacks[callback.Event][:l-1]
+			}
+		}
+	}
+}
+
+func (pm *ProcessMonitor) Stop() {
+	close(pm.callbackRunnerDone)
+	close(pm.done)
+	pm.wg.Wait()
+	processMonitor = nil
+}
+
+func GetProcessMonitor(cfg *config.Config) *ProcessMonitor {
+	// we want only one instance as
+	// netlink.ProcEventMonitor() netlink doesn't support multiple connections
+	if processMonitor != nil {
+		return processMonitor
+	}
+
+	p := &ProcessMonitor{}
+	p.state = STOPPED
+	p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
+	p.done = make(chan struct{})
+	p.errors = make(chan error)
+	p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
+
+	if err := netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
+		log.Errorf("could not create process monitor: %s", err)
+		return nil
+	}
+
+	p.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
+	p.callbackRunner = make(chan func(), runtime.NumCPU())
+	for i := 0; i < runtime.NumCPU(); i++ {
+		p.wg.Add(1)
+		go func() {
+			defer p.wg.Done()
+			for {
+				select {
+				case <-p.callbackRunnerDone:
+					return
+				case call, ok := <-p.callbackRunner:
+					if !ok {
+						continue
+					}
+					call()
+				}
+			}
+		}()
+	}
+
+	p.wg.Add(1)
+	go func() {
+		defer func() {
+			log.Info("netlink process monitor ended")
+			p.wg.Done()
+		}()
+		for {
+			select {
+			case <-p.done:
+				return
+
+			case event, ok := <-p.events:
+				if !ok {
+					return
+				}
+				if p.state == STOPPED {
+					continue
+				}
+
+				switch ev := event.Msg.(type) {
+				case *netlink.ExecProcEvent:
+					p.m.Lock()
+					for _, c := range p.procEventCallbacks[EXEC] {
+						p.evalEXECCallback(c, ev.ProcessPid)
+					}
+					p.m.Unlock()
+				case *netlink.ExitProcEvent:
+					p.m.Lock()
+					for _, c := range p.procEventCallbacks[EXIT] {
+						p.enqueueCallback(c, ev.ProcessPid)
+					}
+					p.m.Unlock()
+				}
+
+			case err, ok := <-p.errors:
+				if !ok {
+					return
+				}
+				log.Errorf("process montior error: %s", err)
+				processMonitor = nil
+				return
+			}
+		}
+	}()
+
+	processMonitor = p
+	return p
+}
