@@ -331,8 +331,8 @@ namespace Datadog.CustomActions
                     {
                         if (Directory.Exists(filePath))
                         {
-                            fileSystemSecurity = Directory.GetAccessControl(filePath);
-                            sddl = $"D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
+                            fileSystemSecurity = Directory.GetAccessControl(filePath, AccessControlSections.All);
+                            sddl = $"O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
                         }
                         else
                         {
@@ -345,18 +345,18 @@ namespace Datadog.CustomActions
                         session.Log($"Failed to get ACLs on {filePath}: {e}");
                         throw;
                     }
+
                     session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
+                    fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
 
                     try
                     {
                         if (Directory.Exists(filePath))
                         {
-                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
                             Directory.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
                         }
                         else
                         {
-                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
                             File.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
                         }
                     }
