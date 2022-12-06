@@ -17,6 +17,8 @@ namespace WixSetup.Datadog
 
         public ManagedAction ConfigureUser { get; }
 
+        public ManagedAction OpenMsiLog { get; }
+
         public AgentCustomActions()
         {
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
@@ -140,6 +142,14 @@ namespace WixSetup.Datadog
                 )
                 .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
                 .HideTarget(true);
+
+            OpenMsiLog = new CustomAction<UserCustomActions>(
+                new Id("OpenMsiLog"),
+                UserCustomActions.OpenMsiLog
+                )
+                {
+                    Sequence = Sequence.NotInSequence
+                };
         }
     }
 }
