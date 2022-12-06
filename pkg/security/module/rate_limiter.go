@@ -24,10 +24,14 @@ import (
 
 var (
 	// Arbitrary default limit to prevent flooding.
-	defaultLimiter = NewLimiter(rate.Limit(10), 40)
+	defaultLimit = rate.Limit(10)
+	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
+	// flooding.
+	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.AbnormalPathRuleID: NewLimiter(rate.Every(time.Second), 1),
+		probe.AbnormalPathRuleID:  NewLimiter(rate.Every(time.Second), 1),
+		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
 	}
 )
 
@@ -81,7 +85,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 		if rule.Definition.Every != 0 {
 			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
 		} else {
-			newLimiters[id] = defaultLimiter
+			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
 		}
 	}
 	rl.limiters = newLimiters
