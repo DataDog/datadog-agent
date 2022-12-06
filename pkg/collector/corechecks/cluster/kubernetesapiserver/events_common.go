@@ -84,6 +84,9 @@ func getEventHostInfo(clusterName string, ev *v1.Event) eventHostInfo {
 	return getEventHostInfoImpl(getHostProviderID, clusterName, ev)
 }
 
+// getEventHostInfoImpl get the host information (hostname,nodename) from where the event has been generated.
+// This function takes `hostProviderIDFunc` function to ease unit-testing by mocking the
+// providers logic
 func getEventHostInfoImpl(hostProviderIDFunc func(string) string, clusterName string, ev *v1.Event) eventHostInfo {
 	info := eventHostInfo{}
 
