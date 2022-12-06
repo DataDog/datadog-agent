@@ -109,6 +109,11 @@ func TestAddFileFromFunc(t *testing.T) {
 	})
 	assertFileContent(t, fb, "some data", "test/AddFileFromFunc")
 
+	fb.AddFileFromFunc(FromSlash("test/AddFileFromFunc_nil"), func() ([]byte, error) {
+		return nil, nil
+	})
+	assertFileContent(t, fb, "", "test/AddFileFromFunc_nil")
+
 	err := fb.AddFileFromFunc(FromSlash("test/AddFileFromFunc_error"), func() ([]byte, error) {
 		return nil, fmt.Errorf("some error")
 	})
