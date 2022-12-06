@@ -28,10 +28,10 @@ var (
 )
 
 func init() {
-	ClusterAgentCmd.AddCommand(GetFlareCobraCmd(customerEmail, autoconfirm, loggerName))
+	ClusterAgentCmd.AddCommand(GetFlareCobraCmd(&customerEmail, &autoconfirm, loggerName))
 }
 
-func GetFlareCobraCmd(customerEmail string, autoconfirm bool, loggerName config.LoggerName) *cobra.Command {
+func GetFlareCobraCmd(customerEmail *string, autoconfirm *bool, loggerName config.LoggerName) *cobra.Command {
 
 	var flareCmd = &cobra.Command{
 		Use:   "flare [caseID]",
@@ -62,9 +62,9 @@ func GetFlareCobraCmd(customerEmail string, autoconfirm bool, loggerName config.
 				caseID = args[0]
 			}
 
-			if customerEmail == "" {
+			if *customerEmail == "" {
 				var err error
-				customerEmail, err = input.AskForEmail()
+				*customerEmail, err = input.AskForEmail()
 				if err != nil {
 					fmt.Println("Error reading email, please retry or contact support")
 					return err
@@ -74,8 +74,8 @@ func GetFlareCobraCmd(customerEmail string, autoconfirm bool, loggerName config.
 			return requestFlare(caseID)
 		},
 	}
-	flareCmd.Flags().StringVarP(&customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().StringVarP(customerEmail, "email", "e", "", "Your email")
+	flareCmd.Flags().BoolVarP(autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 	return flareCmd
 }

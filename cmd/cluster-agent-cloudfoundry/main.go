@@ -52,8 +52,10 @@ import (
 const loggerName pkgconfig.LoggerName = "CLUSTER"
 
 type cliParams struct {
-	confPath    string
-	flagNoColor bool
+	confPath      string
+	flagNoColor   bool
+	customerEmail string
+	autoconfirm   bool
 }
 
 func MakeRootCommand() *cobra.Command {
@@ -120,8 +122,8 @@ func makeCommands() []*cobra.Command {
 
 	clusterChecksCmd := commands.GetClusterChecksCobraCmd(&cliParams.flagNoColor, &cliParams.confPath, loggerName)
 	configChecksCmd := commands.GetConfigCheckCobraCmd(&cliParams.flagNoColor, &cliParams.confPath, loggerName)
-	flareCmd := clusteragentapp.GetFlareCobraCmd(&cliParams.flagNoColor, loggerName)
-	return []*cobra.Command{runCmd, versionCmd, clusterChecksCmd, configChecksCmd}
+	flareCmd := clusteragentapp.GetFlareCobraCmd(&cliParams.customerEmail, &cliParams.autoconfirm, loggerName)
+	return []*cobra.Command{runCmd, versionCmd, clusterChecksCmd, configChecksCmd, flareCmd}
 }
 
 func runCFClusterAgentFct(cliParams *cliParams, fct interface{}) error {
