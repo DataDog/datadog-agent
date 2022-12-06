@@ -156,19 +156,33 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
 
 static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction) {
     log_debug("kafka: Trying to parse fetch request");
-    if (kafka_transaction->request_api_version != 4 && kafka_transaction->request_api_version < 7) {
-        log_debug("kafka: request_api_version != 4 and < 7 not supported: %d", kafka_transaction->request_api_version);
+    if (kafka_transaction->request_api_version >= 12) {
+        log_debug("kafka: fetch api version 12 and above is not supported: %d", kafka_transaction->request_api_version);
         return false;
     }
 
     // Skipping all fields that we don't need to parse at the moment:
-    //  replica_id => INT32
-    //  max_wait_ms => INT32
-    //  min_bytes => INT32
-    //  max_bytes => INT32
-    //  isolation_level => INT8
-    //  number_of_topics => INT32
-    kafka_transaction->current_offset_in_request_fragment += 21;
+
+    // replica_id => INT32
+    // max_wait_ms => INT32
+    // min_bytes => INT32
+    kafka_transaction->current_offset_in_request_fragment += 12;
+
+    if (kafka_transaction->request_api_version >= 3) {
+        // max_bytes => INT32
+        kafka_transaction->current_offset_in_request_fragment += 4;
+
+        if (kafka_transaction->request_api_version >= 4) {
+            // isolation_level => INT8
+            kafka_transaction->current_offset_in_request_fragment += 1;
+        }
+
+        if (kafka_transaction->request_api_version >= 7) {
+            // session_id => INT32
+            // session_epoch => INT32
+            kafka_transaction->current_offset_in_request_fragment += 8;
+        }
+    }
 
     if (kafka_transaction->request_api_version >= 7)
     {
