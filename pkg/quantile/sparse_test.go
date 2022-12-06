@@ -10,9 +10,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
 )
 
 func TestMerge(t *testing.T) {
