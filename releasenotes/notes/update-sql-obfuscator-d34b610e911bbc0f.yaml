@@ -8,4 +8,25 @@
 ---
 enhancements:
   - |
-    APM: Added better handling of strings and identifiers for the SQL obfuscator.
+    APM: Major update to the SQL obfuscator. SQL queries should now be
+    much more representative of the original query that they came from.
+    The two major changes are:
+
+    The SQL obfuscator now preserves certain whitespace around
+    identifiers. For example, what was previously
+    'select [ user ] . [ name ] from [ users ] ;'
+    is now
+    'select [user].[name] from [users];'
+
+    The SQL obfuscator now preserves quotes around identifiers. For
+    example,
+    'select `user` where id = 42;'
+    used to be obfuscated as
+    'select user where id = ?;'
+    The output is now
+    'select `user` where id = ?;'.
+    
+    Users may need to update any monitoring or metrics queries based on
+    specific SQL queries, as they may be affected by this change.
+    Specifically, monitors or metrics based on the resource name of a SQL
+    span may need to be updated for the new query.
