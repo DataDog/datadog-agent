@@ -13,10 +13,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-
-	"gopkg.in/yaml.v2"
 )
 
 func TestJSONConverter(t *testing.T) {

@@ -13,16 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
-
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
 func TestOTLPIngest(t *testing.T) {

@@ -8,10 +8,11 @@ package autoscalers
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

@@ -6,11 +6,11 @@
 package encoding
 
 import (
-	"github.com/stretchr/testify/assert"
 	"runtime"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"

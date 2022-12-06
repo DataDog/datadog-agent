@@ -13,12 +13,11 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {

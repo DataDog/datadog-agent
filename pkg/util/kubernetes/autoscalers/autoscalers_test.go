@@ -12,13 +12,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	autoscalingv2 "k8s.io/api/autoscaling/v2beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 )

@@ -14,6 +14,7 @@ import (
 	"sync"
 	"unsafe"
 
+	"C"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -26,17 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-/*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
-
-#include "datadog_agent_rtloader.h"
-#include "rtloader_mem.h"
-*/
-import (
-	"C"
 )
 
 // GetVersion exposes the version of the agent to Python checks.

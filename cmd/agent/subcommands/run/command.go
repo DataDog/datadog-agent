@@ -9,16 +9,14 @@ package run
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -39,32 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	"github.com/DataDog/datadog-agent/pkg/collector"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/logs"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/netflow"
-	"github.com/DataDog/datadog-agent/pkg/otlp"
-	"github.com/DataDog/datadog-agent/pkg/pidfile"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
-	// runtime init routines
-	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
 	// register core checks
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
@@ -77,6 +49,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
@@ -88,10 +61,32 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
-
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/logs"
+	"github.com/DataDog/datadog-agent/pkg/metadata"
 	_ "github.com/DataDog/datadog-agent/pkg/metadata"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/netflow"
+	"github.com/DataDog/datadog-agent/pkg/otlp"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	// runtime init routines
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // demux is shared between StartAgent and StopAgent.

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/open-policy-agent/opa/metrics"
 	"github.com/open-policy-agent/opa/rego"
 	cache "github.com/patrickmn/go-cache"
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ErrResourceNotSupported is returned when resource type is not supported by Builder

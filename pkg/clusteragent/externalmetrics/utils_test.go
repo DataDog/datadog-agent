@@ -11,9 +11,8 @@ package externalmetrics
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/labels"
-
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func TestMetricNameToDatadogMetricID(t *testing.T) {

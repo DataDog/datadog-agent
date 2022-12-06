@@ -15,22 +15,12 @@ import (
 	"sync"
 	"unsafe"
 
+	"C"
 	"github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-/*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
-
-#include "datadog_agent_rtloader.h"
-#include "rtloader_mem.h"
-*/
-import (
-	"C"
 )
 
 var (

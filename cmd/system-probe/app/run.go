@@ -10,12 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

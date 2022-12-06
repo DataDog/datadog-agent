@@ -13,9 +13,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestGetDDAlertType(t *testing.T) {

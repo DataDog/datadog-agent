@@ -6,9 +6,9 @@
 package checks
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
-
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 )
 
 type mockIterator struct {

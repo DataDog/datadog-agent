@@ -14,14 +14,14 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"github.com/cenkalti/backoff"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -37,8 +38,6 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"

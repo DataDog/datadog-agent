@@ -20,7 +20,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"

@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	logConfig "github.com/DataDog/datadog-agent/pkg/logs/config"
-
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"

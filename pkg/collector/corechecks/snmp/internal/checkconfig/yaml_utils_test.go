@@ -8,9 +8,8 @@ package checkconfig
 import (
 	"testing"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v2"
 )
 
 type MyStringArray struct {

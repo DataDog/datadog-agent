@@ -15,6 +15,13 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
+	"k8s.io/kube-state-metrics/v2/pkg/options"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -30,13 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
-	"k8s.io/kube-state-metrics/v2/pkg/customresource"
-	"k8s.io/kube-state-metrics/v2/pkg/options"
 )
 
 const (

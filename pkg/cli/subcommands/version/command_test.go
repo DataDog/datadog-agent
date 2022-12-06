@@ -8,8 +8,9 @@ package version
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {

@@ -13,9 +13,8 @@ import (
 	"fmt"
 	"net/http"
 
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	"github.com/gorilla/mux"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"

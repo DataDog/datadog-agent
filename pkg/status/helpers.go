@@ -17,7 +17,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/fatih/color"
-
 	"golang.org/x/text/unicode/norm"
 )
 

@@ -10,9 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"

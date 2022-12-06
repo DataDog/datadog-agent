@@ -9,15 +9,15 @@
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1beta1"
 	batchv1Listers "k8s.io/client-go/listers/batch/v1beta1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
 // CronJobV1Beta1Collector is a collector for Kubernetes CronJobs.

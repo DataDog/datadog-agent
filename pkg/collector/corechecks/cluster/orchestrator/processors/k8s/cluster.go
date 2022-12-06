@@ -13,16 +13,15 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	corev1Client "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
 // ClusterProcessor is a processor for Kubernetes clusters. There is no

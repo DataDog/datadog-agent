@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -22,12 +24,8 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	"github.com/stretchr/testify/assert"
 )
 
 var (

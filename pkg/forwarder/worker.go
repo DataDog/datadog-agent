@@ -12,11 +12,10 @@ import (
 	"net/http/httptrace"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Worker consumes Transaction (aka transactions) from the Forwarder and

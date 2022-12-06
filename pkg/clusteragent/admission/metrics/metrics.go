@@ -9,9 +9,9 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
-
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // Metric names

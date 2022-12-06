@@ -16,13 +16,12 @@ import (
 
 	"github.com/docker/docker/api/types"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	dockerUtil "github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	sourcesPkg "github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 const (

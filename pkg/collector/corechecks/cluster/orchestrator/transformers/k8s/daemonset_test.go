@@ -9,13 +9,13 @@
 package k8s
 
 import (
+	"testing"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"testing"
 )
 
 func TestExtractDaemonset(t *testing.T) {

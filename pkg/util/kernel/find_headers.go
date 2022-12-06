@@ -24,12 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mholt/archiver/v3"
-	"golang.org/x/exp/maps"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/nikos/types"
+	"github.com/mholt/archiver/v3"
+	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"

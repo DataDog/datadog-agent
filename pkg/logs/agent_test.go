@@ -18,12 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 

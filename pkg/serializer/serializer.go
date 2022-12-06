@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -26,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/gogo/protobuf/proto"
 )
 
 const (

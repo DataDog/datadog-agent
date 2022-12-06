@@ -8,14 +8,14 @@ package custom
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
 func newServiceAccount(ns, name string, automount bool) *corev1.ServiceAccount {

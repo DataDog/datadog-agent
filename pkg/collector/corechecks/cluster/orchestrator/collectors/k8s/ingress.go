@@ -12,19 +12,19 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	netv1Informers "k8s.io/client-go/informers/networking/v1"
 	netv1Listers "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // NewIngressCollectorVersions builds the group of collector versions.

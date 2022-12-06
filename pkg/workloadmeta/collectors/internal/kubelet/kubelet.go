@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/internal/third_party/golang/expansion"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"

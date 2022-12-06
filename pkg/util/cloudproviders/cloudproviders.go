@@ -11,13 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
-
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -26,6 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/ecs"
+	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type cloudProviderDetector struct {

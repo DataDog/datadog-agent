@@ -11,14 +11,14 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/stretchr/testify/assert"
-
 	// we need some valid check in the catalog to run tests
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 type dummyService struct {

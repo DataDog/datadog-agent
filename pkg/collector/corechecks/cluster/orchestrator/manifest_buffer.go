@@ -12,9 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"

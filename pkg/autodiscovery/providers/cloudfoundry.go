@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bhmj/jsonslice"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/bhmj/jsonslice"
 )
 
 // CloudFoundryConfigProvider implements the Config Provider interface, it should

@@ -11,15 +11,14 @@ package cri
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/generic"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/cri/crimock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	criTypes "k8s.io/cri-api/pkg/apis/runtime/v1"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestCriCheck(t *testing.T) {

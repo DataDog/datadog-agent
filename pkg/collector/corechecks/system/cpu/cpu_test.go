@@ -11,12 +11,11 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 var (

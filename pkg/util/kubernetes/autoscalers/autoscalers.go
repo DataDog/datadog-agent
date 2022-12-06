@@ -13,12 +13,11 @@ import (
 	"reflect"
 	"regexp"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	autoscalingv2beta1 "k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

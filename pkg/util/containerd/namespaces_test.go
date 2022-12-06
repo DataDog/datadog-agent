@@ -13,10 +13,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNamespacesToWatch(t *testing.T) {

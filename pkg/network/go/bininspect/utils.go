@@ -14,9 +14,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/go-delve/delve/pkg/goversion"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/asmscan"
 	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
-	"github.com/go-delve/delve/pkg/goversion"
 )
 
 // GetArchitecture returns the `runtime.GOARCH`-compatible names of the architecture.

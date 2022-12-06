@@ -65,8 +65,14 @@ linters:
     - govet       # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - depguard    # Depguard is useful for preventing specific packages from being used
     - bodyclose   # checks whether HTTP response body is closed successfully
+    - gci
 
 linters-settings:
+  gci:
+    sections:
+      - standard # Standard section: captures all standard packages.
+      - default # Default section: contains all imports that could not be matched to another section type.
+      - prefix(github.com/DataDog/datadog-agent) # Custom section: groups all imports with the specified Prefi
   depguard:
     include-go-root: true
     packages-with-error-message:

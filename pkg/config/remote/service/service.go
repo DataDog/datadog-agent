@@ -19,10 +19,9 @@ import (
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/theupdateframework/go-tuf/data"
 	tufutil "github.com/theupdateframework/go-tuf/util"
+	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"go.etcd.io/bbolt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"

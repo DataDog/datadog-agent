@@ -14,11 +14,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
-
 	"k8s.io/apimachinery/pkg/util/diff"
 	core "k8s.io/client-go/testing"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 )
 
 func getIsLeaderFunction(leader bool) func() bool {

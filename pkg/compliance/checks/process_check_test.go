@@ -7,12 +7,12 @@ package checks
 import (
 	"testing"
 
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
-	assert "github.com/stretchr/testify/require"
 )
 
 type processFixture struct {

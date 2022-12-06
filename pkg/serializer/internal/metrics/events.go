@@ -13,10 +13,9 @@ import (
 	"expvar"
 	"fmt"
 
+	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/gogo/protobuf/proto"
 	jsoniter "github.com/json-iterator/go"
-
-	agentpayload "github.com/DataDog/agent-payload/v5/gogen"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"

@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 )
 

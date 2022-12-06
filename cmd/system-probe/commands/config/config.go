@@ -8,9 +8,9 @@ package config
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
-
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // Config returns the main cobra config command.

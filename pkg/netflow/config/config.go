@@ -9,10 +9,8 @@ import (
 	"fmt"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
 // NetflowConfig contains configuration for NetFlow collector.

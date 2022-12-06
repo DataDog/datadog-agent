@@ -15,11 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const flushFlowsToSendInterval = 10 * time.Second

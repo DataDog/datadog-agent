@@ -12,11 +12,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	k "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
-	"github.com/stretchr/testify/mock"
 )
 
 type kubeUtilMock struct {

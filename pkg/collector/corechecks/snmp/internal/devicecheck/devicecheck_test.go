@@ -7,7 +7,6 @@ package devicecheck
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"strings"
 	"testing"
 	"time"
@@ -17,13 +16,13 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {

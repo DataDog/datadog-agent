@@ -25,9 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/test/integration/utils"
-
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 type DockerListenerTestSuite struct {

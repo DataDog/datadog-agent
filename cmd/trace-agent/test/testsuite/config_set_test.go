@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
-
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 )
 
 func TestConfigSetHandler(t *testing.T) {

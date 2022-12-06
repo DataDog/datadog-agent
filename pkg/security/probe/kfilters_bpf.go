@@ -9,8 +9,9 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	manager "github.com/DataDog/ebpf-manager"
+
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 )
 
 type activeKFilter interface {

@@ -8,10 +8,10 @@ package utils
 import (
 	"strings"
 
+	"github.com/gobwas/glob"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
-
-	"github.com/gobwas/glob"
 )
 
 // InitMetadataAsTags prepares labels and annotations as tags

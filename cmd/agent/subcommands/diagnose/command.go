@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -21,9 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (

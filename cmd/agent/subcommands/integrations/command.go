@@ -22,6 +22,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -30,10 +33,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/coreos/go-semver/semver"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (

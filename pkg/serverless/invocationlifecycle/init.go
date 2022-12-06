@@ -11,11 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
-	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
-
 	"github.com/aws/aws-lambda-go/events"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

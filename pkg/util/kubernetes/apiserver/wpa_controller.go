@@ -13,17 +13,14 @@ import (
 	"math"
 	"time"
 
-	dynamic_client "k8s.io/client-go/dynamic"
-	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
-
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
-
 	"github.com/cenkalti/backoff"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	dynamic_client "k8s.io/client-go/dynamic"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 

@@ -8,20 +8,17 @@ package app
 import (
 	"context"
 	"errors"
+	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"path"
 	"time"
 
-	_ "expvar" // Blank import used because this isn't directly used in this file
-
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
-
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
@@ -35,6 +32,7 @@ import (
 	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -50,8 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (

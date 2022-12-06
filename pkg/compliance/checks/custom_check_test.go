@@ -9,13 +9,13 @@ import (
 	"errors"
 	"testing"
 
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/custom"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-
-	assert "github.com/stretchr/testify/require"
 )
 
 func TestNewCustomCheck(t *testing.T) {

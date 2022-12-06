@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestBuildSNMPParams(t *testing.T) {

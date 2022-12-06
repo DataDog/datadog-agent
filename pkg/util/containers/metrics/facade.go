@@ -6,14 +6,13 @@
 package metrics
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-
 	// Register all the collectors
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/containerd"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/cri"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/ecsfargate"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system"
 )
 

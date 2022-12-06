@@ -13,7 +13,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,13 +28,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/spf13/cobra"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/metadata"
 )
 
 const (

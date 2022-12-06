@@ -12,12 +12,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 
 // OpenFilesLimitWarningType is the key of the message generated when too many

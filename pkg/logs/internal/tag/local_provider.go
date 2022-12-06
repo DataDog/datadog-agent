@@ -9,11 +9,11 @@ import (
 	"context"
 	"sync"
 
+	"github.com/benbjohnson/clock"
+
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-
-	"github.com/benbjohnson/clock"
 )
 
 // NOTE: to avoid races, do not modify the contents of the `expectedTags`

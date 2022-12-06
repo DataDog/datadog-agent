@@ -13,12 +13,9 @@ import (
 	"testing"
 	"time"
 
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,7 +25,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	gocache "github.com/patrickmn/go-cache"
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestMetadataControllerSyncEndpoints(t *testing.T) {

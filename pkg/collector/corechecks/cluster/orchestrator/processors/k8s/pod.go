@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	kubetypes "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -23,9 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // PodHandlers implements the Handlers interface for Kubernetes Pods.

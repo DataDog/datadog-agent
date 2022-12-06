@@ -6,14 +6,14 @@
 package flowaggregator
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
-	"go.uber.org/atomic"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/netflow/portrollup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var timeNow = time.Now

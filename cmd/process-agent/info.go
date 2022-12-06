@@ -18,9 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"

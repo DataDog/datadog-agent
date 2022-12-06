@@ -11,10 +11,10 @@ import (
 	"math"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/cenkalti/backoff/v4"
 )
 
 const (

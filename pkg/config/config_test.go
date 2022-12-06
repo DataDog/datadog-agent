@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 )
 
 func setupConf() Config {

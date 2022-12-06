@@ -8,18 +8,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-
 	assert "github.com/stretchr/testify/require"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 )
 
 var scheme = kscheme.Scheme

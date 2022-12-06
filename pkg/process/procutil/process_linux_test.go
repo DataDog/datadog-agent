@@ -17,12 +17,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/gopsutil/host"
+	"github.com/DataDog/gopsutil/process"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/gopsutil/host"
-	"github.com/DataDog/gopsutil/process"
 )
 
 var (

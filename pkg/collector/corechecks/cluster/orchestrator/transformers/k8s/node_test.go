@@ -13,7 +13,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"

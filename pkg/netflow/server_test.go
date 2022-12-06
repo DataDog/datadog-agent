@@ -18,9 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func TestNewNetflowServer(t *testing.T) {

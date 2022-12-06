@@ -11,11 +11,10 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-
-	"github.com/stretchr/testify/mock"
 )
 
 func TestProcessQueues(t *testing.T) {

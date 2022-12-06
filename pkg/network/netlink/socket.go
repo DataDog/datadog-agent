@@ -15,10 +15,9 @@ import (
 	"syscall"
 	"unsafe"
 
-	"go.uber.org/atomic"
-
 	"github.com/mdlayher/netlink"
 	"github.com/vishvananda/netns"
+	"go.uber.org/atomic"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 

@@ -11,10 +11,10 @@ package apiserver
 import (
 	"sync"
 
+	"github.com/patrickmn/go-cache"
+
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/patrickmn/go-cache"
 )
 
 // globalMetaBundleStore uses the global cache instance for the Agent.

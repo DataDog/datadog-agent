@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/contlcycle"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

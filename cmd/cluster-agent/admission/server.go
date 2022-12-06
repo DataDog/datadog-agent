@@ -17,12 +17,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	admiv1 "k8s.io/api/admission/v1"
 	admiv1beta1 "k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +24,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const jsonContentType = "application/json"

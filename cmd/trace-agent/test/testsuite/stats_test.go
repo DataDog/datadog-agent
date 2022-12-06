@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test/testsuite/testdata"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestClientStats(t *testing.T) {

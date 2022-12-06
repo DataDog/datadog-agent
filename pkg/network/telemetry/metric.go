@@ -9,8 +9,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Metric represents a named piece of telemetry

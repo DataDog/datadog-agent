@@ -22,9 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/DataDog/datadog-agent/test/integration/utils"
-
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
 var (

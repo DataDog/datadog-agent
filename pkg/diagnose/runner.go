@@ -10,11 +10,11 @@ import (
 	"io"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/cihub/seelog"
 	"github.com/fatih/color"
+
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RunAll runs all registered connectivity checks, output it in writer

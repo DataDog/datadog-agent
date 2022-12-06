@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MetricsStore implements the k8s.io/client-go/tools/cache.Store

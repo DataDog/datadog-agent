@@ -9,12 +9,11 @@ import (
 	"io"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer reads data from a net.Conn.  It uses a `read` callback to be generic

@@ -17,14 +17,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	"github.com/docker/docker/api/types"
-
-	"github.com/stretchr/testify/assert"
 )
 
 const testReadTimeout = 10 * time.Millisecond

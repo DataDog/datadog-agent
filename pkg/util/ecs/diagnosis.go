@@ -13,9 +13,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {

@@ -13,26 +13,25 @@ import (
 	"sync"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/otlp"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/metadata/host/container"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-
-	yaml "gopkg.in/yaml.v2"
+	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const packageCachePrefix = "host"

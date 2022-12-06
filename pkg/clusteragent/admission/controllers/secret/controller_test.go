@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
 
 var (

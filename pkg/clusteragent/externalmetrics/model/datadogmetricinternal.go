@@ -14,13 +14,12 @@ import (
 	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // exported for testing purposes

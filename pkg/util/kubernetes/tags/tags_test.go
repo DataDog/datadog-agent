@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 func TestMetaToTags(t *testing.T) {

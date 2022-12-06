@@ -13,12 +13,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

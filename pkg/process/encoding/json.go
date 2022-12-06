@@ -8,9 +8,8 @@ package encoding
 import (
 	"bytes"
 
-	"github.com/gogo/protobuf/jsonpb"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )

@@ -10,13 +10,13 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandleKubePod(t *testing.T) {

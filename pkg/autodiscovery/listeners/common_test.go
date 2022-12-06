@@ -8,10 +8,10 @@ package listeners
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_getStandardTags(t *testing.T) {

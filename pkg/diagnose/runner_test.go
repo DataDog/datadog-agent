@@ -10,9 +10,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 func TestRunAll(t *testing.T) {

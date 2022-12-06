@@ -22,12 +22,12 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/transport"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/client-go/transport"
 )
 
 var (

@@ -13,10 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +24,10 @@ import (
 	admissionlisters "k8s.io/client-go/listers/admissionregistration/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ControllerV1 is responsible for watching the TLS certificate stored

@@ -14,19 +14,17 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/metrics"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	ccaScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	ddUtil "github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

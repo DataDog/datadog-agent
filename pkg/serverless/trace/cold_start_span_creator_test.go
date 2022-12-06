@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"

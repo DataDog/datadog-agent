@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSNMPListener(t *testing.T) {

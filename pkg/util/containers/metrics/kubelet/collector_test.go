@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestKubeletCollectorLinux(t *testing.T) {

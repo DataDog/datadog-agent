@@ -14,14 +14,14 @@ import (
 	"strconv"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
+
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 )
 
 const (

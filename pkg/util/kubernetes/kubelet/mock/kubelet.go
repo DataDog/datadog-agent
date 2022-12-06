@@ -14,9 +14,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
 // HTTPReplyMock represents a fake HTTP reply

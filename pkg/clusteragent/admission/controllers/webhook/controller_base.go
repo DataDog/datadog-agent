@@ -11,10 +11,6 @@ package webhook
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +20,9 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Controller is an interface implemeted by ControllerV1 and ControllerV1beta1.

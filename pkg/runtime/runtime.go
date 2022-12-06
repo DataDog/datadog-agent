@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"go.uber.org/automaxprocs/maxprocs"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

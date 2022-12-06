@@ -18,11 +18,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/docker/docker/api/types"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/docker/docker/api/types"
 )
 
 const dockerCommandMaxLength = 29

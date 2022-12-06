@@ -19,17 +19,15 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	promClient "github.com/prometheus/client_model/go"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/netflow/config"
 	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func waitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Duration, minEvents uint64) error {

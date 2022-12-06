@@ -13,11 +13,11 @@ import (
 	"errors"
 	"testing"
 
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-
-	assert "github.com/stretchr/testify/require"
 )
 
 type commandFixture struct {

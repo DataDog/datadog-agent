@@ -11,9 +11,9 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var (

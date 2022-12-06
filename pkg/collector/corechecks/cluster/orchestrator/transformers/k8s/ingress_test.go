@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"

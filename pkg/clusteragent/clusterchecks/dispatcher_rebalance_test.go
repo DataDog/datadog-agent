@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRebalance(t *testing.T) {

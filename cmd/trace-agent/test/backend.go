@@ -15,12 +15,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-
-	"github.com/gogo/protobuf/proto"
-	"github.com/tinylib/msgp/msgp"
 )
 
 // defaultBackendAddress is the default listening address for the fake

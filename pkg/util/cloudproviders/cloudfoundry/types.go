@@ -19,11 +19,10 @@ import (
 	"strconv"
 	"strings"
 
+	"code.cloudfoundry.org/bbs/models"
 	"github.com/cloudfoundry-community/go-cfclient"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"code.cloudfoundry.org/bbs/models"
 )
 
 const (

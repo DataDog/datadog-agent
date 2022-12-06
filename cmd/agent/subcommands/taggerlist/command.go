@@ -9,6 +9,8 @@ package taggerlist
 import (
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -19,9 +21,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 // cliParams are the command-line arguments for this subcommand

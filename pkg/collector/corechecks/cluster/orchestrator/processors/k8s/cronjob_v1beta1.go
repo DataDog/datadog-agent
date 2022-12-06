@@ -10,13 +10,12 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
-
-	batchv1beta1 "k8s.io/api/batch/v1beta1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // CronJobV1Beta1Handlers implements the Handlers interface for Kubernetes CronJobs.

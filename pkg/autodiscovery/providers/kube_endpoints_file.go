@@ -13,17 +13,17 @@ import (
 	"fmt"
 	"sync"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	listersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
-	listersv1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 func init() {

@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

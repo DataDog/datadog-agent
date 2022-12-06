@@ -14,6 +14,13 @@ import (
 	"fmt"
 	"sync"
 
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/labels"
+	infov1 "k8s.io/client-go/informers/core/v1"
+	listersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -21,13 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/labels"
-	infov1 "k8s.io/client-go/informers/core/v1"
-	listersv1 "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // ServiceAPI abstracts the dependency on the Kubernetes API (useful for testing)

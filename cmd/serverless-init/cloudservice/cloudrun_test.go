@@ -8,8 +8,9 @@ package cloudservice
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper"
 )
 
 func TestGetCloudRunTags(t *testing.T) {

@@ -6,10 +6,9 @@
 package checks
 
 import (
+	_ "embed"
 	"errors"
 	"strconv"
-
-	_ "embed"
 
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"

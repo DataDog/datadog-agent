@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	autoscalingv2beta1 "k8s.io/api/autoscaling/v2beta1"
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
@@ -24,8 +25,6 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"

@@ -8,9 +8,9 @@ package redact
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

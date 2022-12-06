@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-
 	"github.com/stretchr/testify/mock"
 	assert "github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 )
 
 func TestFileCheck(t *testing.T) {

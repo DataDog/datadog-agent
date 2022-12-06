@@ -12,8 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func Test_extractFirstParent(t *testing.T) {

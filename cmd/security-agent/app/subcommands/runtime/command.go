@@ -26,6 +26,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -49,9 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 const (

@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )

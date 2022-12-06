@@ -13,14 +13,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
@@ -28,6 +20,14 @@ import (
 	infov1 "k8s.io/client-go/informers/core/v1"
 	listv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

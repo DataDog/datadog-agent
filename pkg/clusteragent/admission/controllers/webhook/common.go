@@ -9,10 +9,10 @@
 package webhook
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // buildLabelSelectors returns the mutating webhooks object selector based on the configuration

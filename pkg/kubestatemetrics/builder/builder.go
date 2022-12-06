@@ -13,8 +13,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
@@ -27,6 +25,8 @@ import (
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	"k8s.io/kube-state-metrics/v2/pkg/watch"
+
+	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
 
 // Builder struct represents the metric store generator

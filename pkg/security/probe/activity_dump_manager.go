@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -27,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 func areCGroupADsEnabled(c *config.Config) bool {

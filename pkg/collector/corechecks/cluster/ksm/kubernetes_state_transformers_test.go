@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
-	"github.com/stretchr/testify/assert"
 )
 
 type args struct {

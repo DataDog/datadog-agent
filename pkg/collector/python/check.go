@@ -15,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"C"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -24,18 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	telemetry_utils "github.com/DataDog/datadog-agent/pkg/telemetry/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-/*
-#include <stdlib.h>
-
-#include "datadog_agent_rtloader.h"
-#include "rtloader_mem.h"
-
-char *getStringAddr(char **array, unsigned int idx);
-*/
-import "C"
-
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
 	id             check.ID

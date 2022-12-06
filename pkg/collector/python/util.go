@@ -13,14 +13,13 @@ package python
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
-import "C"
-
-import (
-	"fmt"
+import "fmt"
 	"io"
 	"os/exec"
 	"sync"
 	"syscall"
+
+	"C"
 )
 
 // GetSubprocessOutput runs the subprocess and returns the output

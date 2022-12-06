@@ -10,13 +10,13 @@ package processors
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	jsoniter "github.com/json-iterator/go"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	jsoniter "github.com/json-iterator/go"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 // Marshal message to JSON.

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -26,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v2"
 )
 
 const (

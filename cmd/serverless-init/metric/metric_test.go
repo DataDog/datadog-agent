@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"gotest.tools/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 func TestAdd(t *testing.T) {

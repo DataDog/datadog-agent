@@ -12,9 +12,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go.etcd.io/bbolt"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"go.etcd.io/bbolt"
 )
 
 func hashRCTargets(raw []byte) []byte {

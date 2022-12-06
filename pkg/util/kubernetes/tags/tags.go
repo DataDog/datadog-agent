@@ -13,12 +13,11 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (

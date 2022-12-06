@@ -16,9 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/docker/docker/api/types"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -27,8 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	"github.com/docker/docker/api/types"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	dockerutil "github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultSleepDuration = 1 * time.Second

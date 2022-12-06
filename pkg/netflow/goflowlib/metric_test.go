@@ -6,11 +6,13 @@
 package goflowlib
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"testing"
+
 	"github.com/golang/protobuf/proto"
 	promClient "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func TestConvertMetric(t *testing.T) {

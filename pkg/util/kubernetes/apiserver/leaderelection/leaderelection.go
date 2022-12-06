@@ -9,6 +9,7 @@
 package leaderelection
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,8 +21,6 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	rl "k8s.io/client-go/tools/leaderelection/resourcelock"
-
-	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

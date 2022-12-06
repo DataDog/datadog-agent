@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"time"
 
-	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 )
 
 type server struct {

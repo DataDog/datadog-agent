@@ -12,12 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const cacheKeyPrefix = "snmp"

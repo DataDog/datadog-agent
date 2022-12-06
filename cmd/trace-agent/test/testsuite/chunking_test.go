@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // TestPayloadChunking creates a payload that is N * writer.MaxPayloadSize and

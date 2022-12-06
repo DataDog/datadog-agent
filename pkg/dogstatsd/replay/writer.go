@@ -18,6 +18,7 @@ import (
 
 	// Refactor relevant bits
 	"github.com/DataDog/zstd"
+	"github.com/golang/protobuf/proto"
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 
@@ -27,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/golang/protobuf/proto"
 )
 
 const (

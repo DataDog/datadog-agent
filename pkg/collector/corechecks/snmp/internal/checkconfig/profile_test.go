@@ -15,12 +15,10 @@ import (
 	"testing"
 
 	"github.com/cihub/seelog"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fixtureProfileDefinitionMap() profileDefinitionMap {

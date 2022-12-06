@@ -11,17 +11,17 @@ package admission
 import (
 	"time"
 
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/cache"
 )
 
 // ControllerContext holds necessary context for the admission controllers

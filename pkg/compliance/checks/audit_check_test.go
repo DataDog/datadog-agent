@@ -10,13 +10,12 @@ import (
 	"testing"
 
 	"github.com/elastic/go-libaudit/rule"
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
-
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 type setupEnvFunc func(t *testing.T, env *mocks.Env)

@@ -7,20 +7,19 @@ package report
 
 import (
 	json "encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 // ReportNetworkDeviceMetadata reports device metadata

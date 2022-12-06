@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -19,8 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func InitializeDecoderForTest(source *sources.LogSource, parser parsers.Parser) *Decoder {

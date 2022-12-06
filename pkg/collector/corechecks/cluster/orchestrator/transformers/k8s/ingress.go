@@ -9,10 +9,10 @@
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	model "github.com/DataDog/agent-payload/v5/process"
 	netv1 "k8s.io/api/networking/v1"
 
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractIngress returns the protobuf model corresponding to a Kubernetes

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	autoscaler "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,8 +23,6 @@ import (
 	"k8s.io/client-go/dynamic/fake"
 	kube_informer "k8s.io/client-go/informers"
 	kube_fake "k8s.io/client-go/kubernetes/fake"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 )

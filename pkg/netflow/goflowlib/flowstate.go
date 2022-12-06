@@ -10,9 +10,8 @@ import (
 
 	"github.com/netsampler/goflow2/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // setting reusePort to false since not expected to be useful

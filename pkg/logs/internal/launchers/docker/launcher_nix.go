@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-
 	"golang.org/x/sys/unix"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (

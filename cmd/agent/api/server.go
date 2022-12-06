@@ -19,8 +19,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -37,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 )
 
 var listener net.Listener

@@ -12,9 +12,11 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
+
+	"github.com/go-delve/delve/pkg/goversion"
+
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
-	"github.com/go-delve/delve/pkg/goversion"
 )
 
 type newProcessBinaryInspector struct {

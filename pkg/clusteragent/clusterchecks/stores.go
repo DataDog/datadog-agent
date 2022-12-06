@@ -12,13 +12,13 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/atomic"
 )
 
 // clusterStore holds the state of cluster-check management.

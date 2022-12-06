@@ -8,9 +8,10 @@ package main
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStartCommand(t *testing.T) {

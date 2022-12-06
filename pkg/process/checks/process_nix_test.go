@@ -15,10 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"

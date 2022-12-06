@@ -11,13 +11,13 @@ package system
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	utilsystem "github.com/DataDog/datadog-agent/pkg/util/system"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildContainerMetrics(t *testing.T) {

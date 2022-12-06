@@ -20,14 +20,14 @@ import (
 	"strings"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (

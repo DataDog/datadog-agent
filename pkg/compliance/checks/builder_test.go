@@ -10,12 +10,12 @@ import (
 	"errors"
 	"testing"
 
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
-	assert "github.com/stretchr/testify/require"
 )
 
 func TestKubernetesNodeEligible(t *testing.T) {

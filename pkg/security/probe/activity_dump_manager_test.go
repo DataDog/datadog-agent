@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func compareListOfDumps(t *testing.T, out, expectedOut []*ActivityDump) {

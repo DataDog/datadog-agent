@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/open-policy-agent/opa/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
+
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var registeredHistograms map[string]telemetry.Histogram

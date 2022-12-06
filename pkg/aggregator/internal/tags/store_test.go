@@ -8,10 +8,10 @@ package tags
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestStore(t *testing.T) {

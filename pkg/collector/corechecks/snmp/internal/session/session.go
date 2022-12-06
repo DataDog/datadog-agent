@@ -14,11 +14,10 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const sysObjectIDOid = "1.3.6.1.2.1.1.2.0"

@@ -8,10 +8,10 @@ package collectors
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAddResourceTags(t *testing.T) {

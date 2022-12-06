@@ -11,15 +11,15 @@ package app
 import (
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/cluster-agent/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 func init() {

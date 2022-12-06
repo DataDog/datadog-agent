@@ -17,14 +17,14 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 type variableGetter func(ctx context.Context, key string, svc listeners.Service) (string, error)

@@ -13,12 +13,12 @@ import (
 	"strconv"
 	"time"
 
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
 )
 
 // useNamespaceSelector returns whether we need to fallback to using namespace selector instead of object selector.

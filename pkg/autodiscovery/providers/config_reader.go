@@ -15,14 +15,14 @@ import (
 	"sync"
 	"time"
 
+	cache "github.com/patrickmn/go-cache"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	cache "github.com/patrickmn/go-cache"
-	"gopkg.in/yaml.v2"
 )
 
 type configFormat struct {

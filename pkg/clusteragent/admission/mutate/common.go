@@ -12,11 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type mutateFunc func(*corev1.Pod, string, dynamic.Interface) error

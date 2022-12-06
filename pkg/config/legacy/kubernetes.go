@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/pkg/config"
-
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (

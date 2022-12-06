@@ -16,12 +16,11 @@ import (
 	"testing"
 	"time"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	log "github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"

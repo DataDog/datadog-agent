@@ -13,12 +13,12 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery"
+
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
 )
 
 const serverVersionCacheKey = "kubeServerVersion"

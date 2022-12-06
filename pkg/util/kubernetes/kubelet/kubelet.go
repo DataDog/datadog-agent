@@ -16,6 +16,8 @@ import (
 	"sync"
 	"time"
 
+	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -23,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
-	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (

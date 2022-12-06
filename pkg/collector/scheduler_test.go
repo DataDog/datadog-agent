@@ -9,12 +9,11 @@ import (
 	"fmt"
 	"testing"
 
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
 type MockCheck struct {

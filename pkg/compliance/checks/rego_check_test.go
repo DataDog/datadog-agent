@@ -8,13 +8,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	assert "github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
-	"github.com/stretchr/testify/mock"
-	assert "github.com/stretchr/testify/require"
 )
 
 type regoFixture struct {

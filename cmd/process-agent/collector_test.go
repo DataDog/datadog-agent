@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"

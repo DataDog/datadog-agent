@@ -11,9 +11,10 @@ package ebpf
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {

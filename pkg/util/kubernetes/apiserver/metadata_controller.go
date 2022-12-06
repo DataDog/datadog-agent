@@ -12,10 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -25,6 +21,10 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MetadataController is responsible for synchronizing objects from the Kubernetes

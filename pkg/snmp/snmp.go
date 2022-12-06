@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/viper"
 	"github.com/gosnmp/gosnmp"
+
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (

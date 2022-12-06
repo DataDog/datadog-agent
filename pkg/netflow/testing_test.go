@@ -8,6 +8,7 @@ package netflow
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 

@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
-
-	"github.com/stretchr/testify/assert"
 )
 
 type mockedProcessor struct {

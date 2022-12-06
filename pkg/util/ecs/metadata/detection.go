@@ -17,14 +17,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func detectAgentV1URL() (string, error) {

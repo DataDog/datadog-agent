@@ -11,13 +11,13 @@ package utils
 import (
 	"fmt"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	v1 "k8s.io/api/core/v1"
 )
 
 // Kind and prefix in Kubernetes

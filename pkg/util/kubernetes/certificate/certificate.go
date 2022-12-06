@@ -23,10 +23,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 const (

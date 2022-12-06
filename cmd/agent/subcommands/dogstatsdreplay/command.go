@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,8 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd/replay"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/spf13/cobra"
 )
 
 const (

@@ -14,13 +14,6 @@ import (
 	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
@@ -28,7 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (

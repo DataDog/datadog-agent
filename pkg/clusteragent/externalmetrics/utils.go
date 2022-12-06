@@ -16,11 +16,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 )
 
 const (

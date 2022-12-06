@@ -13,18 +13,17 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"

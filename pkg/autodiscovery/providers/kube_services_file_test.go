@@ -11,10 +11,10 @@ package providers
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestToKubernetesServiceChecks(t *testing.T) {

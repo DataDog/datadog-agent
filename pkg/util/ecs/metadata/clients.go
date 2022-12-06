@@ -15,13 +15,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/retry"
-
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	v2 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2"
 	v3or4 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (

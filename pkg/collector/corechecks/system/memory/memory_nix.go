@@ -14,9 +14,8 @@ import (
 
 	"github.com/shirou/gopsutil/v3/mem"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // For testing purpose

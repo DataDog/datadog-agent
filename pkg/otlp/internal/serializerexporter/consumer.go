@@ -13,7 +13,6 @@ import (
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"

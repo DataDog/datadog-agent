@@ -14,14 +14,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestExtractDeployment(t *testing.T) {

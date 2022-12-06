@@ -11,15 +11,15 @@ package containerd
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
-
 	v1 "github.com/containerd/cgroups/stats/v1"
 	v2 "github.com/containerd/cgroups/v2/stats"
 	"github.com/containerd/containerd/oci"
 	"github.com/opencontainers/runtime-spec/specs-go"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 func processContainerStats(containerID string, stats interface{}) (*provider.ContainerStats, error) {

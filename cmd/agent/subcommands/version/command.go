@@ -7,10 +7,10 @@
 package version
 
 import (
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
-
-	"github.com/spf13/cobra"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.

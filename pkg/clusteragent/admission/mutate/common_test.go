@@ -14,12 +14,13 @@ import (
 	"reflect"
 	"testing"
 
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/stretchr/testify/assert"
 	admiv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+
+	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 func Test_contains(t *testing.T) {

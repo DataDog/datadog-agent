@@ -8,13 +8,13 @@ package custom
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/compliance"
-	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 )
 
 func newNamespace(ns string) *corev1.Namespace {

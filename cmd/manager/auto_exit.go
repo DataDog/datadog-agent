@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"golang.org/x/net/context"
 )
 
 const (

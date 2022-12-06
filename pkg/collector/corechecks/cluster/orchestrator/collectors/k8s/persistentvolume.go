@@ -9,15 +9,15 @@
 package k8s
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 )
 
 // NewPersistentVolumeCollectorVersions builds the group of collector versions.

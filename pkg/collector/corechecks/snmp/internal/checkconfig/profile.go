@@ -15,10 +15,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 )
 
 type profileDefinitionMap map[string]profileDefinition

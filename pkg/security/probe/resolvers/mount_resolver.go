@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 var (

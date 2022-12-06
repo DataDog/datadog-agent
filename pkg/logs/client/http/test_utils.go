@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 )
 

@@ -15,13 +15,14 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/stretchr/testify/assert"
+
 	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSetFieldValue(t *testing.T) {

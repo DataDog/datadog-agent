@@ -8,8 +8,9 @@ package telemetry
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // common prefix used across all statsd metric

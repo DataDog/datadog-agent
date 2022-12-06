@@ -10,9 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go.uber.org/fx"
-
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

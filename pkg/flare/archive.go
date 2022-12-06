@@ -23,6 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mholt/archiver/v3"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -36,9 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	"github.com/mholt/archiver/v3"
-	"gopkg.in/yaml.v2"
 )
 
 const (

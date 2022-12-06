@@ -12,14 +12,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/docker/docker/api/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-
-	"github.com/docker/docker/api/types"
 )
 
 func TestOverrideSourceServiceNameOrder(t *testing.T) {

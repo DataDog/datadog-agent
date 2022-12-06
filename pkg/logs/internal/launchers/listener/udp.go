@@ -9,11 +9,10 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/internal/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // The UDP listener is limited by the size of its read buffer,

@@ -12,8 +12,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 var scheme = kscheme.Scheme

@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGetSource(t *testing.T) {

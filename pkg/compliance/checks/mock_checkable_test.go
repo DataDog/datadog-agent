@@ -6,10 +6,10 @@
 package checks
 
 import (
+	"github.com/stretchr/testify/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
-
-	"github.com/stretchr/testify/mock"
 )
 
 type mockCheckable struct {

@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	proto "github.com/golang/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	proto "github.com/golang/protobuf/proto"
 )
 
 const transactionsSerializerVersion = 1

@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -22,8 +23,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"github.com/spf13/cobra"
 )
 
 // cliParams are the command-line arguments for this subcommand

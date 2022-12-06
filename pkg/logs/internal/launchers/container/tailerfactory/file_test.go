@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"

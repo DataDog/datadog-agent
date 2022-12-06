@@ -11,10 +11,9 @@
 package main
 
 import (
-	"os"
-
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/app"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"

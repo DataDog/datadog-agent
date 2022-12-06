@@ -14,6 +14,8 @@ import (
 	"expvar"
 	"fmt"
 
+	"k8s.io/client-go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -22,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type stats struct {

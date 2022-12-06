@@ -11,13 +11,13 @@ package collectors
 import (
 	"fmt"
 
+	"go.uber.org/atomic"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-
-	"go.uber.org/atomic"
-	"k8s.io/client-go/tools/cache"
 )
 
 // Collector is an interface that represents the collection process for a

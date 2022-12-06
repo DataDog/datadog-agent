@@ -11,6 +11,9 @@ package runtime
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,8 +24,6 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type activityDumpCliParams struct {

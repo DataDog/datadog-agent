@@ -13,10 +13,12 @@ import (
 	"debug/elf"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
-	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
+
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
 	"github.com/go-delve/delve/pkg/dwarf/loclist"
+
+	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils"
+	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 )
 
 // dwarfInspector is used to keep common data for the dwarf inspection functions.

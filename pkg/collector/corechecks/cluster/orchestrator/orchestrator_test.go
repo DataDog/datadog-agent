@@ -15,16 +15,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	corev1 "k8s.io/api/core/v1"
 )
 
 // TestOrchestratorCheckSafeReSchedule close simulates the check being unscheduled and rescheduled again

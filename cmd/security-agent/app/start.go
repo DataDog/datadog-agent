@@ -12,10 +12,11 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/spf13/cobra"
+
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/spf13/cobra"
 )
 
 type startCliParams struct {

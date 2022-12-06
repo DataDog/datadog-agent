@@ -12,10 +12,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/process"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"

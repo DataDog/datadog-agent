@@ -13,13 +13,12 @@ import (
 	"time"
 
 	"github.com/DataDog/zstd"
+	proto "github.com/golang/protobuf/proto"
+	"github.com/h2non/filetype"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	proto "github.com/golang/protobuf/proto"
-	"github.com/h2non/filetype"
 )
 
 // TrafficCaptureReader allows reading back a traffic capture and its contents

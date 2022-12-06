@@ -9,18 +9,10 @@
 package python
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"C"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-)
-
-/*
-#include <datadog_agent_rtloader.h>
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
-*/
-import "C"
-
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 var filter *containers.Filter
 
 // IsContainerExcluded returns whether a container should be excluded,

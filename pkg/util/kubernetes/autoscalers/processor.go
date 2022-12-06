@@ -17,11 +17,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
-
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"

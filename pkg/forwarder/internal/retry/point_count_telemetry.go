@@ -9,9 +9,10 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"go.uber.org/atomic"
 )
 
 // PointCountTelemetry sends the number of points successfully sent and the number of points dropped.
