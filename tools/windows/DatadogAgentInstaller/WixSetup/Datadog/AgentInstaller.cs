@@ -91,6 +91,7 @@ namespace WixSetup.Datadog
                     RemoveOnUninstall = true,
                     FailIfExists = false,
                 },
+                _agentCustomActions.WixFailWhenDeferred,
                 _agentCustomActions.ReadConfig,
                 _agentCustomActions.WriteConfig,
                 _agentCustomActions.ReadRegistryProperties,

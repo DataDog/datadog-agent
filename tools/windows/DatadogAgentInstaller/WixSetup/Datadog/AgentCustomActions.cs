@@ -5,6 +5,8 @@ namespace WixSetup.Datadog
 {
     public class AgentCustomActions
     {
+        public Action WixFailWhenDeferred { get; }
+
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -21,6 +23,9 @@ namespace WixSetup.Datadog
 
         public AgentCustomActions()
         {
+            WixFailWhenDeferred = new CustomActionRef("WixFailWhenDeferred", When.Before, Step.InstallFinalize,
+                "WIXFAILWHENDEFERRED=1");
+
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
                     new Id("ReadRegistryProperties"),
                     UserCustomActions.ReadRegistryProperties,
