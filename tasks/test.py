@@ -288,6 +288,7 @@ def test(
     targets=None,
     flavors=None,
     coverage=False,
+    print_coverage=False,
     build_include=None,
     build_exclude=None,
     verbose=False,
@@ -445,7 +446,7 @@ def test(
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
 
-    if coverage:
+    if coverage and print_coverage:
         for flavor in flavors:
             coverage_flavor(ctx, flavor, modules)
 
