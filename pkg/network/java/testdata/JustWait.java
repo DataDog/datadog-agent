@@ -1,9 +1,11 @@
+// Need to be compiled with java7
+
 import java.lang.Thread;
-import java.lang.ProcessHandle;
+import java.lang.management.ManagementFactory;
 
 class JustWait {
     public static void main(String[] args) {
-        long pid = ProcessHandle.current().pid();
+        String pid = ManagementFactory.getRuntimeMXBean().getName();
         System.out.println("JustWait pid "+ pid);
         try {
             for(;;) {
