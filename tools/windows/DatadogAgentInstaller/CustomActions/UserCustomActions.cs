@@ -278,14 +278,20 @@ namespace Datadog.CustomActions
                 var key = Registry.LocalMachine.CreateSubKey("SOFTWARE\\Datadog\\Datadog Agent");
                 if (key != null)
                 {
-                    var registrySecurity = key.GetAccessControl();
+                    var registrySecurity = new RegistrySecurity();
                     registrySecurity.AddAccessRule(new RegistryAccessRule(
-                        securityIdentifier,
-                        RegistryRights.WriteKey |
-                        RegistryRights.ReadKey |
-                        RegistryRights.Delete |
+                        new SecurityIdentifier("SY"),
                         RegistryRights.FullControl,
                         AccessControlType.Allow));
+                    registrySecurity.AddAccessRule(new RegistryAccessRule(
+                        new SecurityIdentifier("BA"),
+                        RegistryRights.FullControl,
+                        AccessControlType.Allow));
+                    registrySecurity.AddAccessRule(new RegistryAccessRule(
+                        securityIdentifier,
+                        RegistryRights.FullControl,
+                        AccessControlType.Allow));
+                    registrySecurity.SetAccessRuleProtection(false, true);
                     key.SetAccessControl(registrySecurity);
                 }
                 else
