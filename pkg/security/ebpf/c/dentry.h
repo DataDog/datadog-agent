@@ -5,11 +5,11 @@
 #include <linux/types.h>
 #include <linux/mount.h>
 #include <linux/fs.h>
+#include <linux/magic.h>
 
 #include "defs.h"
 #include "filters.h"
 
-#define TMPFS_MAGIC 0x01021994
 #define MNT_OFFSETOF_MNT 32 // offsetof(struct mount, mnt)
 
 unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
@@ -44,6 +44,12 @@ u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset ? offset : 284; // offsetof(struct mount, mnt_id)
 }
 
+u32 __attribute__((always_inline)) get_mount_offset_of_mount_flags(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_flags_offset", offset);
+    return offset ? offset : 284; // offsetof(struct mount, mnt_flags)
+}
+
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
@@ -63,10 +69,16 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
     return get_vfsmount_mount_id(mnt);
 }
 
+int __attribute__((always_inline)) get_vfsmount_mount_flags(struct vfsmount *mnt) {
+    int mount_flags;
+    bpf_probe_read(&mount_flags, sizeof(mount_flags), (char *)mnt + get_mount_offset_of_mount_flags() - MNT_OFFSETOF_MNT);
+    return mount_flags;
+}
+
 int __attribute__((always_inline)) get_path_mount_flags(struct path *path) {
     struct vfsmount *mnt;
     bpf_probe_read(&mnt, sizeof(mnt), &path->mnt);
-    return mnt->mnt_flags;
+    return get_vfsmount_mount_flags(mnt);
 }
 
 int __attribute__((always_inline)) get_mount_mount_id(void *mnt) {
