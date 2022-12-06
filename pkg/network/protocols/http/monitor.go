@@ -12,9 +12,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cilium/ebpf"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"

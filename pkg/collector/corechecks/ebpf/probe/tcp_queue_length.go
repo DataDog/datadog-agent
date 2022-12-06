@@ -16,24 +16,16 @@ import (
 	"math"
 	"unsafe"
 
-	"github.com/iovisor/gobpf/pkg/cpupossible"
-	"golang.org/x/sys/unix"
-
+	"C"
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
+	"github.com/iovisor/gobpf/pkg/cpupossible"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-/*
-#include <string.h>
-#include "../c/runtime/tcp-queue-length-kern-user.h"
-*/
-import "C"
-
 const (
 	statsMapName = "tcp_queue_stats"
 )

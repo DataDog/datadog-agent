@@ -9,9 +9,8 @@
 package filter
 
 import (
-	"github.com/vishvananda/netns"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"

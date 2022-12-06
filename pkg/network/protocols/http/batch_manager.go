@@ -12,9 +12,9 @@ import (
 	"errors"
 	"unsafe"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-
 	"github.com/cilium/ebpf"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 var errLostBatch = errors.New("http batch lost (not consumed fast enough)")

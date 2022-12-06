@@ -13,10 +13,9 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/twmb/murmur3"
-
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/twmb/murmur3"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"

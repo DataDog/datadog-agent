@@ -17,11 +17,11 @@ import (
 	"path/filepath"
 	"unsafe"
 
-	"golang.org/x/sys/unix"
-
+	"C"
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -29,14 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-/*
-#include <string.h>
-#include "../c/runtime/oom-kill-kern-user.h"
-*/
-import "C"
-
 const oomMapName = "oom_stats"
 
 type OOMKillProbe struct {

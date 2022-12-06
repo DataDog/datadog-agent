@@ -11,10 +11,11 @@ package http
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"reflect"
 	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 )
 
 func inspectionResultToProbeData(result *bininspect.Result) (gotls.TlsOffsetsData, error) {

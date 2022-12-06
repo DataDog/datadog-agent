@@ -11,9 +11,10 @@ package telemetry
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
 type Manager struct {
