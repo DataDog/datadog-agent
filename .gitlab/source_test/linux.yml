@@ -36,6 +36,8 @@
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - source /root/.bashrc && conda activate ddpy3
+    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
+    - inv -e rtloader.install
     - inv -e install-tools
     - inv -e lint-go $FLAVORS $EXTRA_OPTS
 
