@@ -15,16 +15,16 @@ import (
 )
 
 func TestDiscarderEventMask(t *testing.T) {
-	var ctx baloum.Context
-	code, err := newVM(t).RunProgram(ctx, "test/discarders_event_mask")
+	var ctx baloum.StdContext
+	code, err := newVM(t).RunProgram(&ctx, "test/discarders_event_mask")
 	if err != nil || code != 0 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
 
 func TestDiscarderRetention(t *testing.T) {
-	var ctx baloum.Context
-	code, err := newVM(t).RunProgram(ctx, "test/discarders_retention")
+	var ctx baloum.StdContext
+	code, err := newVM(t).RunProgram(&ctx, "test/discarders_retention")
 	if err != nil || code != 0 {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
