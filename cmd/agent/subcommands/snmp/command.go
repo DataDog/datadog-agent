@@ -92,7 +92,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.cmd = cmd
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", "off", true)),
+				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", true))),
 				core.Bundle,
 			)
 		},

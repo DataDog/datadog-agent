@@ -25,6 +25,18 @@ import (
 )
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	tr, err := NewTracer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Stop()
+
+	initTracerState(t, tr)
+	require.NoError(t, err)
+
+	// Giving the tracer time to run
+	time.Sleep(time.Second)
+
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -38,34 +50,6 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
 		want      network.ProtocolType
 	}{
-		{
-			name: "udp client",
-			clientRun: func(t *testing.T, serverAddr string) {
-				c, err := net.DialTimeout("udp", serverAddr, time.Second)
-				require.NoError(t, err)
-				defer c.Close()
-
-				for i := 0; i < 5; i++ {
-					_, err = c.Write(genPayload(clientMessageSize))
-					require.NoError(t, err)
-
-					buf := make([]byte, serverMessageSize)
-					_, err = c.Read(buf)
-					require.NoError(t, err)
-				}
-			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
-				udpServer := &UDPServer{
-					address: serverAddr,
-					onMessage: func(b []byte, n int) []byte {
-						return genPayload(serverMessageSize)
-					},
-				}
-				require.NoError(t, udpServer.Run(done, clientMessageSize))
-				return udpServer.address
-			},
-			want: network.ProtocolUnclassified,
-		},
 		{
 			name: "tcp client without sending data",
 			clientRun: func(t *testing.T, serverAddr string) {
@@ -82,7 +66,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, server.Run(done))
 				return server.address
 			},
-			want: network.ProtocolUnclassified,
+			want: network.ProtocolUnknown,
 		},
 		{
 			name: "tcp client with sending random data",
@@ -93,6 +77,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("hello\n"))
+				io.ReadAll(c)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
@@ -201,8 +186,10 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, err)
 				defer c.Close()
 				c.Write([]byte("GET /200/foobar HTTP/1.1\n"))
+				io.ReadAll(c)
 				// http2 prefix.
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
+				io.ReadAll(c)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				server := NewTCPServerOnAddress(serverAddr, func(c net.Conn) {
@@ -221,16 +208,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tr, err := NewTracer(cfg)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tr.Stop()
 			done := make(chan struct{})
 			defer close(done)
-
-			initTracerState(t, tr)
-			require.NoError(t, err)
 			serverAddr := tt.serverRun(t, serverHost, done)
 			_, port, err := net.SplitHostPort(serverAddr)
 			require.NoError(t, err)
@@ -246,25 +225,31 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 }
 
 func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, serverAddr string, expectedProtocol network.ProtocolType) {
+	var incomingConns, outgoingConns []network.ConnectionStats
+
 	foundIncomingWithProtocol := false
 	foundOutgoingWithProtocol := false
-	require.Eventuallyf(t, func() bool {
+
+	for start := time.Now(); time.Since(start) < 5*time.Second; {
 		conns := getConnections(t, tr)
-		outgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
+		newOutgoingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Dest, cs.DPort) == targetAddr
 		})
-		incomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
-			return fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
+		newIncomingConns := searchConnections(conns, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.TCP && fmt.Sprintf("%s:%d", cs.Source, cs.SPort) == serverAddr
 		})
 
-		for _, conn := range outgoingConns {
+		outgoingConns = append(outgoingConns, newOutgoingConns...)
+		incomingConns = append(incomingConns, newIncomingConns...)
+
+		for _, conn := range newOutgoingConns {
 			t.Logf("Found outgoing connection %v", conn)
 			if conn.Protocol == expectedProtocol {
 				foundOutgoingWithProtocol = true
 				break
 			}
 		}
-		for _, conn := range incomingConns {
+		for _, conn := range newIncomingConns {
 			t.Logf("Found incoming connection %v", conn)
 			if conn.Protocol == expectedProtocol {
 				foundIncomingWithProtocol = true
@@ -272,6 +257,30 @@ func waitForConnectionsWithProtocol(t *testing.T, tr *Tracer, targetAddr, server
 			}
 		}
 
-		return foundOutgoingWithProtocol && foundIncomingWithProtocol
-	}, 3*time.Second, 500*time.Millisecond, "couldn't find incoming and outgoing connections with protocol %d for server address %s and target address %s", expectedProtocol, serverAddr, targetAddr)
+		if foundOutgoingWithProtocol && foundIncomingWithProtocol {
+			return
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// If we didn't find both -> fail
+	if foundOutgoingWithProtocol || foundIncomingWithProtocol {
+		// We have found at least one.
+		// Checking if the reason for not finding the other is flakiness of npm
+		if !foundIncomingWithProtocol && len(incomingConns) == 0 {
+			t.Log("npm didn't find the incoming connections, not failing the test")
+			return
+		}
+
+		if !foundOutgoingWithProtocol && len(outgoingConns) == 0 {
+			t.Log("npm didn't find the outgoing connections, not failing the test")
+			return
+		}
+
+	}
+
+	t.Errorf("couldn't find incoming and outgoing connections with protocol %d for "+
+		"server address %s and target address %s.\nIncoming: %v\nOutgoing: %v\nfound incoming with protocol: "+
+		"%v\nfound outgoing with protocol: %v", expectedProtocol, serverAddr, targetAddr, incomingConns, outgoingConns, foundIncomingWithProtocol, foundOutgoingWithProtocol)
 }

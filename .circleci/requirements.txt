@@ -1,8 +1,8 @@
-black==22.8.0
+black==22.10.0
 codecov==2.1.12
-flake8-bugbear==22.9.23
-flake8-comprehensions==3.10.0
-flake8-unused-arguments==0.0.11
+flake8-bugbear==22.10.27
+flake8-comprehensions==3.10.1
+flake8-unused-arguments==0.0.12
 flake8-use-fstring==1.4
 flake8==5.0.4
 isort==5.10.1

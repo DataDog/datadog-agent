@@ -577,6 +577,11 @@ type ProcessCacheEntry struct {
 	releaseCb func()                     `field:"-" json:"-"`
 }
 
+// IsContainerInit returns whether this is the entrypoint of the container
+func (pc *ProcessCacheEntry) IsContainerInit() bool {
+	return pc.ContainerID != "" && pc.Ancestor != nil && pc.Ancestor.ContainerID == ""
+}
+
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext

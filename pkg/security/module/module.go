@@ -434,7 +434,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
 
 	m.apiServer.Apply(ruleIDs)
-	m.rateLimiter.Apply(ruleIDs)
+	m.rateLimiter.Apply(ruleSet)
 
 	m.displayReport(report)
 
@@ -676,9 +676,6 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	// custom limiters
-	limits := make(map[rules.RuleID]Limit)
-
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
@@ -692,7 +689,7 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (module.Module, error) {
 		statsdClient:   statsdClient,
 		apiServer:      NewAPIServer(cfg, probe, statsdClient),
 		grpcServer:     grpc.NewServer(),
-		rateLimiter:    NewRateLimiter(statsdClient, LimiterOpts{Limits: limits}),
+		rateLimiter:    NewRateLimiter(statsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		ctx:            ctx,
 		cancelFnc:      cancelFnc,

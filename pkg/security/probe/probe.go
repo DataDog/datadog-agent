@@ -285,6 +285,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
+	p.resolvers.ProcessResolver.SetCgroupsMonitor(p.monitor.cgroupsMonitor)
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
