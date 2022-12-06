@@ -499,9 +499,7 @@ def lint_go(
     # Lint
 
     for flavor, build_tags in flavors_build_tags.items():
-        lint_flavor(
-            ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
-        )
+        lint_flavor(ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root)
 
 
 @task(iterable=['flavors'])
