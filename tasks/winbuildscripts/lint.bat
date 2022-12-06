@@ -16,6 +16,8 @@ xcopy /e/s/h/q c:\mnt\*.*
 
 Powershell -C "c:\mnt\tasks\winbuildscripts\lint.ps1"
 
+goto :EOF
+
 :nomntdir
 @echo directory not mounted, parameters incorrect
 exit /b 1
