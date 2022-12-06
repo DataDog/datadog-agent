@@ -55,7 +55,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 
 	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
 
-	if len(secretBackendCommandSHA256) != 0 {
+	if secretBackendCommandSHA256 != "" {
 		if !filepath.IsAbs(secretBackendCommand) {
 			return nil, fmt.Errorf("error while running '%s': absolute path required with SHA256", secretBackendCommand)
 		}
