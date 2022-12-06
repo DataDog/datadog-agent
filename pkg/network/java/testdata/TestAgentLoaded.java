@@ -1,4 +1,6 @@
 /*
+Need to be compiled with java7
+
 javac TestAgentLoaded.java
 jar cvmf META-INF/MANIFEST.MF TestAgentLoaded.jar TestAgentLoaded.class
  */
