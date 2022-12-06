@@ -204,7 +204,7 @@ func start(cmd *cobra.Command, args []string) error {
 	if config.Datadog.GetBool("remote_configuration.enabled") {
 		configService, err = remoteconfig.NewService()
 		if err == nil {
-			if err := configService.Start(context.Background()); err == nil {
+			if err := configService.Start(mainCtx); err == nil {
 				rcClient, err = remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductTesting1}, time.Second*5)
 				if err != nil {
 					log.Errorf("Failed to start local config management service client: %s", err)
