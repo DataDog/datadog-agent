@@ -86,15 +86,11 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	prevHashIsRequired := hashIsRequired
-	hashIsRequired = func() (bool, error) { return false, nil }
-
 	defer func() {
 		secretBackendCommand = ""
 		secretBackendArguments = []string{}
 		secretBackendTimeout = defaultSecretBackendTimeout
 		SecretBackendOutputMaxSize = defaultSecretBackendOutputMaxSize
-		hashIsRequired = prevHashIsRequired
 	}()
 
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
@@ -178,19 +174,6 @@ func TestExecCommandWithHash(t *testing.T) {
 	resp, err := execCommand(inputPayload)
 	require.NoError(t, err)
 	require.Equal(t, []byte(`{"handle1":{"value":"simple_password"}}`), resp)
-}
-
-func TestExecCommandErrorElevatedNoHash(t *testing.T) {
-	prevHashIsRequired := hashIsRequired
-	defer func() { hashIsRequired = prevHashIsRequired }()
-	hashIsRequired = func() (bool, error) { return true, nil }
-	secretBackendCommand = "foo"
-	defer func() {
-		secretBackendCommand = ""
-	}()
-	resp, err := execCommand("")
-	assert.Nil(t, resp)
-	assert.EqualError(t, err, `error while running 'foo': running elevated and 'secret_backend_command_sha256' is not set`)
 }
 
 func TestExecCommandErrorNotAbsPath(t *testing.T) {

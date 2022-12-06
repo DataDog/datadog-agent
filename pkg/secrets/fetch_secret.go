@@ -83,14 +83,6 @@ func execCommand(inputPayload string) ([]byte, error) {
 			return nil, fmt.Errorf("error while running '%s': SHA256 mismatch, actual '%s' expected '%s'", secretBackendCommand, sha256, secretBackendCommandSHA256)
 		}
 
-	} else {
-		requireHash, err := hashIsRequired()
-		if err != nil {
-			return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
-		}
-		if requireHash {
-			return nil, fmt.Errorf("error while running '%s': running elevated and 'secret_backend_command_sha256' is not set", secretBackendCommand)
-		}
 	}
 
 	if err = checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {

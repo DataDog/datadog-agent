@@ -60,24 +60,9 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	defer windows.FreeSid(administrators)
 
-	currentUser, err := winutil.GetSidFromUser()
+	secretUser, err := getSecretUserSID()
 	if err != nil {
 		return err
-	}
-
-	secretuser := currentUser
-
-	elevated, err := winutil.IsProcessElevated()
-	if err != nil {
-		return fmt.Errorf("unable to determine if running elevated: %s", err)
-	}
-
-	if elevated || currentUser.Equals(localSystem) {
-		ddUser, err := getDDAgentUserSID()
-		if err != nil {
-			return fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
-		}
-		secretuser = ddUser
 	}
 
 	bSecretUserExplicitlyAllowed := false
@@ -96,13 +81,13 @@ func checkRights(filename string, allowGroupExec bool) error {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
 			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("invalid executable '%s': explicit deny access for LOCAL_SYSTEM, Administrators or %s", filename, secretuser)
+				return fmt.Errorf("invalid executable '%s': explicit deny access for LOCAL_SYSTEM, Administrators or %s", filename, secretUser)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
 			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretuser)
+				return fmt.Errorf("invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretUser)
 			}
 			if compareIsSecretUser {
 				bSecretUserExplicitlyAllowed = true
@@ -154,6 +139,36 @@ func getAdministratorsSID() (*windows.SID, error) {
 		0, 0, 0, 0, 0, 0,
 		&administrators)
 	return administrators, err
+}
+
+// getSecretUserSID returns the SID of the user running the secret backend
+func getSecretUserSID() (*windows.SID, error) {
+	localSystem, err := getLocalSystemSID()
+	if err != nil {
+		return nil, fmt.Errorf("could not query Local System SID: %s", err)
+	}
+	defer windows.FreeSid(localSystem)
+
+	currentUser, err := winutil.GetSidFromUser()
+	if err != nil {
+		return nil, fmt.Errorf("could not get SID for current user: %s", err)
+	}
+
+	secretUser := currentUser
+
+	elevated, err := winutil.IsProcessElevated()
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine if running elevated: %s", err)
+	}
+
+	if elevated || currentUser.Equals(localSystem) {
+		ddUser, err := getDDAgentUserSID()
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
+		}
+		secretUser = ddUser
+	}
+	return secretUser, nil
 }
 
 // getDDAgentUserSID returns the SID of the ddagentuser configured at installation time
@@ -212,22 +227,27 @@ var checkConfigFilePermissions = func(filename string) error {
 	}
 	defer windows.FreeSid(administrators)
 
+	secretUser, err := getSecretUserSID()
+	if err != nil {
+		return err
+	}
+
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
 		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
 			return fmt.Errorf("could not query a ACE on '%s': %s", filename, err)
 		}
 
-		compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
-		compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
-		compareIsAdministrators := windows.EqualSid(compareSid, administrators)
-
 		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
 			return fmt.Errorf("invalid permissions for config file '%s': explicit DENY not supported", filename)
 		}
 
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
-			allowedAccountForWrite := compareIsLocalSystem || compareIsAdministrators
+			compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
+			compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
+			compareIsAdministrators := windows.EqualSid(compareSid, administrators)
+			compareIsSecretUser := windows.EqualSid(compareSid, secretUser)
+			allowedAccountForWrite := compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser
 			hasOnlyAllowForRead := pAce.AccessMask&^(windows.FILE_GENERIC_READ) == 0
 			if !allowedAccountForWrite && !hasOnlyAllowForRead {
 				return fmt.Errorf("invalid permissions for config file '%s': users/groups other than LOCAL_SYSTEM and Administrators have rights on it", filename)
@@ -237,9 +257,6 @@ var checkConfigFilePermissions = func(filename string) error {
 
 	return nil
 }
-
-// hashIsRequired returns true if we consider the hash to be required for verification of the secret backend
-var hashIsRequired = winutil.IsProcessElevated
 
 // lockOpenFile opens the file and prevents overwrite and delete by another process
 func lockOpenFile(name string) (*os.File, error) {

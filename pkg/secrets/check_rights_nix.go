@@ -111,12 +111,6 @@ var checkConfigFilePermissions = func(path string) error {
 	return nil
 }
 
-// hashIsRequired returns true if we consider the hash to be required for verification of the secret backend
-var hashIsRequired = func() (bool, error) {
-	// Do not perform elevation check on Linux
-	return false, nil
-}
-
 // lockOpenFile opens the file and prevents overwrite and delete by another process
 func lockOpenFile(path string) (*os.File, error) {
 	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDONLY, 0600)
