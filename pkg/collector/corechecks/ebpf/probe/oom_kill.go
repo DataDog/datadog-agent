@@ -30,12 +30,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #include <string.h>
 #include "../c/runtime/oom-kill-kern-user.h"
 */
-import "C"
+import "C" //nolint:gci
 
 const oomMapName = "oom_stats"
 

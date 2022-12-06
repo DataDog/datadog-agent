@@ -28,13 +28,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//nolint:gci
 /*
 #include <stdlib.h>
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import "C"
+import "C" //nolint:gci
 
 var (
 	pyLoaderStats    *expvar.Map

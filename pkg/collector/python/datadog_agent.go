@@ -28,14 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//nolint:gci
 /*
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import "C"
+import "C" //nolint:gci
 
 // GetVersion exposes the version of the agent to Python checks.
 //export GetVersion

@@ -15,14 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #include <datadog_agent_rtloader.h>
 #cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
 #cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
 */
-import "C"
+import "C" //nolint:gci
 
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric

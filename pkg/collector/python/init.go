@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-//nolint:gci
 /*
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
@@ -139,7 +138,7 @@ void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
 }
 */
-import "C"
+import "C" //nolint:gci
 
 // InterpreterResolutionError is our custom error for when our interpreter
 // path resolution fails

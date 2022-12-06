@@ -19,14 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #include <stdlib.h>
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 char *getStringAddr(char **array, unsigned int idx);
 */
-import "C"
+import "C" //nolint:gci
 
 // stickyLock is a convenient wrapper to interact with the Python GIL
 // from go code when using python.

@@ -8,13 +8,12 @@
 
 package python
 
-//nolint:gci
 /*
 #include <datadog_agent_rtloader.h>
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 */
-import "C"
+import "C" //nolint:gci
 
 import (
 	"fmt"

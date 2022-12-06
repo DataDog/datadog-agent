@@ -22,16 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C" //nolint:gci
 
 var (
 	pointerCache = sync.Map{}

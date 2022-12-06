@@ -15,13 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
 #include <datadog_agent_rtloader.h>
 #include <rtloader_mem.h>
 */
-import "C"
+import "C" //nolint:gci
 
 // Any platform-specific initialization belongs here.
 func initializePlatform() error {

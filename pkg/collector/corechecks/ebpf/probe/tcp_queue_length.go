@@ -27,12 +27,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #include <string.h>
 #include "../c/runtime/tcp-queue-length-kern-user.h"
 */
-import "C"
+import "C" //nolint:gci
 
 const (
 	statsMapName = "tcp_queue_stats"

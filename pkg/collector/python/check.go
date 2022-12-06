@@ -26,14 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:gci
 /*
 #include <stdlib.h>
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 char *getStringAddr(char **array, unsigned int idx);
 */
-import "C"
+import "C" //nolint:gci
 
 // PythonCheck represents a Python check, implements `Check` interface
 type PythonCheck struct {
