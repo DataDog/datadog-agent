@@ -163,7 +163,7 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
 					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(common.LoggerName, "info", true)),
+				}.LogForOneShot(common.LoggerName, "off", false)),
 				core.Bundle,
 			)
 		},
