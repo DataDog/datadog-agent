@@ -2071,12 +2071,12 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 	filelessDetectionRule := &rules.RuleDefinition{
 		ID:         "test_fileless",
-		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == ""`, model.FilelessExecutionFilenamePrefix),
+		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == ""`, filelessExecutionFilenamePrefix),
 	}
 
 	filelessWithInterpreterDetectionRule := &rules.RuleDefinition{
 		ID:         "test_fileless_with_interpreter",
-		Expression: fmt.Sprintf(`exec.file.name == "%sscript" && exec.file.path == "" && exec.interpreter.file.name == "bash"`, model.FilelessExecutionFilenamePrefix),
+		Expression: fmt.Sprintf(`exec.file.name == "%sscript" && exec.file.path == "" && exec.interpreter.file.name == "bash"`, filelessExecutionFilenamePrefix),
 	}
 
 	tests := []struct {
@@ -2092,7 +2092,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 			syscallTesterToRun:               "fileless",
 			syscallTesterScriptFilenameToRun: "",
 			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "process.file.name", "memfd:", "process.file.name not matching")
+				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
 				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
 			},
 		},
@@ -2136,8 +2136,8 @@ func TestProcessFilelessExecution(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if test.syscallTesterToRun == "none" {
 				err = testModule.GetSignal(t, func() error {
-					fileMode := 0o444
-					testFile, _, err := testModule.CreateWithOptions(model.FilelessExecutionFilenamePrefix, 98, 99, fileMode)
+					fileMode := 0o477
+					testFile, _, err := testModule.CreateWithOptions(filelessExecutionFilenamePrefix, 98, 99, fileMode)
 					if err != nil {
 						return err
 					}

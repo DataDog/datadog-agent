@@ -23,10 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-var (
-	FilelessExecutionFilenamePrefix = "memfd:"
-)
-
 const (
 	// OverlayFS overlay filesystem
 	OverlayFS = "overlay"

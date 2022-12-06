@@ -61,7 +61,8 @@ var (
 )
 
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout                 = 10 * time.Second
+	filelessExecutionFilenamePrefix = "memfd:"
 )
 
 type stringSlice []string
@@ -494,7 +495,7 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event,
 				validField = false
 			}
 
-			if strings.HasSuffix(field, ".name") && strings.HasPrefix(value, model.FilelessExecutionFilenamePrefix) {
+			if strings.HasSuffix(field, ".name") && strings.HasPrefix(value, filelessExecutionFilenamePrefix) {
 				hasPath = false
 			}
 		case []string:
@@ -503,7 +504,7 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event,
 					tb.Errorf("empty value for '%s'", field)
 					validField = false
 				}
-				if strings.HasSuffix(field, ".name") && strings.HasPrefix(v, model.FilelessExecutionFilenamePrefix) {
+				if strings.HasSuffix(field, ".name") && strings.HasPrefix(v, filelessExecutionFilenamePrefix) {
 					hasPath = false
 				}
 			}

@@ -630,7 +630,7 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
-func isFileExecution(fileEvent *model.FileEvent) bool {
+func isFilelessExecution(fileEvent *model.FileEvent) bool {
 	return fileEvent.Inode != 0 && fileEvent.MountID == 0
 }
 
@@ -655,7 +655,7 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.
 	}
 
 	// fileless ?
-	if isFileExecution(fileEvent) {
+	if isFilelessExecution(fileEvent) {
 		fileEvent.SetPathnameStr("")
 	} else {
 		fileEvent.SetPathnameStr(pathnameStr)
