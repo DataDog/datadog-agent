@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -67,7 +68,9 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	pc := ast.NewParsingContext()
+
+	if err := rs.AddRules(pc, ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -569,11 +572,12 @@ func TestRuleSetApprovers14(t *testing.T) {
 }
 
 func TestGetRuleEventType(t *testing.T) {
+	pc := ast.NewParsingContext()
 	rule := &eval.Rule{
 		ID:         "aaa",
 		Expression: `open.filename == "test"`,
 	}
-	if err := rule.GenEvaluator(&testModel{}, emptyReplCtx()); err != nil {
+	if err := rule.GenEvaluator(&testModel{}, pc, emptyReplCtx()); err != nil {
 		t.Fatal(err)
 	}
 
