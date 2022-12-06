@@ -417,7 +417,7 @@ func convertAndEnrichWithServiceTags(tags []string, tagOffsets []uint32, service
 		tagsStr = append(tagsStr, tags[t])
 	}
 	if serviceTag != "" {
-		tagsStr = append(tagsStr, "service_source:process", serviceTag)
+		tagsStr = append(tagsStr, serviceTag)
 	}
 
 	return tagsStr

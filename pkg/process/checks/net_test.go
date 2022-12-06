@@ -612,7 +612,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	tags := []string{"tag0"}
 	conns[0].Tags = []uint32{0}
 
-	expectedTags := []string{"tag0", "service_source:process", "service:my-server"}
+	expectedTags := []string{"tag0", "service:my-server"}
 
 	procsByPid := map[int32]*procutil.Process{
 		conns[0].Pid: {
@@ -660,13 +660,13 @@ func TestConvertAndEnrichWithServiceTags(t *testing.T) {
 			name:       "convert service tag only",
 			tagOffsets: nil,
 			serviceTag: "service:dogfood",
-			expected:   []string{"service_source:process", "service:dogfood"},
+			expected:   []string{"service:dogfood"},
 		},
 		{
 			name:       "convert tags with service tag",
 			tagOffsets: []uint32{0, 2},
 			serviceTag: "service:doge",
-			expected:   []string{"tag0", "tag2", "service_source:process", "service:doge"},
+			expected:   []string{"tag0", "tag2", "service:doge"},
 		},
 	}
 	for _, tt := range tests {
