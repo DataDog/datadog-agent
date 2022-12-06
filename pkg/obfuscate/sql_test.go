@@ -1176,6 +1176,10 @@ LIMIT 1
 			query:    "USING $09 SELECT",
 			expected: `USING ? SELECT`,
 		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
