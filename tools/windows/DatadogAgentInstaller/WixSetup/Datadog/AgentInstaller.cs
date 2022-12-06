@@ -77,7 +77,7 @@ namespace WixSetup.Datadog
 
         public AgentInstaller()
         {
-            _agentBinaries = new AgentBinaries(BinSource);
+            _agentBinaries = new AgentBinaries(BinSource, InstallerSource);
             _agentSignature = new AgentSignature(this, _agentPython, _agentBinaries);
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
         }

@@ -55,9 +55,11 @@ namespace WixSetup.Datadog
                     _agentBinaries.TraceAgent,
                     _agentBinaries.LibDatadogAgentThree
                 };
+                filesToSign.AddRange(_agentBinaries.PythonThreeBinaries);
                 if (_agentPython.IncludePython2)
                 {
                     filesToSign.Add(_agentBinaries.LibDatadogAgentTwo);
+                    filesToSign.AddRange(_agentBinaries.PythonTwoBinaries);
                 }
 
                 foreach (var file in filesToSign)
