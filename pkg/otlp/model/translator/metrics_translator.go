@@ -438,7 +438,6 @@ func (t *Translator) source(m pcommon.Map) (source.Source, error) {
 // MapMetrics maps OTLP metrics into the DataDog format
 func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
 	rms := md.ResourceMetrics()
-
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
 		if v, ok := rm.Resource().Attributes().Get(keyAPMStats); ok && v.Bool() {

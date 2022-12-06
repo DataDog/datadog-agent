@@ -27,6 +27,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// The sketch's relative accuracy and maximum number of bins is identical
+// to the one used in the trace-agent for consistency:
+// https://github.com/DataDog/datadog-agent/blob/cbac965/pkg/trace/stats/statsraw.go#L18-L26
+const (
+	sketchRelativeAccuracy = 0.01
+	sketchMaxBins          = 2048
+)
+
 func TestHelpers(t *testing.T) {
 	t.Run("putStr", func(t *testing.T) {
 		t.Run("ok", func(t *testing.T) {
@@ -239,7 +247,7 @@ func TestStoreToBuckets(t *testing.T) {
 
 func TestSketchPoint(t *testing.T) {
 	ms := pmetric.NewMetricSlice()
-	sketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(0.01, 2048)
+	sketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(sketchRelativeAccuracy, sketchMaxBins)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,6 +335,24 @@ func TestSketchPoint(t *testing.T) {
 	})
 }
 
+func testSketchBytes(nums ...float64) []byte {
+	sketch, err := ddsketch.LogCollapsingLowestDenseDDSketch(sketchRelativeAccuracy, sketchMaxBins)
+	if err != nil {
+		// the only possible error is if the relative accuracy is < 0 or > 1;
+		// we know that's not the case because it's a constant defined as 0.01
+		panic(err)
+	}
+	for _, num := range nums {
+		sketch.Add(num)
+	}
+	buf, err := proto.Marshal(sketch.ToProto())
+	if err != nil {
+		// there should be no error under any circumstances here
+		panic(err)
+	}
+	return buf
+}
+
 func TestConversion(t *testing.T) {
 	want := pb.StatsPayload{
 		Stats: []pb.ClientStatsPayload{
@@ -358,8 +384,8 @@ func TestConversion(t *testing.T) {
 								Hits:           5,
 								Errors:         2,
 								Duration:       100,
-								OkSummary:      nil,
-								ErrorSummary:   nil,
+								OkSummary:      testSketchBytes(1, 2, 3),
+								ErrorSummary:   testSketchBytes(4, 5, 6),
 								TopLevelHits:   3,
 							},
 							{
@@ -390,8 +416,8 @@ func TestConversion(t *testing.T) {
 								Hits:           11,
 								Errors:         3,
 								Duration:       987,
-								OkSummary:      nil,
-								ErrorSummary:   nil,
+								OkSummary:      testSketchBytes(7, 8),
+								ErrorSummary:   testSketchBytes(9, 10, 11),
 								TopLevelHits:   1,
 							},
 						},
@@ -424,8 +450,8 @@ func TestConversion(t *testing.T) {
 								Hits:           12,
 								Errors:         2,
 								Duration:       13,
-								OkSummary:      nil,
-								ErrorSummary:   nil,
+								OkSummary:      testSketchBytes(9, 7, 5),
+								ErrorSummary:   testSketchBytes(9, 5, 2),
 								TopLevelHits:   9,
 							},
 						},

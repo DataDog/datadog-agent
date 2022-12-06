@@ -119,7 +119,9 @@ type testConsumer struct {
 }
 
 func (t *testConsumer) ConsumeAPMStats(_ pb.ClientStatsPayload) {
-	// TODO(gbbr)
+	// not used for this consumer, but do warn the user if they
+	// try to use it
+	panic("(*testConsumer).ConsumeAPMStats not implemented")
 }
 
 func (t *testConsumer) ConsumeTimeSeries(

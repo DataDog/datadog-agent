@@ -36,7 +36,7 @@ import (
 // differently by the Translator.
 const keyAPMStats = "_dd.apm_stats"
 
-// This group of constants specifies the names used to encode APM Stats as Metrics.
+// This group of constants specifies the metric attribute keys used for APM Stats aggregation keys.
 const (
 	statsKeyHostname         = "dd.hostname"
 	statsKeyEnv              = "dd.env"
@@ -55,6 +55,16 @@ const (
 	statsKeyHTTPStatusCode   = "dd.http_status_code"
 	statsKeySpanType         = "dd.type"
 	statsKeySpanDBType       = "dd.db_type"
+)
+
+// This group of constants specifies the metric names used to store APM Stats as metrics.
+const (
+	metricNameHits         = "dd.apm_stats.hits"
+	metricNameErrors       = "dd.apm_stats.errors"
+	metricNameDuration     = "dd.apm_stats.duration"
+	metricNameTopLevelHits = "dd.apm_stats.top_level_hits"
+	metricNameOkSummary    = "dd.apm_stats.ok_summary"
+	metricNameErrorSummary = "dd.apm_stats.error_summary"
 )
 
 // StatsPayloadToMetrics converts an APM Stats Payload to a set of OTLP Metrics.
@@ -88,17 +98,17 @@ func (t *Translator) StatsPayloadToMetrics(sp pb.StatsPayload) pmetric.Metrics {
 				ngroups++
 				mxs := smx.Metrics()
 				for name, val := range map[string]uint64{
-					"dd.apm_stats.hits":           cgs.Hits,
-					"dd.apm_stats.errors":         cgs.Errors,
-					"dd.apm_stats.duration":       cgs.Duration,
-					"dd.apm_stats.top_level_hits": cgs.TopLevelHits,
+					metricNameHits:         cgs.Hits,
+					metricNameErrors:       cgs.Errors,
+					metricNameDuration:     cgs.Duration,
+					metricNameTopLevelHits: cgs.TopLevelHits,
 				} {
 					appendSum(mxs, name, int64(val), sb.Start, sb.Start+sb.Duration, &cgs)
 				}
-				if err := appendSketch(mxs, "dd.apm_stats.ok_summary", cgs.OkSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
+				if err := appendSketch(mxs, metricNameOkSummary, cgs.OkSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
 					t.logger.Error("Error exporting APM Stats ok_summary", zap.Error(err))
 				}
-				if err := appendSketch(mxs, "dd.apm_stats.error_summary", cgs.ErrorSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
+				if err := appendSketch(mxs, metricNameErrorSummary, cgs.ErrorSummary, sb.Start, sb.Start+sb.Duration, &cgs); err != nil {
 					t.logger.Error("Error exporting APM Stats error_summary", zap.Error(err))
 				}
 			}
@@ -355,21 +365,21 @@ func (t *Translator) statsPayloadFromMetrics(rmx pmetric.ResourceMetrics) (pb.Cl
 			case pmetric.MetricTypeSum:
 				key, val := t.extractSum(m.Sum(), &buck)
 				switch m.Name() {
-				case "dd.apm_stats.hits":
+				case metricNameHits:
 					agg.Value(key).Hits = val
-				case "dd.apm_stats.errors":
+				case metricNameErrors:
 					agg.Value(key).Errors = val
-				case "dd.apm_stats.duration":
+				case metricNameDuration:
 					agg.Value(key).Duration = val
-				case "dd.apm_stats.top_level_hits":
+				case metricNameTopLevelHits:
 					agg.Value(key).TopLevelHits = val
 				}
 			case pmetric.MetricTypeExponentialHistogram:
 				key, val := t.extractSketch(m.ExponentialHistogram(), &buck)
 				switch m.Name() {
-				case "dd.apm_stats.ok_summary":
+				case metricNameOkSummary:
 					agg.Value(key).OkSummary = val
-				case "dd.apm_stats.error_summary":
+				case metricNameErrorSummary:
 					agg.Value(key).ErrorSummary = val
 				}
 			default:
