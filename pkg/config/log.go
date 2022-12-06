@@ -107,7 +107,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	var verboseLoggerInterface seelog.LoggerInterface = nil
 	if verboseLogging {
 		verboseFile := getVerboseLogFile(logFile)
-		seelogConfig, err = buildLoggerConfig("my logger", "trace", verboseFile, "", false, false, false)
+		seelogConfig, err = buildLoggerConfig("Verbose Logger", "trace", verboseFile, "", false, false, false)
 		verboseLoggerInterface, err = GenerateLoggerInterface(seelogConfig)
 		if err != nil {
 			return err
