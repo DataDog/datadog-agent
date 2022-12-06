@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 const oomMapName = "oom_stats"
 
 type OOMKillProbe struct {
