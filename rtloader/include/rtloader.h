@@ -444,21 +444,21 @@ public:
     */
     virtual void setGetProcessStartTimeCb(cb_get_process_start_time_t) = 0;
 
-    //! initPymallocStats member.
+    //! initPymemStats member.
     /*!
-      Install pymalloc tracking hooks, if available.
+      Install python allocator hooks.
     */
-    virtual void initPymallocStats()
+    virtual void initPymemStats()
     {
     }
 
-    //! getPymallocStats member.
+    //! getPymemStats member.
     /*!
       \param stats Stats snapshot output.
 
-      Retrieve a snapshot of pymalloc allocator stats.
+      Retrieve a snapshot python allocator statistics.
     */
-    virtual void getPymallocStats(pymalloc_stats_t &stats)
+    virtual void getPymemStats(pymem_stats_t &stats)
     {
     }
 

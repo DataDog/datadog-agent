@@ -466,20 +466,20 @@ func GetRtLoader() *C.rtloader_t {
 }
 
 func initPymallocTelemetry() {
-	C.init_pymalloc_stats(rtloader)
+	C.init_pymem_stats(rtloader)
 
 	// "Requested" here means requested from the OS, not allocated to Python objects.
 	// "alloc" for consistency with go memstats and mallochook metrics.
-	alloc := telemetry.NewSimpleCounter("pymalloc", "alloc", "Total number of bytes requested by pymalloc since process start.")
-	inuse := telemetry.NewSimpleGauge("pymalloc", "inuse", "Number of bytes currently requested by pymalloc.")
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes requested by pymalloc since process start.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently requested by pymalloc.")
 
 	go func() {
 		t := time.NewTicker(1 * time.Second)
 		var prevAlloc C.size_t
 
 		for range t.C {
-			var s C.pymalloc_stats_t
-			C.get_pymalloc_stats(rtloader, &s)
+			var s C.pymem_stats_t
+			C.get_pymem_stats(rtloader, &s)
 			inuse.Set(float64(s.inuse))
 			alloc.Add(float64(s.alloc - prevAlloc))
 			prevAlloc = s.alloc

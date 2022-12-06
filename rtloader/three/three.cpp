@@ -39,8 +39,8 @@ Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_
     , _baseClass(NULL)
     , _pythonPaths()
     , _pymallocPrev{ 0 }
-    , _pymallocInuse(0)
-    , _pymallocAlloc(0)
+    , _pymemInuse(0)
+    , _pymemAlloc(0)
 {
     initPythonHome(python_home);
 
@@ -1059,7 +1059,7 @@ done:
     return memUsage;
 }
 
-void Three::initPymallocStats()
+void Three::initPymemStats()
 {
     PyObject_GetArenaAllocator(&_pymallocPrev);
     PyObjectArenaAllocator alloc{
@@ -1068,14 +1068,23 @@ void Three::initPymallocStats()
         .free = Three::pymallocFreeCb,
     };
     PyObject_SetArenaAllocator(&alloc);
+
+    PyMemAllocatorEx alloc_raw{
+        .ctx = static_cast<void *>(this),
+        .malloc = Three::pyrawMallocCb,
+        .calloc = Three::pyrawCallocCb,
+        .realloc = Three::pyrawReallocCb,
+        .free = Three::pyrawFreeCb,
+    };
+    PyMem_SetAllocator(PYMEM_DOMAIN_RAW, &alloc_raw);
 }
 
 void *Three::pymallocAlloc(size_t size)
 {
     void *ptr = _pymallocPrev.alloc(_pymallocPrev.ctx, size);
     if (ptr != NULL) {
-        _pymallocInuse += size;
-        _pymallocAlloc += size;
+        _pymemInuse += size;
+        _pymemAlloc += size;
     }
     return ptr;
 }
@@ -1083,7 +1092,7 @@ void *Three::pymallocAlloc(size_t size)
 void Three::pymallocFree(void *ptr, size_t size)
 {
     _pymallocPrev.free(_pymallocPrev.ctx, ptr, size);
-    _pymallocInuse -= size;
+    _pymemInuse -= size;
 }
 
 void *Three::pymallocAllocCb(void *ctx, size_t size)
@@ -1096,8 +1105,8 @@ void Three::pymallocFreeCb(void *ctx, void *ptr, size_t size)
     static_cast<Three *>(ctx)->pymallocFree(ptr, size);
 }
 
-void Three::getPymallocStats(pymalloc_stats_t &s)
+void Three::getPymemStats(pymem_stats_t &s)
 {
-    s.inuse = _pymallocInuse;
-    s.alloc = _pymallocAlloc;
+    s.inuse = _pymemInuse;
+    s.alloc = _pymemAlloc;
 }

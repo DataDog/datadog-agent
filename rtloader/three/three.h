@@ -111,8 +111,8 @@ public:
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
 
-    void initPymallocStats();
-    void getPymallocStats(pymalloc_stats_t &);
+    void initPymemStats();
+    void getPymemStats(pymem_stats_t &);
 
     // _util API
     virtual void setSubprocessOutputCb(cb_get_subprocess_output_t);
@@ -208,20 +208,79 @@ private:
     //! pymallocAllocCb static member.
     /*!
       \brief Static trampoline function for pymallocAlloc to comply with the PyObjectArenaAllocator API.
-      \return See pymallocAllooc.
     */
-
     static void *pymallocAllocCb(void *ctx, size_t size);
+
     //! pymallocFreeCb static member.
     /*!
       \brief Static trampoline function for pymallocFree to comply with the PyObjectArenaAllocator API.
     */
     static void pymallocFreeCb(void *ctx, void *ptr, size_t size);
 
+    //! pyrawTrackAlloc member.
+    /*!
+      \brief Update allocation stats after a call to pyraw alloc functions.
+      \param ptr Pointer to the allocation. May be null.
+    */
+    void pyrawTrackAlloc(void *ptr);
+
+    //! pyrawTrackFree member.
+    /*!
+      \brief Update allocation stats after a call to pyrawFree.
+      \param ptr Pointer to the allocation. May be null.
+    */
+    void pyrawTrackFree(void *ptr);
+
+    //! pyrawMalloc member.
+    /*!
+      \brief Implements PyMemAllocatorEx.malloc.
+    */
+    void *pyrawMalloc(size_t size);
+
+    //! pyrawCalloc member.
+    /*!
+      \brief Implements PyMemAllocatorEx.calloc.
+    */
+    void *pyrawCalloc(size_t nelem, size_t elsize);
+
+    //! pyrawRealloc member.
+    /*!
+      \brief Implements PyMemAllocatorEx.realloc.
+    */
+    void *pyrawRealloc(void *ptr, size_t new_size);
+    //! pyrawFree member.
+    /*!
+      \brief Implements PyMemAllocatorEx.free.
+    */
+    void pyrawFree(void *ptr);
+
+    //! pyrawMallocCb static member.
+    /*!
+      \brief Trampoline function for pyrawMalloc to compily with the PyMemAllocatorEx API.
+    */
+    static void *pyrawMallocCb(void *ctx, size_t size);
+
+    //! pyrawCallocCb static member.
+    /*!
+      \brief Trampoline function for pyrawCalloc to compily with the PyMemAllocatorEx API.
+    */
+    static void *pyrawCallocCb(void *ctx, size_t nelem, size_t elsize);
+
+    //! pyrawReallocCb static member.
+    /*!
+      \brief Trampoline function for pyrawRealloc to compily with the PyMemAllocatorEx API.
+    */
+    static void *pyrawReallocCb(void *ctx, void *ptr, size_t new_size);
+
+    //! pyrawFreeCb static member.
+    /*!
+      \brief Trampoline function for pyrawFree to compily with the PyMemAllocatorEx API.
+    */
+    static void pyrawFreeCb(void *ctx, void *ptr);
+
     PyObjectArenaAllocator _pymallocPrev; //!< Previous value of the global python arena allocator backend.
-    std::atomic_size_t _pymallocInuse; //!< Number of bytes currently requested by pymalloc for small object storage.
-    std::atomic_size_t _pymallocAlloc; //!< Total number of bytes requested by pymalloc for small object storage since
-                                       //!< the start of the process.
+    std::atomic_size_t _pymemInuse; //!< Number of bytes currently allocated.
+    std::atomic_size_t _pymemAlloc; //!< Total number of bytes allocated  since the start of the process.
 };
 
 #endif

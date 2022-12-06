@@ -602,17 +602,17 @@ void set_is_excluded_cb(rtloader_t *rtloader, cb_is_excluded_t cb)
 }
 
 /*
- * pymalloc stats API
+ * python allocator stats API
  */
-void init_pymalloc_stats(rtloader_t *rtloader)
+void init_pymem_stats(rtloader_t *rtloader)
 {
-    AS_TYPE(RtLoader, rtloader)->initPymallocStats();
+    AS_TYPE(RtLoader, rtloader)->initPymemStats();
 }
 
-void get_pymalloc_stats(rtloader_t *rtloader, pymalloc_stats_t *stats)
+void get_pymem_stats(rtloader_t *rtloader, pymem_stats_t *stats)
 {
     if (stats == NULL) {
         return;
     }
-    AS_TYPE(RtLoader, rtloader)->getPymallocStats(*stats);
+    AS_TYPE(RtLoader, rtloader)->getPymemStats(*stats);
 }

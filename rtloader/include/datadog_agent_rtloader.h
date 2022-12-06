@@ -621,18 +621,18 @@ DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_
 */
 DATADOG_AGENT_RTLOADER_API void set_get_process_start_time_cb(rtloader_t *, cb_get_process_start_time_t);
 
-/*! \fn void init_pymalloc_stats(rtloader_t *)
-    \brief Start tracking requests for system memory from the python small objects allocator.
+/*! \fn void init_pymem_stats(rtloader_t *)
+    \brief Install python allocator hooks.
     \param rtloader A pointer to the RtLoader instance.
 */
-DATADOG_AGENT_RTLOADER_API void init_pymalloc_stats(rtloader_t *);
+DATADOG_AGENT_RTLOADER_API void init_pymem_stats(rtloader_t *);
 
-/*! \fn void get_pymalloc_stats(rtloader_t *, pymalloc_stats_t *)
-    \brief Retrieve a snapshot of pymalloc allocator stats.
+/*! \fn void get_pymem_stats(rtloader_t *, pymem_stats_t *)
+    \brief Retrieve a snapshot of python allocated memory statistics.
     \param rtloader A pointer to the RtLoader instance.
-    \param stats A pointer to pymalloc_stats_t structure that will be updated with the new values.
+    \param stats A pointer to pymem_stats_t structure that will be updated with the new values.
 */
-DATADOG_AGENT_RTLOADER_API void get_pymalloc_stats(rtloader_t *, pymalloc_stats_t *);
+DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
 
 #ifdef __cplusplus
 }
