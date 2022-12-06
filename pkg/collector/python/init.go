@@ -18,8 +18,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"C"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -28,6 +26,121 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+//nolint:gci
+/*
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+#include <stdlib.h>
+// helpers
+char *getStringAddr(char **array, unsigned int idx) {
+	return array[idx];
+}
+//
+// init memory tracking facilities method
+//
+void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
+void initMemoryTracker(void) {
+	set_memory_tracker_cb(MemoryTracker);
+}
+//
+// init free method
+//
+// On windows we need to free memory in the same DLL where it was allocated.
+// This allows rtloader to free memory returned by Go callbacks.
+//
+void initCgoFree(rtloader_t *rtloader) {
+	set_cgo_free_cb(rtloader, _free);
+}
+//
+// init log method
+//
+void LogMessage(char *, int);
+void initLogger(rtloader_t *rtloader) {
+	set_log_cb(rtloader, LogMessage);
+}
+//
+// datadog_agent module
+//
+// This also init "util" module who expose the same "headers" function
+//
+void GetClusterName(char **);
+void GetConfig(char*, char **);
+void GetHostname(char **);
+void GetVersion(char **);
+void Headers(char **);
+char * ReadPersistentCache(char *);
+void SetCheckMetadata(char *, char *, char *);
+void SetExternalTags(char *, char *, char **);
+void WritePersistentCache(char *, char *);
+bool TracemallocEnabled();
+char* ObfuscateSQL(char *, char *, char **);
+char* ObfuscateSQLExecPlan(char *, bool, char **);
+double getProcessStartTime();
+void initDatadogAgentModule(rtloader_t *rtloader) {
+	set_get_clustername_cb(rtloader, GetClusterName);
+	set_get_config_cb(rtloader, GetConfig);
+	set_get_hostname_cb(rtloader, GetHostname);
+	set_get_version_cb(rtloader, GetVersion);
+	set_headers_cb(rtloader, Headers);
+	set_set_check_metadata_cb(rtloader, SetCheckMetadata);
+	set_set_external_tags_cb(rtloader, SetExternalTags);
+	set_write_persistent_cache_cb(rtloader, WritePersistentCache);
+	set_read_persistent_cache_cb(rtloader, ReadPersistentCache);
+	set_tracemalloc_enabled_cb(rtloader, TracemallocEnabled);
+	set_obfuscate_sql_cb(rtloader, ObfuscateSQL);
+	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
+	set_get_process_start_time_cb(rtloader, getProcessStartTime);
+}
+//
+// aggregator module
+//
+void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
+void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
+void SubmitEvent(char *, event_t *);
+void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+void SubmitEventPlatformEvent(char *, char *, char *);
+void initAggregatorModule(rtloader_t *rtloader) {
+	set_submit_metric_cb(rtloader, SubmitMetric);
+	set_submit_service_check_cb(rtloader, SubmitServiceCheck);
+	set_submit_event_cb(rtloader, SubmitEvent);
+	set_submit_histogram_bucket_cb(rtloader, SubmitHistogramBucket);
+	set_submit_event_platform_event_cb(rtloader, SubmitEventPlatformEvent);
+}
+//
+// _util module
+//
+void GetSubprocessOutput(char **, char **, char **, char **, int*, char **);
+void initUtilModule(rtloader_t *rtloader) {
+	set_get_subprocess_output_cb(rtloader, GetSubprocessOutput);
+}
+//
+// tagger module
+//
+char **Tags(char *, int);
+void initTaggerModule(rtloader_t *rtloader) {
+	set_tags_cb(rtloader, Tags);
+}
+//
+// containers module
+//
+int IsContainerExcluded(char *, char *, char *);
+void initContainersModule(rtloader_t *rtloader) {
+	set_is_excluded_cb(rtloader, IsContainerExcluded);
+}
+//
+// kubeutil module
+//
+void GetKubeletConnectionInfo(char **);
+void initkubeutilModule(rtloader_t *rtloader) {
+	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
+}
+*/
+import "C"
+
 // InterpreterResolutionError is our custom error for when our interpreter
 // path resolution fails
 type InterpreterResolutionError struct {

@@ -9,12 +9,21 @@
 package python
 
 import (
-	"C"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	chk "github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+//nolint:gci
+/*
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
+*/
+import "C"
+
 // SubmitMetric is the method exposed to Python scripts to submit metrics
 //export SubmitMetric
 func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.char, value C.double, tags **C.char, hostname *C.char, flushFirstValue C.bool) {

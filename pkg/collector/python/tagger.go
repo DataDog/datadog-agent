@@ -11,11 +11,20 @@ package python
 import (
 	"unsafe"
 
-	"C"
-
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+//nolint:gci
+/*
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+*/
+import "C"
+
 // for testing purposes
 var (
 	tagsFunc = tagger.Tag

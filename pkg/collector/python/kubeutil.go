@@ -12,13 +12,22 @@ import (
 	"errors"
 	"time"
 
-	"C"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+)
+
+//nolint:gci
+/*
+#include <datadog_agent_rtloader.h>
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+*/
+import "C"
+
 var (
 	kubeletCacheKey = cache.BuildAgentKey("py", "kubeutil", "connection_info")
 

@@ -16,8 +16,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"C"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,6 +26,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+//nolint:gci
+/*
+#include <stdlib.h>
+#include "datadog_agent_rtloader.h"
+#include "rtloader_mem.h"
+*/
+import "C"
+
 var (
 	pyLoaderStats    *expvar.Map
 	configureErrors  map[string][]string

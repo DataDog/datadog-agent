@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"unsafe"
 
-	"C"
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/btf"
@@ -30,6 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+//nolint:gci
+/*
+#include <string.h>
+#include "../c/runtime/oom-kill-kern-user.h"
+*/
+import "C"
 
 const oomMapName = "oom_stats"
 

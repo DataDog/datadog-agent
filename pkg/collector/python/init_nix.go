@@ -11,10 +11,18 @@ package python
 import (
 	"unsafe"
 
-	"C"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+//nolint:gci
+/*
+#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
+#include <datadog_agent_rtloader.h>
+#include <rtloader_mem.h>
+*/
+import "C"
+
 // Any platform-specific initialization belongs here.
 func initializePlatform() error {
 	// Setup crash handling specifics - *NIX-only
