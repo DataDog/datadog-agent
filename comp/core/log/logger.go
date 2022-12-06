@@ -32,7 +32,7 @@ func newLogger(params internal.BundleParams, config config.Component) (Component
 		params.LogSyslogRFCFn(config),
 		params.LogToConsoleFn(config),
 		params.LogFormatJSONFn(config),
-		true, // verbose_logging
+		params.LogVerboseLogFn(config),
 	)
 	if err != nil {
 		return nil, err

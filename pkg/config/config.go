@@ -934,6 +934,10 @@ func InitConfig(config Config) {
 	// temporary feature flag until this becomes the only option
 	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
 
+	// Adds verbose logging file that logs below the specified log level. Logs
+	// are recorded in `agent-verbose.log`
+	config.BindEnvAndSetDefault("logs_config.verbose_logging", false)
+
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics

@@ -85,6 +85,10 @@ type BundleParams struct {
 	// LogFormatJSONFn returns a boolean determining whether logs should be
 	// written in JSON format.
 	LogFormatJSONFn func(configGetter) bool
+
+	// LogVerboseLogFn returns a boolean determining whether should record logs
+	// below the specified log level in `agent-verbose.log`
+	LogVerboseLogFn func(configGetter) bool
 }
 
 // configGetter is a subset of the comp/core/config component, able to get
@@ -113,6 +117,7 @@ func (params BundleParams) LogForOneShot(loggerName, level string, overrideFromE
 	params.LogSyslogRFCFn = func(configGetter) bool { return false }
 	params.LogToConsoleFn = func(configGetter) bool { return true }
 	params.LogFormatJSONFn = func(configGetter) bool { return false }
+	params.LogVerboseLogFn = func(configGetter) bool { return true }
 	return params
 }
 
@@ -163,6 +168,7 @@ func (params BundleParams) LogForDaemon(loggerName, logFileConfig, defaultLogFil
 	params.LogSyslogRFCFn = func(g configGetter) bool { return g.GetBool("syslog_rfc") }
 	params.LogToConsoleFn = func(g configGetter) bool { return g.GetBool("log_to_console") }
 	params.LogFormatJSONFn = func(g configGetter) bool { return g.GetBool("log_format_json") }
+	params.LogVerboseLogFn = func(g configGetter) bool { return g.GetBool("logs_config.verbose_logging") }
 	return params
 }
 
