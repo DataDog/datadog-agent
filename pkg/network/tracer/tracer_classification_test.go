@@ -11,17 +11,24 @@ package tracer
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	nethttp "net/http"
+	"runtime"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/postgres"
 )
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
@@ -45,10 +52,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 
 	tests := []struct {
-		name      string
-		clientRun func(t *testing.T, serverAddr string)
-		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
-		want      network.ProtocolType
+		name       string
+		clientRun  func(t *testing.T, serverAddr string)
+		serverRun  func(t *testing.T, serverAddr string, done chan struct{}) string
+		shouldSkip func() (bool, string)
+		want       network.ProtocolType
 	}{
 		{
 			name: "tcp client without sending data",
@@ -205,9 +213,55 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			want: network.ProtocolHTTP,
 		},
+		{
+			name: "postgres",
+			want: network.ProtocolPostgres,
+			clientRun: func(t *testing.T, serverAddr string) {
+				time.Sleep(5 * time.Second)
+				ctx := context.Background()
+
+				pg := sql.OpenDB(pgdriver.NewConnector(
+					pgdriver.WithNetwork("tcp"),
+					pgdriver.WithAddr(serverAddr),
+					pgdriver.WithInsecure(true),
+					pgdriver.WithUser("admin"),
+					pgdriver.WithPassword("password"),
+					pgdriver.WithDatabase("testdb"),
+				))
+				require.NoError(t, pg.Ping())
+
+				db := bun.NewDB(pg, pgdialect.New())
+				defer db.NewDropTable().Model((*postgres.DummyTable)(nil)).Exec(ctx)
+
+				_, err := db.NewCreateTable().Model((*postgres.DummyTable)(nil)).Exec(ctx)
+				require.NoError(t, err)
+
+				_, err = db.NewInsert().Model(&postgres.DummyTable{Foo: "bar"}).Exec(ctx)
+				require.NoError(t, err)
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				addr, port, _ := net.SplitHostPort(serverAddr)
+				postgres.RunPostgres(t, addr, port)
+				return addr + ":5432"
+			},
+			shouldSkip: func() (bool, string) {
+				if runtime.GOOS != "linux" {
+					return true, "Postgres tests supported only on Linux"
+				}
+
+				return false, ""
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldSkip != nil {
+				shouldSkip, errMsg := tt.shouldSkip()
+				if shouldSkip {
+					t.Skip(errMsg)
+				}
+			}
+
 			done := make(chan struct{})
 			defer close(done)
 			serverAddr := tt.serverRun(t, serverHost, done)

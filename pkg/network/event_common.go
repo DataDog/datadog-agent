@@ -26,6 +26,9 @@ const (
 	ProtocolHTTP
 	ProtocolHTTP2
 	ProtocolTLS
+	ProtocolKafka
+	ProtocolMongo
+	ProtocolPostgres
 	MaxProtocols
 )
 

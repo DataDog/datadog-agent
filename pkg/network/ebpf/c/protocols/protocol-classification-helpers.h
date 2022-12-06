@@ -1,6 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_HELPERS_H
 #define __PROTOCOL_CLASSIFICATION_HELPERS_H
 
+#include <linux/stddef.h>
 #include <linux/types.h>
 
 #include "bpf_builtins.h"
@@ -13,26 +14,30 @@
 #include "protocol-classification-maps.h"
 
 
+#define __packed __attribute__((__packed__))
+
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u32 len) {return 0;}
 #endif
 
-#define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size)   \
-    if (buf_size < min_buff_size) {                                         \
-        return false;                                                       \
-    }                                                                       \
-                                                                            \
-    if (buf == NULL) {                                                      \
-        return false;                                                       \
-    }                                                                       \
+#define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size) \
+    do {                                                                  \
+        if (buf_size < min_buff_size) {                                   \
+            return false;                                                 \
+        }                                                                 \
+                                                                          \
+        if (buf == NULL) {                                                \
+            return false;                                                 \
+        }                                                                 \
+    } while (0)
 
 BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER], 1)
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE);
 
 #define HTTP2_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
@@ -46,7 +51,7 @@ static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
 // The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
 // of 6 bytes.
 static __always_inline bool is_http2_server_settings(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE);
 
     struct http2_frame frame_header;
     if (!read_http2_frame_header(buf, buf_size, &frame_header)) {
@@ -65,7 +70,7 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.
 static __always_inline bool is_http(const char *buf, __u32 size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, HTTP_MIN_SIZE);
 
 #define HTTP "HTTP/"
 #define GET "GET /"
@@ -93,6 +98,53 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return http;
 }
 
+// Regular format of postgres message: | byte tag | int32_t len | string payload |
+// From https://www.postgresql.org/docs/current/protocol-overview.html:
+// The first byte of a message identifies the message type, and the next four bytes specify the length of the rest
+// of the message (this length count includes itself, but not the message-type byte). The remaining contents of the
+// message are determined by the message type
+struct pg_message_header {
+    char message_tag;
+    uint32_t message_len; // Big-endian: use bpf_ntohl to read this field
+    char payload[0];
+} __packed;
+
+static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, POSTGRES_MIN_MSG_SIZE);
+
+    const struct pg_message_header *hdr = (struct pg_message_header *)buf;
+
+    switch (hdr->message_tag) {
+    case POSTGRES_BIND_MAGIC_BYTE:
+    case POSTGRES_CLOSE_MAGIC_BYTE:
+    case POSTGRES_DESCRIBE_MAGIC_BYTE:
+    case POSTGRES_EXECUTE_MAGIC_BYTE:
+    case POSTGRES_COPY_FAIL_MAGIC_BYTE:
+    case POSTGRES_FLUSH_MAGIC_BYTE:
+    case POSTGRES_PARSE_MAGIC_BYTE:
+    case POSTGRES_PASSWORD_MESSAGE_MAGIC_BYTE:
+    case POSTGRES_QUERY_MAGIC_BYTE:
+    case POSTGRES_SYNC_MAGIC_BYTE:
+    case POSTGRES_TERMINATE_MAGIC_BYTE:
+        break;
+    default:
+        return false;
+    }
+
+    uint32_t message_len = bpf_ntohl(hdr->message_len);
+    if (message_len < POSTGRES_MIN_PAYLOAD_LEN || message_len > POSTGRES_MAX_PAYLOAD_LEN) {
+        return false;
+    }
+
+    char message_last_byte = buf[message_len];
+    // If the input includes a whole message (1 byte tag + length), check the last character.
+    if ((message_len + 1 <= (int)buf_size) && (message_last_byte != '\0')) {
+        return false;
+    }
+
+    return true;
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
@@ -104,6 +156,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (is_postgres(buf, size)) {
+        *protocol = PROTOCOL_POSTGRES;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

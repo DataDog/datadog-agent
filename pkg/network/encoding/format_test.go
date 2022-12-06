@@ -6,9 +6,10 @@
 package encoding
 
 import (
-	"github.com/stretchr/testify/assert"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/require"
@@ -122,6 +123,15 @@ func TestFormatProtocols(t *testing.T) {
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP,
+				},
+			},
+		},
+		{
+			name:     "postgres protocol",
+			protocol: network.ProtocolPostgres,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolPostgres,
 				},
 			},
 		},
