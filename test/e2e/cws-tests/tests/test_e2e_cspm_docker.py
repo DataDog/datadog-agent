@@ -8,7 +8,7 @@ import warnings
 
 from lib.config import gen_datadog_agent_config
 from lib.const import CSPM_START_LOG
-from lib.cspm.api import App, wait_for_compliance_event, wait_for_findings
+from lib.cspm.api import App
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step

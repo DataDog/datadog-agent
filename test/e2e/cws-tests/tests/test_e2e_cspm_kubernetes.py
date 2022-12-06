@@ -6,7 +6,7 @@ import warnings
 
 import emoji
 from lib.const import CSPM_START_LOG
-from lib.cspm.api import App, wait_for_compliance_event, wait_for_findings
+from lib.cspm.api import App
 from lib.kubernetes import KubernetesHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
