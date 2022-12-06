@@ -29,7 +29,7 @@ var defaultFilteredEnvs = []string{
 const (
 	maxProcessQueueLen = 100
 	// maxProcessListSize is the max size of a processList
-	maxProcessListSize = 5
+	maxProcessListSize = 3
 )
 
 type process struct {
@@ -266,7 +266,12 @@ func (pl processList) update(p *process) processList {
 	}
 
 	if len(pl) == maxProcessListSize {
-		pl = pl[1:]
+		copy(pl, pl[1:])
+		pl = pl[:len(pl)-1]
+	}
+
+	if pl == nil {
+		pl = make(processList, 0, maxProcessListSize)
 	}
 
 	return append(pl, p)
