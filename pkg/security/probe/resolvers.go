@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -109,24 +110,24 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
-		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
-			return pathStr, &ErrResolutionNotCritical{Err: err}
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
 	}
 
 	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
-		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
-			return pathStr, &ErrResolutionNotCritical{Err: err}
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
 	}
 
 	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
-		if isValid, _ := r.MountResolver.IsMountIDValid(e.MountID); !isValid {
-			return pathStr, &ErrResolutionNotCritical{Err: err}
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
 	}

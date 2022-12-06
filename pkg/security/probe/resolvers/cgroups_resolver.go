@@ -11,7 +11,7 @@ package resolvers
 import (
 	"sync"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 type pid1CacheEntry struct {
@@ -22,7 +22,7 @@ type pid1CacheEntry struct {
 // CgroupsResolver defines a cgroup monitor
 type CgroupsResolver struct {
 	sync.RWMutex
-	pids *lru.Cache[string, *pid1CacheEntry]
+	pids *simplelru.LRU[string, *pid1CacheEntry]
 }
 
 // AddPID1 associates a container id and a pid which is expected to be the pid 1
@@ -72,7 +72,7 @@ func (cr *CgroupsResolver) Len() int {
 
 // NewCgroupsResolver returns a new cgroups monitor
 func NewCgroupsResolver() (*CgroupsResolver, error) {
-	pids, err := lru.New[string, *pid1CacheEntry](1024)
+	pids, err := simplelru.NewLRU[string, *pid1CacheEntry](1024, nil)
 	if err != nil {
 		return nil, err
 	}

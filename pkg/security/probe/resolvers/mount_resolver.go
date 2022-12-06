@@ -11,7 +11,6 @@ package resolvers
 import (
 	"context"
 	"errors"
-	"fmt"
 	"path"
 	"strconv"
 	"strings"
@@ -38,8 +37,8 @@ var (
 	ErrMountLoop = errors.New("mount resolution loop")
 	// ErrMountPathEmpty is returned when the resolved mount path is empty
 	ErrMountPathEmpty = errors.New("mount resolution return empty path")
-	// ErrMountNotFatal
-	ErrMountNotFatal = errors.New("not a fatal error")
+	// ErrMountKernelID
+	ErrMountKernelID = errors.New("not a critical error")
 )
 
 const (
@@ -116,7 +115,7 @@ func (mr *MountResolver) IsMountIDValid(mountID uint32) (bool, error) {
 	}
 
 	if mountID < mr.minMountID {
-		return false, ErrMountNotFatal
+		return false, ErrMountKernelID
 	}
 
 	return true, nil
@@ -127,7 +126,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if err := mr.syncCache(pid, ""); err != nil {
+	if err := mr.syncCache(pid); err != nil {
 		return err
 	}
 
@@ -143,12 +142,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	return nil
 }
 
-func (mr *MountResolver) syncCache(pid uint32, containerID string) error {
-	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
-		fmt.Printf("PPPPPPPPPPPPPP: %d %s %d\n", pid, containerID, pid1)
-		pid = pid1
-	}
-
+func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
 		return err
@@ -160,7 +154,7 @@ func (mr *MountResolver) syncCache(pid uint32, containerID string) error {
 		}
 
 		e := newMountEventFromMountInfo(mnt)
-		mr.insert(e, pid, containerID)
+		mr.insert(e)
 	}
 
 	return nil
@@ -238,12 +232,12 @@ func (mr *MountResolver) Insert(e *model.MountEvent, pid uint32, containerID str
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(e, pid, containerID)
+	mr.insert(e)
 
 	return nil
 }
 
-func (mr *MountResolver) insert(e *model.MountEvent, pid uint32, containerID string) {
+func (mr *MountResolver) insert(e *model.MountEvent) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[e.MountID]; ok {
 		mr.delete(prev)
@@ -270,7 +264,7 @@ func (mr *MountResolver) insert(e *model.MountEvent, pid uint32, containerID str
 
 func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
 	if mountID < mr.minMountID {
-		return "", ErrMountNotFatal
+		return "", ErrMountKernelID
 	}
 
 	mount, exists := mr.mounts[mountID]
@@ -392,7 +386,12 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 	}
 
 	if mountID < mr.minMountID {
-		return "", ErrMountNotFatal
+		return "", ErrMountKernelID
+	}
+
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		pid = pid1
 	}
 
 	path, err := mr.getMountPath(mountID)
@@ -406,21 +405,15 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 		return "", ErrMountNotFound
 	}
 
-	if err := mr.syncCache(pid, containerID); err != nil {
+	if err := mr.syncCache(pid); err != nil {
 		mr.procMissStats.Inc()
-
-		fmt.Printf(">>>>>>>>>>: %d %d %s\n", mountID, pid, containerID)
-
 		return "", err
 	}
 	path, err = mr.getMountPath(mountID)
 	if err == nil {
-		fmt.Printf("++++++++++: %d %d %s\n", mountID, pid, containerID)
 		mr.procHitsStats.Inc()
 		return path, nil
 	}
-	fmt.Printf("----------: %d %d %s\n", mountID, pid, containerID)
-
 	mr.procMissStats.Inc()
 
 	return "", err
@@ -440,7 +433,7 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 	}
 
 	if mountID < mr.minMountID {
-		return nil, ErrMountNotFatal
+		return nil, ErrMountKernelID
 	}
 
 	mount, exists := mr.mounts[mountID]
@@ -454,7 +447,7 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 		return nil, ErrMountNotFound
 	}
 
-	if err := mr.syncCache(pid, containerID); err != nil {
+	if err := mr.syncCache(pid); err != nil {
 		mr.procMissStats.Inc()
 		return nil, err
 	}
