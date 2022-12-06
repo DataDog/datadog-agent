@@ -11,32 +11,25 @@ package module
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-const (
+var (
 	// Arbitrary default limit to prevent flooding.
-	defaultLimit = rate.Limit(10)
-	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
-	// flooding.
-	defaultBurst int = 40
+	defaultLimiter = NewLimiter(rate.Limit(10), 40)
+
+	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
+		probe.AbnormalPathRuleID: NewLimiter(rate.Every(time.Second), 1),
+	}
 )
-
-// Limit defines rate limiter limit
-type Limit struct {
-	Limit int
-	Burst int
-}
-
-// LimiterOpts rate limiter options
-type LimiterOpts struct {
-	Limits map[rules.RuleID]Limit
-}
 
 // Limiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
@@ -60,38 +53,35 @@ func NewLimiter(limit rate.Limit, burst int) *Limiter {
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
-	opts         LimiterOpts
 	limiters     map[rules.RuleID]*Limiter
 	statsdClient statsd.ClientInterface
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client statsd.ClientInterface, opts LimiterOpts) *RateLimiter {
-	return &RateLimiter{
+func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
+	rl := &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
-		opts:         opts,
 	}
+
+	for id, limiter := range defaultPerRuleLimiters {
+		rl.limiters[id] = limiter
+	}
+
+	return rl
 }
 
 // Apply a set of rules
-func (rl *RateLimiter) Apply(rules []rules.RuleID) {
+func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 	rl.Lock()
 	defer rl.Unlock()
 
 	newLimiters := make(map[string]*Limiter)
-	for _, id := range rules {
-		if limiter, found := rl.limiters[id]; found {
-			newLimiters[id] = limiter
+	for id, rule := range ruleSet.GetRules() {
+		if rule.Definition.Every != 0 {
+			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
 		} else {
-			limit := defaultLimit
-			burst := defaultBurst
-
-			if l, exists := rl.opts.Limits[id]; exists {
-				limit = rate.Limit(l.Limit)
-				burst = l.Burst
-			}
-			newLimiters[id] = NewLimiter(limit, burst)
+			newLimiters[id] = defaultLimiter
 		}
 	}
 	rl.limiters = newLimiters
