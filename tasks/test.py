@@ -302,14 +302,14 @@ def test(
     timeout=180,
     arch="x64",
     cache=True,
-    skip_linters=False,
+    run_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
 ):
     """
-    Run all the tools and tests on the given module and targets.
+    Run go tests on the given module and targets.
 
     A module should be provided as the path to one of the go modules in the repository.
 
@@ -322,6 +322,12 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
+
+    # Optionally run linters first
+
+    if run_linters:
+        lint_go(ctx, module, targets, flavors)
+
     # Process input arguments
 
     modules, flavors = process_input_args(module, targets, flavors)
@@ -334,16 +340,6 @@ def test(
     }
 
     timeout = int(timeout)
-
-    # Lint
-
-    if skip_linters:
-        print("--- [skipping Go linters]")
-    else:
-        for flavor, build_tags in flavors_build_tags.items():
-            lint_flavor(
-                ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
-            )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -462,6 +458,50 @@ def test(
         )
         # Exit if any of the modules failed
         raise Exit(code=1, message=f"Unit tests failed in the following modules:\n{failure_string}")
+
+
+@task(iterable=['flavors'])
+def lint_go(
+    ctx,
+    module=None,
+    targets=None,
+    flavors=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    arch="x64",
+):
+    """
+    Run go linters on the given module and targets.
+
+    A module should be provided as the path to one of the go modules in the repository.
+
+    Targets should be provided as a comma-separated list of relative paths within the given module.
+    If targets are provided but no module is set, the main module (".") is used.
+
+    If no module or target is set the tests are run against all modules and targets.
+
+    Example invokation:
+        inv lint --targets=./pkg/collector/check,./pkg/aggregator
+        inv lint --module=.
+    """
+    # Process input arguments
+
+    modules, flavors = process_input_args(module, targets, flavors)
+
+    flavors_build_tags = {
+        f: compute_build_tags_for_flavor(
+            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+        )
+        for f in flavors
+    }
+
+    # Lint
+
+    for flavor, build_tags in flavors_build_tags.items():
+        lint_flavor(
+            ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
+        )
 
 
 @task(iterable=['flavors'])

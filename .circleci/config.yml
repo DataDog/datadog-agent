@@ -150,6 +150,17 @@ jobs:
           command: inv -e lint-milestone
           name: run PR check for milestone assignment
 
+  go_linting:
+    <<: *job_template
+    resource_class: large
+    steps:
+      - restore_cache: *restore_source
+      - restore_cache: *restore_deps
+      - run:
+          name: run go linters
+          no_output_timeout: 20m
+          command: inv -e lint-go
+
   licenses_linting:
     <<: *job_template
     steps:
@@ -297,6 +308,9 @@ workflows:
             branches:
               ignore:
                 - main
+          requires:
+            - dependencies
+      - go_linting:
           requires:
             - dependencies
       - licenses_linting:
