@@ -13,6 +13,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -62,8 +63,8 @@ type ProcessCheck struct {
 	maxBatchSize  int
 	maxBatchBytes int
 
-	checkCount int64
-	skipAmount int64
+	checkCount uint32
+	skipAmount uint32
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -83,7 +84,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.maxBatchBytes = getMaxBatchBytes()
 
 	p.checkCount = 0
-	p.skipAmount = 10
+	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.checks_between_hints"))
 
 }
 
