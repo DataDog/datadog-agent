@@ -22,9 +22,9 @@ namespace WixSetup.Datadog
             PythonThreeBinaries = new[]
             {
                 $@"{installerSource}\embedded3\python.exe",
-                $@"{installerSource}\embedded2\python3.dll",
-                $@"{installerSource}\embedded2\python38.dll",
-                $@"{installerSource}\embedded2\pythonw.exe"
+                $@"{installerSource}\embedded3\python3.dll",
+                $@"{installerSource}\embedded3\python38.dll",
+                $@"{installerSource}\embedded3\pythonw.exe"
             };
             PythonTwoBinaries = new[]
             {
