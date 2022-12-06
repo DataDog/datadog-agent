@@ -46,6 +46,7 @@ type Resolvers struct {
 	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
+	CgroupsResolver   *resolvers.CgroupsResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -89,6 +90,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		TagsResolver:      resolvers.NewTagsResolver(config),
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
+		CgroupsResolver:   cgroupsResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,

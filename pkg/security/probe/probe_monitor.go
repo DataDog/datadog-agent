@@ -70,7 +70,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient)
+	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CgroupsResolver)
 
 	return m, nil
 }

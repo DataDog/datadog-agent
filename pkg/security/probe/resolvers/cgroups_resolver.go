@@ -67,6 +67,9 @@ func (cr *CgroupsResolver) DelPID1(id string) {
 
 // Len return the number of entries
 func (cr *CgroupsResolver) Len() int {
+	cr.RLock()
+	defer cr.RUnlock()
+
 	return cr.pids.Len()
 }
 

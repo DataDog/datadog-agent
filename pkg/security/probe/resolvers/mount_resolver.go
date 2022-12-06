@@ -436,6 +436,11 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 		return nil, ErrMountKernelID
 	}
 
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		pid = pid1
+	}
+
 	mount, exists := mr.mounts[mountID]
 	if exists {
 		mr.cacheHitsStats.Inc()

@@ -111,7 +111,6 @@ type ProcessResolver struct {
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
-	cgroupsMonitor   *CgroupsMonitor
 
 	// stats
 	hitsStats      map[string]*atomic.Int64
@@ -544,7 +543,7 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	}
 
 	if entry.IsContainerInit() {
-		p.cgroupsMonitor.AddID(entry.ContainerID)
+		p.resolvers.CgroupsResolver.AddPID1(entry.ContainerID, entry.Pid)
 	}
 
 	p.addedEntries.Inc()
@@ -588,7 +587,7 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 
 	if entry.IsContainerInit() {
-		p.cgroupsMonitor.DelID(entry.ContainerID)
+		p.resolvers.CgroupsResolver.DelPID1(entry.ContainerID)
 	}
 
 	delete(p.entryCache, entry.Pid)
@@ -1285,11 +1284,6 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 	})
 
 	return variables
-}
-
-// SetCgroupsMonitor set the cgroup monitor
-func (p *ProcessResolver) SetCgroupsMonitor(monitor *CgroupsMonitor) {
-	p.cgroupsMonitor = monitor
 }
 
 // NewProcessResolver returns a new process resolver
