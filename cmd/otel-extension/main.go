@@ -32,7 +32,7 @@ const (
 	logLevelEnvVar               = "DD_LOG_LEVEL"
 	extensionRegistrationTimeout = 5 * time.Second
 
-	loggerName config.LoggerName = "DD_EXTENSION"
+	loggerName config.LoggerName = "DD_OTEL_EXTENSION"
 )
 
 func init() {
