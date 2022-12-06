@@ -239,43 +239,56 @@ func (p *ArgsEnvsCacheEntry) toArray() ([]string, bool) {
 
 // ArgsEntry defines a args cache entry
 type ArgsEntry struct {
-	*ArgsEnvsCacheEntry
+	cacheEntry *ArgsEnvsCacheEntry
 
-	Values    []string
-	Truncated bool
+	values    []string
+	truncated bool
 
 	parsed bool
 }
 
+// NewEnvsEntry returns a new entry
+func NewArgsEntry(cacheEntry *ArgsEnvsCacheEntry) *ArgsEntry {
+	return &ArgsEntry{
+		cacheEntry: cacheEntry,
+	}
+}
+
+// SetValues set the values
+func (p *ArgsEntry) SetValues(values []string) {
+	p.values = values
+	p.parsed = true
+}
+
 // Retain increment ref counter
 func (p *ArgsEntry) Retain() {
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.retain()
+	if p.cacheEntry != nil {
+		p.cacheEntry.retain()
 	}
 }
 
 // Release decrement and eventually release the entry
 func (p *ArgsEntry) Release() {
-	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
-		p.ArgsEnvsCacheEntry = nil
+	if p.cacheEntry != nil && p.cacheEntry.release() {
+		p.cacheEntry = nil
 	}
 }
 
 // ToArray returns args as array
 func (p *ArgsEntry) ToArray() ([]string, bool) {
-	if len(p.Values) > 0 || p.parsed {
-		return p.Values, p.Truncated
+	if len(p.values) > 0 || p.parsed {
+		return p.values, p.truncated
 	}
-	p.Values, p.Truncated = p.toArray()
+	p.values, p.truncated = p.cacheEntry.toArray()
 	p.parsed = true
 
 	// now we have the cache we can force the free without having to check the refcount
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.forceReleaseAll()
-		p.ArgsEnvsCacheEntry = nil
+	if p.cacheEntry != nil {
+		p.cacheEntry.forceReleaseAll()
+		p.cacheEntry = nil
 	}
 
-	return p.Values, p.Truncated
+	return p.values, p.truncated
 }
 
 // Equals compares two ArgsEntry
@@ -294,57 +307,70 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	*ArgsEnvsCacheEntry
+	cacheEntry *ArgsEnvsCacheEntry
 
-	Values    []string
-	Truncated bool
+	values    []string
+	truncated bool
 
 	parsed       bool
 	filteredEnvs []string
 	kv           map[string]string
 }
 
+// NewEnvsEntry returns a new entry
+func NewEnvsEntry(cacheEntry *ArgsEnvsCacheEntry) *EnvsEntry {
+	return &EnvsEntry{
+		cacheEntry: cacheEntry,
+	}
+}
+
+// SetValues set the values
+func (p *EnvsEntry) SetValues(values []string) {
+	p.values = values
+	p.parsed = true
+}
+
 // Retain increment ref counter
 func (p *EnvsEntry) Retain() {
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.retain()
+	if p.cacheEntry != nil {
+		p.cacheEntry.retain()
 	}
 }
 
 // Release decrement and eventually release the entry
 func (p *EnvsEntry) Release() {
-	if p.ArgsEnvsCacheEntry != nil && p.ArgsEnvsCacheEntry.release() {
-		p.ArgsEnvsCacheEntry = nil
+	if p.cacheEntry != nil && p.cacheEntry.release() {
+		p.cacheEntry = nil
 	}
 }
 
 // ToArray returns envs as an array
 func (p *EnvsEntry) ToArray() ([]string, bool) {
 	if p.parsed {
-		return p.Values, p.Truncated
+		return p.values, p.truncated
 	}
 
-	p.Values, p.Truncated = p.toArray()
+	p.values, p.truncated = p.cacheEntry.toArray()
 	p.parsed = true
 
 	// now we have the cache we can force the free without having to check the refcount
-	if p.ArgsEnvsCacheEntry != nil {
-		p.ArgsEnvsCacheEntry.forceReleaseAll()
-		p.ArgsEnvsCacheEntry = nil
+	if p.cacheEntry != nil {
+		p.cacheEntry.forceReleaseAll()
+		p.cacheEntry = nil
 	}
 
-	return p.Values, p.Truncated
+	return p.values, p.truncated
 }
 
 // FilterEnvs returns an array of envs, only the name of each variable is returned unless the variable name is part of the provided filter
 func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 	if p.filteredEnvs != nil {
-		return p.filteredEnvs, p.Truncated
+		return p.filteredEnvs, p.truncated
 	}
 
 	values, _ := p.ToArray()
 	if len(values) == 0 {
-		return nil, p.Truncated
+		return nil, p.truncated
 	}
 
 	p.filteredEnvs = make([]string, len(values))
@@ -364,7 +390,7 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 		i++
 	}
 
-	return p.filteredEnvs, p.Truncated
+	return p.filteredEnvs, p.truncated
 }
 
 func (p *EnvsEntry) toMap() {
