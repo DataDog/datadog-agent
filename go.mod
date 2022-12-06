@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v1.0.0-rc.3
 	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
@@ -243,7 +243,7 @@ require (
 	github.com/AlekSi/pointer v1.1.0 // indirect
 	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/DataDog/aptly v1.5.0 // indirect
-	github.com/DataDog/extendeddaemonset v0.7.1-0.20220530183123-9c60ea5abbc6 // indirect
+	github.com/DataDog/extendeddaemonset v0.9.0-rc.2 // indirect
 	github.com/DataDog/gostackparse v0.5.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DisposaBoy/JsonConfigReader v0.0.0-20171218180944-5ea4d0ddac55 // indirect
