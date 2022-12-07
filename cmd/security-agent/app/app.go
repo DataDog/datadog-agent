@@ -232,14 +232,13 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
 	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
-		if err = workloadmeta.ConfigureAsRemote(); err != nil {
-			log.Errorf("Can't configure workloadmeta as remote, will use a local one. err: %s", err)
-		}
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	}
 
 	// Start workloadmeta store
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 	store.Start(ctx)
 
 	// Initialize the remote tagger
