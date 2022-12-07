@@ -13,8 +13,8 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -56,7 +56,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 func (r *RunCheckReporter) Report(event *event.Event) {
 	r.events[event.AgentRuleID] = append(r.events[event.AgentRuleID], event)
 
-	eventJSON, err := checks.PrettyPrintJSON(event, "  ")
+	eventJSON, err := utils.PrettyPrintJSON(event, "  ")
 	if err != nil {
 		log.Errorf("Failed to marshal rule event: %v", err)
 		return
@@ -76,7 +76,7 @@ func (r *RunCheckReporter) ReportRaw(content []byte, service string, tags ...str
 
 func (r *RunCheckReporter) dumpReports() error {
 	if r.dumpReportsPath != "" {
-		reportsJSON, err := checks.PrettyPrintJSON(r.events, "\t")
+		reportsJSON, err := utils.PrettyPrintJSON(r.events, "\t")
 		if err != nil {
 			return err
 		}

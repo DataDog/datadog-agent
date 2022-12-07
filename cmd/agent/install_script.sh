@@ -735,33 +735,33 @@ else
     $sudo_cmd sh -c "exec cat - '${config_file}.orig' > '$config_file'" <<EOF
 # Configuration for the agent to use datadog-fips-proxy to communicate with Datadog via FIPS-compliant channel.
 
-dd_url: http://localhost:3834
+dd_url: http://localhost:9804
 
 apm_config:
-    apm_dd_url: http://localhost:3835
-    profiling_dd_url: http://localhost:3836
+    apm_dd_url: http://localhost:9805
+    profiling_dd_url: http://localhost:9806
     telemetry:
-        dd_url: http://localhost:3843
+        dd_url: http://localhost:9813
 
 process_config:
-    process_dd_url: http://localhost:3837
+    process_dd_url: http://localhost:9807
 
 logs_config:
     use_http: true
-    logs_dd_url: localhost:3838
+    logs_dd_url: localhost:9808
     logs_no_ssl: true
 
 database_monitoring:
     metrics:
-        dd_url: localhost:3839
+        dd_url: localhost:9809
     activity:
-        dd_url: localhost:3839
+        dd_url: localhost:9809
     samples:
-        dd_url: localhost:3840
+        dd_url: localhost:9810
 
 network_devices:
     metadata:
-        dd_url: localhost:3841
+        dd_url: localhost:9811
 EOF
   fi
   if [ "$hostname" ]; then

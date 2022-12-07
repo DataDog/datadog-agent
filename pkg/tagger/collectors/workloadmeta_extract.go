@@ -454,11 +454,6 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			tags.AddLow(kubernetes.DeploymentTagName, deployment)
 		}
 		tags.AddLow(kubernetes.ReplicaSetTagName, owner.Name)
-
-	case "":
-
-	default:
-		log.Debugf("unknown owner kind %q for pod %q", owner.Kind, pod.Name)
 	}
 }
 

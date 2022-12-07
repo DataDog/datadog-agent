@@ -111,6 +111,7 @@ type ProcessResolver struct {
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
+	cgroupsMonitor   *CgroupsMonitor
 
 	// stats
 	hitsStats      map[string]*atomic.Int64
@@ -443,15 +444,13 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	// args and envs
 	if len(filledProc.Cmdline) > 0 {
-		entry.ArgsEntry = &model.ArgsEntry{
-			Values: filledProc.Cmdline,
-		}
+		entry.ArgsEntry = &model.ArgsEntry{}
+		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
 	if envs, err := utils.EnvVars(proc.Pid); err == nil {
-		entry.EnvsEntry = &model.EnvsEntry{
-			Values: envs,
-		}
+		entry.EnvsEntry = &model.EnvsEntry{}
+		entry.EnvsEntry.SetValues(envs)
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
@@ -478,9 +477,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 	//print "Hello from Perl\n";
 	//
 	//EOF
-	if valueCount := len(entry.ArgsEntry.Values); valueCount > 1 {
-		firstArg := entry.ArgsEntry.Values[0]
-		lastArg := entry.ArgsEntry.Values[valueCount-1]
+	if values, _ := entry.ArgsEntry.ToArray(); len(values) > 1 {
+		firstArg := values[0]
+		lastArg := values[len(values)-1]
 		// Example result: comm value: pyscript.py | args: [/usr/bin/python3 ./pyscript.py]
 		if path.Base(lastArg) == entry.Comm && path.IsAbs(firstArg) {
 			entry.LinuxBinprm.FileEvent = entry.FileEvent
@@ -544,6 +543,10 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 		prev.Release()
 	}
 
+	if entry.IsContainerInit() {
+		p.cgroupsMonitor.AddID(entry.ContainerID)
+	}
+
 	p.addedEntries.Inc()
 	p.cacheSize.Inc()
 }
@@ -583,6 +586,10 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 		return
 	}
 	entry.Exit(exitTime)
+
+	if entry.IsContainerInit() {
+		p.cgroupsMonitor.DelID(entry.ContainerID)
+	}
 
 	delete(p.entryCache, entry.Pid)
 	entry.Release()
@@ -869,9 +876,7 @@ func (p *ProcessResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 
 		p.argsSize.Add(int64(entry.TotalSize))
 
-		pce.ArgsEntry = &model.ArgsEntry{
-			ArgsEnvsCacheEntry: entry,
-		}
+		pce.ArgsEntry = model.NewArgsEntry(entry)
 
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
@@ -939,9 +944,7 @@ func (p *ProcessResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 
 		p.envsSize.Add(int64(entry.TotalSize))
 
-		pce.EnvsEntry = &model.EnvsEntry{
-			ArgsEnvsCacheEntry: entry,
-		}
+		pce.EnvsEntry = model.NewEnvsEntry(entry)
 
 		// attach to a process thus retain the head of the chain
 		// note: only the head of the list is retained and when released
@@ -1276,6 +1279,11 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 	})
 
 	return variables
+}
+
+// SetCgroupsMonitor set the cgroup monitor
+func (p *ProcessResolver) SetCgroupsMonitor(monitor *CgroupsMonitor) {
+	p.cgroupsMonitor = monitor
 }
 
 // NewProcessResolver returns a new process resolver
