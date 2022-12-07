@@ -1,9 +1,9 @@
 #ifndef _OVERLAYFS_H_
 #define _OVERLAYFS_H_
 
-#include "syscalls.h"
+#include <linux/magic.h>
 
-#define OVERLAYFS_SUPER_MAGIC 0x794c7630
+#include "syscalls.h"
 
 static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     struct super_block *sb = get_dentry_sb(dentry);

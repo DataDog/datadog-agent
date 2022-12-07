@@ -44,12 +44,6 @@ u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset ? offset : 284; // offsetof(struct mount, mnt_id)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_flags(void) {
-    u64 offset;
-    LOAD_CONSTANT("mount_flags_offset", offset);
-    return offset ? offset : 284; // offsetof(struct mount, mnt_flags)
-}
-
 int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
@@ -71,7 +65,7 @@ int __attribute__((always_inline)) get_file_mount_id(struct file *file) {
 
 int __attribute__((always_inline)) get_vfsmount_mount_flags(struct vfsmount *mnt) {
     int mount_flags;
-    bpf_probe_read(&mount_flags, sizeof(mount_flags), (char *)mnt + get_mount_offset_of_mount_flags() - MNT_OFFSETOF_MNT);
+    bpf_probe_read(&mount_flags, sizeof(mount_flags), &mnt->mnt_flags);
     return mount_flags;
 }
 
@@ -236,6 +230,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     }
 }
 
+// get_sb_magic returns the magic number of a file which determines its file format
 static __attribute__((always_inline)) int get_sb_magic(struct super_block *sb) {
     u64 magic;
     bpf_probe_read(&magic, sizeof(magic), (char *)sb + get_sb_magic_offset());

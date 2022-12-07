@@ -3,6 +3,7 @@
 
 #include <linux/tty.h>
 #include <linux/binfmts.h>
+#include <linux/mount.h>
 
 #include "filters.h"
 #include "syscalls.h"
