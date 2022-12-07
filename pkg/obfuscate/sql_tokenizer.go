@@ -477,6 +477,7 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
+				// we temporarily remove the funcTag so we can obfuscate the query before replacing the tag below.
 				tok = tok[len(funcTag):]
 				tok = tok[:len(tok)-len(funcTag)]
 				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
