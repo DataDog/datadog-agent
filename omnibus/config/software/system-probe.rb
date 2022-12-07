@@ -15,8 +15,11 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
+  mkdir "#{install_dir}/embedded/share/system-probe/java"
   mkdir "#{install_dir}/embedded/nikos/embedded/bin"
   mkdir "#{install_dir}/embedded/nikos/embedded/lib"
+
+  copy 'pkg/network/java/USMAgent.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
