@@ -444,7 +444,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	m.displayReport(report)
 
 	if sendLoadedReport {
-		ReportRuleSetLoaded(m, m.statsdClient, ruleSet, loadApproversErrs)
+		ReportRuleSetLoaded(m.eventSender, m.statsdClient, ruleSet, loadApproversErrs)
 		m.policyMonitor.AddPolicies(ruleSet.GetPolicies(), loadApproversErrs)
 	}
 
