@@ -107,7 +107,7 @@ func NewClient(agentName string, updater ConfigUpdater, agentVersion string, pro
 	return newClient(agentName, updater, true, agentVersion, products, pollInterval)
 }
 
-// NewGRPCClient creats a new client that retrieves updates over the datadog-agnet's secure GRPC client
+// NewGRPCClient creates a new client that retrieves updates over the datadog-agent's secure GRPC client
 func NewGRPCClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
 	grpcClient, err := newAgentGRPCConfigFetcher()
 	if err != nil {
