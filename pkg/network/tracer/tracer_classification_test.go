@@ -241,9 +241,9 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				addr, _, _ := net.SplitHostPort(serverAddr)
-				port := ":5432"
+				port := "5432"
 				postgres.RunPostgres(t, addr, port)
-				return addr + ":5432"
+				return fmt.Sprintf("%s:%s", addr, port)
 			},
 			shouldSkip: func() (bool, string) {
 				if runtime.GOOS != "linux" {
