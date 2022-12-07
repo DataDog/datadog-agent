@@ -897,11 +897,10 @@ api_key:
 
 {{- if (eq .OS "windows")}}
   ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
-  ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
-  ## iis and windows_performance_counters.
-  ## Refresh can be disabled by setting the interval to 0.
+  ## This controls frequency in seconds of refreshing cached performance counters objects list. It maybe
+  ## useful in rare cases when initialization of a few Agent’s builtin performance counters based checks
+  ## fails to control how often initialization may be attempted again. The refresh can be disabled by
+  ## setting the interval to 0.
   #
   # windows_counter_refresh_interval: 60
 {{ end }}
