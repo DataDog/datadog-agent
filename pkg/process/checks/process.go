@@ -83,9 +83,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
 
-	p.checkCount = 0
 	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.checks_between_hints"))
-
 }
 
 // Name returns the name of the ProcessCheck.
