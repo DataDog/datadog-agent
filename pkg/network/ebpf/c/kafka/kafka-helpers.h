@@ -124,17 +124,20 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
 
 static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction) {
     log_debug("kafka: trying to parse produce request");
-    if (kafka_transaction->request_api_version < 3 || kafka_transaction->request_api_version > 8) {
+    if (kafka_transaction->request_api_version >= 9) {
+        log_debug("kafka: Produce request version 9 and above is not supported: %d", kafka_transaction->request_api_version);
         return false;
     }
 
-    int16_t transactional_id_size = 0;
-    if (!kafka_read_big_endian_int16(kafka_transaction, &transactional_id_size)) {
-        return false;
-    }
-    log_debug("kafka: transactional_id_size: %d", transactional_id_size);
-    if (transactional_id_size > 0) {
-        kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
+    if (kafka_transaction->request_api_version >= 3) {
+        int16_t transactional_id_size = 0;
+        if (!kafka_read_big_endian_int16(kafka_transaction, &transactional_id_size)) {
+            return false;
+        }
+        log_debug("kafka: transactional_id_size: %d", transactional_id_size);
+        if (transactional_id_size > 0) {
+            kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
+        }
     }
 
     // Skipping the acks field as we have no interest in it
@@ -143,21 +146,13 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
     // Skipping the timeout_ms field as we have no interest in it
     kafka_transaction->current_offset_in_request_fragment += 4;
 
-    // Skipping number of entries for now
-    kafka_transaction->current_offset_in_request_fragment += 4;
-
-    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
-        log_debug("kafka: Current offset is above the request fragment size");
-        return false;
-    }
-
     return extract_and_set_first_topic_name(kafka_transaction);
 }
 
 static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction) {
-    log_debug("kafka: Trying to parse fetch request");
+    log_debug("kafka: trying to parse fetch request");
     if (kafka_transaction->request_api_version >= 12) {
-        log_debug("kafka: fetch api version 12 and above is not supported: %d", kafka_transaction->request_api_version);
+        log_debug("kafka: fetch request version 12 and above is not supported: %d", kafka_transaction->request_api_version);
         return false;
     }
 
@@ -188,6 +183,14 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
 }
 
 static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction) {
+    // Skipping number of entries for now
+    kafka_transaction->current_offset_in_request_fragment += 4;
+
+    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+        log_debug("kafka: Current offset is above the request fragment size");
+        return false;
+    }
+
     int16_t topic_name_size = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &topic_name_size)) {
         return false;
