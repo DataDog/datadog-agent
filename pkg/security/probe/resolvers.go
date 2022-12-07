@@ -85,13 +85,17 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	return resolvers, nil
 }
 
-// resolveBasename resolves the inode to a filename
+// resolveBasename resolves an inode/mount ID pair to a file basename
 func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 	return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID)
 }
 
-// resolveFileFieldsPath resolves the inode to a full path
+// resolveFileFieldsPath resolves an inode/mount ID pair to a full path
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
+	if isFilelessExecution(e) {
+		return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID), nil
+	}
+
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
