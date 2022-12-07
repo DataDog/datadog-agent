@@ -65,15 +65,19 @@ type RateLimiter struct {
 // NewRateLimiter initializes an empty rate limiter
 func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
 	rl := &RateLimiter{
-		limiters:     make(map[string]*Limiter),
+		limiters:     baseLimitersFromDefault(),
 		statsdClient: client,
 	}
 
-	for id, limiter := range defaultPerRuleLimiters {
-		rl.limiters[id] = limiter
-	}
-
 	return rl
+}
+
+func baseLimitersFromDefault() map[string]*Limiter {
+	limiters := make(map[string]*Limiter)
+	for id, limiter := range defaultPerRuleLimiters {
+		limiters[id] = limiter
+	}
+	return limiters
 }
 
 // Apply a set of rules
@@ -81,7 +85,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 	rl.Lock()
 	defer rl.Unlock()
 
-	newLimiters := make(map[string]*Limiter)
+	newLimiters := baseLimitersFromDefault()
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {
 			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
