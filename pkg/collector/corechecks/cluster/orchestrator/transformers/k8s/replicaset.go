@@ -10,7 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	appsv1 "k8s.io/api/apps/v1"
 )
 
@@ -36,6 +36,7 @@ func ExtractReplicaSet(rs *appsv1.ReplicaSet) *model.ReplicaSet {
 	replicaSet.AvailableReplicas = rs.Status.AvailableReplicas
 
 	replicaSet.ResourceRequirements = ExtractPodTemplateResourceRequirements(rs.Spec.Template)
+	replicaSet.Tags = append(replicaSet.Tags, transformers.RetrieveUnifiedServiceTags(rs.ObjectMeta.Labels)...)
 
 	return &replicaSet
 }

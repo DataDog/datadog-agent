@@ -94,7 +94,7 @@ func TestStopServer(t *testing.T) {
 // introducing a data race.
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
-	s := &Server{cachedTlmOriginIds: make(map[string]cachedTagsOriginMap)}
+	s := &Server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
@@ -102,7 +102,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 			<-sync
-			s.createOriginTagMaps(id)
+			s.getOriginCounter(id)
 		}()
 	}
 	close(sync)
@@ -979,7 +979,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
 	s.Stop()
 
-	assert.Len(s.cachedTlmOriginIds, 0, "this cache must be empty")
+	assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 	assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
 	parser := newParser(newFloat64ListPool())
@@ -992,7 +992,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.metric:555|g"), "container_id://test_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 2)
-	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 
@@ -1000,7 +1000,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://test_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 3)
-	assert.Len(s.cachedTlmOriginIds, 1, "one entry should have been cached")
+	assert.Len(s.cachedOriginCounters, 1, "one entry should have been cached")
 	assert.Len(s.cachedOrder, 1, "one entry should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
@@ -1010,7 +1010,7 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	samples, err = s.parseMetricMessage(samples, parser, []byte("test.second_metric:525|g"), "container_id://another_container", true)
 	assert.NoError(err)
 	assert.Len(samples, 4)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://test_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://test_container"})
@@ -1020,11 +1020,11 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://another_container"})
 
 	// oldest one should be removed once we reach the limit of the cache
-	maxOriginTagsCached = 2
+	maxOriginCounters = 2
 	samples, err = s.parseMetricMessage(samples, parser, []byte("yetanothermetric:525|g"), "third_origin", true)
 	assert.NoError(err)
 	assert.Len(samples, 5)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, one has been evicted already")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, one has been evicted already")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached, one has been evicted already")
 	assert.Equal(s.cachedOrder[0].origin, "container_id://another_container")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://another_container"})
@@ -1034,11 +1034,11 @@ func testProcessedMetricsOrigin(t *testing.T) {
 	assert.Equal(s.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "third_origin"})
 
 	// oldest one should be removed once we reach the limit of the cache
-	maxOriginTagsCached = 2
+	maxOriginCounters = 2
 	samples, err = s.parseMetricMessage(samples, parser, []byte("blablabla:555|g"), "fourth_origin", true)
 	assert.NoError(err)
 	assert.Len(samples, 6)
-	assert.Len(s.cachedTlmOriginIds, 2, "two entries should have been cached, two have been evicted already")
+	assert.Len(s.cachedOriginCounters, 2, "two entries should have been cached, two have been evicted already")
 	assert.Len(s.cachedOrder, 2, "two entries should have been cached, two have been evicted already")
 	assert.Equal(s.cachedOrder[0].origin, "third_origin")
 	assert.Equal(s.cachedOrder[0].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "third_origin"})

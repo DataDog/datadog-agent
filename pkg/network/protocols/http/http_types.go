@@ -12,6 +12,7 @@ package http
 #include "../../ebpf/c/tracer.h"
 #include "../../ebpf/c/protocols/tags-types.h"
 #include "../../ebpf/c/protocols/http-types.h"
+#include "../../ebpf/c/protocols/protocol-classification-defs.h"
 */
 import "C"
 
@@ -26,12 +27,20 @@ type httpBatchKey C.http_batch_key_t
 
 type libPath C.lib_path_t
 
+type ProtocolType C.protocol_t
+
+const (
+	ProtocolUnknown ProtocolType = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
+	ProtocolHTTP2   ProtocolType = C.PROTOCOL_HTTP2
+	ProtocolTLS     ProtocolType = C.PROTOCOL_TLS
+	ProtocolMax     ProtocolType = C.MAX_PROTOCOLS
+)
+
 const (
 	HTTPBatchSize  = C.HTTP_BATCH_SIZE
 	HTTPBatchPages = C.HTTP_BATCH_PAGES
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
-
-	httpProg = C.HTTP_PROG
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE
 )

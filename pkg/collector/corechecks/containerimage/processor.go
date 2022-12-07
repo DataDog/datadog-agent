@@ -52,13 +52,13 @@ func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetad
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 	p.queue <- &model.ContainerImage{
-		Id:         img.ID,
-		Registry:   "", // TODO: check what to put here
-		ShortName:  img.ShortName,
-		Tags:       img.RepoTags,
-		Digest:     img.ID, // TODO: check if this field is needed
-		Size_:      img.SizeBytes,
-		RepoDigest: img.RepoDigests[0], // TODO: update agent-payload to take a slice
+		Id:          img.ID,
+		Registry:    "", // TODO: check what to put here
+		ShortName:   img.ShortName,
+		Tags:        img.RepoTags,
+		Digest:      img.ID,
+		Size_:       img.SizeBytes,
+		RepoDigests: img.RepoDigests,
 		Os: &model.ContainerImage_OperatingSystem{
 			Name:         img.OS,
 			Version:      img.Variant, // TODO: check if version should be renamed variant or the other way round.

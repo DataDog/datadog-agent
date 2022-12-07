@@ -21,7 +21,7 @@ ARGO_WORKFLOW=${ARGO_WORKFLOW:-''}
 tee specification.json << EOF
 {
   "ImageId": "${AMI}",
-  "InstanceType": "c5.2xlarge",
+  "InstanceType": "t3.2xlarge",
   "Monitoring": {
     "Enabled": false
   },

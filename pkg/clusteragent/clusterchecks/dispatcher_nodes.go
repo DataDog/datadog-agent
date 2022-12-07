@@ -33,7 +33,7 @@ func (d *dispatcher) getClusterCheckConfigs(nodeName string) ([]integration.Conf
 
 	node.RLock()
 	defer node.RUnlock()
-	return makeConfigArray(node.digestToConfig), node.lastConfigChange, nil
+	return makeConfigArray(node.digestToConfig), node.configVersion.Load(), nil
 }
 
 // processNodeStatus keeps the node's status in the store, and returns true
@@ -53,7 +53,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	node.lastStatus = status
 	node.heartbeat = timestampNow()
 
-	if node.lastConfigChange == status.LastChange {
+	if node.configVersion.Load() == status.LastChange {
 		// Node-agent is up to date
 		return true, nil
 	}
