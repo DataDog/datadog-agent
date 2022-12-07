@@ -9,6 +9,7 @@
 package tracer
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -150,24 +151,18 @@ func (pc *processCache) processEvent(entry *smodel.ProcessCacheEntry) *process {
 	if entry.EnvsEntry != nil {
 		values, _ := entry.EnvsEntry.ToArray()
 		for _, v := range values {
-			kv := strings.SplitN(v, "=", 2)
-			k := kv[0]
-
+			k, v, _ := strings.Cut(v, "=")
 			if len(pc.filteredEnvs) > 0 {
 				if _, found := pc.filteredEnvs[k]; !found {
 					continue
 				}
 			}
 
-			v = ""
-			if len(kv) > 1 {
-				v = kv[1]
-			}
-
 			if envs == nil {
 				envs = make(map[string]string)
 			}
 			envs[k] = v
+
 			if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
 				break
 			}
@@ -202,7 +197,9 @@ func (pc *processCache) add(p *process) {
 	pc.Lock()
 	defer pc.Unlock()
 
-	log.Tracef("adding process %+v to process cache", p)
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("adding process %+v to process cache", p)
+	})
 
 	evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p)
 	pl, _ := pc.cacheByPid[p.Pid]
