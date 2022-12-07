@@ -9,7 +9,12 @@
 package http
 
 import (
+	"math/rand"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
@@ -17,6 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+)
+
+var (
+	javaUSMAgentJarPath = "/opt/datadog-agent/embedded/share/system-probe/java/USMAgent.jar"
+	randomID            = int64(0)
 )
 
 type JavaTLSProgram struct {
@@ -35,6 +45,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		log.Errorf("goTLS support requires runtime-compilation to be enabled")
 		return nil
 	}
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, "USMAgent.jar")
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
@@ -47,6 +58,8 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 		return
 	}
 
+	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
+	randomID = rand.Int63()
 	//TODO setup the random id here
 }
 
@@ -57,7 +70,7 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdent
 }
 
 func newJavaProcess(pid uint32) {
-	if err := java.InjectAgent(int(pid), "/opt/datadog-agent/embedded/share/system-probe/ebpf/java.agent.jar", ""); err != nil {
+	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(randomID, 10)); err != nil {
 		log.Errorf("%v", err)
 	}
 }

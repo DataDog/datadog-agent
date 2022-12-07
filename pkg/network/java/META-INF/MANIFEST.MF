@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+Agent-Class: TestUSMAgent
+Premain-Class: TestUSMAgent
+Created-By: 7.42 (Private Build)
