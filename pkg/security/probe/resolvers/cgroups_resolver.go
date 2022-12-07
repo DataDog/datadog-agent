@@ -34,6 +34,9 @@ func (cr *CgroupsResolver) AddPID1(id string, pid uint32) {
 	if !exists {
 		cr.pids.Add(id, &pid1CacheEntry{pid: pid, refCount: 1})
 	} else {
+		if entry.pid > pid {
+			entry.pid = pid
+		}
 		entry.refCount++
 	}
 }
