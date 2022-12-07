@@ -243,7 +243,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				addr, _, _ := net.SplitHostPort(serverAddr)
 				port := "5432"
 				postgres.RunPostgres(t, addr, port)
-				return fmt.Sprintf("%s:%s", addr, port)
+				return net.JoinHostPort(addr, port)
 			},
 			shouldSkip: func() (bool, string) {
 				if runtime.GOOS != "linux" {
