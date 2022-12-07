@@ -13,7 +13,7 @@
     <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs>
       <env name="SCRIPT_TO_RUN" value=".run/build.sh" />
-      <env name="BUILD_COMMAND" value="&quot;invoke agent.build&quot;" />
+      <env name="BUILD_COMMAND" value="invoke agent.build" />
     </envs>
     <method v="2" />
   </configuration>
