@@ -30,6 +30,7 @@ PATH_EXCLUSION_REGEX = [
     '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/process/events/model/.*_gen.go',
     '/pkg/remoteconfig/state/products/apmsampling/.*_gen(_test){,1}.go',
+    '/pkg/security/events/custom_easyjson.go',
     '/pkg/security/probe/accessors.go',
     '/pkg/security/probe/activity_dump_easyjson.go',
     '/pkg/security/probe/activity_dump_gen_linux.go',
