@@ -24,13 +24,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PayloadVersion defines the current payload version sent to a secret backend
-const PayloadVersion = "1.0"
+const (
+	// PayloadVersion defines the current payload version sent to a secret backend
+	PayloadVersion = "1.0"
+
+	// maxHashFileLimit is the limit for the size of hashing of the binary
+	maxHashFileLimit = 1024 * 1024 * 1024 // 1Gi
+)
 
 var (
 	tlmSecretBackendElapsed = telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation")
@@ -200,12 +207,23 @@ func fileHashSHA256(f *os.File) (string, error) {
 		return "", err
 	}
 
+	if !stat.Mode().IsRegular() ||
+		(stat.Mode()&(os.ModeSymlink|os.ModeSocket|os.ModeCharDevice|os.ModeDevice|os.ModeNamedPipe) != 0) {
+		return "", fmt.Errorf("expecting regular file, got 0x%x", stat.Mode())
+	}
+
 	h := sha256.New()
 
 	fileSize := stat.Size()
 	if fileSize == 0 {
 		return formatHash(h), nil
 	}
+
+	if fileSize > maxHashFileLimit {
+		return "", fmt.Errorf("file size exceeds the limit of %s", humanize.Bytes(maxHashFileLimit))
+	}
+
+	r := io.LimitReader(f, maxHashFileLimit)
 
 	var bufSize int64 = 102400
 	if fileSize < bufSize {
@@ -215,7 +233,7 @@ func fileHashSHA256(f *os.File) (string, error) {
 	buffer := make([]byte, bufSize)
 
 	for {
-		read, err := f.Read(buffer)
+		read, err := r.Read(buffer)
 		if err != nil {
 			if err != io.EOF {
 				return "", err
