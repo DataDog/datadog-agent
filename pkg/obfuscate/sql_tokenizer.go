@@ -8,6 +8,7 @@ package obfuscate
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -572,7 +573,7 @@ func toUpper(src, dst []byte) []byte {
 
 func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	tkn.advance()
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || strings.ContainsRune(".*_$", tkn.lastChar) {
 		tkn.advance()
 	}
 
