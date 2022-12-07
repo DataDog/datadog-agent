@@ -52,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	srand "k8s.io/apimachinery/pkg/util/rand"
 )
 
 var (
@@ -1705,13 +1704,18 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 
 //nolint:deadcode,unused
 func (tm *testModule) triggerLoadControlerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
-	// fill a dump with processes/files until we reach the memory limit and trigger a partial dump
+	monitor := tm.probe.GetMonitor()
+	if monitor == nil {
+		return
+	}
+	adm := monitor.GetActivityDumpManager()
+	if adm == nil {
+		return
+	}
+	adm.FakeDumpOverweight(id.Name)
+
+	// wait until the dump learning has stopped
 	for tm.isDumpRunning(id) {
-		for i := 0; i < 500; i++ {
-			filename := filepath.Join(tm.Root(), srand.String(10))
-			cmd := dockerInstance.Command("touch", []string{filename}, []string{})
-			_, _ = cmd.CombinedOutput()
-		}
 		time.Sleep(time.Second * 1)
 	}
 }

@@ -636,3 +636,14 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 	}
 	return dumps
 }
+
+// FakeDumpOverweight fakes a dump stats to force triggering the load controller. For unitary tests purpose only.
+func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
+	adm.Lock()
+	defer adm.Unlock()
+	for _, ad := range adm.activeDumps {
+		if ad.Name == name {
+			ad.nodeStats.processNodes = int64(99999)
+		}
+	}
+}

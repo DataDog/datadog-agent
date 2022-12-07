@@ -30,7 +30,7 @@ var expectedFormats = []string{"json", "protobuf"}
 
 const testActivityDumpRateLimiter = 20
 const testActivityDumpTracedCgroupsCount = 3
-const testActivityDumpCgroupDumpTimeout = 15 // probe.MinDumpTimeout(10) + 5
+const testActivityDumpCgroupDumpTimeout = 11 // probe.MinDumpTimeout(10) + 5
 var testActivityDumpTracedEventTypes = []string{"exec", "open", "syscalls", "dns", "bind"}
 
 func TestActivityDumps(t *testing.T) {
@@ -441,16 +441,10 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	timeStart := time.Now()
-	assert.Equal(t, "15m0s", dump.Timeout)
+	assert.Equal(t, "11m0s", dump.Timeout)
 
 	// trigg reducer (before t > timeout / 4)
 	test.triggerLoadControlerReducer(dockerInstance, dump)
-	// check that we succeed to trigger the reducer
-	timeDiff := time.Now().Sub(timeStart) + time.Second*3
-	if timeDiff > probe.MinDumpTimeout/2 {
-		t.Skipf("Didn't manage to trigger reduceDumpTimeout(), it took %v to trigger the next partial dump", timeDiff)
-	}
 
 	// find the new dump, with timeout *= 3/4, or min timeout
 	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
@@ -504,20 +498,13 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	timeStart := time.Now()
-	var timeStop time.Time
 
 	for activeEventTypes := probe.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
 		// add all event types to the dump
 		test.addAllEventTypesOnDump(dockerInstance, dump, syscallTester)
+		time.Sleep(time.Second * 3)
 		// trigg reducer
 		test.triggerLoadControlerReducer(dockerInstance, dump)
-		// check that we succeed to trigger the reducer
-		timeStop = time.Now()
-		timeDiff := timeStop.Sub(timeStart) + time.Second*3
-		if timeDiff > probe.MinDumpTimeout/4 {
-			t.Skipf("Didn't manage to trigger reduceTracedEventTypes(), it took %v to trigger the next partial dump", timeDiff)
-		}
 		// find the new dump
 		nextDump, err := test.findNextPartialDump(dockerInstance, dump)
 		if err != nil {
@@ -536,7 +523,6 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 			break
 		}
 		dump = nextDump
-		timeStart = timeStop
 	}
 }
 
@@ -584,21 +570,14 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
-	timeStart := time.Now()
 
 	// burst file creation
 	testDir := filepath.Join(test.Root(), "ratelimiter")
 	os.MkdirAll(testDir, os.ModePerm)
 	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
+	time.Sleep(time.Second * 3)
 	// trigg reducer
 	test.triggerLoadControlerReducer(dockerInstance, dump)
-	// check that we succeed to trigger the reducer
-	timeStop := time.Now()
-	timeDiff := timeStop.Sub(timeStart) + time.Second*3
-	if timeDiff > probe.MinDumpTimeout {
-		t.Skipf("Didn't manage to trigger reduceDumpRate(), it took %v to trigger the next partial dump", timeDiff)
-	}
-	timeStart = timeStop
 	// find the new dump, with ratelimiter *= 3/4
 	secondDump, err := test.findNextPartialDump(dockerInstance, dump)
 	if err != nil {
@@ -617,13 +596,9 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	dump = secondDump
 	// burst file creation
 	test.dockerCreateFiles(dockerInstance, syscallTester, testDir, testActivityDumpRateLimiter*2)
+	time.Sleep(time.Second * 3)
 	// trigg reducer
 	test.triggerLoadControlerReducer(dockerInstance, dump)
-	// check that we succeed to trigger the reducer
-	timeDiff = time.Now().Sub(timeStart) + time.Second*3
-	if timeDiff > probe.MinDumpTimeout {
-		t.Skipf("Didn't manage to trigger reduceDumpRate(), it took %v to trigger the next partial dump", timeDiff)
-	}
 	// find the new dump, with ratelimiter *= 3/4
 	_, err = test.findNextPartialDump(dockerInstance, dump)
 	if err != nil {
