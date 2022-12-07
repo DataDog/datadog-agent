@@ -323,7 +323,12 @@ static long (*bpf_l4_csum_replace)(struct __sk_buff *skb, __u32 offset, __u64 fr
  * Returns
  * 	0 on success, or a negative error in case of failure.
  */
-static long (*bpf_tail_call)(void *ctx, void *prog_array_map, __u32 index) = (void *) 12;
+/* at some point in kernel < 4.15, a duplicate bpf_tail_call symbol got included in the kernel headers.
+   This breaks eBPF builds with a symbol redefinition error.
+   It is fixed in 4.15 with commit https://github.com/torvalds/linux/commit/035226b964c820f65e201cdf123705a8f1d7c670
+   Using bpf_tail_call_compat as a symbol name avoids this issue.
+ */
+static long (*bpf_tail_call_compat)(void *ctx, void *prog_array_map, __u32 index) = (void *) 12;
 
 /*
  * bpf_clone_redirect
@@ -756,7 +761,12 @@ static long (*bpf_skb_load_bytes)(const void *skb, __u32 offset, void *to, __u32
  * 	The positive or null stack id on success, or a negative error
  * 	in case of failure.
  */
-static long (*bpf_get_stackid)(void *ctx, void *map, __u64 flags) = (void *) 27;
+ /* at some point in kernel < 4.15, a duplicate bpf_get_stackid symbol got included in the kernel headers.
+    This breaks eBPF builds with a symbol redefinition error.
+    It is fixed in 4.15 with commit https://github.com/torvalds/linux/commit/035226b964c820f65e201cdf123705a8f1d7c670
+    Using bpf_get_stackid_compat as a symbol name avoids this issue.
+  */
+static long (*bpf_get_stackid_compat)(void *ctx, void *map, __u64 flags) = (void *) 27;
 
 /*
  * bpf_csum_diff
