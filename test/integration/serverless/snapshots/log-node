@@ -155,7 +155,7 @@
   },
   {
     "message": {
-      "message": "END RequestId: XXX",
+      "message": "TIMESTAMP\tXXX\tERROR\tXXX LOG masked XXX\n",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-node",
         "request_id": "XXX"
@@ -169,7 +169,7 @@
   },
   {
     "message": {
-      "message": "TIMESTAMP\tXXX\tERROR\tXXX LOG masked XXX\n",
+      "message": "END RequestId: XXX",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:601427279990:function:integration-tests-extension-STAGE-log-node",
         "request_id": "XXX"
