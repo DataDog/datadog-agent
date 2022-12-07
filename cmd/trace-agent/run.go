@@ -157,12 +157,12 @@ func Run(ctx context.Context) {
 	if remoteTagger {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
-			log.Errorf("unable to configure the remote tagger: %s", err)
+			log.Errorf("Unable to configure the remote tagger: %s", err)
 			remoteTagger = false
 		} else {
 			tagger.SetDefaultTagger(remote.NewTagger(options))
 			if err := tagger.Init(ctx); err != nil {
-				log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
+				log.Infof("Starting remote tagger failed. Falling back to local tagger: %s", err)
 				remoteTagger = false
 			}
 		}
