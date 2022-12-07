@@ -44,16 +44,26 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 }
 
 func (p *processor) processRefresh(allImages []*workloadmeta.ContainerImageMetadata) {
-	// TODO: implement a less naive approach
+	// So far, the check is refreshing all the images every 5 minutes all together.
 	for _, img := range allImages {
 		p.processImage(img)
 	}
 }
 
 func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
+	layers := make([]*model.ContainerImage_ContainerImageLayer, 0, len(img.Layers))
+	for _, layer := range img.Layers {
+		layers = append(layers, &model.ContainerImage_ContainerImageLayer{
+			Urls:      layer.URLs,
+			MediaType: layer.MediaType,
+			Digest:    layer.Digest,
+			Size_:     layer.SizeBytes,
+		})
+	}
+
 	p.queue <- &model.ContainerImage{
 		Id:          img.ID,
-		Registry:    "", // TODO: check what to put here
+		Registry:    "",
 		ShortName:   img.ShortName,
 		Tags:        img.RepoTags,
 		Digest:      img.ID,
@@ -61,10 +71,10 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		RepoDigests: img.RepoDigests,
 		Os: &model.ContainerImage_OperatingSystem{
 			Name:         img.OS,
-			Version:      img.Variant, // TODO: check if version should be renamed variant or the other way round.
+			Version:      img.OSVersion,
 			Architecture: img.Architecture,
 		},
-		Layers: nil, // TODO: complete
+		Layers: layers,
 	}
 }
 
