@@ -35,9 +35,11 @@ type (
 	}
 
 	responsePayload struct {
-		Type    string   `json:"type"`
-		Matches []byte   `json:"matches"`
-		Actions []string `json:"actions"`
+		Type     string   `json:"type"`
+		Matches  []byte   `json:"matches"`
+		Actions  []string `json:"actions"`
+		TraceID  uint64   `json:"trace_id"`
+		ParentID uint64   `json:"parent_id"`
 	}
 
 	errorPayload struct {
@@ -100,9 +102,10 @@ func NewHTTPSecHandler(wafManager *Manager, defaultEnv string, traceChan chan *a
 		}
 
 		if err := json.NewEncoder(w).Encode(responsePayload{
-			Type:    "waf_response",
-			Matches: matches,
-			Actions: actions,
+			Type:     "waf_response",
+			Actions:  actions,
+			TraceID:  sp.TraceID,
+			ParentID: sp.SpanID,
 		}); err != nil {
 			log.Errorf("appsec: unexpected error while encoding the waf response payload into json: %v", err)
 		}
