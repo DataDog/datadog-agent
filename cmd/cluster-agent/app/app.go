@@ -437,7 +437,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 	configService, err := remoteconfig.NewService()
 	if err != nil {
-		return nil, fmt.Errorf("unable to create remote-config service: %v", err)
+		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
 
 	if err := configService.Start(ctx); err != nil {
