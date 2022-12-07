@@ -51,11 +51,11 @@ func (c *Check) Run() error {
 	err = c.pdhQuery.CollectQueryData()
 	if err == nil {
 		// Get values for PDH counters
-		for metricname, cset := range c.counters {
+		for metricname, counter := range c.counters {
 			var val float64
-			val, err = cset.GetValue()
+			val, err = counter.GetValue()
 			if err == nil {
-				sender.Gauge(metricname, float64(val), "", nil)
+				sender.Gauge(metricname, val, "", nil)
 			} else {
 				c.Warnf("cpu.Check: Could not retrieve value for %v: %v", metricname, err)
 			}
@@ -89,7 +89,11 @@ func (counter *processorPDHCounter) AddToQuery(query *pdhutil.PdhQuery) error {
 	if err != nil {
 		counter.ObjectName = "Processor"
 		err = counter.PdhEnglishSingleInstanceCounter.AddToQuery(query)
-		counter.ObjectName = "Processor Information"
+		if err != nil {
+			// Processor failed, too. Restore default objectName so we can try it again next time.
+			counter.ObjectName = "Processor Information"
+
+		}
 	}
 	return err
 }

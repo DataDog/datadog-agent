@@ -114,13 +114,13 @@ func (c *IOCheck) Run() error {
 	if err == nil {
 		// Get values for PDH counters
 		var tagbuff bytes.Buffer
-		for cname, cset := range c.counters {
-			if cset == nil {
+		for cname, counter := range c.counters {
+			if counter == nil {
 				// counter is not yet initialized
 				continue
 			}
 			// get counter values
-			vals, err := cset.GetAllValues()
+			vals, err := counter.GetAllValues()
 			if err != nil {
 				c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
 				continue

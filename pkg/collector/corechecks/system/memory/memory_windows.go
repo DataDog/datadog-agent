@@ -66,11 +66,11 @@ func (c *Check) Run() error {
 	err = c.pdhQuery.CollectQueryData()
 	if err == nil {
 		// Get values for PDH counters
-		for metricname, cset := range c.counters {
+		for metricname, counter := range c.counters {
 			var val float64
-			val, err = cset.GetValue()
+			val, err = counter.GetValue()
 			if err == nil {
-				sender.Gauge(metricname, float64(val)/mbSize, "", nil)
+				sender.Gauge(metricname, val/mbSize, "", nil)
 			} else {
 				c.Warnf("memory.Check: Could not retrieve value for %v: %v", metricname, err)
 			}

@@ -120,7 +120,7 @@ func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 	}
 	pdherror := pfnPdhAddEnglishCounter(query.handle, path, uintptr(0), &counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		counter.initError = fmt.Errorf("Failed to add english counter (\\%s(%s)\\%s): %#x", counter.ObjectName, counter.InstanceName, counter.CounterName, pdherror)
+		counter.initError = fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
 		return counter.initError
 	}
 	counter.initError = nil
@@ -195,7 +195,7 @@ func (query *PdhQuery) CollectQueryData() error {
 			if err == nil {
 				addedNewCounter = true
 			} else {
-				log.Warnf("Failed to add counter to query: %v. This error indicates that the Windows performance counter database may need to be rebuilt", err)
+				log.Warnf("Failed to add counter to query: %v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
 			}
 		}
 	}
@@ -219,7 +219,6 @@ func (query *PdhQuery) CollectQueryData() error {
 
 // Initialize initializes a pdhCounter object
 func (counter *pdhCounter) Initialize(objectName string, counterName string, instanceName string) {
-
 	counter.ObjectName = objectName
 	counter.CounterName = counterName
 	counter.InstanceName = instanceName
