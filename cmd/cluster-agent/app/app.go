@@ -441,7 +441,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 	}
 
 	if err := configService.Start(ctx); err != nil {
-		return nil, fmt.Errorf("unable to start remote-config service: %v", err)
+		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
 	}
 
 	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{}, time.Second*5)
