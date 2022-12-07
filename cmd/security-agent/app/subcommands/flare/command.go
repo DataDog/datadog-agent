@@ -31,7 +31,7 @@ type flareCliParams struct {
 }
 
 func Commands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := flareCliParams{
+	cliParams := &flareCliParams{
 		GlobalParams: globalParams,
 	}
 

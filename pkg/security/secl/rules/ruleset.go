@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
@@ -80,6 +81,7 @@ type RuleDefinition struct {
 	Disabled               bool               `yaml:"disabled"`
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
+	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
 }
 
