@@ -175,21 +175,13 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
         if (kafka_transaction->request_api_version >= 4) {
             // isolation_level => INT8
             kafka_transaction->current_offset_in_request_fragment += 1;
-        }
 
-        if (kafka_transaction->request_api_version >= 7) {
-            // session_id => INT32
-            // session_epoch => INT32
-            kafka_transaction->current_offset_in_request_fragment += 8;
+            if (kafka_transaction->request_api_version >= 7) {
+                // session_id => INT32
+                // session_epoch => INT32
+                kafka_transaction->current_offset_in_request_fragment += 8;
+            }
         }
-    }
-
-    if (kafka_transaction->request_api_version >= 7)
-    {
-        // On api version 7+, need to skip:
-        //  session_id => INT32
-        //  session_epoch => INT32
-        kafka_transaction->current_offset_in_request_fragment += 8;
     }
 
     return extract_and_set_first_topic_name(kafka_transaction);
