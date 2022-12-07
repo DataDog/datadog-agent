@@ -23,6 +23,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// v see test/kitchen/test/integration/security-agent-test/rspec/security-agent-test_spec.rb
+const dedicatedADNodeForTestsEnv = "DD_ACTIVITY_DUMP_NODE"
+
 var expectedFormats = []string{"json", "protobuf"}
 
 const testActivityDumpRateLimiter = 20
@@ -37,6 +40,9 @@ func TestActivityDumps(t *testing.T) {
 	}
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
 	}
 
 	outputDir := t.TempDir()
@@ -403,6 +409,9 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
+	}
 
 	outputDir := t.TempDir()
 	defer os.RemoveAll(outputDir)
@@ -458,6 +467,9 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
 	}
 
 	outputDir := t.TempDir()
@@ -535,6 +547,9 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 	}
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
+	}
+	if !IsDedicatedNode(dedicatedADNodeForTestsEnv) {
+		t.Skip("Skip test when not run in dedicated env")
 	}
 
 	outputDir := t.TempDir()

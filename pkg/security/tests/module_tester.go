@@ -1885,3 +1885,8 @@ func (tm *testModule) StopAllActivityDumps() error {
 	}
 	return nil
 }
+
+func IsDedicatedNode(env string) bool {
+	_, present := os.LookupEnv(env)
+	return present
+}
