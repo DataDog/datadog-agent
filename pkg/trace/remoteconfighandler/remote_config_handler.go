@@ -93,45 +93,27 @@ func (h *RemoteConfigHandler) updateSamplers(config apmsampling.SamplerConfig) {
 		}
 	}
 
-	var prioritySamplerTargetTPS float64
-	var prioritySamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.PrioritySamplerTargetTPS != nil {
-		prioritySamplerTargetTPS = *confForEnv.PrioritySamplerTargetTPS
-		prioritySamplerRemotelyConfigured = true
+		h.prioritySampler.UpdateTargetTPS(*confForEnv.PrioritySamplerTargetTPS, true)
 	} else if config.AllEnvs.PrioritySamplerTargetTPS != nil {
-		prioritySamplerTargetTPS = *config.AllEnvs.PrioritySamplerTargetTPS
-		prioritySamplerRemotelyConfigured = true
+		h.prioritySampler.UpdateTargetTPS(*config.AllEnvs.PrioritySamplerTargetTPS, true)
 	} else {
-		prioritySamplerTargetTPS = h.agentConfig.TargetTPS
-		prioritySamplerRemotelyConfigured = false
+		h.prioritySampler.UpdateTargetTPS(h.agentConfig.TargetTPS, false)
 	}
-	h.prioritySampler.UpdateTargetTPS(prioritySamplerTargetTPS, prioritySamplerRemotelyConfigured)
 
-	var errorsSamplerTargetTPS float64
-	var errorsSamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.ErrorsSamplerTargetTPS != nil {
-		errorsSamplerTargetTPS = *confForEnv.ErrorsSamplerTargetTPS
-		errorsSamplerRemotelyConfigured = true
+		h.errorsSampler.UpdateTargetTPS(*confForEnv.ErrorsSamplerTargetTPS, true)
 	} else if config.AllEnvs.ErrorsSamplerTargetTPS != nil {
-		errorsSamplerTargetTPS = *config.AllEnvs.ErrorsSamplerTargetTPS
-		errorsSamplerRemotelyConfigured = true
+		h.errorsSampler.UpdateTargetTPS(*config.AllEnvs.ErrorsSamplerTargetTPS, true)
 	} else {
-		errorsSamplerTargetTPS = h.agentConfig.ErrorTPS
-		errorsSamplerRemotelyConfigured = false
+		h.errorsSampler.UpdateTargetTPS(h.agentConfig.ErrorTPS, false)
 	}
-	h.errorsSampler.UpdateTargetTPS(errorsSamplerTargetTPS, errorsSamplerRemotelyConfigured)
 
-	var rareSamplerEnabled bool
-	var rareSamplerRemotelyConfigured bool
 	if confForEnv != nil && confForEnv.RareSamplerEnabled != nil {
-		rareSamplerEnabled = *confForEnv.RareSamplerEnabled
-		rareSamplerRemotelyConfigured = true
+		h.rareSampler.Configure(*confForEnv.RareSamplerEnabled, true)
 	} else if config.AllEnvs.RareSamplerEnabled != nil {
-		rareSamplerEnabled = *config.AllEnvs.RareSamplerEnabled
-		rareSamplerRemotelyConfigured = true
+		h.rareSampler.Configure(*config.AllEnvs.RareSamplerEnabled, true)
 	} else {
-		rareSamplerEnabled = h.agentConfig.RareSamplerEnabled
-		rareSamplerRemotelyConfigured = false
+		h.rareSampler.Configure(h.agentConfig.RareSamplerEnabled, false)
 	}
-	h.rareSampler.Configure(rareSamplerEnabled, rareSamplerRemotelyConfigured)
 }
