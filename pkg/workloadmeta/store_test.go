@@ -683,6 +683,47 @@ func TestListContainersWithFilter(t *testing.T) {
 	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
 }
 
+func TestListImages(t *testing.T) {
+	image := &ContainerImageMetadata{
+		EntityID: EntityID{
+			Kind: KindContainerImageMetadata,
+			ID:   "abc",
+		},
+	}
+
+	tests := []struct {
+		name           string
+		preEvents      []CollectorEvent
+		expectedImages []*ContainerImageMetadata
+	}{
+		{
+			name: "some images stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: image,
+				},
+			},
+			expectedImages: []*ContainerImageMetadata{image},
+		},
+		{
+			name:           "no containers stored",
+			preEvents:      nil,
+			expectedImages: []*ContainerImageMetadata{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			assert.DeepEqual(t, test.expectedImages, testStore.ListImages())
+		})
+	}
+}
+
 func newTestStore() *store {
 	return &store{
 		store: make(map[Kind]map[string]*cachedEntity),

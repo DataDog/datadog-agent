@@ -83,7 +83,7 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot)},
 	}
 }
 
@@ -93,9 +93,10 @@ func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 // is proxied back to the client, while for all aditional endpoints the
 // response is discarded.
 type evpProxyTransport struct {
-	transport http.RoundTripper
-	endpoints []config.Endpoint
-	conf      *config.AgentConfig
+	transport           http.RoundTripper
+	endpoints           []config.Endpoint
+	conf                *config.AgentConfig
+	containerIDProvider IDProvider
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -117,7 +118,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}()
 
 	subdomain := req.Header.Get("X-Datadog-EVP-Subdomain")
-	containerID := req.Header.Get(headerContainerID)
+	containerID := t.containerIDProvider.GetContainerID(req.Context(), req.Header)
 	needsAppKey := (strings.ToLower(req.Header.Get("X-Datadog-NeedsAppKey")) == "true")
 
 	// Sanitize the input, don't accept any valid URL but just some limited subset

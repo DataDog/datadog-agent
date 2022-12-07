@@ -8,6 +8,7 @@ package timing
 import (
 	"fmt"
 	"math/rand"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -49,6 +50,9 @@ func TestTiming(t *testing.T) {
 		set := NewSet()
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		stop := set.Autoreport(time.Millisecond)
+		if runtime.GOOS == "windows" {
+			time.Sleep(5 * time.Second)
+		}
 		time.Sleep(5 * time.Millisecond)
 		stop()
 		assert.True(len(stats.CountCalls) > 1)

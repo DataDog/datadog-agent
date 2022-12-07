@@ -1,4 +1,5 @@
 Component,Origin,License,Copyright
+core,cloud.google.com/go/compute/internal,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/internal,Apache-2.0,Copyright 2019 Google LLC
@@ -949,9 +950,7 @@ core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologi
 core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
 core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,go4.org/netipx,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
-core,go4.org/unsafe/assume-no-moving-gc,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
 core,golang.org/x/arch/arm64/arm64asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/arch/x86/x86asm,BSD-3-Clause,Copyright (c) 2015 The Go Authors. All rights reserved
 core,golang.org/x/crypto/bcrypt,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -1185,7 +1184,6 @@ core,gopkg.in/natefinch/lumberjack.v2,MIT,Copyright (c) 2014 Nate Finch
 core,gopkg.in/yaml.v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/yaml.v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright 2011-2016 Canonical Ltd
 core,gopkg.in/zorkian/go-datadog-api.v2,BSD-3-Clause,Copyright (c) 2013 by authors and contributors | Copyright 2013-2019 by authors and contributors
-core,inet.af/netaddr,BSD-3-Clause,Alex Willmer <alex@moreati.org.uk> | Copyright (c) 2020 The Inet.af AUTHORS. All rights reserved | Matt Layher <mdlayher@gmail.com> | Tailscale Inc. | Tobias Klauser <tklauser@distanz.ch>
 core,k8s.io/api/admission/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admission/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/api/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.

@@ -16,11 +16,13 @@ package translator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -70,13 +72,13 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	}
 
 	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendCountSum {
-		return nil, fmt.Errorf("no buckets mode and no send count sum are incompatible")
+		return nil, errors.New("no buckets mode and no send count sum are incompatible")
 	}
 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
 	return &Translator{
 		prevPts: cache,
-		logger:  logger,
+		logger:  logger.With(zap.String("component", "metrics translator")),
 		cfg:     cfg,
 	}, nil
 }
@@ -421,23 +423,36 @@ func (t *Translator) mapSummaryMetrics(
 	}
 }
 
+func (t *Translator) source(m pcommon.Map) (source.Source, error) {
+	src, ok := attributes.SourceFromAttributes(m, t.cfg.previewHostnameFromAttributes)
+	if !ok {
+		var err error
+		src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
+		if err != nil {
+			return source.Source{}, fmt.Errorf("failed to get fallback source: %w", err)
+		}
+	}
+	return src, nil
+}
+
 // MapMetrics maps OTLP metrics into the DataDog format
 func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
-
-		// Fetch tags from attributes.
-		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
-		src, ok := attributes.SourceFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
-		if !ok {
-			var err error
-			src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
+		if v, ok := rm.Resource().Attributes().Get(keyAPMStats); ok && v.Bool() {
+			// these resource metrics are an APM Stats payload; consume it as such
+			sp, err := t.statsPayloadFromMetrics(rm)
 			if err != nil {
-				return fmt.Errorf("failed to get fallback source: %w", err)
+				return fmt.Errorf("error extracting APM Stats from Metrics: %w", err)
 			}
+			consumer.ConsumeAPMStats(sp)
+			continue
 		}
-
+		src, err := t.source(rm.Resource().Attributes())
+		if err != nil {
+			return err
+		}
 		var host string
 		switch src.Kind {
 		case source.HostnameKind:
@@ -451,6 +466,8 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			}
 		}
 
+		// Fetch tags from attributes.
+		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
 		ilms := rm.ScopeMetrics()
 		for j := 0; j < ilms.Len(); j++ {
 			ilm := ilms.At(j)

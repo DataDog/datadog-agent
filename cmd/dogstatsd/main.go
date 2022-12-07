@@ -240,7 +240,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.GetGlobalStore()
+		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))
