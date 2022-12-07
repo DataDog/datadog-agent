@@ -100,13 +100,12 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
-		//TraceWriter:           writer.NewTraceWriter(conf),
-		StatsWriter:    writer.NewStatsWriter(conf, statsChan),
-		obfuscator:     obfuscate.NewObfuscator(oconf),
-		cardObfuscator: newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
-		In:             in,
-		conf:           conf,
-		ctx:            ctx,
+		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
+		obfuscator:            obfuscate.NewObfuscator(oconf),
+		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
+		In:                    in,
+		conf:                  conf,
+		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
