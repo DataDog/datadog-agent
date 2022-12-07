@@ -16,6 +16,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/docker"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/ecs"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/ecsfargate"
+	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/kubeapiserver"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/kubelet"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/kubemetadata"
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/internal/podman"

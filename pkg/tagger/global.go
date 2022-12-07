@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -76,8 +77,8 @@ func Init(ctx context.Context) error {
 			DogstatsdCardinality = collectors.LowCardinality
 		}
 
-		if config.IsCLCRunner() {
-			log.Infof("Tagger not started on CLC")
+		if defaultTagger == nil {
+			initErr = errors.New("tagger has not been set")
 			return
 		}
 
