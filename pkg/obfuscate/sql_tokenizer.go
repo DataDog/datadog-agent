@@ -573,7 +573,7 @@ func toUpper(src, dst []byte) []byte {
 
 func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	tkn.advance()
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || strings.ContainsRune(".*_$", tkn.lastChar) {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || strings.ContainsRune(".*$", tkn.lastChar) {
 		tkn.advance()
 	}
 
