@@ -455,6 +455,7 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
 		"process.ancestors.file.name",
@@ -464,6 +465,7 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 
 	nameFieldValid, hasPath := checkProcessContextFieldsForBlankValues(tb, event, nameFields)
 
+	// Process path values can be blank if the process was a fileless execution
 	pathFields := []string{
 		"process.file.path",
 		"process.ancestors.file.path",

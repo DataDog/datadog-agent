@@ -372,7 +372,7 @@ func (dr *DentryResolver) ResolveNameFromMap(mountID uint32, inode uint64, pathI
 	return name, nil
 }
 
-// ResolveName resolves a mountID/inode pair to a path
+// ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *DentryResolver) ResolveName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.ResolveNameFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {

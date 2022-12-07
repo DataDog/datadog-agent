@@ -230,7 +230,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     }
 }
 
-// get_sb_magic returns the magic number of a file which determines its file format
+// get_sb_magic returns the magic number of a superblock, which can be used to identify the format of the filesystem
 static __attribute__((always_inline)) int get_sb_magic(struct super_block *sb) {
     u64 magic;
     bpf_probe_read(&magic, sizeof(magic), (char *)sb + get_sb_magic_offset());
