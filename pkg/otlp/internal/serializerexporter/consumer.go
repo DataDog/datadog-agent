@@ -6,21 +6,26 @@
 package serializerexporter
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
 
 	"go.uber.org/multierr"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/translator"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/tinylib/msgp/msgp"
 )
 
 var _ translator.Consumer = (*serializerConsumer)(nil)
@@ -30,6 +35,7 @@ type serializerConsumer struct {
 	extraTags   []string
 	series      metrics.Series
 	sketches    metrics.SketchSeriesList
+	apmstats    []io.Reader
 }
 
 // enrichedTags of a given dimension.
@@ -54,6 +60,17 @@ func (c *serializerConsumer) enrichedTags(dimensions *translator.Dimensions) []s
 	}
 
 	return enrichedTags
+}
+
+func (c *serializerConsumer) ConsumeAPMStats(ss pb.ClientStatsPayload) {
+	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
+	ss.Tags = append(ss.Tags, c.extraTags...)
+	body := new(bytes.Buffer)
+	if err := msgp.Encode(body, &ss); err != nil {
+		log.Errorf("Error encoding ClientStatsPayload: %v", err)
+		return
+	}
+	c.apmstats = append(c.apmstats, body)
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *translator.Dimensions, ts uint64, qsketch *quantile.Sketch) {
@@ -104,10 +121,9 @@ func (c *serializerConsumer) addTelemetryMetric(hostname string) {
 	})
 }
 
-// flush all metrics and sketches in consumer.
-func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
-	var serieErr error
-	var sketchesErr error
+// Send exports all data recorded by the consumer. It does not reset the consumer.
+func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
+	var serieErr, sketchesErr error
 	metrics.Serialize(
 		metrics.NewIterableSeries(func(se *metrics.Serie) {}, 200, 4000),
 		metrics.NewIterableSketches(func(se *metrics.SketchSeries) {}, 200, 4000),
@@ -122,7 +138,27 @@ func (c *serializerConsumer) flush(s serializer.MetricSerializer) error {
 			serieErr = s.SendIterableSeries(serieSource)
 		}, func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
-		})
+		},
+	)
 
-	return multierr.Append(serieErr, sketchesErr)
+	apmErr := c.sendAPMStats()
+	return multierr.Combine(serieErr, sketchesErr, apmErr)
+}
+
+func (c *serializerConsumer) sendAPMStats() error {
+	addr := fmt.Sprintf("http://localhost:%s/v0.6/stats", config.Datadog.GetString("apm_config.receiver_port"))
+	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
+	for _, body := range c.apmstats {
+		resp, err := http.Post(addr, "application/msgpack", body)
+		if err != nil {
+			return fmt.Errorf("could not flush StatsPayload: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			peek := make([]byte, 1024)
+			n, _ := resp.Body.Read(peek)
+			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+		}
+	}
+	return nil
 }
