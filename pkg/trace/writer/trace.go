@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -242,13 +243,15 @@ func (w *TraceWriter) flush() {
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
 	p := pb.AgentPayload{
-		AgentVersion:   w.agentVersion,
-		HostName:       w.hostname,
-		Env:            w.env,
-		TargetTPS:      w.prioritySampler.GetTargetTPS(),
-		ErrorTPS:       w.errorsSampler.GetTargetTPS(),
-		TracerPayloads: w.tracerPayloads,
+		AgentVersion:       w.agentVersion,
+		HostName:           w.hostname,
+		Env:                w.env,
+		TargetTPS:          w.prioritySampler.GetTargetTPS(),
+		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
+		RareSamplerEnabled: w.rareSampler.IsEnabled(),
+		TracerPayloads:     w.tracerPayloads,
 	}
+	fmt.Printf("TargetTPS:%v ErrorTPS:%v RareSamplerEnabled:%v\n", w.prioritySampler.GetTargetTPS(), w.errorsSampler.GetTargetTPS(), w.rareSampler.IsEnabled())
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
