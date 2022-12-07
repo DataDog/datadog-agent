@@ -20,12 +20,13 @@ single-machine-performance-regression_detector:
     MEMORY: "30g"
   script:
     # Setup AWS credentials for single-machine-performance AWS account
+    - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-account-id --with-decryption --query "Parameter.Value" --out text)
     - SMP_ECR_URL=${SMP_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
     - SMP_AGENT_TEAM_ID=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-agent-team-id --with-decryption --query "Parameter.Value" --out text)
-    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile single-machine-performance
-    - aws configure set region us-west-2 --profile single-machine-performance
+    - aws configure set aws_access_key_id $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key-id --with-decryption --query "Parameter.Value" --out text) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set aws_secret_access_key $(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.single-machine-performance-bot-access-key --with-decryption --query "Parameter.Value" --out text) --profile ${AWS_NAMED_PROFILE}
+    - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
     # Download smp binary and prepare it for use
     - aws --profile single-machine-performance s3 cp s3://smp-cli-releases/v${SMP_VERSION}/x86_64-unknown-linux-musl/smp smp
     - chmod +x smp
@@ -39,7 +40,7 @@ single-machine-performance-regression_detector:
     - COMPARISON_IMAGE=${SMP_ECR_URL}/${SMP_AGENT_TEAM_ID}-agent:${CI_COMMIT_SHA}-7-amd64
     - echo "${CI_COMMIT_SHA} | ${COMPARISON_IMAGE}"
     - RUST_LOG="info,aws_config::profile::credentials=error"
-    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job submit
             --lading-version ${LADING_VERSION}
             --total-samples ${TOTAL_SAMPLES}
@@ -58,19 +59,19 @@ single-machine-performance-regression_detector:
             --target-memory-allotment ${MEMORY}
             --submission-metadata submission_metadata
     # Wait for job to complete.
-    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job status
             --wait
             --wait-delay-seconds 60
             --submission-metadata submission_metadata
     # Now that the job is completed pull the analysis report, output it to stdout.
     - mkdir outputs
-    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job sync
             --submission-metadata submission_metadata
             --output-path outputs
     - cat outputs/report.html
     # Finally, exit 1 if the job signals a regression else 0.
-    - ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile single-machine-performance
+    - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job result
             --submission-metadata submission_metadata
