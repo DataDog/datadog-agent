@@ -39,7 +39,7 @@ type errorsSampler interface {
 }
 
 type rareSampler interface {
-	GetEnabled() bool
+	IsEnabled() bool
 }
 
 // SampledChunks represents the result of a trace sampling operation.
