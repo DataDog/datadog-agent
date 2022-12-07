@@ -84,6 +84,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 			return err
 		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			log.Flush()
+		},
 	}
 
 	defaultConfPathArray := []string{
