@@ -19,7 +19,7 @@ func RunPostgres(t *testing.T, serverAddr string, serverPort string) {
 
 	env := []string{
 		"POSTGRES_ADDR=" + serverAddr,
-		"POSTGRES_PORT=5432",
+		"POSTGRES_PORT=" + serverPort,
 	}
 	dir, _ := testutil.CurDir()
 	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")

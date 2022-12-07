@@ -240,7 +240,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, err)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
-				addr, port, _ := net.SplitHostPort(serverAddr)
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				port := ":5432"
 				postgres.RunPostgres(t, addr, port)
 				return addr + ":5432"
 			},
