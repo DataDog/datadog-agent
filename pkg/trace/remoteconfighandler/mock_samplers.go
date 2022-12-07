@@ -68,13 +68,13 @@ func (m *MockrareSampler) EXPECT() *MockrareSamplerMockRecorder {
 }
 
 // SetEnabled mocks base method.
-func (m *MockrareSampler) SetEnabled(enabled, remotelyConfigured bool) {
+func (m *MockrareSampler) Configure(enabled, remotelyConfigured bool) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetEnabled", enabled, remotelyConfigured)
+	m.ctrl.Call(m, "Configure", enabled, remotelyConfigured)
 }
 
 // SetEnabled indicates an expected call of SetEnabled.
 func (mr *MockrareSamplerMockRecorder) SetEnabled(enabled, remotelyConfigured interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEnabled", reflect.TypeOf((*MockrareSampler)(nil).SetEnabled), enabled, remotelyConfigured)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockrareSampler)(nil).Configure), enabled, remotelyConfigured)
 }

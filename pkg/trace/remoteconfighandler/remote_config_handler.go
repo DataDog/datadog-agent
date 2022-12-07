@@ -18,7 +18,7 @@ type samplerWithTPS interface {
 }
 
 type rareSampler interface {
-	SetEnabled(enabled bool, remotelyConfigured bool)
+	Configure(enabled bool, remotelyConfigured bool)
 }
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
@@ -133,5 +133,5 @@ func (h *RemoteConfigHandler) updateSamplers(config apmsampling.SamplerConfig) {
 		rareSamplerEnabled = h.agentConfig.RareSamplerEnabled
 		rareSamplerRemotelyConfigured = false
 	}
-	h.rareSampler.SetEnabled(rareSamplerEnabled, rareSamplerRemotelyConfigured)
+	h.rareSampler.Configure(rareSamplerEnabled, rareSamplerRemotelyConfigured)
 }

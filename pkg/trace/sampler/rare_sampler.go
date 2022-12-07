@@ -96,7 +96,7 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
-func (e *RareSampler) SetEnabled(enabled bool, remotelyConfigured bool) {
+func (e *RareSampler) Configure(enabled bool, remotelyConfigured bool) {
 	e.enabled.Store(enabled)
 	e.RemotelyConfigured.Store(remotelyConfigured)
 }
