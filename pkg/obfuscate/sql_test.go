@@ -1236,11 +1236,11 @@ func TestPGJSONOperators(t *testing.T) {
 		},
 		{
 			"select * from users where user.custom ?| array [ '1', '2' ]",
-			"select * from users where user.custom ?| array [ ? ]",
+			"select * from users where user.custom ?| array [?]",
 		},
 		{
 			"select * from users where user.custom ?& array [ '1', '2' ]",
-			"select * from users where user.custom ?& array [ ? ]",
+			"select * from users where user.custom ?& array [?]",
 		},
 	} {
 		t.Run("", func(t *testing.T) {
