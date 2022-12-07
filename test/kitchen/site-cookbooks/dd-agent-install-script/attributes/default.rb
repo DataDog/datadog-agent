@@ -1,6 +1,6 @@
 default['dd-agent-install-script']['api_key'] = nil
 default['dd-agent-install-script']['install_script_dir'] = '/tmp/install-script/'
-default['dd-agent-install-script']['install_script_url'] = 'https://raw.githubusercontent.com/DataDog/datadog-agent/main/cmd/agent/install_script.sh'
+default['dd-agent-install-script']['install_script_url'] = 'https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh'
 default['dd-agent-install-script']['install_candidate'] = true
 
 default['dd-agent-install-script']['repo_url'] = 'datad0g.com'

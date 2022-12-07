@@ -11,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -59,7 +58,7 @@ func main() {
 
 	pyRtLoader := python.GetRtLoader()
 	rtloader := (*C.rtloader_t)(pyRtLoader)
-	pythonCode, err := ioutil.ReadFile(*pythonScript)
+	pythonCode, err := os.ReadFile(*pythonScript)
 	if err != nil {
 		fmt.Printf("Could not read %s: %s\n", *pythonScript, err)
 		os.Exit(1)

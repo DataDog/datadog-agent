@@ -9,7 +9,6 @@
 package secrets
 
 import (
-	"io/ioutil"
 	"os"
 	"os/user"
 	"syscall"
@@ -27,7 +26,7 @@ func TestWrongPath(t *testing.T) {
 }
 
 func TestGroupOtherRights(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "agent-collector-test")
+	tmpfile, err := os.CreateTemp("", "agent-collector-test")
 	require.Nil(t, err)
 	defer os.Remove(tmpfile.Name())
 

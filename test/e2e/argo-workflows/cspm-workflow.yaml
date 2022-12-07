@@ -99,24 +99,8 @@ spec:
 
     - name: exit-handler
       steps:
-        - - name: delete
-            template: delete
-            when: "{{workflow.status}} == Succeeded"
-
-          - name: diagnose
+        - - name: diagnose
             template: diagnose
-            when: "{{workflow.status}} != Succeeded"
-
-    - name: delete
-      steps:
-        - - name: stop-datadog-agent
-            templateRef:
-              name: datadog-agent
-              template: delete
-            arguments:
-              parameters:
-                - name: namespace
-                  value: "{{workflow.namespace}}"
 
     - name: diagnose
       steps:

@@ -406,9 +406,16 @@ func Test_batchPayloads(t *testing.T) {
 	for i := 0; i < 350; i++ {
 		interfaces = append(interfaces, metadata.InterfaceMetadata{DeviceID: deviceID, Index: int32(i)})
 	}
-	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces)
+	var topologyLinks []metadata.TopologyLinkMetadata
+	for i := 0; i < 100; i++ {
+		topologyLinks = append(topologyLinks, metadata.TopologyLinkMetadata{
+			Local:  &metadata.TopologyLinkSide{Interface: &metadata.TopologyLinkInterface{ID: "a"}},
+			Remote: &metadata.TopologyLinkSide{Interface: &metadata.TopologyLinkInterface{ID: "b"}},
+		})
+	}
+	payloads := batchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, device, interfaces, topologyLinks)
 
-	assert.Equal(t, 4, len(payloads))
+	assert.Equal(t, 5, len(payloads))
 
 	assert.Equal(t, "my-ns", payloads[0].Namespace)
 	assert.Equal(t, "127.0.0.0/30", payloads[0].Subnet)
@@ -429,5 +436,12 @@ func Test_batchPayloads(t *testing.T) {
 
 	assert.Equal(t, 0, len(payloads[3].Devices))
 	assert.Equal(t, 51, len(payloads[3].Interfaces))
+	assert.Equal(t, 49, len(payloads[3].Links))
 	assert.Equal(t, interfaces[299:350], payloads[3].Interfaces)
+	assert.Equal(t, topologyLinks[:49], payloads[3].Links)
+
+	assert.Equal(t, 0, len(payloads[4].Devices))
+	assert.Equal(t, 0, len(payloads[4].Interfaces))
+	assert.Equal(t, 51, len(payloads[4].Links))
+	assert.Equal(t, topologyLinks[49:100], payloads[4].Links)
 }

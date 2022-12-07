@@ -78,8 +78,9 @@ func (t *Translator) exponentialHistogramToDDSketch(
 // - The sum of values in the population
 // - A scale, from which the base of the exponential histogram is computed
 // - Two bucket stores, each with:
-//     - an offset
-//     - a list of bucket counts
+//   - an offset
+//   - a list of bucket counts
+//
 // - A count of zero values in the population
 func (t *Translator) mapExponentialHistogramMetrics(
 	ctx context.Context,
@@ -146,6 +147,12 @@ func (t *Translator) mapExponentialHistogramMetrics(
 			agentSketch.Basic.Cnt = int64(histInfo.count)
 			agentSketch.Basic.Sum = histInfo.sum
 			agentSketch.Basic.Avg = agentSketch.Basic.Sum / float64(agentSketch.Basic.Cnt)
+		}
+		if delta && p.HasMin() {
+			agentSketch.Basic.Min = p.Min()
+		}
+		if delta && p.HasMax() {
+			agentSketch.Basic.Max = p.Max()
 		}
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, agentSketch)

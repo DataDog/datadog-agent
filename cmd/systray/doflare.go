@@ -81,7 +81,10 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 				r, _, _ = procGetWindowRect.Call(dt, uintptr(unsafe.Pointer(&wndrect)))
 				if r != 0 {
 					x, y, _, _ := calcPos(wndrect, dlgrect)
-					procSetWindowPos.Call(uintptr(hwnd), 0, uintptr(x), uintptr(y), uintptr(0), uintptr(0), uintptr(0x0041))
+					r, _, err = procSetWindowPos.Call(uintptr(hwnd), 0, uintptr(x), uintptr(y), uintptr(0), uintptr(0), uintptr(0x0041))
+					if r != 0 {
+						log.Debugf("failed to set window pos %v", err)
+					}
 				}
 			} else {
 				log.Debugf("failed to get pos %v", err)

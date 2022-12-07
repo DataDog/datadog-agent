@@ -6,24 +6,6 @@
 #include "map-defs.h"
 #include "defs.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || RHEL_MAJOR == 7
-#define IS_PROBE_READ(fn) \
-    ((((unsigned long)fn) == BPF_FUNC_probe_read) || (((unsigned long)fn) == BPF_FUNC_probe_read_str))
-#else
-#define IS_PROBE_READ(fn) \
-    (((unsigned long)fn) == BPF_FUNC_probe_read)
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
-#define IS_PROBE_READ_USER_STR(fn) (((unsigned long)fn) == (BPF_FUNC_probe_read_user_str))
-#define IS_PROBE_READ_USER(fn) (IS_PROBE_READ_USER_STR(fn) || (((unsigned long)fn) == BPF_FUNC_probe_read_user))
-#define IS_PROBE_READ_KERNEL_STR(fn) (((unsigned long)fn) == (BPF_FUNC_probe_read_kernel_str))
-#define IS_PROBE_READ_KERNEL(fn) (IS_PROBE_READ_KERNEL_STR(fn) || (((unsigned long)fn) == BPF_FUNC_probe_read_kernel))
-#else
-#define IS_PROBE_READ_USER(fn) 0
-#define IS_PROBE_READ_KERNEL(fn) 0
-#endif
-
 #define STR(x) #x
 #define MK_KEY(key) STR(key##_telemetry_key)
 
@@ -70,11 +52,14 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define FN_INDX_bpf_probe_read_user read_user_indx
 #define FN_INDX_bpf_probe_read_user_str read_user_indx
 
-#define helper_with_telemetry(fn, dst, sz, src)                                                 \
+#define FN_INDX_bpf_skb_load_bytes skb_load_bytes
+#define FN_INDX_bpf_perf_event_output perf_event_output
+
+#define helper_with_telemetry(fn, ...)                                                          \
     ({                                                                                          \
         int helper_indx = -1;                                                                   \
         long errno_slot;                                                                        \
-        long errno_ret = fn(dst, sz, src);                                                      \
+        long errno_ret = fn(__VA_ARGS__);                                                       \
         if (errno_ret < 0) {                                                                    \
             unsigned long telemetry_program_id;                                                 \
             LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                    \
@@ -109,22 +94,30 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define bpf_map_update_with_telemetry(map, key, val, flags) \
     map_update_with_telemetry(bpf_map_update_elem, map, key, val, flags)
 
-#define bpf_probe_read_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read, dst, sz, src)
+#define bpf_probe_read_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read, __VA_ARGS__)
 
-#define bpf_probe_read_str_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read_str, dst, sz, src)
+#define bpf_probe_read_str_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read_str, __VA_ARGS__)
 
-#define bpf_probe_read_user_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read_user, dst, sz, src)
+#define bpf_probe_read_user_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read_user, __VA_ARGS__)
 
-#define bpf_probe_read_user_str_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read_user_str, dst, sz, src)
+#define bpf_probe_read_user_str_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read_user_str, __VA_ARGS__)
 
-#define bpf_probe_read_kernel_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read_kernel, dst, sz, src)
+#define bpf_probe_read_kernel_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read_kernel, __VA_ARGS__)
 
-#define bpf_probe_read_kernel_str_with_telemetry(dst, sz, src) \
-    helper_with_telemetry(bpf_probe_read_kernel_str, dst, sz, src)
+#define bpf_probe_read_kernel_str_with_telemetry(...) \
+    helper_with_telemetry(bpf_probe_read_kernel_str, __VA_ARGS__)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
+#define bpf_skb_load_bytes_with_telemetry(...) \
+    helper_with_telemetry(bpf_skb_load_bytes, __VA_ARGS__)
+#endif
+
+#define bpf_perf_event_output_with_telemetry(...) \
+    helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
 
 #endif // BPF_TELEMETRY_H

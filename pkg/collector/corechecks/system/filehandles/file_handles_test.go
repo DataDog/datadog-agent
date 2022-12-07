@@ -8,7 +8,6 @@
 package filehandles
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -32,7 +31,7 @@ func writeSampleFile(f *os.File, content []byte) string {
 }
 
 func getFileNr() (f *os.File, err error) {
-	return ioutil.TempFile("", "file-nr")
+	return os.CreateTemp("", "file-nr")
 }
 
 func TestFhCheckLinux(t *testing.T) {

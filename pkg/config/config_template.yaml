@@ -96,6 +96,16 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param hostname_trust_uts_namespace - boolean - optional - default: false
+## @env DD_HOSTNAME_TRUST_UTS_NAMESPACE - boolean - optional - default: false
+## By default the Agent does not trust the hostname value retrieved from non-root UTS namespace,
+## as it's usually a generated name, unrelated to the host (e.g. when running in a container).
+## When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+## hostname resolution.
+## (Linux only)
+#
+# hostname_trust_uts_namespace: false
+
 ## @param host_aliases - list of strings - optional
 ## @env DD_HOST_ALIASES - space separated list of strings - optional
 ## List of host aliases to report in addition to any aliases collected
@@ -364,6 +374,12 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+
+## @param exclude_ec2_tags - list of strings - optional - default: []
+## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
+## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true.
+#
+# exclude_ec2_tags: []
 
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false

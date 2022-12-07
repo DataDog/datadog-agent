@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -31,13 +32,15 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	pc := ast.NewParsingContext()
+
+	if err := rs.AddRules(pc, ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestIsParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -220,14 +223,14 @@ func TestIsParentDiscarder(t *testing.T) {
 
 	// test basename conflict, a basename based rule matches the parent discarder
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
-	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**"`, `open.file.name == "token"`)
+	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**" && open.file.name == "token"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); !is {
 		t.Error("should be a parent discarder")
 	}
 
 	rs = rules.NewRuleSet(&Model{}, func() eval.Event { return &Event{} }, &opts, &evalOpts, &eval.MacroStore{})
-	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**"`, `open.file.name == "test1"`)
+	addRuleExpr(t, rs, `open.file.path =~ "/var/log/datadog/**" && open.file.name == "test1"`)
 
 	if is, _ := id.isParentPathDiscarder(rs, model.FileOpenEventType, "open.file.path", "/tmp/test1/test2", 1); is {
 		t.Error("shouldn't be a parent discarder")
@@ -235,7 +238,7 @@ func TestIsParentDiscarder(t *testing.T) {
 }
 
 func TestIsGrandParentDiscarder(t *testing.T) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -410,7 +413,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 }
 
 func BenchmarkParentDiscarder(b *testing.B) {
-	id := newInodeDiscarders(nil, nil, nil)
+	id := newInodeDiscarders(nil, nil)
 
 	enabled := map[eval.EventType]bool{"*": true}
 

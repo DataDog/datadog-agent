@@ -61,7 +61,7 @@ platforms:
       idx += 1
 
       host = "ec2"
-      platform_name = platform[0] + "-#{host}"
+      platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
 
       windows = platform_name.include?("win")
       sles15 = platform_name.include?("sles-15")
@@ -143,6 +143,10 @@ platforms:
           let i+=${wait};
         done;
   <% end %>
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
   transport:
     <% if windows %>

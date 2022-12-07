@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"mime"
@@ -99,7 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		containerIDProvider: NewIDProvider("/proc"),
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -502,6 +501,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
+		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)
 		return
 	}
@@ -519,7 +519,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()

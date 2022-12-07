@@ -113,14 +113,14 @@ func makeCommands() []*cobra.Command {
 func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		fx.Supply(core.BundleParams{
-			ConfFilePath:           cliParams.confPath,
-			ConfigLoadSecrets:      true,
-			ConfigMissingOK:        true,
-			ConfigName:             "dogstatsd",
-			ExcludeDefaultConfPath: true,
-			DefaultConfPath:        defaultConfPath,
-		}),
+		fx.Supply(core.CreateBundleParams(
+			core.WithConfFilePath(cliParams.confPath),
+			core.WithConfigLoadSecrets(true),
+			core.WithConfigMissingOK(true),
+			core.WithConfigName("dogstatsd"),
+			core.WithExcludeDefaultConfPath(true),
+			core.WithDefaultConfPath(defaultConfPath),
+		)),
 		core.Bundle,
 	)
 }
@@ -241,7 +241,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.GetGlobalStore()
+		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))

@@ -23,6 +23,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,8 +32,6 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
-
-	"runtime/pprof"
 
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
@@ -275,8 +274,9 @@ func which(tb testing.TB, name string) string {
 	return executable
 }
 
-//nolint:deadcode,unused
 // whichNonFatal is "which" which returns an error instead of fatal
+//
+//nolint:deadcode,unused
 func whichNonFatal(name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
@@ -372,6 +372,17 @@ func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value int
 }
 
 //nolint:deadcode,unused
+func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
+	tb.Helper()
+	fieldValue, err := e.GetFieldValue(field)
+	if err != nil {
+		tb.Errorf("failed to get field '%s': %s", field, err)
+		return false
+	}
+	return assert.Contains(tb, possibleValues, fieldValue, msgAndArgs...)
+}
+
+//nolint:deadcode,unused
 func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -448,6 +459,8 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 		"process.file.name",
 		"process.ancestors.file.path",
 		"process.ancestors.file.name",
+		"process.parent.file.path",
+		"process.parent.file.name",
 	}
 
 	for _, field := range fields {
@@ -743,7 +756,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
@@ -1250,7 +1263,7 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
 
 func (tm *testModule) Close() {
@@ -1414,6 +1427,7 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
+//
 //nolint:deadcode,unused
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
 	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
@@ -1497,17 +1511,18 @@ func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir
 	return files, nil
 }
 
-func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
+func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
-		Comm: comm,
+		Name:        name,
+		ContainerID: containerID,
+		Comm:        comm,
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
-		t.Errorf("failed to stop activity dump: %s", err)
 		return err
 	}
 	return nil

@@ -10,7 +10,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -114,7 +114,7 @@ func getExpvarJSON() (*aggregatorStats, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 
 	res := stats{}
 	err = json.Unmarshal(body, &res)

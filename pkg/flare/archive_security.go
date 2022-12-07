@@ -7,7 +7,6 @@ package flare
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -152,7 +151,7 @@ func zipSecurityAgentStatusFile(tempDir, hostname string, runtimeStatus, complia
 		return err
 	}
 
-	err = ioutil.WriteFile(f, cleaned, os.ModePerm)
+	err = os.WriteFile(f, cleaned, os.ModePerm)
 	return err
 }
 

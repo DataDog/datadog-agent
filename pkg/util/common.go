@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
@@ -40,7 +39,7 @@ func CopyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	tmp, err := ioutil.TempFile(filepath.Dir(dst), "")
+	tmp, err := os.CreateTemp(filepath.Dir(dst), "")
 	if err != nil {
 		return err
 	}
@@ -88,7 +87,7 @@ func CopyFileAll(src, dst string) error {
 func CopyDir(src, dst string) error {
 	var (
 		err     error
-		fds     []os.FileInfo
+		fds     []os.DirEntry
 		srcinfo os.FileInfo
 	)
 
@@ -100,7 +99,7 @@ func CopyDir(src, dst string) error {
 		return err
 	}
 
-	if fds, err = ioutil.ReadDir(src); err != nil {
+	if fds, err = os.ReadDir(src); err != nil {
 		return err
 	}
 	for _, fd := range fds {
@@ -218,6 +217,6 @@ func GetGoRoutinesDump() (string, error) {
 	}
 	defer resp.Body.Close()
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	return string(data), err
 }

@@ -46,7 +46,7 @@ func (h *NodeHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resour
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Nodes:       models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 

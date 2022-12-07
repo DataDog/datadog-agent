@@ -80,6 +80,31 @@ func TestDisablingProtocolClassification(t *testing.T) {
 	})
 }
 
+func TestEnableGoTLSSupport(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableGoTLS.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableGoTLSSupport)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableGoTLSSupport)
+	})
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()

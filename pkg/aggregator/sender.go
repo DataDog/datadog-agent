@@ -183,16 +183,6 @@ func GetDefaultSender() (Sender, error) {
 	return demultiplexerInstance.GetDefaultSender()
 }
 
-// changeAllSendersDefaultHostname is to be called by the aggregator
-// when its hostname changes. All existing senders will have their
-// default hostname updated.
-func changeAllSendersDefaultHostname(hostname string) {
-	if demultiplexerInstance == nil {
-		return
-	}
-	demultiplexerInstance.ChangeAllSendersDefaultHostname(hostname)
-}
-
 // DisableDefaultHostname allows check to override the default hostname that will be injected
 // when no hostname is specified at submission (for metrics, events and service checks).
 func (s *checkSender) DisableDefaultHostname(disable bool) {
@@ -446,19 +436,6 @@ func (s *checkSender) OrchestratorManifest(msgs []serializer.ProcessMessageBody,
 }
 func (s *checkSender) ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage) {
 	s.contlcycleOut <- senderContainerLifecycleEvent{msgs: msgs}
-}
-
-// changeAllSendersDefaultHostname u
-func (sp *checkSenderPool) changeAllSendersDefaultHostname(hostname string) {
-	sp.m.Lock()
-	defer sp.m.Unlock()
-	for _, sender := range sp.senders {
-		cs, ok := sender.(*checkSender)
-		if !ok {
-			continue
-		}
-		cs.defaultHostname = hostname
-	}
 }
 
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {

@@ -8,7 +8,7 @@ package writer
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -299,7 +299,7 @@ func TestPayload(t *testing.T) {
 		assert.Equal("/my/path", req.URL.Path)
 		assert.Equal("4", req.Header.Get("Content-Length"))
 		assert.Equal(testAPIKey, req.Header.Get("DD-Api-Key"))
-		slurp, err := ioutil.ReadAll(req.Body)
+		slurp, err := io.ReadAll(req.Body)
 		assert.NoError(err)
 		req.Body.Close()
 		assert.Equal(expectBody.Bytes(), slurp)
