@@ -92,9 +92,12 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	cflags = append(cflags, "-c", "-x", "c", "-o", "-", "-")
 	clangOut := &bytes.Buffer{}
 	if err := clang(in, clangOut, cflags); err != nil {
-		return err
+		return fmt.Errorf("compiling asset to bytecode: %w", err)
 	}
-	return llc(clangOut, outputFile)
+	if err := llc(clangOut, outputFile); err != nil {
+		return fmt.Errorf("error compiling bytecode to object file: %w", err)
+	}
+	return nil
 }
 
 func clang(in io.Reader, out io.Writer, cflags []string) error {
@@ -108,7 +111,7 @@ func clang(in io.Reader, out io.Writer, cflags []string) error {
 	compileToBC.Stdout = out
 	compileToBC.Stderr = &clangErr
 
-	log.Debugf("compiling asset to bytecode: %v", compileToBC.Args)
+	log.Debugf("running clang: %v", compileToBC.Args)
 
 	err := compileToBC.Run()
 	if err != nil {
@@ -120,7 +123,7 @@ func clang(in io.Reader, out io.Writer, cflags []string) error {
 		} else {
 			errMsg = err.Error()
 		}
-		return fmt.Errorf("error compiling asset to bytecode: %s", errMsg)
+		return fmt.Errorf("clang: %s", errMsg)
 	}
 
 	if len(clangErr.String()) > 0 {
@@ -139,7 +142,7 @@ func llc(in io.Reader, outputFile string) error {
 	bcToObj.Stdout = nil
 	bcToObj.Stderr = &llcErr
 
-	log.Debugf("compiling bytecode to object file: %v", bcToObj.Args)
+	log.Debugf("running llc: %v", bcToObj.Args)
 
 	err := bcToObj.Run()
 	if err != nil {
@@ -151,7 +154,7 @@ func llc(in io.Reader, outputFile string) error {
 		} else {
 			errMsg = err.Error()
 		}
-		return fmt.Errorf("error compiling bytecode to object file: %s", errMsg)
+		return fmt.Errorf("llc: %s", errMsg)
 	}
 
 	if len(llcErr.String()) > 0 {
@@ -160,10 +163,8 @@ func llc(in io.Reader, outputFile string) error {
 	return nil
 }
 
+// Preprocess runs the clang preprocessor on `in` and writes the output to `out`
 func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []string) error {
-	if len(headerDirs) == 0 {
-		return fmt.Errorf("unable to find kernel headers")
-	}
 	tmpIncludeDir, err := writeStdarg()
 	if err != nil {
 		return err
@@ -173,7 +174,7 @@ func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []strin
 
 	kps, err := kernelHeaderPaths(headerDirs)
 	if err != nil {
-		return err
+		return fmt.Errorf("format kernel header paths: %w", err)
 	}
 	for _, p := range kps {
 		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))

@@ -7,27 +7,6 @@
 
 #ifdef COMPILE_RUNTIME
 
-#include <linux/version.h>
-
-#define __E_BPF_FUNC_get_current_comm false
-#define __E_BPF_FUNC_get_current_task false
-#define __E_BPF_FUNC_probe_read_str false
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,2,0)
-#undef __E_BPF_FUNC_get_current_comm
-#define __E_BPF_FUNC_get_current_comm true
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
-#undef __E_BPF_FUNC_get_current_task
-#define __E_BPF_FUNC_get_current_task true
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
-#undef __E_BPF_FUNC_probe_read_str
-#define __E_BPF_FUNC_probe_read_str true
-#endif
-
 #define bpf_helper_exists(x) __E_ ## x
 
 #endif /* defined(COMPILE_RUNTIME) */

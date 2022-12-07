@@ -71,6 +71,14 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
 		}
 
+		var helperPath string
+		helperPath, err = includeHelperAvailability(kernelHeaders)
+		if err != nil {
+			return nil, compilationErr, fmt.Errorf("error getting helper availability: %w", err)
+		}
+		defer os.Remove(helperPath)
+		flags = append(flags, fmt.Sprintf("-include%s", helperPath))
+
 		if err := compiler.CompileToObjectFile(in, outputFile, flags, kernelHeaders); err != nil {
 			return nil, compilationErr, fmt.Errorf("failed to compile runtime version of %s: %s", filename, err)
 		}
