@@ -78,9 +78,9 @@ type pdhCounter struct {
 	handle PDH_HCOUNTER
 
 	// Parts of PDH counter path
-	objectName   string // also referred to by Microsoft as a counterset, class, or performance object
-	instanceName string
-	counterName  string
+	ObjectName   string // also referred to by Microsoft as a counterset, class, or performance object
+	InstanceName string
+	CounterName  string
 
 	initError error
 }
@@ -92,13 +92,13 @@ type pdhEnglishCounter struct {
 
 // pdhEnglishSingleInstanceCounter is a specialization for single-instance counters
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
-type pdhEnglishSingleInstanceCounter struct {
+type PdhEnglishSingleInstanceCounter struct {
 	pdhEnglishCounter
 }
 
 // pdhMultiInstanceCounterSet is a specialization for a multi-instance counters
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
-type pdhEnglishMultiInstanceCounter struct {
+type PdhEnglishMultiInstanceCounter struct {
 	pdhEnglishCounter
 	verifyfn CounterInstanceVerify
 }
@@ -113,18 +113,22 @@ func (counter *pdhCounter) ShouldInit() bool {
 
 // Implements PdhCounter.AddToQuery for english counters.
 func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
-	path, err := pfnPdhMakeCounterPath("", counter.objectName, counter.instanceName, counter.counterName)
+	path, err := pfnPdhMakeCounterPath("", counter.ObjectName, counter.InstanceName, counter.CounterName)
 	if err != nil {
-		counter.initError = fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.objectName, counter.instanceName, counter.counterName, err)
+		counter.initError = fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
 		return counter.initError
 	}
 	pdherror := pfnPdhAddEnglishCounter(query.handle, path, uintptr(0), &counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		counter.initError = fmt.Errorf("Failed to add english counter (\\%s(%s)\\%s): %#x", counter.objectName, counter.instanceName, counter.counterName, pdherror)
+		counter.initError = fmt.Errorf("Failed to add english counter (\\%s(%s)\\%s): %#x", counter.ObjectName, counter.InstanceName, counter.CounterName, pdherror)
 		return counter.initError
 	}
 	counter.initError = nil
 	return nil
+}
+
+func (query *PdhQuery) AddCounter(counter PdhCounter) {
+	query.counters = append(query.counters, counter)
 }
 
 // AddEnglishCounterInstance returns a PdhSingleInstanceCounter that will fetch the value of a given instance of the given counter.
@@ -144,9 +148,9 @@ func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 //   All errors related to the counter are returned from the GetValue()/GetAllValues() function.
 //
 func (query *PdhQuery) AddEnglishCounterInstance(objectName string, counterName string, instanceName string) PdhSingleInstanceCounter {
-	var p pdhEnglishSingleInstanceCounter
+	var p PdhEnglishSingleInstanceCounter
 	p.Initialize(objectName, counterName, instanceName)
-	query.counters = append(query.counters, &p)
+	query.AddCounter(&p)
 	return &p
 }
 
@@ -166,11 +170,11 @@ func (query *PdhQuery) AddEnglishSingleInstanceCounter(objectName string, counte
 //
 // Implementation detail: See AddEnglishCounterInstance()
 func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counterName string, verifyfn CounterInstanceVerify) PdhMultiInstanceCounter {
-	var p pdhEnglishMultiInstanceCounter
+	var p PdhEnglishMultiInstanceCounter
 	// Use the * wildcard to collect all instances
 	p.Initialize(objectName, counterName, "*")
 	p.verifyfn = verifyfn
-	query.counters = append(query.counters, &p)
+	query.AddCounter(&p)
 	return &p
 }
 
@@ -216,15 +220,15 @@ func (query *PdhQuery) CollectQueryData() error {
 // Initialize initializes a pdhCounter object
 func (counter *pdhCounter) Initialize(objectName string, counterName string, instanceName string) {
 
-	counter.objectName = objectName
-	counter.counterName = counterName
-	counter.instanceName = instanceName
+	counter.ObjectName = objectName
+	counter.CounterName = counterName
+	counter.InstanceName = instanceName
 }
 
 // GetAllValues returns the data associated with each instance in a counter.
 // verifyfn is used to filter out instance names that are returned
 // instance:value pairs are not returned for items whose CStatus contains an error
-func (counter *pdhEnglishMultiInstanceCounter) GetAllValues() (values map[string]float64, err error) {
+func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string]float64, err error) {
 	if counter.handle == PDH_HCOUNTER(0) {
 		// If there was an error initializing this counter, return it here
 		if counter.initError != nil {
@@ -249,7 +253,7 @@ func (counter *pdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 			item.value.CStatus != PDH_CSTATUS_NEW_DATA {
 			// Does not necessarily indicate the problem, e.g. the process may have
 			// exited by the time the formatting of its counter values happened
-			log.Debugf("Counter value not valid for %s[%s]: %#x", counter.counterName, item.instance, item.value.CStatus)
+			log.Debugf("Counter value not valid for %s[%s]: %#x", counter.CounterName, item.instance, item.value.CStatus)
 			continue
 		}
 		values[item.instance] = item.value.Double
@@ -258,7 +262,7 @@ func (counter *pdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 }
 
 // GetValue returns the data associated with a single-value counter
-func (counter *pdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
+func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 	if counter.handle == PDH_HCOUNTER(0) {
 		// If there was an error initializing this counter, return it here
 		if counter.initError != nil {
