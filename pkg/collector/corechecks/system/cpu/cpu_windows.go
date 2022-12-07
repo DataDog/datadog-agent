@@ -32,11 +32,10 @@ var cpuInfo = cpu.GetCpuInfo
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	nbCPU             float64
-	interruptsCounter *pdhutil.PdhSingleInstanceCounterSet
-	idleCounter       *pdhutil.PdhSingleInstanceCounterSet
-	userCounter       *pdhutil.PdhSingleInstanceCounterSet
-	privilegedCounter *pdhutil.PdhSingleInstanceCounterSet
+	nbCPU    float64
+	pdhQuery *pdhutil.PdhQuery
+	// maps metric to counter object
+	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
 
 // Run executes the check
@@ -48,58 +47,21 @@ func (c *Check) Run() error {
 
 	sender.Gauge("system.cpu.num_cores", c.nbCPU, "", nil)
 
-	var val float64
-
-	// counter ("Processor Information", "% Interrupt Time")
-	if c.interruptsCounter == nil {
-		c.interruptsCounter, err = getProcessorPDHCounter("% Interrupt Time", "_Total")
-	}
-	if c.interruptsCounter != nil {
-		val, err = c.interruptsCounter.GetValue()
-	}
-	if err != nil {
-		c.Warnf("cpu.Check: could not establish interrupt time counter: %v", err)
+	// Fetch PDH query values
+	err = c.pdhQuery.CollectQueryData()
+	if err == nil {
+		// Get values for PDH counters
+		for metricname, cset := range c.counters {
+			var val float64
+			val, err = cset.GetValue()
+			if err == nil {
+				sender.Gauge(metricname, float64(val), "", nil)
+			} else {
+				c.Warnf("cpu.Check: Could not retrieve value for %v: %v", metricname, err)
+			}
+		}
 	} else {
-		sender.Gauge("system.cpu.interrupt", float64(val), "", nil)
-	}
-
-	// counter ("Processor Information", "% Idle Time")
-	if c.idleCounter == nil {
-		c.idleCounter, err = getProcessorPDHCounter("% Idle Time", "_Total")
-	}
-	if c.idleCounter != nil {
-		val, err = c.idleCounter.GetValue()
-	}
-	if err != nil {
-		c.Warnf("cpu.Check: could not establish idle time counter: %v", err)
-	} else {
-		sender.Gauge("system.cpu.idle", float64(val), "", nil)
-	}
-
-	// counter ("Processor Information", "% User Time")
-	if c.userCounter == nil {
-		c.userCounter, err = getProcessorPDHCounter("% User Time", "_Total")
-	}
-	if c.userCounter != nil {
-		val, err = c.userCounter.GetValue()
-	}
-	if err != nil {
-		c.Warnf("cpu.Check: could not establish user time counter: %v", err)
-	} else {
-		sender.Gauge("system.cpu.user", float64(val), "", nil)
-	}
-
-	// counter ("Processor Information", "% Privileged Time")
-	if c.privilegedCounter == nil {
-		c.privilegedCounter, err = getProcessorPDHCounter("% Privileged Time", "_Total")
-	}
-	if c.privilegedCounter != nil {
-		val, err = c.privilegedCounter.GetValue()
-	}
-	if err != nil {
-		c.Warnf("cpu.Check: could not establish system time counter: %v", err)
-	} else {
-		sender.Gauge("system.cpu.system", float64(val), "", nil)
+		c.Warnf("cpu.Check: Could not collect performance counter data: %v", err)
 	}
 
 	sender.Gauge("system.cpu.iowait", 0.0, "", nil)
@@ -108,19 +70,6 @@ func (c *Check) Run() error {
 	sender.Commit()
 
 	return nil
-}
-
-// Configure the PDH counter according to the running environment.
-// On machines with more than 1 NUMA node, it uses "Processor Information",
-// otherwise it uses "Processor" (e.g. in containers).
-// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
-// you visibility about other applications running on the same processor as you
-func getProcessorPDHCounter(counterName, instance string) (*pdhutil.PdhSingleInstanceCounterSet, error) {
-	counter, err := pdhutil.GetEnglishCounterInstance("Processor Information", counterName, instance)
-	if err != nil {
-		counter, err = pdhutil.GetEnglishCounterInstance("Processor", counterName, instance)
-	}
-	return counter, err
 }
 
 // Configure the CPU check doesn't need configuration
@@ -136,6 +85,19 @@ func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data,
 	}
 	cpucount, _ := strconv.ParseFloat(info["cpu_logical_processors"], 64)
 	c.nbCPU = cpucount
+
+	// Create PDH query
+	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	if err != nil {
+		return err
+	}
+
+	c.counters = map[string]pdhutil.PdhSingleInstanceCounter{
+		"system.cpu.interrupt": c.pdhQuery.AddEnglishCounterInstance("Processor Information", "% Interrupt Time", "_Total"),
+		"system.cpu.idle":      c.pdhQuery.AddEnglishCounterInstance("Processor Information", "% Idle Time", "_Total"),
+		"system.cpu.user":      c.pdhQuery.AddEnglishCounterInstance("Processor Information", "% User Time", "_Total"),
+		"system.cpu.system":    c.pdhQuery.AddEnglishCounterInstance("Processor Information", "% Privileged Time", "_Total"),
+	}
 
 	return nil
 }
