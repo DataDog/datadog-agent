@@ -13,73 +13,84 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	appsv1Informers "k8s.io/client-go/informers/apps/v1"
-	appsv1Listers "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
 
-// NewDeploymentCollectorVersions builds the group of collector versions.
-func NewDeploymentCollectorVersions() collectors.CollectorVersions {
+// NewCRDCollectorVersions builds the group of collector versions.
+func NewCRDCollectorVersions() collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDeploymentCollector(),
+		NewCRDCollector(),
 	)
 }
 
-// DeploymentCollector is a collector for Kubernetes Deployments.
-type DeploymentCollector struct {
-	informer  appsv1Informers.DeploymentInformer
-	lister    appsv1Listers.DeploymentLister
+// CRDCollector is a collector for Kubernetes CRDs.
+type CRDCollector struct {
+	informer  informers.GenericInformer
+	lister    cache.GenericLister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
 }
 
-// NewDeploymentCollector creates a new collector for the Kubernetes Deployment
+// NewCRDCollector creates a new collector for the Kubernetes CRD
 // resource.
-func NewDeploymentCollector() *DeploymentCollector {
-	return &DeploymentCollector{
+func NewCRDCollector() *CRDCollector {
+	return &CRDCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
+			IsStable:                  false,
 			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "deployments",
-			NodeType:                  orchestrator.K8sDeployment,
-			Version:                   "apps/v1",
+			IsMetadataProducer:        false,
+			SupportsManifestBuffering: false,
+			Name:                      "customresourcedefinitions",
+			NodeType:                  orchestrator.K8sCRD,
+			Version:                   "apiextensions.k8s.io/v1",
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
+		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
 	}
 }
 
 // Informer returns the shared informer.
-func (c *DeploymentCollector) Informer() cache.SharedInformer {
+func (c *CRDCollector) Informer() cache.SharedInformer {
 	return c.informer.Informer()
 }
 
 // Init is used to initialize the collector.
-func (c *DeploymentCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.APIClient.InformerFactory.Apps().V1().Deployments()
-	c.lister = c.informer.Lister()
+func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
+	groupVersionResource := v1.SchemeGroupVersion.WithResource("customresourcedefinitions")
+	var err error
+	c.informer, err = rcfg.APIClient.CRDInformerFactory.ForResource(groupVersionResource)
+	if err != nil {
+		log.Error(err)
+	}
+	c.lister = c.informer.Lister() // return that Lister
 }
 
 // IsAvailable returns whether the collector is available.
-func (c *DeploymentCollector) IsAvailable() bool { return true }
+func (c *CRDCollector) IsAvailable() bool { return true }
 
 // Metadata is used to access information about the collector.
-func (c *DeploymentCollector) Metadata() *collectors.CollectorMetadata {
+func (c *CRDCollector) Metadata() *collectors.CollectorMetadata {
 	return c.metadata
 }
 
 // Run triggers the collection process.
-func (c *DeploymentCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
+func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.CollectorRunResult, error) {
 	list, err := c.lister.List(labels.Everything())
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

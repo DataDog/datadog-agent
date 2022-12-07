@@ -72,11 +72,14 @@ func (cv *CollectorVersions) CollectorForVersion(version string) (Collector, boo
 
 // CollectorMetadata contains information about a collector.
 type CollectorMetadata struct {
-	IsDefaultVersion bool
-	IsStable         bool
-	Name             string
-	NodeType         orchestrator.NodeType
-	Version          string
+	IsDefaultVersion          bool
+	IsMetadataProducer        bool
+	IsManifestProducer        bool
+	IsStable                  bool
+	SupportsManifestBuffering bool
+	Name                      string
+	NodeType                  orchestrator.NodeType
+	Version                   string
 }
 
 // FullName returns a string that contains the collector name and version.

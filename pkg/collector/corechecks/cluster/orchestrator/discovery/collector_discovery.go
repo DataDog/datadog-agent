@@ -6,7 +6,7 @@
 //go:build kubeapiserver && orchestrator
 // +build kubeapiserver,orchestrator
 
-package orchestrator
+package discovery
 
 import (
 	"context"
@@ -44,26 +44,10 @@ func NewAPIServerDiscoveryProvider() *APIServerDiscoveryProvider {
 
 // Discover returns collectors to enable based on information exposed by the API server.
 func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInventory) ([]collectors.Collector, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
-	defer cancel()
+	groups, resources, err := GetServerGroupsAndResources()
 
-	client, err := apiserver.WaitForAPIClient(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
-	if err != nil {
-		if !discovery.IsGroupDiscoveryFailedError(err) {
-			return nil, err
-		}
-		// We don't handle API group errors here because we assume API groups used
-		// by collectors in the orchestrator check will always be part of the result
-		// even though it might be incomplete due to discovery failures on other
-		// groups.
-		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
-		}
 	}
 
 	if len(resources) == 0 {
@@ -79,6 +63,32 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 	p.walkAPIResources(inventory, otherResources)
 
 	return p.result, nil
+}
+
+// GetServerGroupsAndResources accesses the api server to retrieve the registered groups and resources
+func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultAPIServerTimeout)
+	defer cancel()
+
+	client, err := apiserver.WaitForAPIClient(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	groups, resources, err := client.DiscoveryCl.ServerGroupsAndResources()
+	if err != nil {
+		if !discovery.IsGroupDiscoveryFailedError(err) {
+			return nil, nil, err
+		}
+		// We don't handle API group errors here because we assume API groups used
+		// by collectors in the orchestrator check will always be part of the result
+		// even though it might be incomplete due to discovery failures on other
+		// groups.
+		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
+			log.Warnf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr)
+		}
+	}
+	return groups, resources, nil
 }
 
 func (p *APIServerDiscoveryProvider) addCollector(collector collectors.Collector) {
