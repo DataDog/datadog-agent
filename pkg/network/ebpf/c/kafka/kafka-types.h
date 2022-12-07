@@ -15,7 +15,7 @@
 #define KAFKA_MAX_API 67
 
 //// This determines the size of the payload fragment that is captured for each HTTP request
-#define KAFKA_BUFFER_SIZE (8 * 20)
+#define KAFKA_BUFFER_SIZE (8 * 40) // 320
 
 #define TOPIC_NAME_MAX_STRING_SIZE (8 * 10)
 

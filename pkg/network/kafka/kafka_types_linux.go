@@ -26,7 +26,7 @@ type ebpfKafkaTx struct {
 	Correlation_id                     uint32
 	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
-	Request_fragment                   [160]byte
+	Request_fragment                   [320]byte
 	Topic_name                         [80]int8
 }
 type kafkaBatch struct {
@@ -42,7 +42,7 @@ type kafkaBatchKey struct {
 const (
 	KAFKABatchSize  = 0xf
 	KAFKABatchPages = 0x3
-	KAFKABufferSize = 0xa0
+	KAFKABufferSize = 0x140
 
 	kafkaProg = 0x0
 )
