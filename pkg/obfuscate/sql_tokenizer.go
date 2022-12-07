@@ -40,7 +40,7 @@ const (
 	String
 	DoubleQuotedString
 	DollarQuotedString // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
-	DollarQuotedFunc   // a dollar-quoted string delimited by the tag "$func$"; gets special treatment when feature "dollar_quoted_func" is set
+	DollarQuotedFunc   // a dollar-quoted string delimited by the tag "$func$" (funcTag); gets special treatment when feature "dollar_quoted_func" is set
 	Number
 	BooleanLiteral
 	ValueArg
@@ -107,9 +107,9 @@ const (
 	FilteredBracketedIdentifier
 )
 
-const (
-	FuncTag = "$func$"
-)
+// funcTag is a tag that delimits the start and end of an inline SQL function. A string delimited
+// with this tag will be of type DollarQuotedFunc rather than DollarQuotedString.
+const funcTag = "$func$"
 
 var tokenKindStrings = map[TokenKind]string{
 	LexError:                     "LexError",
@@ -477,14 +477,14 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
 				// obfuscate it
-				tok = tok[len(FuncTag):]
-				tok = tok[:len(tok)-len(FuncTag)]
+				tok = tok[len(funcTag):]
+				tok = tok[:len(tok)-len(funcTag)]
 				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
 					return DollarQuotedString, tok
 				}
-				tok = append(append([]byte(FuncTag), []byte(out.Query)...), []byte(FuncTag)...)
+				tok = append(append([]byte(funcTag), []byte(out.Query)...), []byte(funcTag)...)
 			}
 			return kind, tok
 		case '@':
@@ -649,7 +649,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		buf.WriteRune(ch)
 	}
 	buf.Write(delim)
-	if tkn.cfg.DollarQuotedFunc && string(delim) == FuncTag {
+	if tkn.cfg.DollarQuotedFunc && string(delim) == funcTag {
 		return DollarQuotedFunc, buf.Bytes()
 	}
 	return DollarQuotedString, buf.Bytes()
