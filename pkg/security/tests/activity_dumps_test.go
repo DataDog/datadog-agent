@@ -24,7 +24,7 @@ import (
 )
 
 // v see test/kitchen/test/integration/security-agent-test/rspec/security-agent-test_spec.rb
-const dedicatedADNodeForTestsEnv = "DD_ACTIVITY_DUMP_NODE"
+const dedicatedADNodeForTestsEnv = "DEDICATED_ACTIVITY_DUMP_NODE"
 
 var expectedFormats = []string{"json", "protobuf"}
 
