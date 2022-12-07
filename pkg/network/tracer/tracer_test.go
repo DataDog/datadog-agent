@@ -115,6 +115,7 @@ func TestGetStats(t *testing.T) {
         "tcp_conns4": 1,
         "tcp_conns6": 0,
         "tcp_sent_miscounts": 0,
+        "tcp_failed_connects": 0,
         "udp_conns4": 4,
         "udp_conns6": 0,
         "udp_sends_missed": 0,

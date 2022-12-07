@@ -106,7 +106,7 @@ func setup() error {
 	}
 	config.DetectFeatures()
 
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(context.Background())
 
 	// Setup tagger

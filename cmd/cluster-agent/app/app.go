@@ -249,7 +249,7 @@ func start(cmd *cobra.Command, args []string) error {
 		WPAClient:          apiCl.WPAClient,
 		WPAInformerFactory: apiCl.WPAInformerFactory,
 		DDClient:           apiCl.DDClient,
-		DDInformerFactory:  apiCl.DDInformerFactory,
+		DDInformerFactory:  apiCl.DynamicInformerFactory,
 		Client:             apiCl.Cl,
 		IsLeaderFunc:       le.IsLeader,
 		EventRecorder:      eventRecorder,
@@ -264,7 +264,7 @@ func start(cmd *cobra.Command, args []string) error {
 
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
-		// this must be a UUID, and ideally be stable for the lifetime of a cluster
+		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 		// so we store it in a configmap that we try and read before generating a new one.
 		coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
 		_, err = apicommon.GetOrCreateClusterID(coreClient)

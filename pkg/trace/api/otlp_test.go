@@ -340,7 +340,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -350,6 +351,43 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ClientComputedStats", func(t *testing.T) {
+		rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{},
+				Spans: []*testutil.OTLPSpan{
+					{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}},
+				},
+			},
+		}).Traces().ResourceSpans().At(0)
+		_, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
+		require.False(ok)
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		timeout := time.After(500 * time.Millisecond)
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are computed this time
+			require.False(p.ClientComputedStats)
+		}
+		// after the first receive, the keyStatsComputed attribute has to be applied,
+		// so that on the second run stats are skipped
+		v, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
+		require.True(ok)
+		require.Equal("true", v.AsString())
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are not computed the second time
+			require.True(p.ClientComputedStats)
+		}
+	})
 }
 
 func TestOTLPSetAttributes(t *testing.T) {

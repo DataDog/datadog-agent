@@ -178,16 +178,22 @@ func runAgent(exit chan struct{}) {
 	misconfig.ToLog(misconfig.ProcessAgent)
 
 	// Start workload metadata store before tagger (used for containerCollection)
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(mainCtx)
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
-		t = remote.NewTagger()
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			t = remote.NewTagger(options)
+		}
 	} else {
 		t = local.NewTagger(store)
 	}
+
 	tagger.SetDefaultTagger(t)
 	err = tagger.Init(mainCtx)
 	if err != nil {
