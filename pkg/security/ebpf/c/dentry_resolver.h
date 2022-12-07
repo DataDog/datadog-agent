@@ -130,7 +130,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         .ad_state = input->ad_state,
     };
 
-    if (key.ino == 0 || key.mount_id == 0) {
+    if (key.ino == 0) {
         return DENTRY_INVALID;
     }
 

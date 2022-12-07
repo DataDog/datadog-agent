@@ -61,7 +61,8 @@ var (
 )
 
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout                 = 10 * time.Second
+	filelessExecutionFilenamePrefix = "memfd:"
 )
 
 type stringSlice []string
@@ -454,42 +455,68 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
-	fields := []string{
-		"process.file.path",
+	// Process file name values cannot be blank
+	nameFields := []string{
 		"process.file.name",
-		"process.ancestors.file.path",
 		"process.ancestors.file.name",
 		"process.parent.file.path",
 		"process.parent.file.name",
 	}
 
-	for _, field := range fields {
+	nameFieldValid, hasPath := checkProcessContextFieldsForBlankValues(tb, event, nameFields)
+
+	// Process path values can be blank if the process was a fileless execution
+	pathFields := []string{
+		"process.file.path",
+		"process.ancestors.file.path",
+	}
+
+	pathFieldValid := true
+	if hasPath {
+		pathFieldValid, _ = checkProcessContextFieldsForBlankValues(tb, event, pathFields)
+	}
+
+	return nameFieldValid && pathFieldValid
+}
+
+func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event, fieldNamesToCheck []string) (bool, bool) {
+	validField := true
+	hasPath := true
+
+	for _, field := range fieldNamesToCheck {
 		fieldValue, err := event.GetFieldValue(field)
 		if err != nil {
 			tb.Errorf("failed to get field '%s': %s", field, err)
-			return false
+			validField = false
 		}
 
 		switch value := fieldValue.(type) {
 		case string:
 			if len(value) == 0 {
 				tb.Errorf("empty value for '%s'", field)
-				return false
+				validField = false
+			}
+
+			if strings.HasSuffix(field, ".name") && strings.HasPrefix(value, filelessExecutionFilenamePrefix) {
+				hasPath = false
 			}
 		case []string:
 			for _, v := range value {
 				if len(v) == 0 {
 					tb.Errorf("empty value for '%s'", field)
-					return false
+					validField = false
+				}
+				if strings.HasSuffix(field, ".name") && strings.HasPrefix(v, filelessExecutionFilenamePrefix) {
+					hasPath = false
 				}
 			}
 		default:
 			tb.Errorf("unknown type value for '%s'", field)
-			return false
+			validField = false
 		}
 	}
 
-	return true
+	return validField, hasPath
 }
 
 //nolint:deadcode,unused

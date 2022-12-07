@@ -327,7 +327,7 @@ func (p *Process) GetPathResolutionError() string {
 
 // HasInterpreter returns whether the process uses an interpreter
 func (p *Process) HasInterpreter() bool {
-	return p.LinuxBinprm.FileEvent.Inode != 0 && p.LinuxBinprm.FileEvent.MountID != 0
+	return p.LinuxBinprm.FileEvent.Inode != 0
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries

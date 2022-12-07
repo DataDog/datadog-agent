@@ -2066,3 +2066,106 @@ func TestProcessResolution(t *testing.T) {
 		io.WriteString(stdin, "\n")
 	})
 }
+
+func TestProcessFilelessExecution(t *testing.T) {
+
+	filelessDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless",
+		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == ""`, filelessExecutionFilenamePrefix),
+	}
+
+	filelessWithInterpreterDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless_with_interpreter",
+		Expression: fmt.Sprintf(`exec.file.name == "%sscript" && exec.file.path == "" && exec.interpreter.file.name == "bash"`, filelessExecutionFilenamePrefix),
+	}
+
+	tests := []struct {
+		name                             string
+		rule                             *rules.RuleDefinition
+		syscallTesterToRun               string
+		syscallTesterScriptFilenameToRun string
+		check                            func(event *sprobe.Event, rule *rules.Rule)
+	}{
+		{
+			name:                             "fileless",
+			rule:                             filelessDetectionRule,
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "",
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
+			},
+		},
+		{
+			name:                             "fileless with script name",
+			rule:                             filelessWithInterpreterDetectionRule,
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "script",
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
+			},
+		},
+		{
+			name:               "real file with fileless prefix",
+			syscallTesterToRun: "none",
+			rule:               filelessDetectionRule,
+		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	alreadyAddedRules := make(map[string]bool)
+	for _, test := range tests {
+		if _, ok := alreadyAddedRules[test.rule.ID]; !ok {
+			alreadyAddedRules[test.rule.ID] = true
+			ruleList = append(ruleList, test.rule)
+		}
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.syscallTesterToRun == "none" {
+				err = testModule.GetSignal(t, func() error {
+					fileMode := 0o477
+					testFile, _, err := testModule.CreateWithOptions(filelessExecutionFilenamePrefix, 98, 99, fileMode)
+					if err != nil {
+						return err
+					}
+					defer os.Remove(testFile)
+
+					f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
+					if err != nil {
+						t.Fatal(err)
+					}
+					f.WriteString("#!/bin/bash")
+					f.Close()
+
+					cmd := exec.Command(testFile)
+					return cmd.Run()
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					t.Errorf("shouldn't get an event: got event: %s", event)
+				})
+				if err == nil {
+					t.Fatal("shouldn't get an event")
+				}
+			} else {
+				testModule.WaitSignal(t, func() error {
+					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					assertTriggeredRule(t, rule, test.rule.ID)
+					test.check(event, rule)
+				})
+			}
+		})
+	}
+}

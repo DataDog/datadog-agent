@@ -637,10 +637,13 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
+func isFilelessExecution(fileFields *model.FileFields) bool {
+	return fileFields.Inode != 0 && fileFields.MountID == 0
+}
+
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
-
-	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+	if fileEvent.Inode == 0 {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
 
@@ -658,8 +661,12 @@ func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.
 		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
 	}
 
-	fileEvent.SetPathnameStr(pathnameStr)
-	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+	if isFilelessExecution(&fileEvent.FileFields) {
+		fileEvent.SetPathnameStr("")
+	} else {
+		fileEvent.SetPathnameStr(pathnameStr)
+	}
+	fileEvent.SetBasenameStr(path.Base(pathnameStr))
 
 	return fileEvent.PathnameStr, nil
 }

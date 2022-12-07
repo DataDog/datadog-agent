@@ -112,6 +112,7 @@ func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 		}
 		f.SetPathnameStr(path)
 	}
+
 	return f.PathnameStr
 }
 
