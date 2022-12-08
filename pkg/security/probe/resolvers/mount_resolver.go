@@ -263,8 +263,8 @@ func (mr *MountResolver) insert(e *model.MountEvent) {
 }
 
 func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
-	if mountID < mr.minMountID {
-		return "", ErrMountKernelID
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", err
 	}
 
 	mount, exists := mr.mounts[mountID]
@@ -381,14 +381,9 @@ func (mr *MountResolver) ResolveMountPath(mountID, pid uint32, containerID strin
 }
 
 func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
-	if mountID == 0 {
-		return "", ErrMountUndefined
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", err
 	}
-
-	if mountID < mr.minMountID {
-		return "", ErrMountKernelID
-	}
-
 	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
 	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
 		pid = pid1
@@ -428,12 +423,8 @@ func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (
 }
 
 func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.MountEvent, error) {
-	if mountID == 0 {
-		return nil, ErrMountUndefined
-	}
-
-	if mountID < mr.minMountID {
-		return nil, ErrMountKernelID
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return nil, err
 	}
 
 	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries

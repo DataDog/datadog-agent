@@ -205,7 +205,7 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+		if entry, _ := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -482,7 +482,7 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
+func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -498,14 +498,16 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		// mark interpreter as resolved too
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry, false
 	}
 
-	return ev.ProcessCacheEntry
+	return ev.ProcessCacheEntry, true
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
 func (ev *Event) GetProcessServiceTag() string {
-	entry := ev.ResolveProcessCacheEntry()
+	entry, _ := ev.ResolveProcessCacheEntry()
 	if entry == nil {
 		return ""
 	}

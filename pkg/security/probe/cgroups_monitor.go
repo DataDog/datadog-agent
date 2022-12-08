@@ -17,12 +17,12 @@ import (
 // CgroupsMonitor defines a cgroup monitor
 type CgroupsMonitor struct {
 	statsdClient    statsd.ClientInterface
-	cgrouspResolver *resolvers.CgroupsResolver
+	cgroupsResolver *resolvers.CgroupsResolver
 }
 
 // SendStats send stats
 func (cm *CgroupsMonitor) SendStats() error {
-	count := cm.cgrouspResolver.Len()
+	count := cm.cgroupsResolver.Len()
 	_ = cm.statsdClient.Gauge(metrics.MetricRuntimeCgroupsRunning, float64(count), []string{}, 1.0)
 	return nil
 }
@@ -31,6 +31,6 @@ func (cm *CgroupsMonitor) SendStats() error {
 func NewCgroupsMonitor(statsdClient statsd.ClientInterface, cgrouspResolver *resolvers.CgroupsResolver) *CgroupsMonitor {
 	return &CgroupsMonitor{
 		statsdClient:    statsdClient,
-		cgrouspResolver: cgrouspResolver,
+		cgroupsResolver: cgrouspResolver,
 	}
 }

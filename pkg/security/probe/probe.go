@@ -647,8 +647,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
 
-			var pathErr *ErrPathResolution
-			if errors.As(err, &pathErr) {
+			if errors.Is(err, &ErrPathResolution{}) {
 				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
 			}
 		}
@@ -662,7 +661,13 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		var exists bool
+		event.ProcessCacheEntry, exists = event.ResolveProcessCacheEntry()
+		if !exists {
+			// no need to dispatch an exit event that don't have the corresponding cache entry
+			return
+		}
+
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
@@ -790,7 +795,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+	event.ProcessCacheEntry, _ = event.ResolveProcessCacheEntry()
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
