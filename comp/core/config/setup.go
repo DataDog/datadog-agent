@@ -38,7 +38,7 @@ func setupConfig(
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-	if len(defaultConfPath) > 0 {
+	if defaultConfPath != "" {
 		config.Datadog.AddConfigPath(defaultConfPath)
 	}
 
