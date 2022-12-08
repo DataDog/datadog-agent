@@ -59,9 +59,7 @@ func LoadCOREAsset(cfg *Config, filename string, startFn func(bytecode.AssetRead
 		if errors.As(err, &ve) {
 			telemetry = VerifierError
 		} else {
-			telemetry = VerifierError
-			// TODO distinguish errors once we add loader error value to payload enum
-			//telemetry = LoaderError
+			telemetry = LoaderError
 		}
 	}
 	return err
