@@ -776,6 +776,8 @@ func (ad *ActivityDump) resolveTags() error {
 
 // ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage
 func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage {
+	ad.Lock()
+	defer ad.Unlock()
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {
