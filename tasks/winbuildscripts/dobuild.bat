@@ -47,9 +47,9 @@ cd \dev\go\src\github.com\DataDog\datadog-agent || exit /b 101
 pip3 install -r requirements.txt || exit /b 102
 
 inv -e deps || exit /b 103
-if "%GO_VERSION_CHECK%" == "true" {
+if "%GO_VERSION_CHECK%" == "true" (
     inv -e check-go-version || exit /b 104
-}
+)
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --major-version %MAJOR_VERSION% --release-version %RELEASE_VERSION% || exit /b 105
