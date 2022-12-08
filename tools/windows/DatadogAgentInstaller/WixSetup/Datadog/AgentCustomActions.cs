@@ -1,12 +1,27 @@
+using System.Linq;
 using Datadog.CustomActions;
 using WixSharp;
+using Action = WixSharp.Action;
 
 namespace WixSetup.Datadog
 {
+    public static class AgentCustomActionsProjectExtensions
+    {
+        public static Project SetCustomActions(this Project project, AgentCustomActions agentCustomActions)
+        {
+            project.Actions = project.Actions.Combine(
+                agentCustomActions.GetType()
+                    .GetProperties()
+                    .Where(p => p.PropertyType.IsAssignableFrom(typeof(ManagedAction)))
+                    .Select(p => (Action)p.GetValue(agentCustomActions, null))
+                    .ToArray()
+            );
+            return project;
+        }
+    }
+
     public class AgentCustomActions
     {
-        public Action WixFailWhenDeferred { get; }
-
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -17,17 +32,18 @@ namespace WixSetup.Datadog
 
         public ManagedAction DecompressPythonDistributions { get; }
 
+        public ManagedAction RollbackDecompressPythonDistributions { get; }
+
+        public ManagedAction UninstallPythonDistributions { get; }
+
         public ManagedAction ConfigureUser { get; }
 
         public ManagedAction OpenMsiLog { get; }
 
         public AgentCustomActions()
         {
-            WixFailWhenDeferred = new CustomActionRef("WixFailWhenDeferred", When.Before, Step.InstallFinalize,
-                "WIXFAILWHENDEFERRED=1");
-
             ReadRegistryProperties = new CustomAction<UserCustomActions>(
-                    new Id("ReadRegistryProperties"),
+                    new Id(nameof(ReadRegistryProperties)),
                     UserCustomActions.ReadRegistryProperties,
                     Return.ignore,
                     // AppSearch is when RegistrySearch is run, so that will overwrite
@@ -48,7 +64,7 @@ namespace WixSetup.Datadog
             // We need to explicitly set the ID since that we are going to reference before the Build* call.
             // See <see cref="WixSharp.WixEntity.Id" /> for more information.
             ReadConfig = new CustomAction<ConfigCustomActions>(
-                    new Id("ReadConfigCustomAction"),
+                    new Id(nameof(ReadConfig)),
                     ConfigCustomActions.ReadConfig,
                     Return.ignore,
                     When.After,
@@ -66,7 +82,7 @@ namespace WixSetup.Datadog
                 .SetProperties("APPLICATIONDATADIRECTORY=[APPLICATIONDATADIRECTORY]");
 
             WriteConfig = new CustomAction<ConfigCustomActions>(
-                    new Id("WriteConfigCustomAction"),
+                    new Id(nameof(WriteConfig)),
                     ConfigCustomActions.WriteConfig,
                     Return.check,
                     When.Before,
@@ -105,25 +121,55 @@ namespace WixSetup.Datadog
                     "OVERRIDE_INSTALLATION_METHOD=[OVERRIDE_INSTALLATION_METHOD]")
                 .HideTarget(true);
 
-            DecompressPythonDistributions = new CustomAction<DecompressCustomActions>(
-                    new Id("DecompressPythonDistributions"),
-                    DecompressCustomActions.DecompressPythonDistributions,
-                    Return.check,
-                    When.After,
-                    new Step("WriteConfigCustomAction"),
-                    Condition.NOT_Installed & Condition.NOT_BeingRemoved
-                )
-                {
-                    Execute = Execute.deferred
-                }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+            // Rollback the installation of the python distribution
+            // must be before the DecompressPythonDistributions custom action.
+            // That way, if DecompressPythonDistributions fails, this will get executed.
+            RollbackDecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
+                new Id(nameof(RollbackDecompressPythonDistributions)),
+                PythonDistributionCustomAction.RemovePythonDistributions,
+                Return.check,
+                When.After,
+                new Step(WriteConfig.Id),
+                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+            )
+            {
+                Execute = Execute.rollback
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
+            DecompressPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
+                new Id(nameof(DecompressPythonDistributions)),
+                PythonDistributionCustomAction.DecompressPythonDistributions,
+                Return.check,
+                When.After,
+                new Step(RollbackDecompressPythonDistributions.Id),
+                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+            )
+            {
+                Execute = Execute.deferred
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
+            // Remove our custom python distribution on uninstall
+            UninstallPythonDistributions = new CustomAction<PythonDistributionCustomAction>(
+                new Id(nameof(UninstallPythonDistributions)),
+                PythonDistributionCustomAction.RemovePythonDistributions,
+                Return.check,
+                When.Before,
+                Step.RemoveFiles,
+                Condition.Installed
+            )
+            {
+                Execute = Execute.deferred
+            }
+            .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
             ConfigureUser = new CustomAction<UserCustomActions>(
-                    new Id("ConfigureUser"),
+                    new Id(nameof(ConfigureUser)),
                     UserCustomActions.ConfigureUser,
                     Return.check,
                     When.After,
-                    new Step("DecompressPythonDistributions"),
+                    new Step(DecompressPythonDistributions.Id),
                     Condition.NOT_Installed & Condition.NOT_BeingRemoved
                 )
                 {
@@ -135,7 +181,7 @@ namespace WixSetup.Datadog
                                "DDAGENTUSER_SID=[DDAGENTUSER_SID]");
 
             ProcessDdAgentUserCredentials = new CustomAction<UserCustomActions>(
-                    new Id("ProcessDdAgentUserCredentials"),
+                    new Id(nameof(ProcessDdAgentUserCredentials)),
                     UserCustomActions.ProcessDdAgentUserCredentials,
                     Return.check,
                     // Run at end of "config phase", right before the "make changes" phase.
@@ -149,7 +195,7 @@ namespace WixSetup.Datadog
                 .HideTarget(true);
 
             OpenMsiLog = new CustomAction<UserCustomActions>(
-                new Id("OpenMsiLog"),
+                new Id(nameof(OpenMsiLog)),
                 UserCustomActions.OpenMsiLog
                 )
                 {

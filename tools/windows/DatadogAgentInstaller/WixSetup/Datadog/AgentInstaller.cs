@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Windows.Forms;
 using System.Xml.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
+using static System.Net.WebRequestMethods;
 using File = WixSharp.File;
 
 namespace WixSetup.Datadog
@@ -91,14 +95,6 @@ namespace WixSetup.Datadog
                     RemoveOnUninstall = true,
                     FailIfExists = false,
                 },
-                _agentCustomActions.WixFailWhenDeferred,
-                _agentCustomActions.ReadConfig,
-                _agentCustomActions.WriteConfig,
-                _agentCustomActions.ReadRegistryProperties,
-                _agentCustomActions.ProcessDdAgentUserCredentials,
-                _agentCustomActions.DecompressPythonDistributions,
-                _agentCustomActions.ConfigureUser,
-                _agentCustomActions.OpenMsiLog,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
                 {
@@ -145,6 +141,7 @@ namespace WixSetup.Datadog
                 },
                 new RemoveRegistryKey(_agentFeatures.MainApplication, @"Software\Datadog\Datadog Agent")
             )
+            .SetCustomActions(_agentCustomActions)
             .SetProjectInfo(
                 upgradeCode: ProductUpgradeCode,
                 name: ProductFullName,
@@ -206,8 +203,24 @@ namespace WixSetup.Datadog
             project.WixSourceGenerated += document =>
             {
                 WixSourceGenerated?.Invoke(document);
-                document.Select("Wix/Product")
+                document
+                    .Select("Wix/Product")
                     .AddElement("MediaTemplate", "CabinetTemplate=cab{0}.cab; CompressionLevel=high; EmbedCab=yes; MaximumUncompressedMediaSize=2");
+                document
+                    .FindAll("RemoveFolder")
+                    .Where(x => x.HasAttribute("Id",
+                        value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
+                                 value.StartsWith("EXAMPLECONFSLOCATION")))
+                    .Remove();
+                document
+                    .FindAll("Component")
+                    .Where(x => x.Parent.HasAttribute("Id",
+                        value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
+                                 value.StartsWith("EXAMPLECONFSLOCATION")))
+                    .ForEach(c => c.SetAttributeValue("Permanent", "yes"));
+                document
+                    .Select("Wix/Product")
+                    .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -223,7 +236,8 @@ namespace WixSetup.Datadog
             var targetBinFolder = CreateBinFolder();
             var binFolder =
                 new Dir(new Id("%ProgramFiles%"),
-                    new InstallDir(new Id("PROJECTLOCATION"), "Datadog\\Datadog Agent",
+                    new Dir(new Id("APPLICATIONROOTDIRECTORY"), "Datadog",
+                        new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
                             targetBinFolder,
                             new Dir("LICENSES",
                                 new Files($@"{InstallerSource}\LICENSES\*")
@@ -232,6 +246,7 @@ namespace WixSetup.Datadog
                             new DirFiles($@"{InstallerSource}\*.txt"),
                             new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
                         )
+                    )
                 );
             if (_agentPython.IncludePython2)
             {
@@ -372,31 +387,6 @@ namespace WixSetup.Datadog
             return targetBinFolder;
         }
 
-        public class Test : WixEntity, IGenericEntity
-        {
-            public void Process(ProcessingContext context)
-            {
-                var directory = new XElement("Directory");
-                directory.AddAttributes(new Dictionary<string, string>
-                {
-                    {"Id", "APPLICATIONDATADIRECTORY"},
-                    {"Name", "Datadog"}
-                });
-                var component = new XElement("Component");
-                component.AddAttributes(new Dictionary<string, string>
-                {
-                    {"Id", "conffolder"},
-                    {"Guid", "e540d2db-f443-4a98-bd72-7ab2654f4ffb"},
-                    {"KeyPath", "false"}
-                });
-                directory.AddElement(component);
-                var createFolder = new XElement("CreateFolder");
-                var accountAdmin = new XElement("Permission");
-
-                context.XParent.Add(directory);
-            }
-        }
-
         private Dir CreateAppDataFolder()
         {
             var appData = new Dir(new Id("APPLICATIONDATADIRECTORY"), "Datadog",
@@ -404,6 +394,7 @@ namespace WixSetup.Datadog
                 {
                     new DirFiles($@"{EtcSource}\*.yaml.example"),
                     new Dir("checks.d"),
+
                     new Dir(new Id("EXAMPLECONFSLOCATION"), "conf.d",
                         Permissions.Combine(new WixEntity[]
                         {

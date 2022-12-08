@@ -1,5 +1,6 @@
 using Microsoft.Deployment.WindowsInstaller;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Cave.Compression.Tar;
 using Datadog.CustomActions.Extensions;
@@ -7,7 +8,7 @@ using System.Text;
 
 namespace Datadog.CustomActions
 {
-    public class DecompressCustomActions
+    public class PythonDistributionCustomAction
     {
         static void Decompress(string compressedFileName)
         {
@@ -81,6 +82,44 @@ namespace Datadog.CustomActions
         public static ActionResult DecompressPythonDistributions(Session session)
         {
             return DecompressPythonDistributions(new SessionWrapper(session));
+        }
+
+        private static ActionResult RemovePythonDistributions(ISession session)
+        {
+            var projectLocation = session.Property("PROJECTLOCATION");
+            var embeddedFolders = new List<string>
+            {
+                Path.Combine(projectLocation, "embedded2"),
+                Path.Combine(projectLocation, "embedded3")
+            };
+            try
+            {
+                foreach (var embeddedDist in embeddedFolders)
+                {
+                    if (Directory.Exists(embeddedDist))
+                    {
+                        session.Log($"{embeddedDist} found, deleting.");
+                        Directory.Delete(embeddedDist, true);
+                    }
+                    else
+                    {
+                        session.Log($"{embeddedDist} not found, skip deletion.");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                session.Log($"Error while deleting embedded distribution: {e}");
+                return ActionResult.Failure;
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult RemovePythonDistributions(Session session)
+        {
+            return RemovePythonDistributions(new SessionWrapper(session));
         }
     }
 }

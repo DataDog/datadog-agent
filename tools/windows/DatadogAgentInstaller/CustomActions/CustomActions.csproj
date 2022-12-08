@@ -52,7 +52,7 @@
   <ItemGroup>
     <Compile Include="CompilerExtensions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
-    <Compile Include="DecompressCustomActions.cs" />
+    <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
     <Compile Include="SessionWrapper.cs" />
