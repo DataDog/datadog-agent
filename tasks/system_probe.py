@@ -1153,7 +1153,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
     btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
 
     if arch == "x64":
-        arch = "x86-64"
+        arch = "x86_64"
     elif arch == "arm64":
         arch = "aarch64"
 
