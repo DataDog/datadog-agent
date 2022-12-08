@@ -199,11 +199,13 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize remote configuration
-	var rcClient *remote.Client
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err = initializeRemoteConfig(mainCtx)
+		rcClient, err := initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+		    rcClient.Start()
+		    defer rcClient.Close()
 		}
 	}
 
