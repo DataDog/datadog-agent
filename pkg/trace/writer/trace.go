@@ -250,6 +250,7 @@ func (w *TraceWriter) flush() {
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		TracerPayloads:     w.tracerPayloads,
 	}
+	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 	b, err := proto.Marshal(&p)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
