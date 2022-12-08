@@ -1199,6 +1199,7 @@ func InitConfig(config Config) {
 	// attempts to initialize the counter. This allows the Agent to stop incurring the overhead of trying
 	// to initialize a counter that will probably never succeed. For example, when the performance counter
 	// database needs to be rebuilt or the counter is disabled.
+	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/manually-rebuild-performance-counters
 	//
 	// The value of this option should be chosen in consideration with the windows_counter_refresh_interval option.
 	// The performance counter cache is refreshed during subsequent attempts to intiialize a counter that failed
