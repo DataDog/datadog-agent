@@ -921,7 +921,7 @@ func serializeSyscallRetval(retval int64) string {
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *Event) *EventSerializer {
 	var pc model.ProcessContext
-	if entry := event.ResolveProcessCacheEntry(); entry != nil {
+	if entry, _ := event.ResolveProcessCacheEntry(); entry != nil {
 		pc = entry.ProcessContext
 	}
 

@@ -234,7 +234,9 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
+
+			entry, _ := event.ResolveProcessCacheEntry()
+			assert.Equal(t, getInode(t, executable), entry.FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -689,8 +691,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
+			entry, _ := event.ResolveProcessCacheEntry()
+
+			if inode := getInode(t, executable); inode != entry.FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()

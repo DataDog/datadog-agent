@@ -493,14 +493,12 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 			}
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
-			if !isDiscarded && !isDeleted {
-				if _, ok := err.(*resolvers.ErrInvalidKeyPath); !ok {
-					if !resolvers.IsFakeInode(inode) {
-						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+			if !isDiscarded && !isDeleted && err == nil {
+				if !resolvers.IsFakeInode(inode) {
+					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
-						// not able to discard the parent then only discard the filename
-						_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
-					}
+					// not able to discard the parent then only discard the filename
+					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
