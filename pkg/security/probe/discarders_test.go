@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -31,7 +32,9 @@ func addRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	pc := ast.NewParsingContext()
+
+	if err := rs.AddRules(pc, ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }

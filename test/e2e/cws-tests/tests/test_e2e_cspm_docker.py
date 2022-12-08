@@ -8,7 +8,7 @@ import warnings
 
 from lib.config import gen_datadog_agent_config
 from lib.const import CSPM_START_LOG
-from lib.cspm.api import App, wait_for_compliance_event, wait_for_findings
+from lib.cspm.api import App
 from lib.docker import DockerHelper
 from lib.log import wait_agent_log
 from lib.stepper import Step
@@ -130,8 +130,9 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="wait for datadog.security_agent.compliance.running metric", emoji="\N{beer mug}"):
             self.app.wait_for_metric("datadog.security_agent.compliance.running", host=socket.gethostname())
 
-        with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
-            wait_for_compliance_event(f"resource_id:*{self.container_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app compliance event", emoji=":SOON_arrow:"):
+        #    wait_for_compliance_event(f"resource_id:*{self.container_id}")
 
         with Step(msg="wait for finding generation (~1m)", emoji=":alarm_clock:"):
             time.sleep(1 * 60)
@@ -141,8 +142,9 @@ class TestE2EDocker(unittest.TestCase):
                 "datadog.security_agent.compliance.containers_running", container_id=self.container_id
             )
 
-        with Step(msg="check app finding", emoji=":chart_increasing_with_yen:"):
-            wait_for_findings(f"@resource_type:docker_container @container_id:{self.container_id}")
+        ## Disabled while no CSPM API is available
+        # with Step(msg="check app finding", emoji=":chart_increasing_with_yen:"):
+        #    wait_for_findings(f"@resource_type:docker_container @container_id:{self.container_id}")
 
 
 def main():

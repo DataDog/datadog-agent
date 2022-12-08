@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/mmap_flags_approvers") mmap_flags_approvers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t *syscall) {
@@ -24,8 +22,6 @@ struct bpf_map_def SEC("maps/mmap_protection_approvers") mmap_protection_approve
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {

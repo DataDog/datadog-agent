@@ -17,24 +17,39 @@ import (
 
 // For testing purpose
 var virtualMemory = winutil.VirtualMemory
-var swapMemory = winutil.SwapMemory
-var pageMemory = winutil.PagefileMemory
+
+var (
+	swapMemory = winutil.SwapMemory
+	pageMemory = winutil.PagefileMemory
+)
 
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
-	cacheBytes     *pdhutil.PdhSingleInstanceCounterSet
-	committedBytes *pdhutil.PdhSingleInstanceCounterSet
-	pagedBytes     *pdhutil.PdhSingleInstanceCounterSet
-	nonpagedBytes  *pdhutil.PdhSingleInstanceCounterSet
+	pdhQuery *pdhutil.PdhQuery
+	// maps metric to counter object
+	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
 
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(initConfig, data, source); err != nil {
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+	if err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
+	}
+
+	// Create PDH query
+	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	if err != nil {
+		return err
+	}
+
+	c.counters = map[string]pdhutil.PdhSingleInstanceCounter{
+		"system.mem.cached":    c.pdhQuery.AddEnglishSingleInstanceCounter("Memory", "Cache Bytes"),
+		"system.mem.committed": c.pdhQuery.AddEnglishSingleInstanceCounter("Memory", "Committed Bytes"),
+		"system.mem.paged":     c.pdhQuery.AddEnglishSingleInstanceCounter("Memory", "Pool Paged Bytes"),
+		"system.mem.nonpaged":  c.pdhQuery.AddEnglishSingleInstanceCounter("Memory", "Pool Nonpaged Bytes"),
 	}
 
 	return err
@@ -47,58 +62,21 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	var val float64
-
-	// counter ("Memory", "Cache Bytes")
-	if c.cacheBytes == nil {
-		c.cacheBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Cache Bytes")
-	}
-	if c.cacheBytes != nil {
-		val, err = c.cacheBytes.GetValue()
-	}
+	// Fetch PDH query values
+	err = c.pdhQuery.CollectQueryData()
 	if err == nil {
-		sender.Gauge("system.mem.cached", float64(val)/mbSize, "", nil)
+		// Get values for PDH counters
+		for metricname, counter := range c.counters {
+			var val float64
+			val, err = counter.GetValue()
+			if err == nil {
+				sender.Gauge(metricname, val/mbSize, "", nil)
+			} else {
+				c.Warnf("memory.Check: Could not retrieve value for %v: %v", metricname, err)
+			}
+		}
 	} else {
-		c.Warnf("memory.Check: Could not retrieve value for system.mem.cached: %v", err)
-	}
-
-	// counter ("Memory", "Committed Bytes")
-	if c.committedBytes == nil {
-		c.committedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Committed Bytes")
-	}
-	if c.committedBytes != nil {
-		val, err = c.committedBytes.GetValue()
-	}
-	if err == nil {
-		sender.Gauge("system.mem.committed", float64(val)/mbSize, "", nil)
-	} else {
-		c.Warnf("memory.Check: Could not retrieve value for system.mem.committed: %v", err)
-	}
-
-	// counter ("Memory", "Pool Paged Bytes")
-	if c.pagedBytes == nil {
-		c.pagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Paged Bytes")
-	}
-	if c.pagedBytes != nil {
-		val, err = c.pagedBytes.GetValue()
-	}
-	if err == nil {
-		sender.Gauge("system.mem.paged", float64(val)/mbSize, "", nil)
-	} else {
-		c.Warnf("memory.Check: Could not retrieve value for system.mem.paged: %v", err)
-	}
-
-	// counter ("Memory", "Pool Nonpaged Bytes")
-	if c.nonpagedBytes == nil {
-		c.nonpagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Nonpaged Bytes")
-	}
-	if c.nonpagedBytes != nil {
-		val, err = c.nonpagedBytes.GetValue()
-	}
-	if err == nil {
-		sender.Gauge("system.mem.nonpaged", float64(val)/mbSize, "", nil)
-	} else {
-		c.Warnf("memory.Check: Could not retrieve value for system.mem.nonpaged: %v", err)
+		c.Warnf("memory.Check: Could not collect performance counter data: %v", err)
 	}
 
 	v, errVirt := virtualMemory()

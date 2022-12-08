@@ -68,6 +68,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(spNS, "log_file"), defaultSystemProbeLogFilePath)
 	cfg.BindEnvAndSetDefault(join(spNS, "log_level"), "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
+	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), true, "DD_TELEMETRY_ENABLED")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_host"), "127.0.0.1")
 	cfg.BindEnvAndSetDefault(join(spNS, "dogstatsd_port"), 8125)
@@ -179,6 +180,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// service monitoring
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
+	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)

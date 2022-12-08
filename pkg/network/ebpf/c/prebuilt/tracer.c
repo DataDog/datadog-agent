@@ -1,6 +1,7 @@
 #include "kconfig.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "bpf_tracing.h"
 #include "tracer.h"
 
 #include "protocols/protocol-classification-helpers.h"
@@ -116,8 +117,10 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
-    // Should actually delete something only if the connection never got established
-    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk);
+    // Should actually delete something only if the connection never got established & increment counter
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
+        increment_telemetry_count(tcp_failed_connect);
+    }
 
     clear_sockfd_maps(sk);
 

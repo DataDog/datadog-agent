@@ -121,8 +121,8 @@ func (r *Rule) GetAst() *ast.Rule {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (r *Rule) Parse() error {
-	astRule, err := ast.ParseRule(r.Expression)
+func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
+	astRule, err := parsingContext.ParseRule(r.Expression)
 	if err != nil {
 		return err
 	}
@@ -168,12 +168,12 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (
 }
 
 // GenEvaluator - Compile and generates the RuleEvaluator
-func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
+func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext, replCtx ReplacementContext) error {
 	r.Model = model
 	r.ReplacementCtx = replCtx
 
 	if r.ast == nil {
-		if err := r.Parse(); err != nil {
+		if err := r.Parse(parsingCtx); err != nil {
 			return err
 		}
 	}

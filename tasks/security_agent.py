@@ -51,11 +51,12 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
+    static=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # generate windows resources
     if sys.platform == 'win32':

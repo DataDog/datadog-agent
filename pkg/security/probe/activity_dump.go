@@ -541,7 +541,8 @@ func (ad *ActivityDump) Insert(event *Event) (newEntry bool) {
 	}()
 
 	// find the node where the event should be inserted
-	node := ad.findOrCreateProcessActivityNode(event.ResolveProcessCacheEntry(), Runtime)
+	entry, _ := event.ResolveProcessCacheEntry()
+	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
 		return false
@@ -776,6 +777,8 @@ func (ad *ActivityDump) resolveTags() error {
 
 // ToSecurityActivityDumpMessage returns a pointer to a SecurityActivityDumpMessage
 func (ad *ActivityDump) ToSecurityActivityDumpMessage() *api.ActivityDumpMessage {
+	ad.Lock()
+	defer ad.Unlock()
 	var storage []*api.StorageRequestMessage
 	for _, requests := range ad.StorageRequests {
 		for _, request := range requests {

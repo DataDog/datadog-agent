@@ -70,7 +70,7 @@ func (h *DeploymentHandlers) ResourceList(ctx *processors.ProcessorContext, list
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *DeploymentHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *DeploymentHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.Deployment).UID
 }
 
