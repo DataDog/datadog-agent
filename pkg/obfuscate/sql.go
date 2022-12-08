@@ -382,7 +382,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 			if out.Len() != 0 {
 				switch token {
 				case '.', ']', ',':
-				// skip adding a space before dots, closing square brackets, and commas.
+					// skip adding a space before dots, closing square brackets, and commas.
 				case '=':
 					if lastToken == ':' {
 						// do not add a space before an equals if a colon was
