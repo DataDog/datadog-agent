@@ -52,6 +52,14 @@ core,github.com/DataDog/go-libddwaf/lib/darwin-amd64,Apache-2.0,"Copyright 2016-
 core,github.com/DataDog/go-libddwaf/lib/darwin-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/lib/linux-amd64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/lib/linux-arm64,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/internal/roles,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/internal/sets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/pkg/keys,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/pkg/targets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/util,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
+core,github.com/DataDog/go-tuf/verify,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/gohai/cpu,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/filesystem,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
 core,github.com/DataDog/gohai/memory,MIT,"Copyright (c) 2014-2015, Datadog <info@datadoghq.com> | Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>"
@@ -710,6 +718,7 @@ core,github.com/sirupsen/logrus,MIT,Copyright (c) 2014 Simon Eskildsen
 core,github.com/skydive-project/go-debouncer,Apache-2.0,"Copyright (C) 2018 Red Hat, Inc."
 core,github.com/smira/go-ftp-protocol/protocol,MIT,Copyright (c) 2014 Andrey Smirnov
 core,github.com/smira/go-xz,MIT,Copyright (c) 2015 Andrey Smirnov
+core,github.com/spaolacci/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci"
 core,github.com/spf13/afero,Apache-2.0,Copyright 2013 tsuru authors. All rights reserved. | Copyright © 2014 Steve Francia <spf@spf13.com>.
 core,github.com/spf13/afero/internal/common,Apache-2.0,Copyright 2013 tsuru authors. All rights reserved. | Copyright © 2014 Steve Francia <spf@spf13.com>.
 core,github.com/spf13/afero/mem,Apache-2.0,Copyright 2013 tsuru authors. All rights reserved. | Copyright © 2014 Steve Francia <spf@spf13.com>.
@@ -736,14 +745,6 @@ core,github.com/syndtr/goleveldb/leveldb/table,BSD-2-Clause,Copyright 2012 Surya
 core,github.com/syndtr/goleveldb/leveldb/util,BSD-2-Clause,Copyright 2012 Suryandaru Triandana <syndtr@gmail.com>
 core,github.com/tchap/go-patricia/v2/patricia,MIT,Copyright (c) 2014 The AUTHORS | Ondřej Kupka <ondra.cap@gmail.com> | This is the complete list of go-patricia copyright holders:
 core,github.com/tedsuo/rata,MIT,Copyright (c) 2014 Ted Young
-core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/internal/roles,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/internal/sets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/pkg/keys,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/pkg/targets,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/util,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
-core,github.com/DataDog/go-tuf/verify,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
@@ -1170,13 +1171,17 @@ core,google.golang.org/protobuf/types/known/structpb,BSD-3-Clause,Copyright (c) 
 core,google.golang.org/protobuf/types/known/timestamppb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/known/wrapperspb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,google.golang.org/protobuf/types/pluginpb,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
-core,gopkg.in/DataDog/dd-trace-go.v1/ddtrace,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/globalconfig,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/log,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/osinfo,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/internal/version,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/fastdelta,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/immutable,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
+core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pproflite,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/DataDog/dd-trace-go.v1/profiler/internal/pprofutils,Apache-2.0,"Copyright 2016-Present Datadog, Inc."
 core,gopkg.in/Knetic/govaluate.v3,MIT,"Copyright (c) 2014-2016 George Lester | abrander (panic-finding testing tool) | benpaxton (fix for missing type checks during literal elide process) | bgaifullin (lifting restriction on complex/struct types) | dpaolella (exposure of variables used in an expression) | iasci (ternary operator) | oxtoacart (parameter structures, deferred parameter retrieval) | prashantv (optimization of bools) | vjeantet (regex support) | wmiller848 (bitwise operators) | xfennec (fix for dates being parsed in the current Location)"
 core,gopkg.in/inf.v0,BSD-3-Clause,Copyright (c) 2012 Péter Surányi. Portions Copyright (c) 2009 The Go Authors. All rights reserved.
