@@ -6,7 +6,7 @@ generator:
       bytes_per_second: "10 Mb"
       block_sizes: ["1Mb", "0.5Mb", "0.25Mb", "0.125Mb", "128Kb"]
       maximum_prebuild_cache_size_bytes: "8 Mb"
-      variant: "opentelemetry_traces"
+      variant: "opentelemetry_logs"
       parallel_connections: 5
 
 blackhole:

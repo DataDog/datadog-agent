@@ -11,7 +11,7 @@ single-machine-performance-regression_detector:
       - submission_metadata
   variables:
     GIT_STRATEGY: clone # pull the whole repo so we can compute baseline SHA
-    SMP_VERSION: 0.6.4
+    SMP_VERSION: 0.6.5
     LADING_VERSION: 0.11.2
     TOTAL_SAMPLES: 600
     WARMUP_SECONDS: 45
