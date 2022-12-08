@@ -30,15 +30,11 @@ const pathTraces = "/api/v0.2/traces"
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
 
-type prioritySampler interface {
+type samplerTPSReader interface {
 	GetTargetTPS() float64
 }
 
-type errorsSampler interface {
-	GetTargetTPS() float64
-}
-
-type rareSampler interface {
+type samplerEnabledReader interface {
 	IsEnabled() bool
 }
 
@@ -60,9 +56,9 @@ type TraceWriter struct {
 	// Channel should only be received from when testing.
 	In chan *SampledChunks
 
-	prioritySampler prioritySampler
-	errorsSampler   errorsSampler
-	rareSampler     rareSampler
+	prioritySampler samplerTPSReader
+	errorsSampler   samplerTPSReader
+	rareSampler     samplerEnabledReader
 
 	hostname     string
 	env          string
@@ -85,7 +81,7 @@ type TraceWriter struct {
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
 // will accept incoming spans via the in channel.
-func NewTraceWriter(cfg *config.AgentConfig, prioritySampler prioritySampler, errorsSampler errorsSampler, rareSampler rareSampler) *TraceWriter {
+func NewTraceWriter(cfg *config.AgentConfig, prioritySampler samplerTPSReader, errorsSampler samplerTPSReader, rareSampler samplerEnabledReader) *TraceWriter {
 	tw := &TraceWriter{
 		In:              make(chan *SampledChunks, 1000),
 		prioritySampler: prioritySampler,
