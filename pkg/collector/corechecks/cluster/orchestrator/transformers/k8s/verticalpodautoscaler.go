@@ -1,0 +1,117 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build orchestrator
+// +build orchestrator
+
+package k8s
+
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
+)
+
+// ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
+func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
+	return &model.VerticalPodAutoscaler{
+		Metadata: extractMetadata(&v.ObjectMeta),
+		Spec:     extractVerticalPodAutoscalerSpec(&v.Spec),
+		Status:   extractVerticalPodAutoscalerStatus(&v.Status),
+	}
+}
+
+// extractVerticalPodAutoscalerSpec converts the Kubernetes spec to our custom one
+// https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L73
+func extractVerticalPodAutoscalerSpec(s *v1.VerticalPodAutoscalerSpec) *model.VerticalPodAutoscalerSpec {
+	return &model.VerticalPodAutoscalerSpec{
+		Target: &model.VerticalPodAutoscalerTarget{
+			Kind: s.TargetRef.Kind,
+			Name: s.TargetRef.Name,
+		},
+		UpdateMode:       string(*s.UpdatePolicy.UpdateMode),
+		ResourcePolicies: extractContainerResourcePolicies(s.ResourcePolicy),
+	}
+}
+
+// extractContainerResourcePolicy pulls the ContainerResourcePolicy out of PodResourcePolicy
+// and converts it to our protobuf model
+// https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L149
+func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.ContainerResourcePolicy {
+	policies := []*model.ContainerResourcePolicy{}
+
+	for _, policy := range p.ContainerPolicies {
+		m := model.ContainerResourcePolicy{
+			ContainerName:      policy.ContainerName,
+			MinAllowed:         extractResourceMetrics(&policy.MinAllowed),
+			MaxAllowed:         extractResourceMetrics(&policy.MaxAllowed),
+			ControlledResource: extractControlledResources(policy.ControlledResources),
+			ControlledValues:   string(*policy.ControlledValues),
+		}
+		if policy.Mode != nil {
+			m.Mode = string(*policy.Mode)
+		}
+		policies = append(policies, &m)
+	}
+	return policies
+}
+
+// extractResourceMetrics converts Kuberentes ResourceLists to our protobuf model
+// https://github.com/kubernetes/api/blob/v0.23.8/core/v1/types.go#L5176
+func extractResourceMetrics(rl *corev1.ResourceList) *model.ResourceMetrics {
+	mv := map[string]float64{}
+	for name, quantity := range *rl {
+		value, valid := quantity.AsInt64()
+		if valid {
+			mv[string(name)] = float64(value)
+		} else {
+			mv[string(name)] = quantity.ToDec().AsApproximateFloat64()
+		}
+	}
+	return &model.ResourceMetrics{
+		MetricValues: mv,
+	}
+}
+
+// extractControlledResources converts typed Kuberentes ResourceNames to a slice of strings
+// https://github.com/kubernetes/api/blob/v0.23.8/core/v1/types.go#L5147
+func extractControlledResources(rn *[]corev1.ResourceName) []string {
+	names := []string{}
+	for _, name := range *rn {
+		names = append(names, string(name))
+	}
+	return names
+}
+
+// extractVerticalPodAutoscalerStatus converts Kubernetes PodAutoscalerStatus to our protobuf model
+// https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L218
+func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *model.VerticalPodAutoscalerStatus {
+	status := model.VerticalPodAutoscalerStatus{}
+	for _, condition := range s.Conditions {
+		if condition.Type == v1.RecommendationProvided &&
+			condition.Status == corev1.ConditionTrue {
+			status.LastRecommendedDate = condition.LastTransitionTime.Unix()
+		}
+	}
+	status.Recommendations = extractContainerRecommendations(s.Recommendation.ContainerRecommendations)
+	return &status
+}
+
+// extractContainerRecommendations converts Kuberentes Recommendations to our protobuf model
+// https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L245
+func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*model.ContainerRecommendations {
+	recs := []*model.ContainerRecommendations{}
+	for _, r := range cr {
+		rec := model.ContainerRecommendations{
+			ContainerName:  r.ContainerName,
+			Target:         extractResourceMetrics(&r.Target),
+			LowerBound:     extractResourceMetrics(&r.LowerBound),
+			UpperBound:     extractResourceMetrics(&r.UpperBound),
+			UncappedTarget: extractResourceMetrics(&r.UncappedTarget),
+		}
+		recs = append(recs, &rec)
+	}
+	return recs
+}
