@@ -128,7 +128,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
+	return batchConnections(cfg, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -251,6 +251,8 @@ func batchConnections(
 	networkID string,
 	connTelemetryMap map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
 	domains []string,
 	routes []*model.Route,
 	tags []string,
@@ -386,6 +388,8 @@ func batchConnections(
 		if len(batches) == 0 {
 			cc.ConnTelemetryMap = connTelemetryMap
 			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
 		}
 		batches = append(batches, cc)
 
