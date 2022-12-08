@@ -169,3 +169,79 @@ build_processed_btfhub_archive:
     paths:
       - btfhub-archive/btfs-arm64.tar.gz
       - btfhub-archive/btfs-amd64.tar.gz
+
+build_microvm_filesystem_x64:
+   rules:
+    !reference [.manual]
+  stage: deps_build
+  tags: ["runner:main"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/kernel-version-testing_x64:$DATADOG_AGENT_KERNEL_VERSION_TESTING_X64_BUILDIMAGES
+  variables:
+    IMAGE_VERSION: "0.1"
+    DEBARCH: "amd64"
+    RELEASE_IMG: bullseye.img
+    QCOW2_IMG: bullseye.qcow2
+    IMG_SIZE: 10G
+    PREINSTALL_PKGS: bison,cmake,curl,flex,g++,gcc,gcc-multilib,git,libbpf-dev,libedit-dev,libelf-dev,libfl-dev,libstdc++-10-dev,libtinfo-dev,libtinfo5,libxml2-dev,libzip-dev,linux-libc-dev,make,ninja-build,patch,pkg-config,python3-distro,python3-distutils,python3-netaddr,python3-setuptools,python3-pip,python3-pyroute2,python3-dev,wget,xz-utils
+    SOURCE_LIST: |
+    deb http://deb.debian.org/debian bullseye main
+    deb-src http://deb.debian.org/debian bullseye main
+    
+    deb http://deb.debian.org/debian-security/ bullseye-security main
+    deb-src http://deb.debian.org/debian-security/ bullseye-security main
+    
+    deb http://deb.debian.org/debian bullseye-updates main
+    deb-src http://deb.debian.org/debian bullseye-updates main
+  script:
+    # base for new deb environment
+    - mkdir fsbase
+    # Build image
+    - dd if=/dev/zero of=$RELEASE_IMG bs=1 count=0 seek=$IMG_SIZE
+    - mkfs.ext2 -F $RELEASE_IMG
+    # Mount image to fsbase
+    - chmod 0755 fsbase
+    - mount -o exec,loop $RELEASE_IMG fsbase
+    # build debian environment with deboostrap
+    - debootstrap --arch=$DEBARCH --include=$PREINSTALL_PKGS --components=bullseye,bullseye-backports,bullseye-security,main,contrib,non-free bullseye fsbase
+    # enable promptless ssh to machine for root
+    - sed -i '/^root/ {{ s/:x:/::/ }}' fsbase/etc/passwd
+    # set defaults
+    - echo 'T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100' | tee -a fsbase/etc/inittab
+    - '/dev/root / ext4 defaults 0 0' | tee -a fsbase/etc/fstab
+    - echo 'debugfs /sys/kernel/debug debugfs defaults 0 0' | tee -a fsbase/etc/fstab
+    - echo 'mount -t tracefs nodev /sys/kernel/tracing' | tee -a fsbase/etc/fstab
+    - echo 'binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc defaults 0 0' | tee -a fsbase/etc/fstab
+    - echo -en "127.0.0.1\tlocalhost\n" | tee fsbase/etc/hosts
+    - echo "nameserver 8.8.8.8" | tee -a fsbase/etc/resolv.conf
+    - echo "ddvm" | tee fsbase/etc/hostname
+    - echo -en "127.0.1.1\tddvm\n" | tee -a fsbase/etc/hosts
+    # Setup dev env
+    ## Add repositories
+    - echo "${SOURCE_LIST}" | tee fsbase/etc/apt/sources.list
+    ## Setup clang
+    - mkdir fsbase/opt/clang
+    - wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-{CLANG_LLVM_VER}/clang+llvm-{CLANG_LLVM_VER}-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O fsbase/opt/clang.tar.xz
+    - echo "6b3cc55d3ef413be79785c4dc02828ab3bd6b887872b143e3091692fc6acefe7  fsbase/opt/clang.tar.xz" | sha256sum --check
+    - tar xf fsbase/opt/clang/clang.tar.xz --strip-components=1 -C fsbase/opt/clang
+    - echo 'PATH=$PATH:/opt/clang/bin' | tee -a fsbase/root/.bashrc
+    ## Setup golang
+    - curl -sL -o fsbase/usr/bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
+    - chmod +x fsbase/usr/bin/gimme
+    - chroot fsbase/ /bin/bash -c 'gimme 1.18.1'
+    - echo "eval \$(gimme 1.18.1)" | tee /root/.bashrc
+    ## Setup agent env
+    - mkdir fsbase/etc/datadog-agent
+    - mkdir -p fsbase/opt/datadog-agent/run
+    - echo "system_probe_config:\n  enabled: true\n" | tee fsbase/etc/datadog-agent/system-probe.yaml
+    - mkdir -p fsbase/opt/datadog-agent/embedded/nikos/embedded
+    - mkdir -p fsbase/opt/datadog-agent/embedded/bin
+    - echo "-r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/main/requirements.txt" | tee > /tmp/requirements.txt
+    - chroot fsbase/ /bin/bash -c 'pip install -r /tmp/requirements'
+    # Unmount
+    - umount fsbase
+    # Convert to qcow2 format
+    - qemu-img convert -f raw -O qcow2 $RELEASE_IMG $QCOW2_IMG
+    - rm $RELEASE_IMG
+    - tar -czvf bullseye.tar.gz $QCOW2_IMG
+    # Upload qcow2 image to S3 bucket
+    - $S3_CP_CMD $QCOW2_IMG $S3_DD_AGENT_OMNIBUS_KERNEL_VERSION_TESTING_URI/${QCOW2_IMG}.${DEBARCH}.${IMAGE_VERSION} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
