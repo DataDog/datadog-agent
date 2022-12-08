@@ -413,8 +413,12 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
-	in.TracerVersion = tracerVersion
-	in.Lang = lang
+	if in.TracerVersion == "" {
+		in.TracerVersion = tracerVersion
+	}
+	if in.Lang == "" {
+		in.Lang = lang
+	}
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {

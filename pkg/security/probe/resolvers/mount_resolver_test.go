@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,6 +37,35 @@ func TestMountResolver(t *testing.T) {
 		name string
 		args args
 	}{
+
+		{
+			"insert_root",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							MountID:       27,
+							GroupID:       0,
+							Device:        1,
+							ParentInode:   0,
+							RootMountID:   0,
+							RootInode:     0,
+							ParentMountID: 1,
+							FSType:        "ext4",
+							MountPointStr: "/",
+							RootStr:       "",
+						},
+					},
+				},
+				[]testCase{
+					{
+						27,
+						"/",
+						nil,
+					},
+				},
+			},
+		},
 		{
 			"insert_overlay",
 			args{
@@ -48,7 +76,7 @@ func TestMountResolver(t *testing.T) {
 							MountID:       127,
 							GroupID:       71,
 							Device:        52,
-							ParentMountID: 0,
+							ParentMountID: 27,
 							ParentInode:   0,
 							FSType:        "overlay",
 							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
@@ -68,10 +96,10 @@ func TestMountResolver(t *testing.T) {
 					{
 						0,
 						"",
-						ErrMountNotFound,
+						ErrMountUndefined,
 					},
 					{
-						27,
+						22,
 						"",
 						ErrMountNotFound,
 					},
@@ -143,7 +171,7 @@ func TestMountResolver(t *testing.T) {
 							ParentMountID: 22,
 							ParentInode:   0,
 							FSType:        "tmpfs",
-							MountPointStr: "/sys/fs/cgroup",
+							MountPointStr: "/fs/cgroup",
 							RootMountID:   0,
 							RootInode:     0,
 							RootStr:       "",
@@ -272,7 +300,7 @@ func TestMountResolver(t *testing.T) {
 				[]testCase{
 					{
 						639,
-						"proc",
+						"/proc",
 						nil,
 					},
 				},
@@ -310,13 +338,18 @@ func TestMountResolver(t *testing.T) {
 		},
 	}
 
+	// use pid 1 for the tests
+	var pid uint32 = 1
+
+	cr, _ := NewCgroupsResolver()
+
 	// Create mount resolver
-	mr, _ := NewMountResolver(nil)
+	mr, _ := NewMountResolver(nil, cr, MountResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(*evt.mount)
+					mr.insert(evt.mount)
 				}
 				if evt.umount != nil {
 					if err := mr.Delete(evt.umount.MountID); err != nil {
@@ -328,7 +361,7 @@ func TestMountResolver(t *testing.T) {
 			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
-				p, _, err := mr.ResolveMountPaths(testC.mountID, 0)
+				p, err := mr.ResolveMountPath(testC.mountID, pid, "")
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -344,41 +377,36 @@ func TestMountResolver(t *testing.T) {
 }
 
 func TestMountGetParentPath(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mr := &MountResolver{
 		mounts: map[uint32]*model.MountEvent{
 			1: {
 				MountID:       1,
-				MountPointStr: "/a",
+				MountPointStr: "/",
 			},
 			2: {
 				MountID:       2,
 				ParentMountID: 1,
-				MountPointStr: "/b",
+				MountPointStr: "/a",
 			},
 			3: {
 				MountID:       3,
 				ParentMountID: 2,
+				MountPointStr: "/b",
+			},
+			4: {
+				MountID:       4,
+				ParentMountID: 3,
 				MountPointStr: "/c",
 			},
 		},
-		parentPathCache: parentPathCache,
 	}
 
-	parentPath, _ := mr.getParentPath(3)
+	parentPath, err := mr.getMountPath(4)
+	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
 
 func TestMountLoop(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mr := &MountResolver{
 		mounts: map[uint32]*model.MountEvent{
 			1: {
@@ -397,23 +425,16 @@ func TestMountLoop(t *testing.T) {
 				MountPointStr: "/c",
 			},
 		},
-		parentPathCache: parentPathCache,
 	}
 
-	parentPath, err := mr.getParentPath(3)
+	parentPath, err := mr.getMountPath(3)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	mr := &MountResolver{
-		mounts:          make(map[uint32]*model.MountEvent),
-		parentPathCache: parentPathCache,
+		mounts: make(map[uint32]*model.MountEvent),
 	}
 
 	var parentID uint32
@@ -428,6 +449,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getParentPath(0)
+		_, _ = mr.getMountPath(0)
 	}
 }

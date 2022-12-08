@@ -58,8 +58,8 @@ func (c *CheckWrapper) String() string {
 }
 
 // Configure implements Check#Configure
-func (c *CheckWrapper) Configure(config, initConfig integration.Data, source string) error {
-	return c.inner.Configure(config, initConfig, source)
+func (c *CheckWrapper) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	return c.inner.Configure(integrationConfigDigest, config, initConfig, source)
 }
 
 // Interval implements Check#Interval

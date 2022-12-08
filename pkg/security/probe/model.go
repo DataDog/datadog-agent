@@ -105,13 +105,13 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
-			f.PathResolutionError = err
-			ev.SetPathResolutionError(err)
+			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
 	}
+
 	return f.PathnameStr
 }
 
@@ -129,10 +129,10 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	if f.Filesystem == "" {
-		fs, err := ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+	if f.Filesystem == "" && !f.IsFileless() {
+		fs, err := ev.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
-			ev.SetPathResolutionError(err)
+			ev.SetPathResolutionError(f, err)
 		}
 		f.Filesystem = fs
 	}
@@ -205,7 +205,7 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+		if entry, _ := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -443,7 +443,8 @@ func (ev *Event) String() string {
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
-func (ev *Event) SetPathResolutionError(err error) {
+func (ev *Event) SetPathResolutionError(fileFields *model.FileEvent, err error) {
+	fileFields.PathResolutionError = err
 	ev.pathResolutionError = err
 }
 
@@ -481,7 +482,7 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
+func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -497,14 +498,16 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		// mark interpreter as resolved too
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry, false
 	}
 
-	return ev.ProcessCacheEntry
+	return ev.ProcessCacheEntry, true
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
 func (ev *Event) GetProcessServiceTag() string {
-	entry := ev.ResolveProcessCacheEntry()
+	entry, _ := ev.ResolveProcessCacheEntry()
 	if entry == nil {
 		return ""
 	}

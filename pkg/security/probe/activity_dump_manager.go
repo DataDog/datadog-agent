@@ -425,14 +425,8 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
 func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
-
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
-		return
-	}
-
-	// reject event with abnormal path
-	if event.GetPathResolutionError() != nil {
 		return
 	}
 
@@ -635,4 +629,15 @@ func (adm *ActivityDumpManager) getOverweightDumps() []*ActivityDump {
 		adm.activeDumps = append(adm.activeDumps[:i], adm.activeDumps[i+1:]...)
 	}
 	return dumps
+}
+
+// FakeDumpOverweight fakes a dump stats to force triggering the load controller. For unitary tests purpose only.
+func (adm *ActivityDumpManager) FakeDumpOverweight(name string) {
+	adm.Lock()
+	defer adm.Unlock()
+	for _, ad := range adm.activeDumps {
+		if ad.Name == name {
+			ad.nodeStats.processNodes = int64(99999)
+		}
+	}
 }

@@ -40,11 +40,14 @@ type PersistentVolumeCollector struct {
 func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "persistentvolumes",
-			NodeType:         orchestrator.K8sPersistentVolume,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "persistentvolumes",
+			NodeType:                  orchestrator.K8sPersistentVolume,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}

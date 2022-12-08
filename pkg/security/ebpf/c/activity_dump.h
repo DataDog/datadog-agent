@@ -117,8 +117,6 @@ struct bpf_map_def SEC("maps/cgroup_tracing_event_gen") cgroup_tracing_event_gen
     .key_size = sizeof(u32),
     .value_size = sizeof(struct cgroup_tracing_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct cgroup_tracing_event_t *get_cgroup_tracing_event() {

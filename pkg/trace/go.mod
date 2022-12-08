@@ -38,6 +38,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3 // indirect
+	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
@@ -61,8 +62,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.3.1 // indirect
-	github.com/theupdateframework/go-tuf v0.3.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.4.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect

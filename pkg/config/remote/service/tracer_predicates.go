@@ -9,8 +9,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
 	"github.com/Masterminds/semver"
-	"github.com/theupdateframework/go-tuf/data"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"

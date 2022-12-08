@@ -279,7 +279,7 @@ func InitConfig(config Config) {
 
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
-	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
+	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
@@ -354,6 +354,12 @@ func InitConfig(config Config) {
 	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
 	// canonical hostname, otherwise the instance-id is used as canonical hostname.
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
+
+	// By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
+	// When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+	// hostname resolution.
+	// (Linux only)
+	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
@@ -707,6 +713,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
+	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -1011,6 +1018,7 @@ func InitConfig(config Config) {
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
+	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//

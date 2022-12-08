@@ -185,10 +185,10 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
-	k.BuildID(config, initConfig)
+func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	k.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := k.CommonConfigure(initConfig, config, source)
+	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -784,9 +784,9 @@ func resourceNameFromMetric(name string) string {
 
 // isKnownMetric returns whether the KSM metric name is known by the check
 // A known metric should satisfy one of the conditions:
-//  - has a datadog metric name
-//  - has a metric transformer
-//  - has a metric aggregator
+//   - has a datadog metric name
+//   - has a metric transformer
+//   - has a metric aggregator
 func (k *KSMCheck) isKnownMetric(name string) bool {
 	if _, found := k.metricNamesMapper[name]; found {
 		return true
