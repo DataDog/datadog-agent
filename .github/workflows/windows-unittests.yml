@@ -15,11 +15,6 @@ jobs:
   windows-unit-tests:
     runs-on: windows-2019 # https://github.com/actions/virtual-environments/blob/main/images/win/Windows2019-Readme.md
     steps:
-      - name: Set git to use LF # needed so gofmt doesn't think every file needs reformatting
-        run: |
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-
       - name: Checkout datadog-agent repository
         uses: actions/checkout@v3
         with:
