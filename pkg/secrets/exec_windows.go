@@ -108,15 +108,3 @@ func getServicePid(serviceName string) (uint32, error) {
 	}
 	return status.ProcessId, nil
 }
-
-// getLocalSystemSID returns the SID of the Local System account
-func getLocalSystemSID() (*windows.SID, error) {
-	var localSystem *windows.SID
-	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
-		1, // local system has 1 valid subauth
-		windows.SECURITY_LOCAL_SYSTEM_RID,
-		0, 0, 0, 0, 0, 0, 0,
-		&localSystem)
-
-	return localSystem, err
-}
