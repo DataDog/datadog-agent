@@ -6,9 +6,11 @@
 package state
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
+	"github.com/secure-systems-lab/go-securesystemslib/cjson"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -703,6 +705,21 @@ func TestUpdateWithTwoProducts(t *testing.T) {
 	assert.Contains(t, state.CachedFiles, expectedCachedFileAPMSampling)
 }
 
+func createRawTestData(targetFileBase string, targetsPayload string) []byte {
+	payload := base64.StdEncoding.EncodeToString([]byte(targetsPayload))
+	targets := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(targetFileBase), &targets); err != nil {
+		panic(err)
+	}
+
+	targets["targets"] = payload
+	marshalled, err := cjson.EncodeCanonical(targets)
+	if err != nil {
+		panic(err)
+	}
+	return marshalled
+}
+
 // These tests involve generated JSON responses that the remote config service would send. They
 // were primarily created to assist tracer teams with unit tests around TUF integrity checks,
 // but they apply to agent clients as well, so we include them here as an extra layer of protection.
@@ -727,12 +744,34 @@ func TestPreGeneratedIntegrityChecks(t *testing.T) {
 	}
 
 	tests := []testData{
-		{description: "valid", isError: false, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifSwiZXhwaXJlcyI6IjIwMjItMTItMjlUMDg6NTg6MzJaIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvQVNNX0ZFQVRVUkVTL0FTTV9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJjdXN0b20iOnsidiI6MX0sImhhc2hlcyI6eyJzaGEyNTYiOiI5MjIxZGZkOWY2MDg0MTUxMzEzZTNlNDkyMDEyMWFlODQzNjE0YzMyOGU0NjMwZWEzNzFiYTY2ZTJmMTVhMGE2In0sImxlbmd0aCI6NDd9fSwidmVyc2lvbiI6MX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiZWQ3NjcyYzlhMjRhYmRhNzg4NzJlZTMyZWU3MWM3Y2IxZDUyMzVlOGRiNGVjYmYxY2EyOGI5YzUwZWI3NWQ5ZSIsInNpZyI6IjlhNWYyOTAzNTkzNTdiZmJkOTk3NzJkYzFiYTAzYzc3N2E2NjhkZjA4YzRiYmQ4MDdkMGI5ZGI2ZDUyYzNhOTgyZmY3ODA0MTY0MGUxZWMwZDU1ZDQxNDBkMGE3YzViOGRhYjgwM2NlM2ZjMDk1MzFlNWJjZWJlMTkwMTZiNjA0In1dfQ==","target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`)},
-		{description: "invalid tuf targets signature", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidmVyc2lvbiI6OTk5LCJleHBpcmVzIjoiMjAyMi0xMC0yN1QxNjo1Mzo1N1oiLCJ0YXJnZXRzIjp7ImRhdGFkb2cvMi9GRUFUVVJFUy9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJsZW5ndGgiOjQ3LCJoYXNoZXMiOnsic2hhMjU2IjoiOTIyMWRmZDlmNjA4NDE1MTMxM2UzZTQ5MjAxMjFhZTg0MzYxNGMzMjhlNDYzMGVhMzcxYmE2NmUyZjE1YTBhNiJ9LCJjdXN0b20iOnsidiI6MX19fSwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiZWQ3NjcyYzlhMjRhYmRhNzg4NzJlZTMyZWU3MWM3Y2IxZDUyMzVlOGRiNGVjYmYxY2EyOGI5YzUwZWI3NWQ5ZSIsInNpZyI6ImQ3NDhiNjM5ODk1M2I4YjA5Zjc5NzMwYjZiOTc5NmQ1YzY3ZjIyYjY3Y2QxNzgyMmY2MjYyOThmNTUyNDllYzk0YmQ4YTYyY2IyMjBhMjRiZGJhMmJjZGFlM2NhMGQ0ZDhkOGE5MWNjZDY1NzFjYTYxNzUwOWQ0MmI1MzI2NjAzIn1dfQ==","target_files":[{"path":"datadog/2/ASM_FEATURES/asm_features_activation/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/asm_features_activation/config"]}`)},
-		{description: "tuf targets signed with invalid key", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifSwiZXhwaXJlcyI6IjIwMjItMTItMjlUMDg6NTg6MzJaIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvQVNNX0ZFQVRVUkVTL0FTTV9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJjdXN0b20iOnsidiI6MX0sImhhc2hlcyI6eyJzaGEyNTYiOiI5MjIxZGZkOWY2MDg0MTUxMzEzZTNlNDkyMDEyMWFlODQzNjE0YzMyOGU0NjMwZWEzNzFiYTY2ZTJmMTVhMGE2In0sImxlbmd0aCI6NDd9fSwidmVyc2lvbiI6MX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiOTM5NjFhZWU2Njk2MWQyMzJlMDAwOGEzYmIxMTY4NzliYzVjMzM3NWFlOTliNWZiOTliYTA5MGM0ZDJmYTIzYiIsInNpZyI6IjA5ZWZjN2MxNGUxMzc0M2Y1MWE1ZWI1ODZjYTFlMzY3NWVmZmFiNjk2NjlmYzVkNTY0MGI4Y2I3NGI0NWQ0MTY4ODZhODkwYzNkOGI0ODFhZGM1Y2Y5ZGZkZTYxZDlhMzUxYzcxNGY2MzUzY2ViZTFmZWZhOTNmMjhmNDI5OTBhIn1dfQ==","target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`)},
-		{description: "missing target file in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifSwiZXhwaXJlcyI6IjIwMjItMTItMjlUMDg6NTg6MzJaIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidGFyZ2V0cyI6e30sInZlcnNpb24iOjF9LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiI4N2U3N2JjNTJlZjNhNWM4OGZlNGY5MTVlYTgxNjVjNTM4ODJhYTUzZDcyMjRiYWZiZTA2ZmFhMDYxYzc5MDA5YjkzZjEyYTk4NTM3ZmY3ZGVhMGZhYTI2ZGUxZjdjOWYzN2Q0YjAzZTFmY2U0ZjFjMDQxZjBmMzBjOGNmYmUwZSJ9XX0=","target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`)},
-		{description: "target file hash incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifSwiZXhwaXJlcyI6IjIwMjItMTItMjlUMDg6NTg6MzJaIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvQVNNX0ZFQVRVUkVTL0FTTV9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJjdXN0b20iOnsidiI6MX0sImhhc2hlcyI6eyJzaGEyNTYiOiI2NjYxNmI2NTY4NjE3MzY4In0sImxlbmd0aCI6NDd9fSwidmVyc2lvbiI6MX0sInNpZ25hdHVyZXMiOlt7ImtleWlkIjoiZWQ3NjcyYzlhMjRhYmRhNzg4NzJlZTMyZWU3MWM3Y2IxZDUyMzVlOGRiNGVjYmYxY2EyOGI5YzUwZWI3NWQ5ZSIsInNpZyI6IjkzYzQ3MWMxMWM3NzM1ZDViZmI4OTJhYmNlY2I5MGYyYzFhZTJlNDlmODNlYzdiMmNmOGYxZmZiZTY4MmEwM2E5OGI0MTA2NWRlOWVjZmM1MzZkYzU5Njk2NjM4NjUxYWEyYmNlOWNiYzViMzI3YmUwYzM2ZGRhOWZhZTBhMjAzIn1dfQ==","target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`)},
-		{description: "target file length incorrect in tuf targets", isError: true, rawUpdate: []byte(`{"targets":"eyJzaWduZWQiOnsiX3R5cGUiOiJ0YXJnZXRzIiwiY3VzdG9tIjp7Im9wYXF1ZV9iYWNrZW5kX3N0YXRlIjoiZXlKbWIyOGlPaUFpWW1GeUluMD0ifSwiZXhwaXJlcyI6IjIwMjItMTItMjlUMDg6NTg6MzJaIiwic3BlY192ZXJzaW9uIjoiMS4wIiwidGFyZ2V0cyI6eyJkYXRhZG9nLzIvQVNNX0ZFQVRVUkVTL0FTTV9GRUFUVVJFUy1iYXNlL2NvbmZpZyI6eyJjdXN0b20iOnsidiI6MX0sImhhc2hlcyI6eyJzaGEyNTYiOiI2NjYxNmI2NTY4NjE3MzY4In0sImxlbmd0aCI6OTk5fX0sInZlcnNpb24iOjF9LCJzaWduYXR1cmVzIjpbeyJrZXlpZCI6ImVkNzY3MmM5YTI0YWJkYTc4ODcyZWUzMmVlNzFjN2NiMWQ1MjM1ZThkYjRlY2JmMWNhMjhiOWM1MGViNzVkOWUiLCJzaWciOiJiZDJiMTY3ZmQ4N2UxM2VhYjdhZjdlOWIwZDYwYWZkYjBiYjAzY2U1Y2QyOTc4OWUzMDgxNTY0NjViYTg1NzA0MDU0ZWJlMTAzODdhYWJiZjM3MGI1ODJjODJlMDc4MjhkMWI1NTYyODEzYzkzMTJhY2NhMmJlNWVkNzA2ZjUwNiJ9XX0=","target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`)},
+
+		{description: "valid", isError: false, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6"},"length":47}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"8cf4603262262fb06146868ccf46092e120a82ce5c45fbfd8dd52aae807fe3d0450cac8459c32cd2848951a0482341b04818e4bc062d0614f05621db950b3c0b"}]}`),
+		},
+
+		{description: "invalid tuf targets signature", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","spec_version":"1.0","version":999,"expires":"2032-10-24T15:10:45.097315-04:00","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"length":47,"hashes":{"sha256":"9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6"},"custom":{"v":1}}},"custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="}},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"8cf4603262262fb06146868ccf46092e120a82ce5c45fbfd8dd52aae807fe3d0450cac8459c32cd2848951a0482341b04818e4bc062d0614f05621db950b3c0b"}]}`),
+		},
+
+		{description: "tuf targets signed with invalid key", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"ef3cfcf821f6c191232f2b0af5931a15ac91d363c781d1195feaf11f1b50a2343c708e2c9bfe64d56415240c12a9afcbd2f556d3a9f479e94efc4516d5934907"}]}`),
+		},
+
+		{description: "missing target file in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"ef3cfcf821f6c191232f2b0af5931a15ac91d363c781d1195feaf11f1b50a2343c708e2c9bfe64d56415240c12a9afcbd2f556d3a9f479e94efc4516d5934907"}]}`,
+		)},
+		{description: "target file hash incorrect in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"66616b6568617368"},"length":47}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"a323d0f5535b3a309273b5a3df70f36bfa3e0e74acf98307148dc41f6cc02982654b48c7264e64ab2649acde732f5808ec74f37feba6410310b0a5d40dc5250c"}]}`,
+		)},
+		{description: "target file length incorrect in tuf targets", isError: true, rawUpdate: createRawTestData(
+			`{"target_files":[{"path":"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config","raw":"ewogICAgImFzbSI6IHsKICAgICAgICAiZW5hYmxlZCI6IHRydWUKICAgIH0KfQo="}],"client_configs":["datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"]}`,
+			`{"signed":{"_type":"targets","custom":{"opaque_backend_state":"eyJmb28iOiAiYmFyIn0="},"expires":"2032-10-24T15:10:45.097315-04:00","spec_version":"1.0","targets":{"datadog/2/ASM_FEATURES/ASM_FEATURES-base/config":{"custom":{"v":1},"hashes":{"sha256":"66616b6568617368"},"length":999}},"version":1},"signatures":[{"keyid":"ed7672c9a24abda78872ee32ee71c7cb1d5235e8db4ecbf1ca28b9c50eb75d9e","sig":"664dd2dfc841717a66101cddff1123f142bed3200790724a3b16eb016ef7944a139f61ce9a3833a525b823ae093f9bb986aae84d23feb1d855644d265b349d0e"}]}`,
+		)},
 	}
 
 	for _, test := range tests {
