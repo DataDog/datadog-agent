@@ -47,6 +47,7 @@ func TestTraces(t *testing.T) {
 	})
 
 	t.Run("reject", func(t *testing.T) {
+		panic("ANDREWANDREWANDREW: This is the pipeline job that fails!")
 		if err := r.RunAgent(nil); err != nil {
 			t.Fatal(err)
 		}
