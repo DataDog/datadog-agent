@@ -1176,6 +1176,14 @@ LIMIT 1
 			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
 			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
 		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1613,11 +1621,6 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
@@ -1671,7 +1674,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1945,6 +1948,32 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test
