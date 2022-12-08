@@ -512,7 +512,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		}
 	}
 
-	aggrConns.Write(buffer)
+	aggrConns.WriteTo(buffer)
 
 	aggrConns = newConnectionAggregator(len(active))
 	// Active connections
@@ -529,7 +529,7 @@ func (ns *networkState) mergeConnections(id string, active map[uint32]*Connectio
 		}
 	}
 
-	aggrConns.Write(buffer)
+	aggrConns.WriteTo(buffer)
 }
 
 func (ns *networkState) updateConnWithStats(client *client, cookie uint32, c *ConnectionStats) {
@@ -773,10 +773,10 @@ func (a *connectionAggregator) Aggregate(c *ConnectionStats) bool {
 	return true
 }
 
-// Write writes the aggregated connections to a clientBuffer,
+// WriteTo writes the aggregated connections to a clientBuffer,
 // computing an average for RTT and RTTVar for each
 // connection
-func (a connectionAggregator) Write(buffer *clientBuffer) {
+func (a connectionAggregator) WriteTo(buffer *clientBuffer) {
 	for _, c := range a.conns {
 		c.RTT = uint32(c.rttSum / uint64(c.count))
 		c.RTTVar = uint32(c.rttVarSum / uint64(c.count))
