@@ -684,7 +684,7 @@ func TestClientComputedStatsHeader(t *testing.T) {
 			for {
 				select {
 				case p := <-rcv.out:
-					assert.Equal(t, p.Meta.ClientComputedStats, on)
+					assert.Equal(t, p.Metadata.ClientComputedStats, on)
 					wg.Wait()
 					return
 				case <-timeout:
@@ -797,7 +797,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 			for {
 				select {
 				case p := <-rcv.out:
-					assert.Equal(t, p.Meta.ClientComputedTopLevel, on)
+					assert.Equal(t, p.Metadata.ClientComputedTopLevel, on)
 					wg.Wait()
 					return
 				case <-timeout:
@@ -834,7 +834,7 @@ func TestClientDropP0s(t *testing.T) {
 		t.Fatal(resp.StatusCode)
 	}
 	p := <-rcv.out
-	assert.Equal(t, p.Meta.ClientDroppedP0s, int64(153))
+	assert.Equal(t, p.Metadata.ClientDroppedP0s, int64(153))
 }
 
 func TestReceiverRateLimiterCancel(t *testing.T) {

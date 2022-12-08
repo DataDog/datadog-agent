@@ -99,7 +99,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 			},
 		})
@@ -140,7 +140,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(spanValid)),
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 			},
 		})
@@ -152,7 +152,7 @@ func TestProcess(t *testing.T) {
 				spanInvalid,
 				spanInvalid,
 			})),
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: want,
 			},
 		})
@@ -198,7 +198,7 @@ func TestProcess(t *testing.T) {
 				}),
 				testutil.TraceChunkWithSpan(spanValid),
 			}),
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: want,
 			},
 		})
@@ -253,7 +253,7 @@ func TestProcess(t *testing.T) {
 			chunk.Priority = int32(key)
 			agnt.Process(&api.Payload{
 				TracerPayload: testutil.TracerPayloadWithChunk(chunk),
-				Meta: api.Metadata{
+				Metadata: api.Metadata{
 					Source: want,
 				},
 			})
@@ -285,7 +285,7 @@ func TestProcess(t *testing.T) {
 		}, 2))
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			},
 		})
@@ -313,7 +313,7 @@ func TestProcess(t *testing.T) {
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			},
 		})
@@ -356,7 +356,7 @@ func TestProcess(t *testing.T) {
 
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			},
 		})
@@ -399,7 +399,7 @@ func TestProcess(t *testing.T) {
 		expectedPayloads := 3
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			},
 		})
@@ -561,7 +561,7 @@ func TestConcentratorInput(t *testing.T) {
 					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
 					ContainerID: "feature_disabled",
 				},
-				Meta: api.Metadata{
+				Metadata: api.Metadata{
 					ClientComputedStats: true,
 				},
 			},
@@ -622,7 +622,7 @@ func TestConcentratorInput(t *testing.T) {
 			}
 			cfg.RareSamplerEnabled = true
 			agent := NewAgent(context.TODO(), cfg)
-			tc.in.Meta.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
+			tc.in.Metadata.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
 
 			if len(tc.expected.Traces) == 0 {
@@ -654,7 +654,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 				ClientComputedTopLevel: true,
 			},
@@ -676,7 +676,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 				ClientComputedTopLevel: false,
 			},
@@ -702,7 +702,7 @@ func TestClientComputedTopLevel(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(chunk)
 		go agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 				ClientComputedTopLevel: true,
 			},
@@ -816,7 +816,7 @@ func TestClientComputedStats(t *testing.T) {
 	t.Run("on", func(t *testing.T) {
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 				ClientComputedStats: true,
 			},
@@ -827,7 +827,7 @@ func TestClientComputedStats(t *testing.T) {
 	t.Run("off", func(t *testing.T) {
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 				ClientComputedStats: false,
 			},
@@ -1109,7 +1109,7 @@ func TestPartialSamplingFree(t *testing.T) {
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 	agnt.Process(&api.Payload{
 		TracerPayload: tracerPayload,
-		Meta: api.Metadata{
+		Metadata: api.Metadata{
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		},
 	})
@@ -1323,7 +1323,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	for i := 0; i < b.N; i++ {
 		ta.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(10, 8)),
-			Meta: api.Metadata{
+			Metadata: api.Metadata{
 				Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 			},
 		})
@@ -1964,7 +1964,7 @@ func TestSpanSampling(t *testing.T) {
 				// that we have the original for comparison later.
 				TracerPayload: proto.Clone(tc.payload).(*pb.TracerPayload),
 				// a nil Source would trigger a panic
-				Meta: api.Metadata{
+				Metadata: api.Metadata{
 					Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
 				},
 			})

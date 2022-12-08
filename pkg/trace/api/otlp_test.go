@@ -555,8 +555,8 @@ func TestOTLPReceiver(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			select {
 			case p := <-out:
-				assert.Equal(t, "go", p.Meta.Source.Lang)
-				assert.Equal(t, "opentelemetry_grpc_v1", p.Meta.Source.EndpointVersion)
+				assert.Equal(t, "go", p.Metadata.Source.Lang)
+				assert.Equal(t, "opentelemetry_grpc_v1", p.Metadata.Source.EndpointVersion)
 				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
 			case <-timeout:

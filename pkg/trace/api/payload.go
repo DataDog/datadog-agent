@@ -15,7 +15,7 @@ type Payload struct {
 	// TracerPayload holds the incoming payload from the tracer.
 	TracerPayload *pb.TracerPayload
 
-	Meta Metadata
+	Metadata Metadata
 }
 
 type Metadata struct {

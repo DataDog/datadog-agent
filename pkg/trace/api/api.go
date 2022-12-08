@@ -580,7 +580,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 	payload := &Payload{
 		TracerPayload: tp,
-		Meta: Metadata{
+		Metadata: Metadata{
 			Source:                 ts,
 			ClientComputedTopLevel: req.Header.Get(headerComputedTopLevel) != "",
 			ClientComputedStats:    req.Header.Get(headerComputedStats) != "",

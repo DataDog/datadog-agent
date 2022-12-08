@@ -80,7 +80,9 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
-	// transformers is the list of transformers used by agent.Process()
+	// transformers is the list of Transformers which will process incoming traces.
+	// The Transformers will be run in order over each incoming trace chunk.
+	// See: Transformer and (*Agent).Process().
 	transformers []Transformer
 }
 
@@ -308,24 +310,26 @@ func (a *Agent) applyGlobalTags(m *api.Metadata, pt *traceutil.ProcessedTrace, s
 
 func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
 	if a.ModifySpan != nil {
-		a.ModifySpan(s)
+		return nil
 	}
-	return nil
+	a.ModifySpan(s)
 }
 
 func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-	if m.ClientComputedTopLevel {
-		traceutil.UpdateTracerTopLevel(s)
+	if !m.ClientComputedTopLevel {
+		return nil
 	}
+	traceutil.UpdateTracerTopLevel(s)
 	return nil
 }
 
 func computeTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace) error {
-	if !m.ClientComputedTopLevel {
-		// Figure out the top-level spans now as it involves modifying the Metrics map
-		// which is not thread-safe while samplers and Concentrator might modify it too.
-		traceutil.ComputeTopLevel(pt.TraceChunk.Spans)
+	if m.ClientComputedTopLevel {
+		return nil
 	}
+	// Figure out the top-level spans now as it involves modifying the Metrics map
+	// which is not thread-safe while samplers and Concentrator might modify it too.
+	traceutil.ComputeTopLevel(pt.TraceChunk.Spans)
 	return nil
 }
 
@@ -378,9 +382,9 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	now := time.Now()
 	defer timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
-	ts := p.Meta.Source
+	ts := p.Metadata.Source
 	ss := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.Meta.ClientComputedStats, a.conf)
+	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.Metadata.ClientComputedStats, a.conf)
 
 	for i := 0; i < len(p.TracerPayload.Chunks); {
 		chunk := p.TracerPayload.Chunks[i]
@@ -403,17 +407,17 @@ func (a *Agent) Process(p *api.Payload) {
 			AppVersion:             p.TracerPayload.AppVersion,
 			TracerEnv:              p.TracerPayload.Env,
 			TracerHostname:         p.TracerPayload.Hostname,
-			ClientDroppedP0sWeight: float64(p.Meta.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
+			ClientDroppedP0sWeight: float64(p.Metadata.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		}
 
 		// Transform the chunk
-		if err := a.transform(&p.Meta, &pt); err != nil {
+		if err := a.transform(&p.Metadata, &pt); err != nil {
 			log.Debugf("Removing Chunk: %v", err)
 			p.TracerPayload.RemoveChunk(i)
 			continue
 		}
 
-		if !p.Meta.ClientComputedStats {
+		if !p.Metadata.ClientComputedStats {
 			statsInput.Traces = append(statsInput.Traces, pt)
 		}
 
