@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ var (
 	mountParentDir   bool
 	remountEvery     time.Duration
 	maxDepth         int
+	memTopFrom       string
 	open             bool
 )
 
@@ -93,27 +95,27 @@ func addResultMetrics(res *EstimatedResult, metrics map[string]*metric) {
 	addMetricVal(metrics, "action.file_deletion", res.FileDeletion)
 }
 
-func addMemoryMetrics(t *testing.T, test *testModule, metrics map[string]*metric) {
-	var mem runtime.MemStats
-	runtime.ReadMemStats(&mem)
-	fmt.Printf("Memory usage:\n")
-
-	fmt.Printf("  Alloc = %v MB\n", mem.Alloc/(1<<10))
-	addMetricVal(metrics, "mem.alloc", int64(mem.Alloc/(1<<10)))
-
-	fmt.Printf("  TotalAlloc = %v MB\n", mem.TotalAlloc/(1<<10))
-	addMetricVal(metrics, "mem.total_alloc", int64(mem.TotalAlloc/(1<<10)))
-
-	fmt.Printf("  GCSys = %v MB\n", mem.GCSys/(1<<10))
-	addMetricVal(metrics, "mem.gc_sys", int64(mem.GCSys/(1<<10)))
-
-	discarders, err := test.probe.GetDiscarders()
+func addMemoryMetrics(t *testing.T, test *testModule, metrics map[string]*metric) error {
+	runtime.GC()
+	proMemFile, err := os.CreateTemp("/tmp", "stress-mem-")
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
+		return err
 	}
-	nb_discarders := len(discarders.Inodes)
-	fmt.Printf("  Nb discarders = %d\n", nb_discarders)
-	addMetricVal(metrics, "mem.nb_discarders", int64(nb_discarders))
+
+	if err := pprof.WriteHeapProfile(proMemFile); err != nil {
+		t.Error(err)
+		return err
+	}
+
+	topDataMem, err := getTopData(proMemFile.Name(), memTopFrom, 50)
+	if err != nil {
+		t.Error(err)
+		return err
+	}
+
+	fmt.Printf("\nMemory report:\n%s\n", string(topDataMem))
+	return nil
 }
 
 func addModuleMetrics(test *testModule, ms map[string]*metric) {
@@ -243,5 +245,6 @@ func init() {
 	flag.BoolVar(&mountParentDir, "mount_parent_dir", false, "set to true to have a parent working directory tmpfs mounted")
 	flag.DurationVar(&remountEvery, "remount_every", time.Second*60*3, "time between every mount points umount/remount")
 	flag.IntVar(&maxDepth, "max_depth", 1, "directories max depth")
+	flag.StringVar(&memTopFrom, "memory top from", "probe", "set to the package to filter for mem stats")
 	flag.BoolVar(&open, "open", true, "true to enable randomly open events")
 }
