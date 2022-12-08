@@ -6,7 +6,6 @@ from collections import defaultdict
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
-
 DEFAULT_SLACK_CHANNEL = "#agent-platform"
 GITHUB_SLACK_MAP = {
     "@DataDog/agent-platform": DEFAULT_SLACK_CHANNEL,

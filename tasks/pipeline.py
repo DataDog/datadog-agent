@@ -15,11 +15,11 @@ from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
 from .libs.pipeline_notifications import (
+    GITHUB_SLACK_MAP,
     base_message,
     find_job_owners,
     get_failed_tests,
     send_slack_message,
-    GITHUB_SLACK_MAP,
 )
 from .libs.pipeline_stats import get_failed_jobs_stats
 from .libs.pipeline_tools import (
