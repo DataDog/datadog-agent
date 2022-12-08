@@ -178,21 +178,11 @@ func (e *ebpfProgram) Init() error {
 		},
 	}
 
-	err = e.InitWithOptions(e.bytecode, options)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return e.InitWithOptions(e.bytecode, options)
 }
 
 func (e *ebpfProgram) Start() error {
-	err := e.Manager.Start()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return e.Manager.Start()
 }
 
 func (e *ebpfProgram) Close() error {
