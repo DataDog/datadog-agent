@@ -7,6 +7,7 @@ package containerimage
 
 import (
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,11 +15,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockFlush() (callback func([]*model.ContainerImage), accumulator *[][]*model.ContainerImage) {
-	accumulator = &[][]*model.ContainerImage{}
+func newMockFlush() (callback func([]*model.ContainerImage), getAccumulator func() [][]*model.ContainerImage) {
+	accumulator := [][]*model.ContainerImage{}
+	var mutex sync.RWMutex
+
 	callback = func(images []*model.ContainerImage) {
-		*accumulator = append(*accumulator, images)
+		mutex.Lock()
+		defer mutex.Unlock()
+		accumulator = append(accumulator, images)
 	}
+
+	getAccumulator = func() [][]*model.ContainerImage {
+		mutex.RLock()
+		defer mutex.RUnlock()
+		return accumulator
+	}
+
 	return
 }
 
@@ -34,8 +46,8 @@ func TestQueue(t *testing.T) {
 
 	assert.Equal(
 		t,
-		accumulator,
-		&[][]*model.ContainerImage{
+		accumulator(),
+		[][]*model.ContainerImage{
 			{{Id: "0"}, {Id: "1"}, {Id: "2"}},
 			{{Id: "3"}, {Id: "4"}, {Id: "5"}},
 			{{Id: "6"}, {Id: "7"}, {Id: "8"}},
@@ -46,8 +58,8 @@ func TestQueue(t *testing.T) {
 
 	assert.Equal(
 		t,
-		accumulator,
-		&[][]*model.ContainerImage{
+		accumulator(),
+		[][]*model.ContainerImage{
 			{{Id: "0"}, {Id: "1"}, {Id: "2"}},
 			{{Id: "3"}, {Id: "4"}, {Id: "5"}},
 			{{Id: "6"}, {Id: "7"}, {Id: "8"}},
