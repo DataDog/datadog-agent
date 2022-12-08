@@ -1049,8 +1049,8 @@ def build_object_files(
             ctx.run("which llvm-strip")
 
         check_for_inline(ctx)
-        ctx.run(f"mkdir -p {build_dir}/runtime")
-        ctx.run(f"mkdir -p {build_dir}/co-re")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     run_ninja(
         ctx,
@@ -1068,7 +1068,7 @@ def build_object_files(
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
-
+        ctx.run(f"find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
 
 def build_cws_object_files(
     ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
@@ -1176,7 +1176,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         can_minimize = False
 
     if can_minimize:
-        co_re_programs = glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o")
+        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
         generate_minimized_btfs(
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
