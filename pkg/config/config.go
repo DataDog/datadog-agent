@@ -1193,13 +1193,12 @@ func InitConfig(config Config) {
 	// Windows Performance Counter refresh interval
 	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
 	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
+
 	// Added in Agent version 7.42
 	// Limits the number of times a check will attempt to initialize a performance pounter before ceasing
-	// attempts to initialize the counter.
-	// Typically there is one attempt per check run.
-	// This allows the Agent to stop incurring the overhead of trying to initialize a counter that
-	// will probably never succeed. For example, when the performance counter database needs to be rebuilt,
-	// or the counter is disabled.
+	// attempts to initialize the counter. Typically there is one attempt per check run. This allows the Agent
+	// to stop incurring the overhead of trying to initialize a counter that will probably never succeed.
+	// For example, when the performance counter database needs to be rebuilt, or the counter is disabled.
 	//
 	// The value of this option should be chosen in consideration with the windows_counter_refresh_interval option.
 	// The performance counter cache is refreshed during subsequent attempts to intiialize a counter that failed
