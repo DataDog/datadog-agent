@@ -1,0 +1,33 @@
+generator:
+  - grpc:
+      seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
+        59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
+      target_uri: "http://127.0.0.1:4317/opentelemetry.proto.collector.trace.v1.TraceService/Export"
+      bytes_per_second: "10 Mb"
+      block_sizes: ["1Mb", "0.5Mb", "0.25Mb", "0.125Mb", "128Kb"]
+      maximum_prebuild_cache_size_bytes: "8 Mb"
+      variant: "opentelemetry_traces"
+      parallel_connections: 5
+
+blackhole:
+# OTLP/gRPC response endpoint: null response is 'full success'
+  - http:
+      binding_addr: "127.0.0.1:8080"
+      body_variant: "nothing"
+      content_type: "application/grpc"
+# OTLP/HTTP response endpoint
+  - http:
+      binding_addr: "127.0.0.1:8081"
+      body_variant: "nothing"
+      content_type: "application/x-protobuf"
+# Used as a Vector socket sink until it supports an OTel sink
+  - tcp:
+      binding_addr: "127.0.0.1:15400"
+# Used for agent control API
+  - http:
+      binding_addr: "127.0.0.1:9092"
+      body_variant: "nothing"
+# Used for agent trace forwarding
+  - http:
+      binding_addr: "127.0.0.1:9091"
+      body_variant: "nothing"
