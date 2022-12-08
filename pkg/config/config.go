@@ -1195,7 +1195,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
 
 	// Added in Agent version 7.42
-	// Limits the number of times a check will attempt to initialize a performance pounter before ceasing
+	// Limits the number of times a check will attempt to initialize a performance counter before ceasing
 	// attempts to initialize the counter. This allows the Agent to stop incurring the overhead of trying
 	// to initialize a counter that will probably never succeed. For example, when the performance counter
 	// database needs to be rebuilt or the counter is disabled.
