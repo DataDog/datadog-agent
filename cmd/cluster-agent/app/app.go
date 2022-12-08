@@ -204,8 +204,8 @@ func start(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
-		    rcClient.Start()
-		    defer rcClient.Close()
+			rcClient.Start()
+			defer rcClient.Close()
 		}
 	}
 
@@ -446,8 +446,6 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
-
-	rcClient.Start()
 
 	return rcClient, nil
 }
