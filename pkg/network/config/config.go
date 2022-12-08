@@ -314,9 +314,7 @@ func New() *Config {
 
 	if c.ServiceMonitoringEnabled {
 		cfg.Set(join(netNS, "enable_http_monitoring"), true)
-		cfg.Set(join(netNS, "enable_kafka_monitoring"), true)
 		c.EnableHTTPMonitoring = true
-		c.EnableKafkaMonitoring = true
 		if !cfg.IsSet(join(netNS, "enable_https_monitoring")) {
 			cfg.Set(join(netNS, "enable_https_monitoring"), true)
 			c.EnableHTTPSMonitoring = true

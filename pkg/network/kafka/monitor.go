@@ -11,15 +11,15 @@ package kafka
 import (
 	"errors"
 	"fmt"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/cilium/ebpf"
 	"strings"
 	"sync"
 
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // MonitorStats is used for holding two kinds of stats:
@@ -88,10 +88,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor) (*Monitor, e
 	batchEventsMap, _, _ := mgr.GetMap(kafkaBatchEvents)
 	numCPUs := int(batchEventsMap.MaxEntries())
 
-	telemetry, err := newTelemetry()
-	if err != nil {
-		return nil, err
-	}
+	telemetry := newTelemetry()
 	statkeeper := newKafkaStatkeeper(c, telemetry)
 
 	handler := func(transactions []kafkaTX) {

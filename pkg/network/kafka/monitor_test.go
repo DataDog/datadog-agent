@@ -11,19 +11,20 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < MinimumKernelVersion {
-		t.Skip(fmt.Sprintf("HTTP feature not available on pre %s kernels", MinimumKernelVersion.String()))
+		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", MinimumKernelVersion.String()))
 	}
 }
 

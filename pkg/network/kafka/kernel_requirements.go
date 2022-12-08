@@ -15,5 +15,5 @@ import (
 var MinimumKernelVersion kernel.Version
 
 func init() {
-	MinimumKernelVersion = kernel.VersionCode(4, 14, 0)
+	MinimumKernelVersion = kernel.VersionCode(5, 4, 0)
 }

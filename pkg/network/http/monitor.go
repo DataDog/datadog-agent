@@ -37,8 +37,7 @@ type MonitorStats struct {
 type Monitor struct {
 	handler func([]httpTX)
 
-	ebpfProgram *ebpfProgram
-
+	ebpfProgram            *ebpfProgram
 	batchManager           *batchManager
 	batchCompletionHandler *ddebpf.PerfHandler
 	telemetry              *telemetry

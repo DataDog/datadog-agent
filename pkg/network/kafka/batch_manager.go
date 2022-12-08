@@ -10,10 +10,11 @@ package kafka
 
 import (
 	"errors"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
 var errLostBatch = errors.New("kafka batch lost (not consumed fast enough)")

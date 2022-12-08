@@ -166,6 +166,8 @@ var (
 		NPMDriverFlowsMissedMaxExceeded,
 		HTTPRequestsDropped,
 		HTTPRequestsMissed,
+		KafkaRequestsDropped,
+		KafkaRequestsMissed,
 	}
 
 	// MonotonicConnTelemetryTypes lists all the possible monotonic telemetry which can be bundled

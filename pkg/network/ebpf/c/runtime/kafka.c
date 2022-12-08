@@ -41,7 +41,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     normalize_tuple(&kafka->tup);
 
     read_into_buffer_skb((char *)kafka->request_fragment, skb, &skb_info);
-    kafka_process(kafka, &skb_info, NO_TAGS);
+    kafka_process(kafka);
     return 0;
 }
 

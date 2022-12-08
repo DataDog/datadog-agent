@@ -18,7 +18,7 @@ static __always_inline void kafka_flush_batch(struct pt_regs *ctx) {
     u32 zero = 0;
     kafka_batch_state_t *batch_state = bpf_map_lookup_elem(&kafka_batch_state, &zero);
     if (batch_state == NULL) {
-        log_debug("batch state is NULL");
+        log_debug("kafka: batch state is NULL");
         return;
     }
     if (batch_state->idx_to_flush == batch_state->idx) {
@@ -34,7 +34,7 @@ static __always_inline void kafka_flush_batch(struct pt_regs *ctx) {
 
     const long status = bpf_perf_event_output(ctx, &kafka_batch_events, key.cpu, batch, sizeof(kafka_batch_t));
     (void)status;
-    log_debug("kafka batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
+    log_debug("kafka: kafka batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
     batch->pos = 0;
     batch_state->idx_to_flush++;
 }
@@ -48,10 +48,10 @@ static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction
     u32 zero = 0;
     kafka_batch_state_t *batch_state = bpf_map_lookup_elem(&kafka_batch_state, &zero);
     if (batch_state == NULL) {
-        log_debug("batch_state is NULL");
+        log_debug("kafka: batch_state is NULL");
         return;
     }
-    log_debug("Found a batch_state!");
+    log_debug("kafka: Found a batch_state!");
 
     // Retrieve the batch object
     kafka_batch_key_t key = kafka_get_batch_key(batch_state->idx);
@@ -62,7 +62,7 @@ static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction
 
     if (kafka_batch_full(batch)) {
         // this scenario should never happen and indicates a bug
-        log_debug("kafka_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
+        log_debug("kafka: kafka_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
         return;
     }
 
@@ -72,8 +72,8 @@ static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction
     }
 
     __builtin_memcpy(&batch->txs[batch->pos], kafka_transaction, sizeof(kafka_transaction_t));
-    log_debug("kafka_enqueue: ktx=%llx path=%s\n", kafka_transaction, kafka_transaction->request_fragment);
-    log_debug("kafka transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+    log_debug("kafka: kafka_enqueue: ktx=%llx path=%s\n", kafka_transaction, kafka_transaction->request_fragment);
+    log_debug("kafka: kafka transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;
     batch->idx = batch_state->idx;
 
@@ -100,18 +100,18 @@ static __always_inline void kafka_update_seen_before(kafka_transaction_t *kafka_
         return;
     }
 
-    log_debug("kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->tcp_seq, skb_info->tcp_seq);
+    log_debug("kafka: kafka_update_seen_before: ktx=%llx old_seq=%llu seq=%llu\n", kafka_transaction, kafka_transaction->tcp_seq, skb_info->tcp_seq);
     kafka_transaction->tcp_seq = skb_info->tcp_seq;
 }
 
-static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction, skb_info_t *skb_info, __u64 tags) {
+static __always_inline int kafka_process(kafka_transaction_t *kafka_transaction) {
     if (!try_parse_request_header(kafka_transaction)) {
         return 0;
     }
     if (!try_parse_request(kafka_transaction)) {
         return 0;
     }
-    log_debug("kafka_transaction->topic_name: %s", kafka_transaction->topic_name);
+    log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
 
     kafka_enqueue(kafka_transaction);
     return 0;
@@ -136,10 +136,10 @@ static __always_inline bool kafka_allow_packet(kafka_transaction_t *kafka, struc
 
     // Check that we didn't see this tcp segment before so we won't process
     // the same traffic twice
-    log_debug("Current tcp sequence: %lu", skb_info->tcp_seq);
+    log_debug("kafka: Current tcp sequence: %lu", skb_info->tcp_seq);
     __u32 *last_tcp_seq = bpf_map_lookup_elem(&kafka_last_tcp_seq_per_connection, &kafka->tup);
     if (last_tcp_seq != NULL && *last_tcp_seq == skb_info->tcp_seq) {
-        log_debug("Already seen this tcp sequence: %lu", *last_tcp_seq);
+        log_debug("kafka: already seen this tcp sequence: %lu", *last_tcp_seq);
         return false;
     }
     bpf_map_update_elem(&kafka_last_tcp_seq_per_connection, &kafka->tup, &skb_info->tcp_seq, BPF_ANY);

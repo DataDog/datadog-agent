@@ -9,7 +9,6 @@
 package kafka
 
 type kafkaTX interface {
-	ReqFragment() []byte
 	isIPV4() bool
 	SrcIPLow() uint64
 	SrcIPHigh() uint64

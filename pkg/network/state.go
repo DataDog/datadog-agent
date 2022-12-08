@@ -6,12 +6,12 @@
 package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
+	"github.com/DataDog/datadog-agent/pkg/network/kafka"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

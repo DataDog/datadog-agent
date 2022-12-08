@@ -19,6 +19,8 @@ static __inline int16_t read_big_endian_int16(const char* buf) {
 }
 
 static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_transaction, int32_t* result) {
+    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
+    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
     char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
@@ -30,6 +32,8 @@ static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_tran
 }
 
 static __inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_transaction, int16_t* result) {
+    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
+    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
     char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
@@ -61,7 +65,8 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         return false;
     }
     log_debug("kafka: request_api_key: %d", request_api_key);
-    if (request_api_key < 0 || request_api_key > KAFKA_MAX_VERSION) {
+    if (request_api_key != KAFKA_FETCH && request_api_key != KAFKA_PRODUCE) {
+        // We are only interested in fetch and produce requests
         return false;
     }
     kafka_transaction->request_api_key = request_api_key;
@@ -71,7 +76,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         return false;
     }
     log_debug("kafka: request_api_version: %d", request_api_version);
-    if (request_api_version < 0 || request_api_version > KAFKA_MAX_API) {
+    if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
     kafka_transaction->request_api_version = request_api_version;
@@ -204,40 +209,18 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
+    // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
+    // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
     char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
 
     // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
-    if (topic_name_beginning_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
+    if (topic_name_beginning_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE ||
+            topic_name_beginning_offset + TOPIC_NAME_MAX_STRING_SIZE > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
 
-    if (topic_name_beginning_offset + TOPIC_NAME_MAX_STRING_SIZE > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
-        return false;
-    }
     __builtin_memcpy(kafka_transaction->topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
-
-//#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE)
-//    for (int current_offset = 0; current_offset < TOPIC_NAME_MAX_STRING_SIZE; current_offset++) {
-//        if (current_offset >= topic_name_size) {
-//            break;
-//        }
-//
-//        barrier();
-//        char *source_address = topic_name_beginning_offset + current_offset;
-//        if (source_address >= kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
-//            break;
-//        }
-//        if (source_address >= topic_name_beginning_offset + TOPIC_NAME_MAX_STRING_SIZE) {
-//            break;
-//        }
-//        char *destination_address = kafka_transaction->topic_name + current_offset;
-//        if (destination_address >= kafka_transaction->topic_name + TOPIC_NAME_MAX_STRING_SIZE) {
-//            break;
-//        }
-//
-//        *destination_address = *source_address;
-//    }
     return true;
 }
 

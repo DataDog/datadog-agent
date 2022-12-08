@@ -8,10 +8,6 @@
 
 package kafka
 
-func (tx *ebpfKafkaTx) ReqFragment() []byte {
-	return tx.Request_fragment[:]
-}
-
 func (tx *ebpfKafkaTx) isIPV4() bool {
 	return true
 }
@@ -55,7 +51,7 @@ func (tx *ebpfKafkaTx) APIKey() uint16 {
 	return tx.Request_api_key
 }
 
-// Transactions returns the slice of HTTP transactions embedded in the batch
+// Transactions returns the slice of Kafka transactions embedded in the batch
 func (batch *kafkaBatch) Transactions() []ebpfKafkaTx {
 	return batch.Txs[:]
 }
