@@ -32,10 +32,10 @@ func SliceToArray(src []byte, dst []byte) {
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
-	len := uint32(len(data))
+	size := uint32(len(data))
 
-	for i := uint32(0); i < len; {
-		if i+4 >= len {
+	for i := uint32(0); i < size; {
+		if i+4 >= size {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
@@ -45,16 +45,22 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 		}
 		i += 4
 
-		if i+n > len {
+		if i+n > size {
 			// truncated
-			arg := NullTerminatedString(data[i:len])
-			return append(result, arg), ErrStringArrayOverflow
+			arg := NullTerminatedString(data[i:size])
+			if len(arg) > 0 {
+				result = append(result, arg)
+			}
+
+			return result, ErrStringArrayOverflow
 		}
 
 		arg := NullTerminatedString(data[i : i+n])
 		i += n
 
-		result = append(result, arg)
+		if len(arg) > 0 {
+			result = append(result, arg)
+		}
 	}
 
 	return result, nil
