@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 from invoke.exceptions import Exit
 
+from .pipeline_notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from ..flavor import AgentFlavor
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
@@ -78,13 +79,17 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
     process_env = os.environ.copy()
     process_env["CI_JOB_URL"] = job_url
     for owner in owners:
+        codeowner = CODEOWNERS_ORG_PREFIX + owner
+        slack_channel = GITHUB_SLACK_MAP.get(codeowner, DEFAULT_SLACK_CHANNEL)[1:]
         args = [
             "--service",
             "datadog-agent",
             "--tags",
-            'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
+            f'test.codeowners:["{codeowner}"]',
             "--tags",
             f"test.flavor:{flavor}",
+            "--tags",
+            f"slack_channel:{slack_channel}",
         ]
         if additional_tags:
             args.extend(additional_tags)
