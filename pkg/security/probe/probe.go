@@ -1026,31 +1026,40 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	return p.Manager.UpdateActivatedProbes(activatedProbes)
 }
 
-// DumpDiscarders removes all the discarders
-func (p *Probe) DumpDiscarders() (string, error) {
-	seclog.Debugf("Dumping discarders")
-
+// GetDiscarders retrieve the discarders
+func (p *Probe) GetDiscarders() (*DiscardersDump, error) {
 	inodeMap, err := managerhelper.Map(p.Manager, "inode_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsFB, err := managerhelper.Map(p.Manager, "discarder_stats_fb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsBB, err := managerhelper.Map(p.Manager, "discarder_stats_bb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	if err != nil {
+		return nil, err
+	}
+	return &dump, nil
+}
+
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	seclog.Debugf("Dumping discarders")
+
+	dump, err := p.GetDiscarders()
 	if err != nil {
 		return "", err
 	}
