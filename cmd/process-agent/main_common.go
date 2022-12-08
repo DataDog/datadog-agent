@@ -85,7 +85,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(globalParams.SysProbeConfFilePath); err != nil {
+	if err := config.LoadConfigIfExists(globalParams.ConfFilePath); err != nil {
 		_ = log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
 	}
