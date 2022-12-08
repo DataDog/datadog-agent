@@ -309,7 +309,7 @@ func (a *Agent) applyGlobalTags(m *api.Metadata, pt *traceutil.ProcessedTrace, s
 }
 
 func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {
-	if a.ModifySpan != nil {
+	if a.ModifySpan == nil {
 		return nil
 	}
 	a.ModifySpan(s)

@@ -132,7 +132,7 @@ func (inferredSpan *InferredSpan) CompleteInferredSpan(
 	}
 
 	processTrace(&api.Payload{
-		Meta: api.Metadata{
+		Metadata: api.Metadata{
 			Source: info.NewReceiverStats().GetTagStats(info.Tags{}),
 		},
 		TracerPayload: tracerPayload,
