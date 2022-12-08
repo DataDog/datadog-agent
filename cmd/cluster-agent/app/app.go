@@ -414,10 +414,6 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
 
-	if rcClient != nil {
-		rcClient.Close()
-	}
-
 	log.Info("See ya!")
 	log.Flush()
 	return nil
