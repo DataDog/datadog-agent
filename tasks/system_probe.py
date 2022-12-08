@@ -1176,9 +1176,7 @@ def generate_minimized_btfs(
         nw = NinjaWriter(ninja_file, width=180)
 
         nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
-
         nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
-
         nw.rule(name="compress_minimized_btf", command="tar -C $tar_working_directory -cJf $out $in && rm $in")
 
         for root, dirs, files in os.walk(source_dir):
@@ -1208,9 +1206,7 @@ def generate_minimized_btfs(
                     rule="minimize_btf",
                     inputs=[os.path.join(root, btf_filename)],
                     outputs=[minimized_btf_path],
-                    variables={
-                        "input_bpf_programs": input_bpf_programs,
-                    },
+                    implicit=input_bpf_programs,
                 )
 
                 nw.build(
