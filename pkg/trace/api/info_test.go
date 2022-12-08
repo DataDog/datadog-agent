@@ -52,7 +52,7 @@ func ensureKeys(expect, result map[string]interface{}, prefix string) error {
 			}
 		}
 	}
-	for k, _ := range result {
+	for k := range result {
 		_, ok := expect[k]
 		if !ok {
 			path := k
