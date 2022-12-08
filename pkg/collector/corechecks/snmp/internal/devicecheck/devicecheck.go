@@ -34,6 +34,7 @@ import (
 const (
 	snmpLoaderTag        = "loader:core"
 	serviceCheckName     = "snmp.can_check"
+	deviceUpMetric       = "snmp.device_up"
 	deviceHostnamePrefix = "device:"
 )
 
@@ -109,10 +110,12 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
+		d.sender.Gauge(deviceUpMetric, 0., tags)
 	} else {
 		d.savedDynamicTags = dynamicTags
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
+		d.sender.Gauge(deviceUpMetric, 1., tags)
 	}
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
