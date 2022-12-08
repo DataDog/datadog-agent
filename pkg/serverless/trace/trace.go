@@ -72,6 +72,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			tc.Hostname = ""
 			tc.OTLPReceiver.BindHost = "127.0.0.1"
 			tc.OTLPReceiver.HTTPPort = 4318
+			tc.ReceiverPort = 0
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
