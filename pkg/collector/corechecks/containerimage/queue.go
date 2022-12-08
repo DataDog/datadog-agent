@@ -65,9 +65,7 @@ func (q *queue) enqueue(elem *model.ContainerImage) {
 }
 
 func (q *queue) flush() {
-	if !q.timer.Stop() {
-		<-q.timer.C
-	}
+	q.timer.Stop()
 	q.flushCB(q.data)
 	q.data = make([]*model.ContainerImage, 0, q.maxNbItem)
 }
