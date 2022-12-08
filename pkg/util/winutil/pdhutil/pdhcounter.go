@@ -83,7 +83,7 @@ type pdhCounter struct {
 	InstanceName string
 	CounterName  string
 
-	initError error
+	initError     error
 	initFailCount int
 }
 
