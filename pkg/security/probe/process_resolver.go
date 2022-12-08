@@ -636,31 +636,27 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 	return nil
 }
 
-func isFilelessExecution(fileFields *model.FileFields) bool {
-	return fileFields.Inode != 0 && fileFields.MountID == 0
-}
-
 // SetProcessPath resolves process file path
 func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
-	if fileEvent.Inode == 0 {
+	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+
+		return pathnameStr, err
+	}
+
+	if fileEvent.Inode == 0 {
+		return onError("", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
 
 	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
 	if err != nil {
-		fileEvent.SetPathnameStr("")
-		fileEvent.SetBasenameStr("")
-
-		p.pathErrStats.Inc()
-
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+		return onError(pathnameStr, err)
 	}
 
-	if isFilelessExecution(&fileEvent.FileFields) {
+	if fileEvent.FileFields.IsFileless() {
 		fileEvent.SetPathnameStr("")
 	} else {
 		fileEvent.SetPathnameStr(pathnameStr)
@@ -730,12 +726,12 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
 	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
-		return fmt.Errorf("failed to resolve exec path: %w", err)
+		return &ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
-			return fmt.Errorf("failed to resolve interpreter path: %w", err)
+			return &ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow

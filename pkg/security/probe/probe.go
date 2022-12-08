@@ -646,6 +646,11 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
+
+			var pathErr *ErrPathResolution
+			if errors.As(err, &pathErr) {
+				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+			}
 		}
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)

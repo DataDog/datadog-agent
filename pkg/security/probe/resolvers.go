@@ -25,16 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ErrResolutionNotCritical defines a non critical error
-type ErrResolutionNotCritical struct {
-	Err error
-}
-
-// Error implements the error interface
-func (e *ErrResolutionNotCritical) Error() string {
-	return fmt.Errorf("non critical resolution error: %w", e.Err).Error()
-}
-
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
 	probe             *Probe
@@ -112,16 +102,17 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
-		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
-			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
-		}
+		return pathStr, err
+	}
+
+	if e.IsFileless() {
 		return pathStr, err
 	}
 
 	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
-			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
 	}
@@ -129,11 +120,10 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PID
 	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
-			return pathStr, &ErrResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
 		return pathStr, err
 	}
-
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)

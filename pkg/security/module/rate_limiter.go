@@ -11,7 +11,6 @@ package module
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
@@ -31,7 +30,6 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.AbnormalPathRuleID:  NewLimiter(rate.Every(time.Second), 1),
 		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
 	}
 )

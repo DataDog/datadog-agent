@@ -172,10 +172,6 @@ int kprobe_vfs_open(struct pt_regs *ctx) {
     struct dentry *dentry = get_path_dentry(path);
     struct inode *inode = get_dentry_inode(dentry);
 
-
-    struct super_block *sb = get_dentry_sb(dentry);
-    bpf_printk("Magic : %d => %x\n", get_path_mount_id(path), get_sb_magic(sb));
-
     return handle_open_event(syscall, file, path, inode);
 }
 

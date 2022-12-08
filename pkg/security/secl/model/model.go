@@ -319,10 +319,7 @@ type Credentials struct {
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (p *Process) GetPathResolutionError() string {
-	if p.FileEvent.PathResolutionError != nil {
-		return p.FileEvent.PathResolutionError.Error()
-	}
-	return ""
+	return p.FileEvent.GetPathResolutionError()
 }
 
 // HasInterpreter returns whether the process uses an interpreter
@@ -427,6 +424,12 @@ type FileFields struct {
 	NLink  uint32 `field:"-" json:"-"`
 	PathID uint32 `field:"-" json:"-"`
 	Flags  int32  `field:"-" json:"-"`
+}
+
+// IsFileless return whether it is a file less access
+func (f *FileFields) IsFileless() bool {
+	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
+	return f.Inode != 0 && f.MountID == 0
 }
 
 // HasHardLinks returns whether the file has hardlink
