@@ -251,6 +251,8 @@ struct process_context_t {
     u32 tid;
     u32 netns;
     u32 is_kworker;
+    u32 revision;
+    u32 padding;
 };
 
 struct container_context_t {

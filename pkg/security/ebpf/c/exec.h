@@ -484,6 +484,8 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     // [activity_dump] inherit tracing state
     inherit_traced_state(args, ppid, pid, event->container.container_id, event->proc_entry.comm);
 
+    update_pid_revision_cache(pid);
+
     // send the entry to maintain userspace cache
     send_event_ptr(args, EVENT_FORK, event);
 
@@ -514,6 +516,8 @@ int kprobe_do_exit(struct pt_regs *ctx) {
 
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
+
+    del_pid_revision(pid);
 
     u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
@@ -931,6 +935,8 @@ int __attribute__((always_inline)) send_exec_event(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
+
+    update_pid_revision_cache(tgid);
 
     bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 

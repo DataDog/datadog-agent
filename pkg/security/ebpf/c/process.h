@@ -48,6 +48,33 @@ struct bpf_map_def SEC("maps/proc_cache") proc_cache = {
     .max_entries = 16384,
 };
 
+struct bpf_map_def SEC("maps/pid_revisions") pid_revisions = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 16384,
+};
+
+void __attribute__((always_inline)) update_pid_revision_cache(u32 pid) {
+    u32 *revision = bpf_map_lookup_elem(&pid_revisions, &pid);
+    if (revision) {
+        __sync_fetch_and_add(revision, 1);
+    } else {
+        u32 value = 1;
+        bpf_map_update_elem(&pid_revisions, &pid, &value, BPF_ANY);
+    }
+}
+
+u32 __attribute__((always_inline)) get_pid_revision(u32 pid) {
+    u32 *revision = bpf_map_lookup_elem(&pid_revisions, &pid);
+    return revision ? *revision : 0;
+}
+
+void __attribute__((always_inline)) del_pid_revision(u32 pid) {
+    bpf_map_delete_elem(&pid_revisions, &pid);
+}
+
+
 static void __attribute__((always_inline)) fill_container_context(struct proc_cache_t *entry, struct container_context_t *context) {
     if (entry) {
         copy_container_id(entry->container.container_id, context->container_id);
@@ -137,6 +164,8 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     if (is_ignored) {
         data->is_kworker = 1;
     }
+
+    data->revision = get_pid_revision(pid);
 
     return get_proc_cache(tgid);
 }
