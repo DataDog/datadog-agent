@@ -135,8 +135,8 @@ func (c *Check) Run() error {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(
 			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-			workloadmeta.SourceAll,    // TODO: check
-			workloadmeta.EventTypeAll, // TODO: Do we have image deletion / are we interested in deletion ?
+			workloadmeta.SourceAll,
+			workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
 		),
 	)
 
