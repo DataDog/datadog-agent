@@ -313,6 +313,7 @@ func (a *Agent) modifySpan(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.
 		return nil
 	}
 	a.ModifySpan(s)
+	return nil
 }
 
 func updateTopLevel(m *api.Metadata, pt *traceutil.ProcessedTrace, s *pb.Span) error {

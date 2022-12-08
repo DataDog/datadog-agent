@@ -372,7 +372,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			t.Fatal("timed out")
 		case p := <-out:
 			// stats are computed this time
-			require.False(p.Meta.ClientComputedStats)
+			require.False(p.Metadata.ClientComputedStats)
 		}
 		// after the first receive, the keyStatsComputed attribute has to be applied,
 		// so that on the second run stats are skipped
@@ -385,7 +385,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			t.Fatal("timed out")
 		case p := <-out:
 			// stats are not computed the second time
-			require.True(p.Meta.ClientComputedStats)
+			require.True(p.Metadata.ClientComputedStats)
 		}
 	})
 }
