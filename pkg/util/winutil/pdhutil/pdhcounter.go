@@ -306,6 +306,9 @@ func CreatePdhQuery() (*PdhQuery, error) {
 }
 
 // Close closes the query handle, freeing the underlying windows resources.
+// It is not necessary to remove the counters from the query before calling this function.
+// PdhCloseQuery closes all counter handles associated with the query.
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 func (query *PdhQuery) Close() {
 	pfnPdhCloseQuery(query.handle)
 }
