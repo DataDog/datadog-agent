@@ -1150,49 +1150,40 @@ def tempdir():
 
 
 def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
-    sudo = "sudo" if not is_root() else ""
     btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
 
     if arch == "x64":
-        arch = "amd64"
+        arch = "x86-64"
+    elif arch == "arm64":
+        arch = "aarch64"
 
-    download_btfs(ctx, btf_dir, arch)
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}.tar.xz"):
+        exit("BTFs for kitchen test environments not found. Please update & re-provision your dev VM.")
+
+    sudo = "sudo" if not is_root() else ""
+    ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
+
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}"):
+        ctx.run(f"mkdir {btf_dir}/kitchen-btfs-{arch} && " +
+                f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}")
 
     try:
         co_re_programs = glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o")
         generate_minimized_btfs(
             ctx,
-            source_dir=f"{btf_dir}/btfs-{arch}",
+            source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
             input_bpf_programs=co_re_programs
         )
 
         ctx.run(f"cd {btf_dir}/minimized-btfs && " +
-                f"{sudo} tar -cJf minimized-btfs.tar.xz * && " +
-                f"{sudo} mv minimized-btfs.tar.xz {files_dir}")
+                f"tar -cJf minimized-btfs.tar.xz * && " +
+                f"mv minimized-btfs.tar.xz {files_dir}")
     except:
-        print("cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead. " +
+        print("Cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead. " +
               "In order to minimize BTFs, you will need to have bpftool version 6 or higher.")
 
-        ctx.run(f"cd {btf_dir}/btfs-{arch} && " +
-                f"{sudo} tar -cJf minimized-btfs.tar.xz * && " +
-                f"{sudo} mv minimized-btfs.tar.xz {files_dir}")
-
-
-def download_btfs(ctx, btf_dir, arch):
-    sudo = "sudo" if not is_root() else ""
-
-    if not os.path.exists(btf_dir):
-        ctx.run(f"{sudo} mkdir -p {btf_dir}")
-
-    if not os.path.exists(f"{btf_dir}/btfs-{arch}.tar.gz"):
-        btfs_url = f"https://dd-agent-omnibus.s3.amazonaws.com/btfs/btfs-{arch}.tar.gz"
-        ctx.run(f"{sudo} wget -q {btfs_url} -O {btf_dir}/btfs-{arch}.tar.gz")
-
-    if not os.path.exists(f"{btf_dir}/btfs-{arch}"):
-        ctx.run(f"{sudo} tar xf {btf_dir}/btfs-{arch}.tar.gz -C {btf_dir}")
-
-    ctx.run(f"{sudo} chmod 0755 {btf_dir}")
+        ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
 @task
