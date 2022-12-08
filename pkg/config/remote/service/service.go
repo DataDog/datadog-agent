@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
+	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
-	"github.com/theupdateframework/go-tuf/data"
-	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 

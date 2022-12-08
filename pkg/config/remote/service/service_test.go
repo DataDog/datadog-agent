@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/theupdateframework/go-tuf/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/data"
 	"github.com/pkg/errors"
-	"github.com/theupdateframework/go-tuf/client"
-	"github.com/theupdateframework/go-tuf/data"
 	"go.etcd.io/bbolt"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
