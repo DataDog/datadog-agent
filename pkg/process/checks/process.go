@@ -174,8 +174,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		return &RunResult{}, nil
 	}
 
-	collectorProcHints := make([]model.CollectorProcHint, 1, 2)
-	p.processDiscoveryHintCheck(&collectorProcHints)
+	collectorProcHints := p.generateHints()
 
 	connsByPID := Connections.getLastConnectionsByPID()
 	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
@@ -250,11 +249,13 @@ func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func(
 	return nil, errors.New("invalid run options for check")
 }
 
-func (p *ProcessCheck) processDiscoveryHintCheck(hints *[]model.CollectorProcHint) {
+func (p *ProcessCheck) generateHints() []model.CollectorProcHint {
+	hints := make([]model.CollectorProcHint, 1, 1)
 	if p.checkCount%p.skipAmount == 0 {
-		*hints = append(*hints, model.CollectorProcHint_hintProcessDiscovery)
+		hints[0] = model.CollectorProcHint_hintProcessDiscovery
 	}
 	p.checkCount++
+	return hints
 }
 
 func createProcCtrMessages(

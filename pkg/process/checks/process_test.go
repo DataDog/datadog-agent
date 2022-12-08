@@ -114,7 +114,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -123,7 +122,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -132,7 +130,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -141,7 +138,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -150,7 +146,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -182,7 +177,6 @@ func TestProcessCheckHints(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
@@ -213,7 +207,6 @@ func TestProcessCheckHints(t *testing.T) {
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
 			Hints: []model.CollectorProcHint{
-				model.CollectorProcHint_hintUnspecified,
 				model.CollectorProcHint_hintProcessDiscovery,
 			},
 		},
