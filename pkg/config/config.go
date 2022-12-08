@@ -1193,6 +1193,27 @@ func InitConfig(config Config) {
 	// Windows Performance Counter refresh interval
 	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
 	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
+	// Added in Agent version 7.42
+	// Limits the number of times a check will attempt to initialize a performance pounter before ceasing
+	// attempts to initialize the counter.
+	// Typically there is one attempt per check run.
+	// This allows the Agent to stop incurring the overhead of trying to initialize a counter that
+	// will probably never succeed. For example, when the performance counter database needs to be rebuilt,
+	// or the counter is disabled.
+	//
+	// The value of this option should be chosen in consideration with the windows_counter_refresh_interval option.
+	// The performance counter cache is refreshed during subsequent attempts to intiialize a counter that failed
+	// the first time (with consideration of the windows_counter_refresh_interval value).
+	// It is unknown if it is possible for a counter that failed to initialize to later succeed without a refresh
+	// in between the attempts. Consequently, if windows_counter_refresh_interval is 0 (disabled), then this option should
+	// be 1. If this option is too small compared to the windows_counter_refresh_interval, it is possible to reach the limit
+	// before a refresh occurs. Typically there is one attempt per check run, and check runs are 15 seconds apart by default.
+	//
+	// Increasing this value may help in the rare instance where counters are not available for some time after host boot.
+	//
+	// Setting this option to 0 disables the limit and the Agent will attempt to initialize the counter forever.
+	// The default value of 20 means the Agent will retry counter intialization for roughly 5 minutes.
+	config.BindEnvAndSetDefault("windows_counter_init_failure_limit", 20)
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)

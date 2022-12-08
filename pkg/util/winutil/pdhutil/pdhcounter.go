@@ -10,6 +10,7 @@ package pdhutil
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -83,6 +84,7 @@ type pdhCounter struct {
 	CounterName  string
 
 	initError error
+	initFailCount int
 }
 
 // pdhEnglishCounter implements AddToQuery for both single and multi instance english counters
@@ -108,20 +110,38 @@ func (counter *pdhCounter) ShouldInit() bool {
 		// already initialized
 		return false
 	}
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		counter.initError = fmt.Errorf("Counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt.")
+		// attempts exceeded
+		return false
+	}
 	return true
+}
+
+func (counter *pdhCounter) countInitError(err error) error {
+	counter.initFailCount += 1
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
+	} else if initFailLimit > 0 {
+		err = fmt.Errorf("%v (Failure %d/%d)", err, counter.initFailCount, initFailLimit)
+	} else {
+		err = fmt.Errorf("%v (Failure %d)", err, counter.initFailCount)
+	}
+	counter.initError = err
+	return counter.initError
 }
 
 // Implements PdhCounter.AddToQuery for english counters.
 func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 	path, err := pfnPdhMakeCounterPath("", counter.ObjectName, counter.InstanceName, counter.CounterName)
 	if err != nil {
-		counter.initError = fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
-		return counter.initError
+		return counter.countInitError(fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err))
 	}
 	pdherror := pfnPdhAddEnglishCounter(query.handle, path, uintptr(0), &counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		counter.initError = fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
-		return counter.initError
+		return counter.countInitError(fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror))
 	}
 	counter.initError = nil
 	return nil
