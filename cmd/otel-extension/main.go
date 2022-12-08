@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -54,7 +55,7 @@ var (
 
 func main() {
 	configureLogging()
-	log.Info("starting dd otel extension")
+	log.Infof("starting dd otel extension version %s", tags.GetExtensionVersion())
 
 	traceAgent := &trace.ServerlessTraceAgent{}
 	traceAgent.Start(true, &trace.LoadConfig{Path: datadogConfigPath}, nil)
