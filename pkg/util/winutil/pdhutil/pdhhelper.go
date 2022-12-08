@@ -64,8 +64,8 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	//
 	// returns didrefresh=true if the refresh operation was successful
 	//
-	// Background information
-	// -----------------------
+	// Background information for 'windows_counter_refresh_interval' config
+	// --------------------------------------------------------------------
 	// Controls the minimum number of seconds that must have elapsed before the
 	// cached performance counters objects list can be refreshed again. Starting
 	// in 7.40 it had been used for all Windows Performance Counters based
@@ -77,11 +77,11 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// cases when their initialization fails.
 	//
 	// A higher value will have lower performance impact and create fewer perflib
-	// Windows Event log warnings and errors but will increase the time before the
+	// Windows Event log errors and warnings but will increase the time before the
 	// failing counters have a chance to initialize successfully. A lower value
 	// will have higher performance impact and create more perflib Windows Event
-	// log perflib Windows Event log warnings but will decrease the time before
-	// the failing counters have a chance to initialize successfully.
+	// log errors and warnings but will decrease the time before the failing
+	// counters have a chance to initialize successfully.
 
 	var len uint32
 
