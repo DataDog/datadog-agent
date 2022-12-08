@@ -1206,7 +1206,9 @@ def generate_minimized_btfs(
                     rule="minimize_btf",
                     inputs=[os.path.join(root, btf_filename)],
                     outputs=[minimized_btf_path],
-                    implicit=input_bpf_programs,
+                    variables={
+                        "input_bpf_programs": input_bpf_programs,
+                    },
                 )
 
                 nw.build(
