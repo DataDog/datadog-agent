@@ -68,7 +68,6 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]metrics.Event, [
 		tagsAccumulator := tagset.NewHashlessTagsAccumulator()
 
 		tagsAccumulator.Append(getInvolvedObjectTags(involvedObject)...)
-		tagsAccumulator.Append(getInvolvedObjectTags(involvedObject)...)
 		tagsAccumulator.Append(
 			fmt.Sprintf("source_component:%s", ev.Source.Component),
 			fmt.Sprintf("event_reason:%s", ev.Reason))
