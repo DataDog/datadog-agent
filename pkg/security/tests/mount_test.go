@@ -489,6 +489,8 @@ func TestMountEvent(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_mount_in_container_root")
 			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
+			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
+			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			if !validateMountSchema(t, event) {
 				t.Error(event.String())
 			}
