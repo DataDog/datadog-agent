@@ -257,7 +257,7 @@ build_microvm_filesystem_x64:
 build_microvm_filesystem_arm64:
   extends: .build_microvm_filesystem_common
   tags: ["runner:docker-arm", "platform:arm64"]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/kernel-version-testing_x64:$DATADOG_AGENT_KERNEL_VERSION_TESTING_ARM64_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/kernel-version-testing_arm64:$DATADOG_AGENT_KERNEL_VERSION_TESTING_ARM64_BUILDIMAGES
   variables:
     IMAGE_VERSION: "0.1"
     DEBARCH: "arm64"
