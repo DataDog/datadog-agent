@@ -468,9 +468,10 @@ def test(
         for flavor in flavors:
             coverage_flavor(ctx, flavor, modules)
 
-    # FIXME: this prints nothing in CI
+    # FIXME(AP-XXXX): this prints nothing in CI. Commenting out the print line
+    # in the meantime to avoid confusion
     if profile:
-        print("\n--- Top 15 packages sorted by run time:")
+        # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
     should_fail = False
@@ -484,7 +485,7 @@ def test(
                 failed_packages = set()
                 failed_tests = defaultdict(set)
 
-                # TODO: this logic is now repreated, with some variations, in three places:
+                # TODO(AP-XXXX): this logic is now repreated, with some variations, in three places:
                 # here, in system-probe.py, and in libs/pipeline_notifications.py
                 # We should have some common result.json parsing lib.
                 with open(module_test_result.result_json_path) as tf:
@@ -493,7 +494,7 @@ def test(
                         # This logic assumes that the lines in result.json are "in order", i.e. that retries
                         # are logged after the initial test run.
 
-                        # The line is a "Package" line, but not a "Test" line
+                        # The line is a "Package" line, but not a "Test" line.
                         # We take these into account, because in some cases (panics, race conditions),
                         # individual test failures are not reported, only a package-level failure is.
                         if 'Package' in json_test and 'Test' not in json_test:
@@ -517,17 +518,17 @@ def test(
                                 # The test was retried and succeeded, removing from the list of tests to report
                                 failed_tests[package].remove(name)
 
-                    if failed_packages:
-                        failure_string += "Failed tests:\n"
-                        for package in sorted(failed_packages):
-                            tests = failed_tests.get(package, set())
-                            if not tests:
-                                failure_string += f"- {package} package failed due to panic / race condition\n"
-                            else:
-                                for name in sorted(tests):
-                                    failure_string += f"- {package} {name}\n"
-                    else:
-                        failure_string += "The test command failed, but no test failures detected in the result json."
+                if failed_packages:
+                    failure_string += "Failed tests:\n"
+                    for package in sorted(failed_packages):
+                        tests = failed_tests.get(package, set())
+                        if not tests:
+                            failure_string += f"- {package} package failed due to panic / race condition\n"
+                        else:
+                            for name in sorted(tests):
+                                failure_string += f"- {package} {name}\n"
+                else:
+                    failure_string += "The test command failed, but no test failures detected in the result json."
 
                 print(failure_string)
 
