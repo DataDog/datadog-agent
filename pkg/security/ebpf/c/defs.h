@@ -220,6 +220,7 @@ enum event_type
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
     EVENT_BIND,
+    EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
     EVENT_MAX, // has to be the last one
 
