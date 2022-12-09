@@ -587,7 +587,12 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 
 	if entry.IsContainerInit() {
-		p.resolvers.CgroupsResolver.DelPID1(entry.ContainerID)
+		p.resolvers.CgroupsResolver.Release(entry.ContainerID)
+	}
+
+	// Release also the parent if the entry is a fork child. The parent could have increased the ref counter too
+	if entry.IsThread && entry.Ancestor.IsContainerInit() {
+		p.resolvers.CgroupsResolver.Release(entry.Ancestor.ContainerID)
 	}
 
 	delete(p.entryCache, entry.Pid)
