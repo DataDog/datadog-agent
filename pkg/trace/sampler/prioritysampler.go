@@ -79,6 +79,10 @@ func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
 	s.sampler.updateTargetTPS(targetTPS)
 }
 
+func (s *PrioritySampler) GetTargetTPS() float64 {
+	return s.sampler.targetTPS.Load()
+}
+
 // update sampling rates
 func (s *PrioritySampler) updateRates() {
 	s.rateByService.SetAll(s.ratesByService())

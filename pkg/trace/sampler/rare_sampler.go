@@ -98,6 +98,10 @@ func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
 }
 
+func (e *RareSampler) IsEnabled() bool {
+	return e.enabled.Load()
+}
+
 func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
 	expire := now.Add(ttl)
 	for _, s := range t.Spans {
