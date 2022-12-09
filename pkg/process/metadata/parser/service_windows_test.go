@@ -40,7 +40,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 		{
 			name: "java using the -jar flag",
 			cmdline: []string{
-				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "\"C:\\Program Files\\datadog\\myService.jar\"",
+				"\"C:\\Program Files\\Java\\j2re1.4.2_04\\bin\\javaw.exe\"", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "myService.jar",
 			},
 			expectedServiceTag: "service:myservice",
 		},

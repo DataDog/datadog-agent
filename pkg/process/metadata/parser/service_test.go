@@ -89,7 +89,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 		{
 			name: "java class name as service",
 			cmdline: []string{
-				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "com.datadog.example.HelloWorld",
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
 			},
 			expectedServiceTag: "service:HelloWorld",
 		},
