@@ -63,11 +63,9 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 }
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
-func newMountFromMountInfo(mnt *mountinfo.Info) (*model.Mount, error) {
-	groupID, err := parseGroupID(mnt)
-	if err != nil {
-		return nil, err
-	}
+func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
+	// groupID is not use for the path resolution, don't make it critical
+	groupID, _ := parseGroupID(mnt)
 
 	// create a MountEvent out of the parsed MountInfo
 	return &model.Mount{
@@ -79,7 +77,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) (*model.Mount, error) {
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
 		RootStr:       mnt.Root,
-	}, nil
+	}
 }
 
 type deleteRequest struct {
@@ -155,11 +153,7 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 			continue
 		}
 
-		m, err := newMountFromMountInfo(mnt)
-		if err != nil {
-			return err
-		}
-
+		m := newMountFromMountInfo(mnt)
 		mr.insert(m)
 	}
 
