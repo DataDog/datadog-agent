@@ -188,17 +188,17 @@ build_processed_btfhub_archive:
     # build debian environment with deboostrap
     - debootstrap --arch=$DEBARCH --include=$PREINSTALL_PKGS --components=bullseye,bullseye-backports,bullseye-security,main,contrib,non-free bullseye $FSBASE
     # enable promptless ssh to machine for root
-    - sed -i '/^root/ {{ s/:x:/::/ }}' $FSBASE/etc/passwd
+    - 'sed -i "/^root/ {{ s/:x:/::/ }}" $FSBASE/etc/passwd'
     # set defaults
-    - echo 'T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100' | tee -a $FSBASE/etc/inittab
-    - echo '/dev/root / ext4 defaults 0 0' | tee -a $FSBASE/etc/fstab
-    - echo 'debugfs /sys/kernel/debug debugfs defaults 0 0' | tee -a $FSBASE/etc/fstab
-    - echo 'mount -t tracefs nodev /sys/kernel/tracing' | tee -a $FSBASE/etc/fstab
-    - echo 'binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc defaults 0 0' | tee -a $FSBASE/etc/fstab
-    - echo -en "127.0.0.1\tlocalhost\n" | tee $FSBASE/etc/hosts
-    - echo "nameserver 8.8.8.8" | tee -a $FSBASE/etc/resolv.conf
-    - echo "ddvm" | tee $FSBASE/etc/hostname
-    - echo -en "127.0.1.1\tddvm\n" | tee -a $FSBASE/etc/hosts
+    - 'echo "T0:23:respawn:/sbin/getty -L ttyS0 115200 vt100" | tee -a $FSBASE/etc/inittab'
+    - 'echo "/dev/root / ext4 defaults 0 0" | tee -a $FSBASE/etc/fstab'
+    - 'echo "debugfs /sys/kernel/debug debugfs defaults 0 0" | tee -a $FSBASE/etc/fstab'
+    - 'echo "mount -t tracefs nodev /sys/kernel/tracing" | tee -a $FSBASE/etc/fstab'
+    - 'echo "binfmt_misc /proc/sys/fs/binfmt_misc binfmt_misc defaults 0 0" | tee -a $FSBASE/etc/fstab'
+    - 'echo -en "127.0.0.1\tlocalhost\n" | tee $FSBASE/etc/hosts'
+    - 'echo "nameserver 8.8.8.8" | tee -a $FSBASE/etc/resolv.conf'
+    - 'echo "ddvm" | tee $FSBASE/etc/hostname'
+    - 'echo -en "127.0.1.1\tddvm\n" | tee -a $FSBASE/etc/hosts'
     # Setup dev env
     ## Add repositories
     - echo "${SOURCE_LIST}" | tee $FSBASE/etc/apt/sources.list
@@ -207,7 +207,7 @@ build_processed_btfhub_archive:
     - wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-{CLANG_LLVM_VER}/clang+llvm-{CLANG_LLVM_VER}-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O $FSBASE/opt/clang.tar.xz
     - echo "6b3cc55d3ef413be79785c4dc02828ab3bd6b887872b143e3091692fc6acefe7  ${FSBASE}/opt/clang.tar.xz" | sha256sum --check
     - tar xf $FSBASE/opt/clang/clang.tar.xz --strip-components=1 -C $FSBASE/opt/clang
-    - echo 'PATH=$PATH:/opt/clang/bin' | tee -a $FSBASE/root/.bashrc
+    - 'echo "PATH=$PATH:/opt/clang/bin" | tee -a $FSBASE/root/.bashrc'
     ## Setup golang
     - curl -sL -o $FSBASE/usr/bin/gimme https://raw.githubusercontent.com/travis-ci/gimme/master/gimme
     - chmod +x $FSBASE/usr/bin/gimme
@@ -216,7 +216,7 @@ build_processed_btfhub_archive:
     ## Setup agent env
     - mkdir $FSBASE/etc/datadog-agent
     - mkdir -p $FSBASE/opt/datadog-agent/run
-    - echo "system_probe_config:\n  enabled: true\n" | tee $FSBASE/etc/datadog-agent/system-probe.yaml
+    - 'echo "system_probe_config:\n  enabled: true\n" | tee $FSBASE/etc/datadog-agent/system-probe.yaml'
     - mkdir -p $FSBASE/opt/datadog-agent/embedded/nikos/embedded
     - mkdir -p $FSBASE/opt/datadog-agent/embedded/bin
     - echo "-r https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/main/requirements.txt" | tee > /tmp/requirements.txt
