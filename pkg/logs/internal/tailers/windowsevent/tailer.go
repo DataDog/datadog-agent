@@ -22,10 +22,13 @@ import (
 )
 
 const (
-	binaryPath = "Event.EventData.Binary"
-	dataPath   = "Event.EventData.Data"
-	taskPath   = "Event.System.Task"
-	opcode     = "Event.System.Opcode"
+	binaryPath  = "Event.EventData.Binary"
+	dataPath    = "Event.EventData.Data"
+	taskPath    = "Event.System.Task"
+	opcode      = "Event.System.Opcode"
+	eventIDPath = "Event.System.EventID"
+	// Custom path, not a Microsoft path
+	eventIDQualifierPath = "Event.System.EventIDQualifier"
 )
 
 // Config is a event log tailer configuration
@@ -112,6 +115,12 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:u
 		}
 	}
 
+	// Normalize the Event.System.EventID field
+	err = normalizeEventID(mv)
+	if err != nil {
+		log.Debugf("Error normalizing EventID: %s", err)
+	}
+
 	// Replace Task and Opcode codes by the rendered value
 	if re.task != "" {
 		_, _ = mv.UpdateValuesForPath("Task:"+re.task, taskPath)
@@ -134,6 +143,39 @@ func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) { //nolint:u
 	jsonEvent = replaceTextKeyToValue(jsonEvent)
 	log.Debug("Sending JSON:", string(jsonEvent))
 	return message.NewMessageWithSource(jsonEvent, message.StatusInfo, t.source, time.Now().UnixNano()), nil
+}
+
+// EventID sometimes comes in like <EventID>7036</EventID>
+//   which mxj will transform to "EventID":"7036"
+// other times it comes in like <EventID Qualifiers='16384'>7036</EventID>
+//   which mxj will transform to "EventID":{"value":"7036","Qualifiers":"16384"}
+// We want to normalize this so the resulting JSON is consistent
+//   "EventID":"7036","EventIDQualifier":"16384"
+// Format definition: https://learn.microsoft.com/en-us/windows/win32/wes/eventschema-systempropertiestype-complextype
+func normalizeEventID(mv mxj.Map) error {
+	values, err := mv.ValuesForPath(eventIDPath)
+	if err != nil || len(values) == 0 {
+		return fmt.Errorf("could not find path: %s", eventIDPath)
+	}
+	for _, value := range values {
+		valueMap, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Get element value
+		text, foundText := valueMap["#text"]
+		// Qualifier optional
+		qualifier, foundQualifier := valueMap["Qualifiers"]
+		if foundText && foundQualifier {
+			// Remove Qualifiers attribute from EventID by
+			// overwriting the path with just the text value
+			_ = mv.SetValueForPath(text, eventIDPath)
+			// Add qualifier value to a new path
+			_ = mv.SetValueForPath(qualifier, eventIDQualifierPath)
+		}
+	}
+	return nil
 }
 
 // extractDataField transforms the fields parsed from <Data Name='NAME1'>VALUE1</Data><Data Name='NAME2'>VALUE2</Data> to

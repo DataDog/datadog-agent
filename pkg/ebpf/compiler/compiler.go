@@ -14,7 +14,6 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -36,6 +35,7 @@ var (
 
 const compilationStepTimeout = 60 * time.Second
 
+// CompileToObjectFile compiles an eBPF program
 func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, headerDirs []string) error {
 	if len(headerDirs) == 0 {
 		return fmt.Errorf("unable to find kernel headers")
@@ -46,7 +46,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
-	tmpIncludeDir, err := ioutil.TempDir(os.TempDir(), "include-")
+	tmpIncludeDir, err := os.MkdirTemp(os.TempDir(), "include-")
 	if err != nil {
 		return fmt.Errorf("error creating temporary include directory: %s", err.Error())
 	}

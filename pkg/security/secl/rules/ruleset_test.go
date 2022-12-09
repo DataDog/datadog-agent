@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -67,7 +68,9 @@ func addRuleExpr(t *testing.T, rs *RuleSet, exprs ...string) {
 		ruleDefs = append(ruleDefs, ruleDef)
 	}
 
-	if err := rs.AddRules(ruleDefs); err != nil {
+	pc := ast.NewParsingContext()
+
+	if err := rs.AddRules(pc, ruleDefs); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -323,7 +326,7 @@ func TestRuleSetApprovers4(t *testing.T) {
 	caps = FieldCapabilities{
 		{
 			Field: "open.filename",
-			Types: eval.ScalarValueType | eval.PatternValueType,
+			Types: eval.ScalarValueType | eval.GlobValueType,
 		},
 	}
 
@@ -494,7 +497,7 @@ func TestRuleSetApprovers11(t *testing.T) {
 	caps := FieldCapabilities{
 		{
 			Field:        "open.filename",
-			Types:        eval.ScalarValueType | eval.PatternValueType,
+			Types:        eval.ScalarValueType | eval.GlobValueType,
 			FilterWeight: 3,
 		},
 	}
@@ -545,12 +548,36 @@ func TestRuleSetApprovers13(t *testing.T) {
 	}
 }
 
+func TestRuleSetApprovers14(t *testing.T) {
+	exprs := []string{
+		`open.filename == "/etc/passwd"`,
+		`open.filename =~ "/etc/*/httpd"`,
+	}
+
+	rs := newRuleSet()
+	addRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.filename",
+			Types:        eval.ScalarValueType | eval.GlobValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.filename"]) != 2 {
+		t.Fatalf("shouldn't get an approver for filename: %v", approvers)
+	}
+}
+
 func TestGetRuleEventType(t *testing.T) {
+	pc := ast.NewParsingContext()
 	rule := &eval.Rule{
 		ID:         "aaa",
 		Expression: `open.filename == "test"`,
 	}
-	if err := rule.GenEvaluator(&testModel{}, emptyReplCtx()); err != nil {
+	if err := rule.GenEvaluator(&testModel{}, pc, emptyReplCtx()); err != nil {
 		t.Fatal(err)
 	}
 

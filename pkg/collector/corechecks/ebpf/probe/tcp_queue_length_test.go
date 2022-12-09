@@ -155,10 +155,9 @@ func server() error {
 	return handleRequest(conn)
 }
 
-const MSG_LEN = 10000
-
 func client() error {
 	defer wg.Done()
+	const msgLen = 10000
 
 	serverReadyCond.Wait()
 
@@ -168,11 +167,11 @@ func client() error {
 	}
 	defer conn.Close()
 
-	msg := make([]byte, MSG_LEN)
-	for i := 0; i < MSG_LEN-1; i++ {
+	msg := make([]byte, msgLen)
+	for i := 0; i < msgLen-1; i++ {
 		msg[i] = 4
 	}
-	msg[MSG_LEN-1] = 0
+	msg[msgLen-1] = 0
 
 	conn.Write(msg)
 

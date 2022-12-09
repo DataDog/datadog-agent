@@ -40,16 +40,18 @@ func newReplCtxWithParams(constants map[string]interface{}, legacyFields map[Fie
 }
 
 func parseRule(expr string, model Model, replCtx ReplacementContext) (*Rule, error) {
+	pc := ast.NewParsingContext()
+
 	rule := &Rule{
 		ID:         "id1",
 		Expression: expr,
 	}
 
-	if err := rule.Parse(); err != nil {
+	if err := rule.Parse(pc); err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
-	if err := rule.GenEvaluator(model, replCtx); err != nil {
+	if err := rule.GenEvaluator(model, pc, replCtx); err != nil {
 		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
@@ -87,7 +89,7 @@ func TestStringError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 73 {
 		t.Fatal("should report a string type error")
 	}
@@ -102,7 +104,7 @@ func TestIntError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 51 {
 		t.Fatal("should report a string type error")
 	}
@@ -117,7 +119,7 @@ func TestBoolError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = ruleToEvaluator(rule.GetAst(), model, emptyReplCtx())
+	_, err = NewRuleEvaluator(rule.GetAst(), model, emptyReplCtx())
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
 	}
@@ -582,12 +584,14 @@ func TestPartial(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
+	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"list",
 		`[ "/etc/shadow", "/etc/password" ]`,
 		model,
+		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -610,12 +614,14 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
+	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
+		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -647,12 +653,14 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
+	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
+		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -710,12 +718,14 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
+	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
 		`[ "/etc/shadow", "/etc/passwd" ]`,
 		model,
+		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -727,6 +737,7 @@ func TestNestedMacros(t *testing.T) {
 		"is_sensitive_opened",
 		`open.filename in sensitive_files`,
 		model,
+		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -1343,6 +1354,37 @@ func TestOpOverridePartials(t *testing.T) {
 	}
 }
 
+func TestFieldValues(t *testing.T) {
+	tests := []struct {
+		Expr     string
+		Field    string
+		Expected FieldValue
+	}{
+		{Expr: `process.name == "/proc/1/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/maps", Type: ScalarValueType}},
+		{Expr: `process.name =~ "/proc/1/*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/*", Type: GlobValueType}},
+		{Expr: `process.name =~ r"/proc/1/.*"`, Field: "process.name", Expected: FieldValue{Value: "/proc/1/.*", Type: RegexpValueType}},
+		{Expr: `process.name == "/proc/${pid}/maps"`, Field: "process.name", Expected: FieldValue{Value: "/proc/${pid}/maps", Type: VariableValueType}},
+		{Expr: `open.filename =~ "/proc/1/*"`, Field: "open.filename", Expected: FieldValue{Value: "/proc/1/*", Type: PatternValueType}},
+	}
+
+	for _, test := range tests {
+		model := &testModel{}
+
+		replCtx := newReplCtxWithParams(testConstants, nil)
+		rule, err := parseRule(test.Expr, model, replCtx)
+		if err != nil {
+			t.Fatalf("error while evaluating `%s`: %s", test.Expr, err)
+		}
+		values := rule.GetFieldValues(test.Field)
+		if len(values) != 1 {
+			t.Fatalf("expected field value not found: %+v", test.Expected)
+		}
+		if values[0].Type != test.Expected.Type || values[0].Value != test.Expected.Value {
+			t.Errorf("field values differ %+v != %+v", test.Expected, values[0])
+		}
+	}
+}
+
 func BenchmarkArray(b *testing.B) {
 	event := &testEvent{
 		process: testProcess{
@@ -1447,7 +1489,8 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	if err := rule.GenEvaluator(model, emptyReplCtx()); err != nil {
+	pc := ast.NewParsingContext()
+	if err := rule.GenEvaluator(model, pc, emptyReplCtx()); err != nil {
 		b.Fatal(err)
 	}
 

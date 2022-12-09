@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/v2/metrics/provider"
+	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -75,12 +75,7 @@ func TestProcessCheckFirstRun(t *testing.T) {
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-	pids := []int32{}
-	for pid := range processesByPid {
-		pids = append(pids, pid)
-	}
 
-	ProcessNotify.UpdateCreateTimes(map[int32]int64{})
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
 
@@ -90,17 +85,6 @@ func TestProcessCheckFirstRun(t *testing.T) {
 	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
-
-	// Create times are always updated on process collection
-	expectedCreateTimes := map[int32]int64{
-		1: now,
-		2: now + 1,
-		3: now + 2,
-		4: now + 3,
-		5: now + 2,
-	}
-
-	assert.Equal(t, expectedCreateTimes, ProcessNotify.GetCreateTimes(pids))
 }
 
 func TestProcessCheckSecondRun(t *testing.T) {
@@ -113,12 +97,7 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
 	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
 	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
-	pids := []int32{}
-	for pid := range processesByPid {
-		pids = append(pids, pid)
-	}
 
-	ProcessNotify.UpdateCreateTimes(map[int32]int64{})
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
 		Return(processesByPid, nil)
 
@@ -158,17 +137,6 @@ func TestProcessCheckSecondRun(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
 	assert.Nil(t, actual.RealTime)
-
-	// Create times are always updated on process collection
-	expectedCreateTimes := map[int32]int64{
-		1: now,
-		2: now + 1,
-		3: now + 2,
-		4: now + 3,
-		5: now + 2,
-	}
-
-	assert.Equal(t, expectedCreateTimes, ProcessNotify.GetCreateTimes(pids))
 }
 
 func TestProcessCheckWithRealtime(t *testing.T) {

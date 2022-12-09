@@ -24,9 +24,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -45,6 +45,7 @@ type pendingMsg struct {
 // APIServer represents a gRPC server in charge of receiving events sent by
 // the runtime security system-probe module and forwards them to Datadog
 type APIServer struct {
+	api.UnimplementedSecurityModuleServer
 	msgs                 chan *api.SecurityEventMessage
 	processMsgs          chan *api.SecurityProcessEventMessage
 	activityDumps        chan *api.ActivityDumpStreamMessage
@@ -155,12 +156,6 @@ LOOP:
 	}
 
 	return nil
-}
-
-// Event is the interface that an event must implement to be sent to the backend
-type Event interface {
-	GetTags() []string
-	GetType() string
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
@@ -588,7 +583,7 @@ func NewAPIServer(cfg *config.Config, probe *sprobe.Probe, client statsd.ClientI
 	es := &APIServer{
 		msgs:                 make(chan *api.SecurityEventMessage, cfg.EventServerBurst*3),
 		processMsgs:          make(chan *api.SecurityProcessEventMessage, cfg.EventServerBurst*3),
-		activityDumps:        make(chan *api.ActivityDumpStreamMessage, probes.MaxTracedCgroupsCount*2),
+		activityDumps:        make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:        make(map[rules.RuleID]*atomic.Int64),
 		expiredProcessEvents: atomic.NewInt64(0),
 		expiredDumps:         atomic.NewInt64(0),

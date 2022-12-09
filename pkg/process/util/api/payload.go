@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/zstd_0"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -35,28 +34,20 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	var encoded []byte
 	if msgType == model.TypeCollectorProcEvent {
 		encoded, err = proto.Marshal(m)
-	} else if msgType == model.TypeCollectorManifest {
-		encoded, err = encodeManifestPayload(m)
 	} else {
+		encoding := model.MessageEncodingZstdPB
+		if msgType == model.TypeCollectorConnections {
+			encoding = model.MessageEncodingZstd1xPB
+		}
 		encoded, err = model.EncodeMessage(model.Message{
 			Header: model.MessageHeader{
 				Version:  model.MessageV3,
-				Encoding: model.MessageEncodingZstdPB,
+				Encoding: encoding,
 				Type:     msgType,
 			}, Body: m})
 	}
 
 	tlmBytesOut.Add(float64(len(encoded)), typeTag)
 
-	return encoded, err
-}
-
-func encodeManifestPayload(m model.MessageBody) ([]byte, error) {
-	pb, err := proto.Marshal(m)
-	if err != nil {
-		return pb, err
-	}
-
-	encoded, err := zstd_0.Compress(nil, pb)
 	return encoded, err
 }

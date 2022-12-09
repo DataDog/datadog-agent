@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
-	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -40,14 +37,10 @@ import (
 var originalConfig = config.Datadog
 
 func restoreGlobalConfig() {
-	providers.Deregister()
-
 	config.Datadog = originalConfig
 }
 
 func newConfig() {
-	providers.Register(providerMocks.FakeContainerImpl{})
-
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	config.InitConfig(config.Datadog)
 	// force timeout to 0s, otherwise each test waits 60s
@@ -121,27 +114,27 @@ func TestBlacklist(t *testing.T) {
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
-	providers.Register(providerMocks.FakeContainerImpl{})
-
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
 
-	_ = os.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-	_, _ = NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
-	_ = os.Unsetenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS")
+	t.Run("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", func(t *testing.T) {
+		t.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
+		_, _ = NewAgentConfig("test", "", syscfg)
+		assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
+	})
 
-	_ = os.Setenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "2")
-	_, _ = NewAgentConfig("test", "", syscfg)
-	assert.Equal(t, 2, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
-	_ = os.Unsetenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS")
+	t.Run("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", func(t *testing.T) {
+		t.Setenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "2")
+		_, _ = NewAgentConfig("test", "", syscfg)
+		assert.Equal(t, 2, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
+	})
 }
 
 func TestYamlConfig(t *testing.T) {
 	// Reset the config
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
-	f, err := ioutil.TempFile("", "yamlConfigTest*.yaml")
+	f, err := os.CreateTemp("", "yamlConfigTest*.yaml")
 	defer os.Remove(f.Name())
 	assert.NoError(t, err)
 
@@ -175,8 +168,7 @@ func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
-	os.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
-	defer os.Unsetenv("DD_CUSTOM_SENSITIVE_WORDS")
+	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
 	syscfg, err := sysconfig.Merge("")
 	assert.NoError(t, err)
@@ -203,10 +195,8 @@ func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
-	os.Setenv("DD_SCRUB_ARGS", "false")
-	os.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
-	defer os.Unsetenv("DD_SCRUB_ARGS")
-	defer os.Unsetenv("DD_CUSTOM_SENSITIVE_WORDS")
+	t.Setenv("DD_SCRUB_ARGS", "false")
+	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
 
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
@@ -234,10 +224,8 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
-	os.Setenv("DD_LOG_LEVEL", "error")
-	defer os.Unsetenv("DD_LOG_LEVEL")
-	os.Setenv("LOG_LEVEL", "debug")
-	defer os.Unsetenv("LOG_LEVEL")
+	t.Setenv("DD_LOG_LEVEL", "error")
+	t.Setenv("LOG_LEVEL", "debug")
 
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
@@ -263,14 +251,12 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal("info", config.Datadog.GetString("log_level"))
 	assert.Equal(true, agentConfig.Scrubber.Enabled)
 
-	os.Setenv("DOCKER_DD_AGENT", "yes")
+	t.Setenv("DOCKER_DD_AGENT", "yes")
 	_ = NewDefaultAgentConfig()
 	assert.Equal(os.Getenv("HOST_PROC"), "")
 	assert.Equal(os.Getenv("HOST_SYS"), "")
-	os.Setenv("DOCKER_DD_AGENT", "no")
+	t.Setenv("DOCKER_DD_AGENT", "no")
 	assert.Equal(config.DefaultProcessExpVarPort, config.Datadog.GetInt("process_config.expvar_port"))
-
-	os.Unsetenv("DOCKER_DD_AGENT")
 
 	assert.Equal("info", config.Datadog.GetString("log_level"))
 	assert.True(config.Datadog.GetBool("log_to_console"))
@@ -321,9 +307,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
 	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(false, agentConfig.Scrubber.Enabled)
-	if runtime.GOOS != "windows" {
-		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	}
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml")
@@ -364,25 +347,20 @@ func TestProxyEnv(t *testing.T) {
 			"http://foo@example.com:3128",
 		},
 	} {
-		os.Setenv("PROXY_HOST", tc.host)
+		t.Setenv("PROXY_HOST", tc.host)
 		if tc.port > 0 {
-			os.Setenv("PROXY_PORT", strconv.Itoa(tc.port))
+			t.Setenv("PROXY_PORT", strconv.Itoa(tc.port))
 		} else {
-			os.Setenv("PROXY_PORT", "")
+			t.Setenv("PROXY_PORT", "")
 		}
-		os.Setenv("PROXY_USER", tc.user)
-		os.Setenv("PROXY_PASSWORD", tc.pass)
+		t.Setenv("PROXY_USER", tc.user)
+		t.Setenv("PROXY_PASSWORD", tc.pass)
 		pf, err := proxyFromEnv(nil)
 		assert.NoError(err, "proxy case %d had error", i)
 		u, err := pf(&http.Request{})
 		assert.NoError(err)
 		assert.Equal(tc.expected, u.String())
 	}
-
-	os.Unsetenv("PROXY_HOST")
-	os.Unsetenv("PROXY_PORT")
-	os.Unsetenv("PROXY_USER")
-	os.Unsetenv("PROXY_PASSWORD")
 }
 
 func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
@@ -397,8 +375,7 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	expected["key3"] = "url2.com"
 	expected["apikey_20"] = "orchestrator.datadoghq.com" // from config file
 
-	os.Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
-	defer os.Unsetenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
+	t.Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
 
 	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
 
@@ -421,8 +398,7 @@ func TestNetworkConfig(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
 
 		syscfg, err := sysconfig.Merge("")
 		require.NoError(t, err)
@@ -490,9 +466,6 @@ func TestGetHostnameFromCmd(t *testing.T) {
 }
 
 func TestInvalidHostname(t *testing.T) {
-	providers.Register(providerMocks.FakeContainerImpl{})
-	defer providers.Deregister()
-
 	syscfg, err := sysconfig.Merge("")
 	require.NoError(t, err)
 

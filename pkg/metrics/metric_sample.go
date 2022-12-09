@@ -62,23 +62,6 @@ func (m MetricType) String() string {
 	}
 }
 
-// ToAPIType returns the equivalent of MetricType in APIMetricType type.
-// APIMetricType only supports gauges, counts and rates and will default on gauges
-// for every other inputs.
-// This is used by the no-aggregation pipeline to infer an API type from a MetricType.
-func (m MetricType) ToAPIType() APIMetricType {
-	switch m {
-	case GaugeType:
-		return APIGaugeType
-	case CounterType:
-		return APICountType
-	case RateType:
-		return APIRateType
-	default:
-		return APIGaugeType
-	}
-}
-
 // MetricSampleContext allows to access a sample context data
 type MetricSampleContext interface {
 	GetName() string
@@ -93,6 +76,9 @@ type MetricSampleContext interface {
 
 	// GetMetricType returns the metric type for this metric.  This is used for telemetry.
 	GetMetricType() MetricType
+
+	// IsNoIndex returns true if the metric must not be indexed.
+	IsNoIndex() bool
 }
 
 // MetricSample represents a raw metric sample
@@ -109,6 +95,7 @@ type MetricSample struct {
 	OriginFromUDS    string
 	OriginFromClient string
 	Cardinality      string
+	NoIndex          bool
 }
 
 // Implement the MetricSampleContext interface
@@ -141,4 +128,9 @@ func (m *MetricSample) Copy() *MetricSample {
 	dst.Tags = make([]string, len(m.Tags))
 	copy(dst.Tags, m.Tags)
 	return dst
+}
+
+// IsNoIndex returns true if the metric must not be indexed.
+func (m *MetricSample) IsNoIndex() bool {
+	return m.NoIndex
 }

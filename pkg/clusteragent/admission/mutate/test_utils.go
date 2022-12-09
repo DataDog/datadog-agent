@@ -59,6 +59,17 @@ func fakePodWithContainer(name string, containers ...corev1.Container) *corev1.P
 	}
 }
 
+func fakePodWithInitContainer(name string, containers ...corev1.Container) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: corev1.PodSpec{
+			InitContainers: containers,
+		},
+	}
+}
+
 func withLabels(pod *corev1.Pod, labels map[string]string) *corev1.Pod {
 	pod.Labels = labels
 	return pod

@@ -25,6 +25,7 @@ UINT WINAPI MsiGetPropertyW(MSIHANDLE hInstall,
 {
     return ERROR_INVALID_FUNCTION;
 }
+
 int wmain(int argc, wchar_t **argv)
 {
     hDllModule = GetModuleHandle(NULL);
@@ -32,8 +33,7 @@ int wmain(int argc, wchar_t **argv)
     std::wstring defaultData;
     parseArgs(argc - 1, &(argv[1]), defaultData);
     wprintf(L"%s\n", defaultData.c_str());
-    CustomActionData data;
-    data.init(defaultData);
+
     doUninstallAs(UNINSTALL_UNINSTALL);
 }
 

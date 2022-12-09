@@ -1,6 +1,8 @@
 import datetime
 import errno
+import glob
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -14,7 +16,7 @@ from .go import golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .system_probe import (
     CURRENT_ARCH,
-    build_object_files,
+    build_cws_object_files,
     check_for_ninja,
     generate_runtime_files,
     ninja_define_ebpf_compiler,
@@ -35,31 +37,13 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent", android=False))
-GIMME_ENV_VARS = ['GOROOT', 'PATH']
-
-
-def get_go_env(ctx, go_version):
-    goenv = {}
-    if go_version:
-        lines = ctx.run(f"gimme {go_version}").stdout.split("\n")
-        for line in lines:
-            for env_var in GIMME_ENV_VARS:
-                if env_var in line:
-                    goenv[env_var] = line[line.find(env_var) + len(env_var) + 1 : -1].strip('\'\"')
-
-    # extend PATH from gimme with the one from get_build_flags
-    if "PATH" in os.environ and "PATH" in goenv:
-        goenv["PATH"] += ":" + os.environ["PATH"]
-
-    return goenv
+BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 
 
 @task
 def build(
     ctx,
     race=False,
-    go_version=None,
     incremental_build=True,
     major_version='7',
     # arch is never used here; we keep it to have a
@@ -67,11 +51,12 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
+    static=False,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3')
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -94,13 +79,12 @@ def build(
     main = "main."
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
-        "GoVersion": go_version if go_version else get_go_version(),
+        "GoVersion": get_go_version(),
         "GitBranch": get_git_branch_name(),
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
-    env.update(get_go_env(ctx, go_version))
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags = get_default_build_tags(
         build="security-agent"
@@ -310,7 +294,6 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
 def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
@@ -322,7 +305,7 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
 ):
-    build_object_files(
+    build_cws_object_files(
         ctx,
         major_version=major_version,
         arch=arch,
@@ -331,12 +314,9 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, _, env = get_build_flags(
+    ldflags, gcflags, env = get_build_flags(
         ctx, major_version=major_version, nikos_embedded_path=nikos_embedded_path, static=static
     )
-
-    goenv = get_go_env(ctx, go_version)
-    env.update(goenv)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -362,11 +342,12 @@ def build_functional_tests(
         build_flags += " -race"
 
     build_tags = ",".join(build_tags)
-    cmd = 'go test -mod=mod -tags {build_tags} -ldflags="{ldflags}" -c -o {output} '
+    cmd = 'go test -mod=mod -tags {build_tags} -gcflags="{gcflags}" -ldflags="{ldflags}" -c -o {output} '
     cmd += '{build_flags} {repo_path}/pkg/security/tests'
 
     args = {
         "output": output,
+        "gcflags": gcflags,
         "ldflags": ldflags,
         "build_flags": build_flags,
         "build_tags": build_tags,
@@ -380,7 +361,6 @@ def build_functional_tests(
 def build_stress_tests(
     ctx,
     output='pkg/security/tests/stresssuite',
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
@@ -391,7 +371,6 @@ def build_stress_tests(
     build_functional_tests(
         ctx,
         output=output,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         build_tags='stresstests',
@@ -405,7 +384,6 @@ def build_stress_tests(
 def stress_tests(
     ctx,
     verbose=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/stresssuite',
@@ -416,7 +394,6 @@ def stress_tests(
 ):
     build_stress_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output=output,
@@ -438,7 +415,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
@@ -449,7 +425,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output=output,
@@ -471,7 +446,6 @@ def functional_tests(
 def kitchen_functional_tests(
     ctx,
     verbose=False,
-    go_version=None,
     arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
@@ -481,7 +455,6 @@ def kitchen_functional_tests(
         functional_tests(
             ctx,
             verbose=verbose,
-            go_version=go_version,
             arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
@@ -501,41 +474,44 @@ def kitchen_functional_tests(
 def docker_functional_tests(
     ctx,
     verbose=False,
-    go_version=None,
+    race=False,
     arch=CURRENT_ARCH,
     major_version='7',
     testflags='',
-    static=False,
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
 ):
     build_functional_tests(
         ctx,
-        go_version=go_version,
         arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
-        static=static,
+        static=True,
         skip_linters=skip_linters,
+        race=race,
         kernel_release=kernel_release,
     )
 
-    dockerfile = """
-FROM debian:bullseye
+    add_arch_line = ""
+    if arch == "x86":
+        add_arch_line = "RUN dpkg --add-architecture i386"
+
+    dockerfile = f"""
+FROM ubuntu:22.04
 
 ENV DOCKER_DD_AGENT=yes
 
-RUN dpkg --add-architecture i386
+{add_arch_line}
 
 RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-11 llvm-11 \
+    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-11) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-11) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
@@ -611,21 +587,22 @@ def cws_go_generate(ctx):
 
 
 @task
-def generate_btfhub_constants(ctx, archive_path):
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+    force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
+        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 
 @task
-def generate_ad_proto(ctx):
+def generate_cws_proto(ctx):
     # The general view of which structures to pool is to currently pool the big ones.
     # During testing/benchmarks we saw that enabling pooling for small/leaf nodes had a negative effect
     # on both performance and memory.
     # What could explain this impact is that putting back the node in the pool requires to walk the tree to put back
     # child nodes. The maximum depth difference between nodes become a very important metric.
-    pool_structs = [
+    ad_pool_structs = [
         "ActivityDump",
         "ProcessActivityNode",
         "FileActivityNode",
@@ -637,23 +614,37 @@ def generate_ad_proto(ctx):
         with environ({"GOBIN": temp_gobin}):
             ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.0")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.3.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
 
-            pool_opts = " ".join(
-                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in pool_structs
+            plugin_opts = " ".join(
+                [
+                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
+                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
+                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
+                ]
             )
-            plugin_opts = f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\" --plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\""
+
+            # Activity Dumps
+            ad_pool_opts = " ".join(
+                f"--go-vtproto_opt=pool=pkg/security/adproto/v1.{struct_name}" for struct_name in ad_pool_structs
+            )
             ctx.run(
-                f"protoc -I. --go_out=paths=source_relative:. --go-vtproto_out=. {plugin_opts} --go-vtproto_opt=features=pool+marshal+unmarshal+size {pool_opts} pkg/security/adproto/v1/activity_dump.proto"
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=pool+marshal+unmarshal+size {ad_pool_opts} pkg/security/adproto/v1/activity_dump.proto"
             )
 
+            # API
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/api/api.proto"
+            )
 
-@task
-def generate_cws_proto(ctx):
-    # API
-    ctx.run("protoc -I. --go_out=plugins=grpc,paths=source_relative:. pkg/security/api/api.proto")
+    for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
+        print(f"replacing protoc version in {path}")
+        with open(path) as f:
+            content = f.read()
 
-    # Activity Dumps
-    generate_ad_proto(ctx)
+        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        with open(path, "w") as f:
+            f.write(replaced_content)
 
 
 def get_git_dirty_files():
@@ -709,9 +700,12 @@ def go_generate_check(ctx):
 
 @task
 def kitchen_prepare(ctx):
+    ci_project_dir = os.environ.get("CI_PROJECT_DIR", ".")
+
     nikos_embedded_path = os.environ.get("NIKOS_EMBEDDED_PATH", None)
-    testing_dir = os.environ.get("DD_AGENT_TESTING_DIR", "./test/kitchen")
-    cookbook_files_dir = os.path.join(testing_dir, "site-cookbooks", "dd-security-agent-check", "files")
+    cookbook_files_dir = os.path.join(
+        ci_project_dir, "test", "kitchen", "site-cookbooks", "dd-security-agent-check", "files"
+    )
 
     testsuite_out_path = os.path.join(cookbook_files_dir, "testsuite")
     build_functional_tests(
@@ -728,8 +722,7 @@ def kitchen_prepare(ctx):
 
     ebpf_bytecode_dir = os.path.join(cookbook_files_dir, "ebpf_bytecode")
     ebpf_runtime_dir = os.path.join(ebpf_bytecode_dir, "runtime")
-    src_path = os.environ.get("SRC_PATH", ".")
-    bytecode_build_dir = os.path.join(src_path, "pkg", "ebpf", "bytecode", "build")
+    bytecode_build_dir = os.path.join(ci_project_dir, "pkg", "ebpf", "bytecode", "build")
 
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")

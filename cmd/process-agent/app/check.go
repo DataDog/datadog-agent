@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
@@ -64,6 +65,9 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 		ddconfig.Datadog.Set("log_to_console", false)
 	}
 
+	// Override the disable_file_logging setting so that the check command doesn't dump so much noise into the log file.
+	ddconfig.Datadog.Set("disable_file_logging", true)
+
 	// We need to load in the system probe environment variables before we load the config, otherwise an
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
@@ -99,16 +103,22 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(ctx)
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
-		t = remote.NewTagger()
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			t = remote.NewTagger(options)
+		}
 	} else {
 		t = local.NewTagger(store)
 	}
+
 	tagger.SetDefaultTagger(t)
 	err = tagger.Init(ctx)
 	if err != nil {
@@ -129,6 +139,14 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 			c()
 		}
 	}()
+
+	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
+	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
+
+	if checks.Process.SysprobeProcessModuleEnabled {
+		net.SetSystemProbePath(cfg.SystemProbeAddress)
+	}
+
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if check == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data

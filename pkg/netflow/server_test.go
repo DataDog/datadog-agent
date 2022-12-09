@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+
+	"github.com/DataDog/datadog-agent/pkg/netflow/goflowlib"
 )
 
 func TestNewNetflowServer(t *testing.T) {
@@ -51,7 +53,7 @@ network_devices:
 	// Send netflowV5Data twice to test aggregator
 	// Flows will have 2x bytes/packets after aggregation
 	time.Sleep(100 * time.Millisecond) // wait to make sure goflow listener is started before sending
-	err = sendUDPPacket(port, mockNetflowV5Data)
+	err = goflowlib.SendUDPPacket(port, goflowlib.MockNetflowV5Data)
 	require.NoError(t, err, "error sending udp packet")
 
 	// Get Event Platform Events
@@ -72,11 +74,11 @@ network_devices:
 	assert.Equal(t, "TCP", actualFlow.IPProtocol)
 	assert.Equal(t, "127.0.0.1", actualFlow.Device.IP)
 	assert.Equal(t, "10.129.2.1", actualFlow.Source.IP)
-	assert.Equal(t, uint32(49452), actualFlow.Source.Port)
+	assert.Equal(t, "49452", actualFlow.Source.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Source.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Source.Mask)
 	assert.Equal(t, "10.128.2.119", actualFlow.Destination.IP)
-	assert.Equal(t, uint32(8080), actualFlow.Destination.Port)
+	assert.Equal(t, "8080", actualFlow.Destination.Port)
 	assert.Equal(t, "00:00:00:00:00:00", actualFlow.Destination.Mac)
 	assert.Equal(t, "0.0.0.0/0", actualFlow.Destination.Mask)
 	assert.Equal(t, uint32(1), actualFlow.Ingress.Interface.Index)

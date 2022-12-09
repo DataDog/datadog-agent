@@ -2,6 +2,7 @@
 
 #include "SID.h"
 #include "TargetMachine.h"
+#include "PropertyView.h"
 
 #include <map>
 #include <Msi.h>
@@ -41,13 +42,11 @@ class CustomActionData : ICustomActionData
         std::wstring Name;
     };
   public:
-    CustomActionData(std::shared_ptr<ITargetMachine> targetMachine);
-    CustomActionData();
+    CustomActionData(
+        std::shared_ptr<IPropertyView> propertyView,
+        std::shared_ptr<ITargetMachine> targetMachine);
+    CustomActionData(std::shared_ptr<IPropertyView> propertyView);
     ~CustomActionData();
-
-    bool init(MSIHANDLE hInstall);
-
-    bool init(const std::wstring &initstring);
 
     bool present(const std::wstring &key) const;
     bool value(const std::wstring &key, std::wstring &val) const;
@@ -67,9 +66,7 @@ class CustomActionData : ICustomActionData
     bool npmPresent() const;
 
   private:
-    MSIHANDLE _hInstall;
     bool _domainUser;
-    std::map<std::wstring, std::wstring> values;
     User _user;
     std::wstring _fullyQualifiedUsername;
     sid_ptr _sid;
@@ -79,9 +76,11 @@ class CustomActionData : ICustomActionData
     bool _isServiceAccount;
     LogonCli *_logonCli;
     std::shared_ptr<ITargetMachine> _targetMachine;
+    std::shared_ptr<IPropertyView> _propertyView;
     std::optional<User> findPreviousUserInfo();
     std::optional<User> findSuppliedUserInfo();
     void ensureDomainHasCorrectFormat();
     bool parseUsernameData();
     bool parseSysprobeData();
 };
+

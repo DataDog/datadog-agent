@@ -10,10 +10,10 @@ import (
 	"encoding/json"
 	"expvar"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -34,7 +34,7 @@ type testServerHandler struct {
 func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/okay.json")
+	json, err := os.ReadFile("./testdata/okay.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -66,7 +66,7 @@ type testServerWarningHandler struct {
 func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	json, err := ioutil.ReadFile("./testdata/warning.json")
+	json, err := os.ReadFile("./testdata/warning.json")
 	if err != nil {
 		h.t.Errorf("error loading json file: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestInfo(t *testing.T) {
 	info := buf.String()
 	assert.NotEmpty(info)
 	t.Logf("Info:\n%s\n", info)
-	expectedInfo, err := ioutil.ReadFile("./testdata/okay.info")
+	expectedInfo, err := os.ReadFile("./testdata/okay.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedInfoString := re.ReplaceAllString(string(expectedInfo), "\n")
 	assert.NoError(err)
@@ -201,7 +201,7 @@ func TestWarning(t *testing.T) {
 	assert.NoError(err)
 	info := buf.String()
 
-	expectedWarning, err := ioutil.ReadFile("./testdata/warning.info")
+	expectedWarning, err := os.ReadFile("./testdata/warning.info")
 	re := regexp.MustCompile(`\r\n`)
 	expectedWarningString := re.ReplaceAllString(string(expectedWarning), "\n")
 	assert.NoError(err)

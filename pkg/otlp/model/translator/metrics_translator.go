@@ -16,10 +16,13 @@ package translator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
+	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
 
@@ -69,22 +72,22 @@ func New(logger *zap.Logger, options ...Option) (*Translator, error) {
 	}
 
 	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendCountSum {
-		return nil, fmt.Errorf("no buckets mode and no send count sum are incompatible")
+		return nil, errors.New("no buckets mode and no send count sum are incompatible")
 	}
 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
 	return &Translator{
 		prevPts: cache,
-		logger:  logger,
+		logger:  logger.With(zap.String("component", "metrics translator")),
 		cfg:     cfg,
 	}, nil
 }
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
 func isCumulativeMonotonic(md pmetric.Metric) bool {
-	switch md.DataType() {
-	case pmetric.MetricDataTypeSum:
-		return md.Sum().AggregationTemporality() == pmetric.MetricAggregationTemporalityCumulative &&
+	switch md.Type() {
+	case pmetric.MetricTypeSum:
+		return md.Sum().AggregationTemporality() == pmetric.AggregationTemporalityCumulative &&
 			md.Sum().IsMonotonic()
 	}
 	return false
@@ -115,9 +118,9 @@ func (t *Translator) mapNumberMetrics(
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
-			val = p.DoubleVal()
+			val = p.DoubleValue()
 		case pmetric.NumberDataPointValueTypeInt:
-			val = float64(p.IntVal())
+			val = float64(p.IntValue())
 		}
 
 		if t.isSkippable(pointDims.name, val) {
@@ -126,6 +129,15 @@ func (t *Translator) mapNumberMetrics(
 
 		consumer.ConsumeTimeSeries(ctx, pointDims, dt, uint64(p.Timestamp()), val)
 	}
+}
+
+// TODO(songy23): consider changing this to a Translator start time that must be initialized
+// if the package-level variable causes any issue.
+var startTime = time.Now()
+
+// getProcessStartTime returns the start time of the Agent process in seconds since epoch
+func getProcessStartTime() uint64 {
+	return uint64(startTime.Unix())
 }
 
 // mapNumberMonotonicMetrics maps monotonic datapoints into Datadog metrics
@@ -144,9 +156,9 @@ func (t *Translator) mapNumberMonotonicMetrics(
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
-			val = p.DoubleVal()
+			val = p.DoubleValue()
 		case pmetric.NumberDataPointValueTypeInt:
-			val = float64(p.IntVal())
+			val = float64(p.IntValue())
 		}
 
 		if t.isSkippable(pointDims.name, val) {
@@ -155,6 +167,9 @@ func (t *Translator) mapNumberMonotonicMetrics(
 
 		if dx, ok := t.prevPts.MonotonicDiff(pointDims, startTs, ts, val); ok {
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, dx)
+		} else if i == 0 && getProcessStartTime() < startTs {
+			// Report the first value if the timeseries started after the Datadog Agent process started.
+			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, val)
 		}
 	}
 }
@@ -229,6 +244,13 @@ func (t *Translator) getSketchBuckets(
 			sketch.Basic.Sum = histInfo.sum
 			sketch.Basic.Avg = sketch.Basic.Sum / float64(sketch.Basic.Cnt)
 		}
+		if delta && p.HasMin() {
+			sketch.Basic.Min = p.Min()
+		}
+		if delta && p.HasMax() {
+			sketch.Basic.Max = p.Max()
+		}
+
 		consumer.ConsumeSketch(ctx, pointDims, ts, sketch)
 	}
 }
@@ -267,9 +289,9 @@ func (t *Translator) getLegacyBuckets(
 // - The count of values in the population
 // - The sum of values in the population
 // - A number of buckets, each of them having
-//    - the bounds that define the bucket
-//    - the count of the number of items in that bucket
-//    - a sample value from each bucket
+//   - the bounds that define the bucket
+//   - the count of the number of items in that bucket
+//   - a sample value from each bucket
 //
 // We follow a similar approach to our OpenMetrics check:
 // we report sum and count by default; buckets count can also
@@ -401,23 +423,36 @@ func (t *Translator) mapSummaryMetrics(
 	}
 }
 
+func (t *Translator) source(m pcommon.Map) (source.Source, error) {
+	src, ok := attributes.SourceFromAttributes(m, t.cfg.previewHostnameFromAttributes)
+	if !ok {
+		var err error
+		src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
+		if err != nil {
+			return source.Source{}, fmt.Errorf("failed to get fallback source: %w", err)
+		}
+	}
+	return src, nil
+}
+
 // MapMetrics maps OTLP metrics into the DataDog format
 func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer) error {
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
-
-		// Fetch tags from attributes.
-		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
-		src, ok := attributes.SourceFromAttributes(rm.Resource().Attributes(), t.cfg.previewHostnameFromAttributes)
-		if !ok {
-			var err error
-			src, err = t.cfg.fallbackSourceProvider.Source(context.Background())
+		if v, ok := rm.Resource().Attributes().Get(keyAPMStats); ok && v.Bool() {
+			// these resource metrics are an APM Stats payload; consume it as such
+			sp, err := t.statsPayloadFromMetrics(rm)
 			if err != nil {
-				return fmt.Errorf("failed to get fallback source: %w", err)
+				return fmt.Errorf("error extracting APM Stats from Metrics: %w", err)
 			}
+			consumer.ConsumeAPMStats(sp)
+			continue
 		}
-
+		src, err := t.source(rm.Resource().Attributes())
+		if err != nil {
+			return err
+		}
 		var host string
 		switch src.Kind {
 		case source.HostnameKind:
@@ -431,6 +466,8 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 			}
 		}
 
+		// Fetch tags from attributes.
+		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
 		ilms := rm.ScopeMetrics()
 		for j := 0; j < ilms.Len(); j++ {
 			ilm := ilms.At(j)
@@ -453,54 +490,54 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 					host:     host,
 					originID: attributes.OriginIDFromAttributes(rm.Resource().Attributes()),
 				}
-				switch md.DataType() {
-				case pmetric.MetricDataTypeGauge:
+				switch md.Type() {
+				case pmetric.MetricTypeGauge:
 					t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
-				case pmetric.MetricDataTypeSum:
+				case pmetric.MetricTypeSum:
 					switch md.Sum().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityCumulative:
+					case pmetric.AggregationTemporalityCumulative:
 						if t.cfg.SendMonotonic && isCumulativeMonotonic(md) {
 							t.mapNumberMonotonicMetrics(ctx, consumer, baseDims, md.Sum().DataPoints())
 						} else {
 							t.mapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Sum().DataPoints())
 						}
-					case pmetric.MetricAggregationTemporalityDelta:
+					case pmetric.AggregationTemporalityDelta:
 						t.mapNumberMetrics(ctx, consumer, baseDims, Count, md.Sum().DataPoints())
-					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String(metricName, md.Name()),
 							zap.Any("aggregation temporality", md.Sum().AggregationTemporality()),
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeHistogram:
+				case pmetric.MetricTypeHistogram:
 					switch md.Histogram().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityDelta:
-						delta := md.Histogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
+					case pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityDelta:
+						delta := md.Histogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
 						t.mapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), delta)
-					default: // pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.Histogram().AggregationTemporality()),
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeExponentialHistogram:
+				case pmetric.MetricTypeExponentialHistogram:
 					switch md.ExponentialHistogram().AggregationTemporality() {
-					case pmetric.MetricAggregationTemporalityDelta:
-						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.MetricAggregationTemporalityDelta
+					case pmetric.AggregationTemporalityDelta:
+						delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
 						t.mapExponentialHistogramMetrics(ctx, consumer, baseDims, md.ExponentialHistogram().DataPoints(), delta)
-					default: // pmetric.MetricAggregationTemporalityCumulative, pmetric.MetricAggregationTemporalityUnspecified or any other not supported type
+					default: // pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityUnspecified or any other not supported type
 						t.logger.Debug("Unknown or unsupported aggregation temporality",
 							zap.String("metric name", md.Name()),
 							zap.Any("aggregation temporality", md.ExponentialHistogram().AggregationTemporality()),
 						)
 						continue
 					}
-				case pmetric.MetricDataTypeSummary:
+				case pmetric.MetricTypeSummary:
 					t.mapSummaryMetrics(ctx, consumer, baseDims, md.Summary().DataPoints())
 				default: // pmetric.MetricDataTypeNone or any other not supported type
-					t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.DataType()))
+					t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.Type()))
 					continue
 				}
 			}

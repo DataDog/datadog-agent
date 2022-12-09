@@ -77,7 +77,17 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 
 	// Start AutoscalerWatcher, only leader will flag DatadogMetrics as Active/Inactive
 	// WPAInformerFactory is nil when WPA is not used. AutoscalerWatcher will check value itself.
-	autoscalerWatcher, err := NewAutoscalerWatcher(refreshPeriod, autogenEnabled, autogenExpirationPeriodHours, autogenNamespace, apiCl.InformerFactory, apiCl.WPAInformerFactory, le.IsLeader, &provider.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(
+		refreshPeriod,
+		autogenEnabled,
+		autogenExpirationPeriodHours,
+		autogenNamespace,
+		apiCl.Cl,
+		apiCl.InformerFactory,
+		apiCl.WPAInformerFactory,
+		le.IsLeader,
+		&provider.store,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("Unabled to create DatadogMetricProvider as AutoscalerWatcher failed with: %v", err)
 	}
@@ -88,13 +98,13 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	go autoscalerWatcher.Run(ctx.Done())
 
 	// We shift controller refresh period from retrieverRefreshPeriod to maximize the probability to have new data from DD
-	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DDInformerFactory, le.IsLeader, &provider.store)
+	controller, err := NewDatadogMetricController(apiCl.DDClient, apiCl.DynamicInformerFactory, le.IsLeader, &provider.store)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create DatadogMetricProvider as DatadogMetric Controller failed with: %v", err)
 	}
 
 	// Start informers & controllers (informers can be started multiple times)
-	apiCl.DDInformerFactory.Start(ctx.Done())
+	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	go controller.Run(ctx)
 
 	return provider, nil

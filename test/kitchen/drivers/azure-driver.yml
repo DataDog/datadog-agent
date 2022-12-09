@@ -92,9 +92,9 @@ platforms:
       # running at the same time can conflict with each other if they start at the same time,
       # as they try to use the same resource group name, leading to provisioning errors.
       if ENV['KITCHEN_PLATFORM_SUFFIX']
-        platform_name = platform[0] + "-" + ENV['KITCHEN_PLATFORM_SUFFIX'] + "-#{host}"
+        platform_name = platform[0] + "-" + ENV['KITCHEN_PLATFORM_SUFFIX'] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
       else
-        platform_name = platform[0] + "-#{host}"
+        platform_name = platform[0] + "-#{host}-#{ENV['KITCHEN_ARCH']}"
       end
 
       windows = platform_name.include?("win")
@@ -128,6 +128,9 @@ platforms:
 - name: <%= platform_name %>
   attributes:
     color_idx: <%= idx %>
+    <% if ENV["KITCHEN_CWS_PLATFORM"] %>
+    cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
+    <% end %>
   driver_config:
     machine_size: <%= size %>
     <% if platform[1] == "urn" %>
@@ -173,5 +176,10 @@ platforms:
     ssh_key: <%= ENV['KITCHEN_RSA_SSH_KEY_PATH'] %>
     <% end %>
     <% end %>
+
+  verifier:
+    downloads:
+      "/tmp/junit.tar.gz": kitchen-junit-<%= platform_name %>.tar.gz
+      "/tmp/testjson.tar.gz": testjson/<%= platform_name %>/testjson.tar.gz
 
 <% end %>

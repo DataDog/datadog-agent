@@ -160,7 +160,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
 		p.lastRun = time.Now()
-		p.storeCreateTimes()
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
@@ -179,7 +178,6 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
-	p.storeCreateTimes()
 
 	result := &RunResult{
 		Standard: messages,
@@ -465,14 +463,6 @@ func skipProcess(
 	return false
 }
 
-func (p *ProcessCheck) storeCreateTimes() {
-	createTimes := make(map[int32]int64, len(p.lastProcs))
-	for pid, proc := range p.lastProcs {
-		createTimes[pid] = proc.Stats.CreateTime
-	}
-	ProcessNotify.UpdateCreateTimes(createTimes)
-}
-
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
 	// if the Process module is disabled, we allow Probe to collect
 	// fields that require elevated permission to collect with best effort
@@ -491,7 +481,7 @@ func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {
 }
 
 // mergeProcWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
-func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu *net.RemoteSysProbeUtil) {
+func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process, pu net.SysProbeUtil) {
 	pStats, err := pu.GetProcStats(pids)
 	if err == nil {
 		for pid, proc := range procs {

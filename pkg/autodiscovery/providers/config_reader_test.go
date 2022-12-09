@@ -6,12 +6,16 @@
 package providers
 
 import (
+	"os"
+	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestGetIntegrationConfig(t *testing.T) {
@@ -87,4 +91,51 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 1, len(configs))
 	require.Equal(t, configs[0].Name, "baz")
+}
+
+func TestReadConfigFilesCache(t *testing.T) {
+	testFileContent := `
+init_config:
+  - this: IsNotOnTheDefaultFile
+
+instances:
+  # No configuration is needed for this check.
+  - foo: bar`
+
+	tempDir := t.TempDir()
+	testFilePath := path.Join(tempDir, "foo.yaml")
+	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+
+	// Init reader with default config, cache is activated with 5mins TTL
+	ResetReader([]string{tempDir})
+
+	// Remove file, Sleep 2s, cache should give us same result
+	assert.NoError(t, os.Remove(testFilePath))
+	time.Sleep(2 * time.Second)
+	configs, errors, err := ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	require.Equal(t, 0, len(errors))
+
+	// Change config
+	mockConfig := config.Mock(t)
+	mockConfig.Set("autoconf_config_files_poll", true)
+	mockConfig.Set("autoconf_config_files_poll_interval", 2)
+
+	// Write file + reset reader (trigger a read on all files)
+	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+	ResetReader([]string{tempDir})
+	// Verify that we do have the file (hitting the cache)
+	configs, errors, err = ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	require.Equal(t, 0, len(errors))
+
+	// Remove file, Sleep 2s, we should read again and have nothing
+	assert.NoError(t, os.Remove(testFilePath))
+	time.Sleep(2 * time.Second)
+	configs, errors, err = ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 0, len(configs))
+	require.Equal(t, 0, len(errors))
 }

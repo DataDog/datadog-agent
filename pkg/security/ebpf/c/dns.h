@@ -49,8 +49,6 @@ struct bpf_map_def SEC("maps/dns_event") dns_event = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct dns_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct dns_event_t *get_dns_event() {
@@ -80,6 +78,14 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
         evt->container.container_id[0] = 0;
     } else {
         copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+    }
+
+    // should we sample this event for activity dumps ?
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
+    if (config) {
+        if (mask_has_event(config->event_mask, EVENT_DNS)) {
+            evt->event.is_activity_dump_sample = 1;
+        }
     }
 
     return evt;

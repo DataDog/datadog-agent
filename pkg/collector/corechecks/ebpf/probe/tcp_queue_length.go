@@ -97,7 +97,9 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 }
 
 func (t *TCPQueueLengthTracer) Close() {
-	t.m.Stop(manager.CleanAll)
+	if err := t.m.Stop(manager.CleanAll); err != nil {
+		log.Errorf("error stopping TCP Queue Length: %s", err)
+	}
 }
 
 func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {

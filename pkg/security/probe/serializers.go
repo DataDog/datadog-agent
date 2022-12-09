@@ -1047,23 +1047,30 @@ func NewEventSerializer(event *Event) *EventSerializer {
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Utimes.Retval)
 	case model.FileMountEventType:
+		src, srcErr := event.ResolveMountRoot(&event.Mount)
+		dst, dstErr := event.ResolveMountPoint(&event.Mount)
+
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: FileSerializer{
-				Path:                event.ResolveMountRoot(&event.Mount),
-				PathResolutionError: event.Mount.GetRootPathResolutionError(),
-				MountID:             &event.Mount.RootMountID,
-				Inode:               &event.Mount.RootInode,
+				Path:    src,
+				MountID: &event.Mount.RootMountID,
+				Inode:   &event.Mount.RootInode,
 			},
 			Destination: &FileSerializer{
-				Path:                event.ResolveMountPoint(&event.Mount),
-				PathResolutionError: event.Mount.GetMountPointPathResolutionError(),
-				MountID:             &event.Mount.ParentMountID,
-				Inode:               &event.Mount.ParentInode,
+				Path:    dst,
+				MountID: &event.Mount.ParentMountID,
+				Inode:   &event.Mount.ParentInode,
 			},
 			NewMountID: event.Mount.MountID,
 			GroupID:    event.Mount.GroupID,
 			Device:     event.Mount.Device,
 			FSType:     event.Mount.GetFSType(),
+		}
+		if srcErr != nil {
+			s.FileEventSerializer.FileSerializer.PathResolutionError = srcErr.Error()
+		}
+		if dstErr != nil {
+			s.FileEventSerializer.Destination.PathResolutionError = dstErr.Error()
 		}
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Mount.Retval)
 	case model.FileUmountEventType:

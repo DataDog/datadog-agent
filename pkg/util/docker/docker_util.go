@@ -13,7 +13,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +27,6 @@ import (
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -41,8 +42,6 @@ type DockerUtil struct {
 	queryTimeout time.Duration
 	// tracks the last time we invalidate our internal caches
 	lastInvalidate time.Time
-	// networkMappings by container id
-	networkMappings map[string][]dockerNetwork
 	// image sha mapping cache
 	imageNameBySha map[string]string
 	// event subscribers and state
@@ -75,7 +74,6 @@ func (d *DockerUtil) init() error {
 
 	d.cfg = cfg
 	d.cli = cli
-	d.networkMappings = make(map[string][]dockerNetwork)
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
 	d.eventState = newEventStreamState()
@@ -321,16 +319,6 @@ func (d *DockerUtil) InspectNoCache(ctx context.Context, id string, withSize boo
 	return container, nil
 }
 
-// InspectSelf returns the inspect content of the container the current agent is running in
-func (d *DockerUtil) InspectSelf(ctx context.Context) (types.ContainerJSON, error) {
-	cID, err := providers.ContainerImpl().GetAgentCID()
-	if err != nil {
-		return types.ContainerJSON{}, err
-	}
-
-	return d.Inspect(ctx, cID, false)
-}
-
 // AllContainerLabels retrieves all running containers (`docker ps`) and returns
 // a map mapping containerID to container labels as a map[string]string
 func (d *DockerUtil) AllContainerLabels(ctx context.Context) (map[string]map[string]string, error) {
@@ -367,4 +355,48 @@ func (d *DockerUtil) GetContainerStats(ctx context.Context, containerID string) 
 		return nil, fmt.Errorf("error listing containers: %s", err)
 	}
 	return containerStats, nil
+}
+
+// ContainerLogs returns a container logs reader
+func (d *DockerUtil) ContainerLogs(ctx context.Context, container string, options types.ContainerLogsOptions) (io.ReadCloser, error) {
+	return d.cli.ContainerLogs(ctx, container, options)
+}
+
+// GetContainerPIDs returns a list of containerID's running PIDs
+func (d *DockerUtil) GetContainerPIDs(ctx context.Context, containerID string) ([]int, error) {
+
+	// Index into the returned [][]string slice for process IDs
+	pidIdx := -1
+
+	// Docker API to collect PIDs associated with containerID
+	procs, err := d.cli.ContainerTop(ctx, containerID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get PIDs for container %s: %s", containerID, err)
+	}
+
+	// get the offset into the string[][] slice for the process ID index
+	for idx, val := range procs.Titles {
+		if val == "PID" {
+			pidIdx = idx
+			break
+		}
+	}
+	if pidIdx == -1 {
+		return nil, fmt.Errorf("unable to locate PID index into returned process slice")
+	}
+
+	// Create slice large enough to hold each PID
+	pids := make([]int, len(procs.Processes))
+
+	// Iterate returned Processes and pull out their PIDs
+	for idx, entry := range procs.Processes {
+		// Convert to ints
+		pid, sterr := strconv.Atoi(entry[pidIdx])
+		if sterr != nil {
+			log.Debugf("unable to convert PID to int: %s", sterr)
+			continue
+		}
+		pids[idx] = pid
+	}
+	return pids, nil
 }

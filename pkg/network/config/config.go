@@ -75,6 +75,22 @@ type Config struct {
 	// Supported libraries: OpenSSL
 	EnableHTTPSMonitoring bool
 
+	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS
+	// traffic done through Go's standard library's TLS implementation
+	EnableGoTLSSupport bool
+
+	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked.
+	// value is currently Windows only
+	MaxTrackedHTTPConnections int64
+
+	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling
+	// to be retrieved.  Currently Windows only
+	HTTPNotificationThreshold int64
+
+	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved.
+	// Currently Windows only
+	HTTPMaxRequestFragment int64
+
 	// UDPConnTimeout determines the length of traffic inactivity between two
 	// (IP, port)-pairs before declaring a UDP connection as inactive. This is
 	// set to /proc/sys/net/netfilter/nf_conntrack_udp_timeout on Linux by
@@ -131,6 +147,9 @@ type Config struct {
 	// Setting it to -1 disables the limit and can result in a high CPU usage.
 	ConntrackRateLimit int
 
+	// ConntrackRateLimitInterval specifies the interval at which the rate limiter is updated
+	ConntrackRateLimitInterval time.Duration
+
 	// ConntrackInitTimeout specifies how long we wait for conntrack to initialize before failing
 	ConntrackInitTimeout time.Duration
 
@@ -171,6 +190,10 @@ type Config struct {
 
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
+
+	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
+	// classifying the L7 protocols being used.
+	ProtocolClassificationEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -215,13 +238,21 @@ func New() *Config {
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(join(spNS, "dns_timeout_in_s"))) * time.Second,
 
+		ProtocolClassificationEnabled: cfg.GetBool(join(netNS, "enable_protocol_classification")),
+
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
+		EnableGoTLSSupport:    cfg.GetBool(join(spNS, "enable_go_tls_support")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
+
+		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
+		HTTPNotificationThreshold: cfg.GetInt64(join(netNS, "http_notification_threshold")),
+		HTTPMaxRequestFragment:    cfg.GetInt64(join(netNS, "http_max_request_fragment")),
 
 		EnableConntrack:              cfg.GetBool(join(spNS, "enable_conntrack")),
 		ConntrackMaxStateSize:        cfg.GetInt(join(spNS, "conntrack_max_state_size")),
 		ConntrackRateLimit:           cfg.GetInt(join(spNS, "conntrack_rate_limit")),
+		ConntrackRateLimitInterval:   3 * time.Second,
 		EnableConntrackAllNamespaces: cfg.GetBool(join(spNS, "enable_conntrack_all_namespaces")),
 		IgnoreConntrackInitFailure:   cfg.GetBool(join(netNS, "ignore_conntrack_init_failure")),
 		ConntrackInitTimeout:         cfg.GetDuration(join(netNS, "conntrack_init_timeout")),
@@ -246,7 +277,17 @@ func New() *Config {
 		// connections
 		c.MaxClosedConnectionsBuffered = int(c.MaxTrackedConnections)
 	}
+	if c.HTTPNotificationThreshold >= c.MaxTrackedHTTPConnections {
+		log.Warnf("Notification threshold set higher than tracked connections.  %d > %d ; resetting to %d",
+			c.HTTPNotificationThreshold, c.MaxTrackedHTTPConnections, c.MaxTrackedHTTPConnections/2)
+		c.HTTPNotificationThreshold = c.MaxTrackedHTTPConnections / 2
+	}
 
+	maxHTTPFrag := uint64(160)
+	if c.HTTPMaxRequestFragment > int64(maxHTTPFrag) { // dbtodo where is the actual max defined?
+		log.Warnf("Max HTTP fragment too large (%d) resetting to (%d) ", c.HTTPMaxRequestFragment, maxHTTPFrag)
+		c.HTTPMaxRequestFragment = int64(maxHTTPFrag)
+	}
 	httpRRKey := join(netNS, "http_replace_rules")
 	rr, err := parseReplaceRules(cfg, httpRRKey)
 	if err != nil {

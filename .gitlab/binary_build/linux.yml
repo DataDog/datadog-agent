@@ -11,8 +11,9 @@ build_dogstatsd_static-binary_x64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
+    - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd
 
 build_dogstatsd_static-binary_arm64:
   stage: binary_build
@@ -26,13 +27,10 @@ build_dogstatsd_static-binary_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --static --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
 
 build_dogstatsd-binary_x64:
   stage: binary_build
@@ -45,8 +43,9 @@ build_dogstatsd-binary_x64:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
+    - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 build_dogstatsd-binary_arm64:
   rules:
@@ -60,13 +59,10 @@ build_dogstatsd-binary_arm64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
   script:
+    - inv check-go-version
     - inv -e dogstatsd.build --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
 # IoT Agent builds to make sure the build is not broken because of build flags
 build_iot_agent-binary_x64:
@@ -79,8 +75,9 @@ build_iot_agent-binary_x64:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7
-    - $S3_CP_CMD $SRC_PATH/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
+    - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
 build_iot_agent-binary_arm64:
   rules:
@@ -93,9 +90,6 @@ build_iot_agent-binary_arm64:
     ARCH: arm64
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    # Hack to work around the cloning issue with arm runners
-    - mkdir -p $GOPATH/src/github.com/DataDog
-    - cp -R $GOPATH/src/github.com/*/*/DataDog/datadog-agent $GOPATH/src/github.com/DataDog
-    - cd $SRC_PATH
   script:
+    - inv check-go-version
     - inv -e agent.build --flavor iot --major-version 7

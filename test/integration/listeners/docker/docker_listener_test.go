@@ -57,7 +57,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		false,
 	)
 
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(context.Background())
 
 	tagger.SetDefaultTagger(local.NewTagger(store))
@@ -188,7 +188,7 @@ func (suite *DockerListenerTestSuite) commonSection(containerIDs []string) {
 		assert.Nil(suite.T(), err)
 		entity := fmt.Sprintf("docker://%s", container)
 		if strings.Contains(inspect.Name, "excluded") {
-			excludedEntity = docker.ContainerIDToEntityName(container)
+			excludedEntity = containers.BuildEntityName(string(workloadmeta.ContainerRuntimeDocker), container)
 			excludedIDs = append(excludedIDs, container)
 			continue
 		}

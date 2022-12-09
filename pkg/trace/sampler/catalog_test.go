@@ -38,7 +38,7 @@ func TestCatalogRegression(t *testing.T) {
 			cat.ratesByService("", map[Signature]float64{
 				ServiceSignature{}.Hash():                 0.3,
 				ServiceSignature{"web", "staging"}.Hash(): 0.4,
-			}, nil, 0.2)
+			}, 0.2)
 		}
 	}()
 
@@ -62,13 +62,13 @@ func TestServiceKeyCatalogRegister(t *testing.T) {
 	cat := newServiceLookup(0)
 	s := getTestPrioritySampler()
 
-	_, root1 := getTestTraceWithService(t, "service1", s)
+	_, root1 := getTestTraceWithService("service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
 	catalogContains(t, cat, map[ServiceSignature]Signature{
 		{"service1", "testEnv"}: sig1,
 	})
 
-	_, root2 := getTestTraceWithService(t, "service2", s)
+	_, root2 := getTestTraceWithService("service2", s)
 	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
 	catalogContains(t, cat, map[ServiceSignature]Signature{
 		{"service1", "testEnv"}: sig1,
@@ -147,8 +147,6 @@ func TestCatalogEnvMatchAgent(t *testing.T) {
 	cat.register(sig1)
 	sig2 := ServiceSignature{"service2", defaultEnv}
 	cat.register(sig2)
-	sig3 := ServiceSignature{"service3", defaultEnv}
-	cat.register(sig3)
 
 	rates := map[Signature]float64{
 		sig1.Hash(): 0.3,
@@ -156,20 +154,13 @@ func TestCatalogEnvMatchAgent(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	remoteRates := map[Signature]rm{
-		sig2.Hash(): {0.5555, 2},
-		sig3.Hash(): {0.19, 2},
-	}
-
-	rateByService := cat.ratesByService(defaultEnv, rates, remoteRates, totalRate)
-	assert.Equal(map[ServiceSignature]rm{
-		{"service1", defaultEnv}: {0.3, 0},
-		{"service1", ""}:         {0.3, 0},
-		{"service2", defaultEnv}: {0.5555, 2},
-		{"service2", ""}:         {0.5555, 2},
-		{"service3", defaultEnv}: {0.19, 2},
-		{"service3", ""}:         {0.19, 2},
-		{}:                       {0.2, 0},
+	rateByService := cat.ratesByService(defaultEnv, rates, totalRate)
+	assert.Equal(map[ServiceSignature]float64{
+		{"service1", defaultEnv}: 0.3,
+		{"service1", ""}:         0.3,
+		{"service2", defaultEnv}: 0.7,
+		{"service2", ""}:         0.7,
+		{}:                       0.2,
 	}, rateByService)
 }
 
@@ -179,12 +170,10 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	cat := newServiceLookup(0)
 	s := getTestPrioritySampler()
 
-	_, root1 := getTestTraceWithService(t, "service1", s)
+	_, root1 := getTestTraceWithService("service1", s)
 	sig1 := cat.register(ServiceSignature{root1.Service, defaultEnv})
-	_, root2 := getTestTraceWithService(t, "service2", s)
+	_, root2 := getTestTraceWithService("service2", s)
 	sig2 := cat.register(ServiceSignature{root2.Service, defaultEnv})
-	_, root3 := getTestTraceWithService(t, "service3", s)
-	sig3 := cat.register(ServiceSignature{root3.Service, defaultEnv})
 
 	rates := map[Signature]float64{
 		sig1: 0.3,
@@ -192,32 +181,26 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	remoteRates := map[Signature]rm{
-		sig2: {0.5555, 2},
-		sig3: {0.19, 2},
-	}
-
-	rateByService := cat.ratesByService("", rates, remoteRates, totalRate)
-	assert.Equal(map[ServiceSignature]rm{
-		{"service1", "testEnv"}: {0.3, 0},
-		{"service2", "testEnv"}: {0.5555, 2},
-		{"service3", "testEnv"}: {0.19, 2},
-		{}:                      {0.2, 0},
+	rateByService := cat.ratesByService("", rates, totalRate)
+	assert.Equal(map[ServiceSignature]float64{
+		{"service1", "testEnv"}: 0.3,
+		{"service2", "testEnv"}: 0.7,
+		{}:                      0.2,
 	}, rateByService)
 
 	delete(rates, sig1)
 
-	rateByService = cat.ratesByService("", rates, nil, totalRate)
-	assert.Equal(map[ServiceSignature]rm{
-		{"service2", "testEnv"}: {0.7, 0},
-		{}:                      {0.2, 0},
+	rateByService = cat.ratesByService("", rates, totalRate)
+	assert.Equal(map[ServiceSignature]float64{
+		{"service2", "testEnv"}: 0.7,
+		{}:                      0.2,
 	}, rateByService)
 
 	delete(rates, sig2)
 
-	rateByService = cat.ratesByService("", rates, nil, totalRate)
-	assert.Equal(map[ServiceSignature]rm{
-		{}: {0.2, 0},
+	rateByService = cat.ratesByService("", rates, totalRate)
+	assert.Equal(map[ServiceSignature]float64{
+		{}: 0.2,
 	}, rateByService)
 }
 

@@ -21,11 +21,11 @@ import (
 )
 
 func changeLogLevel(level string) error {
-	if logger == nil {
+	if Logger == nil {
 		return errors.New("cannot set log-level: logger not initialized")
 	}
 
-	return logger.changeLogLevel(level)
+	return Logger.changeLogLevel(level)
 }
 
 // createExtraTextContext defines custom formatter for context logging on tests.
@@ -54,7 +54,7 @@ func TestBasicLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 
 	Tracef("%s", "foo")
 	Debugf("%s", "foo")
@@ -105,7 +105,7 @@ func TestLogBuffer(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
 	bufferLogsBeforeInit = true
-	logger = nil
+	Logger = nil
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -121,7 +121,7 @@ func TestLogBuffer(t *testing.T) {
 	Criticalf("%s", "foo")
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 
 	w.Flush()
 
@@ -132,7 +132,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
 	bufferLogsBeforeInit = true
-	logger = nil
+	Logger = nil
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -148,7 +148,7 @@ func TestLogBufferWithContext(t *testing.T) {
 	Criticalc("baz", "number", 1, "str", "hello")
 
 	SetupLogger(l, "debug")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 	w.Flush()
 
 	// Trace will not be logged, Error and Critical will directly be logged to Stderr
@@ -177,7 +177,7 @@ func TestCredentialScrubbingLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "info")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 
 	Info("don't tell anyone: ", "SECRET")
 	Infof("this is a SECRET password: %s", "hunter2")
@@ -201,7 +201,7 @@ func TestExtraLogging(t *testing.T) {
 	assert.Nil(t, err)
 
 	SetupLogger(l, "info")
-	assert.NotNil(t, logger)
+	assert.NotNil(t, Logger)
 
 	err = RegisterAdditionalLogger("extra", lA)
 	assert.Nil(t, err)

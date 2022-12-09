@@ -7,8 +7,10 @@ package report
 
 import (
 	json "encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -31,8 +33,9 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
+	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore)
 
-	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces)
+	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, topologyLinks)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -188,7 +191,83 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 	return interfaces
 }
 
-func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata) []metadata.NetworkDevicesMetadata {
+func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []metadata.TopologyLinkMetadata {
+	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return a nil slice.
+		return nil
+	}
+	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
+	if len(indexes) == 0 {
+		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
+		return nil
+	}
+	sort.Strings(indexes)
+	var links []metadata.TopologyLinkMetadata
+	for _, strIndex := range indexes {
+		indexElems := strings.Split(strIndex, ".")
+
+		// The lldpRemEntry index is composed of those 3 elements separate by `.`: lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex
+		if len(indexElems) != 3 {
+			log.Debugf("Expected 3 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
+			continue
+		}
+		// TODO: Handle TimeMark at indexElems[0] if needed later
+		//       See https://www.rfc-editor.org/rfc/rfc2021
+
+		localPortNum := indexElems[1]
+
+		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
+		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
+
+		remoteInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_remote.interface_id_type", strIndex)]
+		remoteInterfaceID := formatID(remoteInterfaceIDType, store, "lldp_remote.interface_id", strIndex)
+
+		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
+		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
+
+		newLink := metadata.TopologyLinkMetadata{
+			Remote: &metadata.TopologyLinkSide{
+				Device: &metadata.TopologyLinkDevice{
+					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
+					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
+					ID:          remoteDeviceID,
+					IDType:      remoteDeviceIDType,
+				},
+				Interface: &metadata.TopologyLinkInterface{
+					ID:          remoteInterfaceID,
+					IDType:      remoteInterfaceIDType,
+					Description: store.GetColumnAsString("lldp_remote.interface_desc", strIndex),
+				},
+			},
+			Local: &metadata.TopologyLinkSide{
+				Interface: &metadata.TopologyLinkInterface{
+					ID:     localInterfaceID,
+					IDType: localInterfaceIDType,
+					// TODO: We can possibly resolve locally to ifIndex to avoid having to resolve on backend side
+				},
+				Device: &metadata.TopologyLinkDevice{
+					ID:     deviceID,
+					IDType: metadata.IDTypeNDM,
+				},
+			},
+		}
+		links = append(links, newLink)
+	}
+	return links
+}
+
+func formatID(idType string, store *metadata.Store, field string, strIndex string) string {
+	var remoteDeviceID string
+	if idType == metadata.IDTypeMacAddress {
+		remoteDeviceID = formatColonSepBytes(store.GetColumnAsByteArray(field, strIndex))
+	} else {
+		remoteDeviceID = store.GetColumnAsString(field, strIndex)
+	}
+	return remoteDeviceID
+}
+
+func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata, topologyLinks []metadata.TopologyLinkMetadata) []metadata.NetworkDevicesMetadata {
 	var payloads []metadata.NetworkDevicesMetadata
 	var resourceCount int
 	payload := metadata.NetworkDevicesMetadata{
@@ -213,6 +292,20 @@ func batchPayloads(namespace string, subnet string, collectTime time.Time, batch
 		}
 		resourceCount++
 		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
+	}
+
+	for _, linkMetadata := range topologyLinks {
+		if resourceCount == batchSize {
+			payloads = append(payloads, payload)
+			payload = metadata.NetworkDevicesMetadata{ // TODO: Avoid duplication
+				Subnet:           subnet,
+				Namespace:        namespace,
+				CollectTimestamp: collectTime.Unix(),
+			}
+			resourceCount = 0
+		}
+		resourceCount++
+		payload.Links = append(payload.Links, linkMetadata)
 	}
 
 	payloads = append(payloads, payload)

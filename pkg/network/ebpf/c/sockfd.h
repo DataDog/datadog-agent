@@ -1,6 +1,7 @@
 #ifndef __SOCKFD_H
 #define __SOCKFD_H
 
+#include "bpf_builtins.h"
 #include "tracer.h"
 #include <linux/types.h>
 
@@ -28,7 +29,7 @@ __maybe_unused static __always_inline void clear_sockfd_maps(struct sock* sock) 
 
     // Copy map value to stack before re-using it (needed for Kernel 4.4)
     pid_fd_t pid_fd_copy = {};
-    __builtin_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
+    bpf_memcpy(&pid_fd_copy, pid_fd, sizeof(pid_fd_t));
     pid_fd = &pid_fd_copy;
 
     bpf_map_delete_elem(&sock_by_pid_fd, pid_fd);

@@ -20,22 +20,14 @@ import (
 )
 
 // DaemonSetHandlers implements the Handlers interface for Kubernetes DaemonSets.
-type DaemonSetHandlers struct{}
+type DaemonSetHandlers struct {
+	BaseHandlers
+}
 
 // AfterMarshalling is a handler called after resource marshalling.
 func (h *DaemonSetHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.DaemonSet)
 	m.Yaml = yaml
-	return
-}
-
-// BeforeCacheCheck is a handler called before cache lookup.
-func (h *DaemonSetHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
-	return
-}
-
-// BeforeMarshalling is a handler called before resource marshalling.
-func (h *DaemonSetHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
@@ -54,7 +46,7 @@ func (h *DaemonSetHandlers) BuildMessageBody(ctx *processors.ProcessorContext, r
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		DaemonSets:  models,
-		Tags:        ctx.Cfg.ExtraTags,
+		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
 	}
 }
 
@@ -78,7 +70,7 @@ func (h *DaemonSetHandlers) ResourceList(ctx *processors.ProcessorContext, list 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *DaemonSetHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*appsv1.DaemonSet).UID
 }
 

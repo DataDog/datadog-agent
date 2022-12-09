@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -116,9 +116,8 @@ func TestMockListener(t *testing.T) {
 
 func TestMeasuredListener(t *testing.T) {
 	assert := assert.New(t)
-	stats := &testutil.TestStatsClient{}
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
+	stats := &teststatsd.Client{}
+	defer testutil.WithStatsClient(stats)()
 
 	var mockln mockListener
 	ln := NewMeasuredListener(&mockln, "test-metric").(*measuredListener)

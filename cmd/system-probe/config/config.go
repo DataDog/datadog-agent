@@ -28,6 +28,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace             = "system_probe_config"
 	spNS                  = Namespace
+	smNS                  = "service_monitoring_config"
 	defaultConfigFileName = "system-probe.yaml"
 
 	defaultConnsMessageBatchSize = 600
@@ -59,9 +60,10 @@ type Config struct {
 	SocketAddress      string
 	MaxConnsPerMessage int
 
-	LogFile   string
-	LogLevel  string
-	DebugPort int
+	LogFile          string
+	LogLevel         string
+	DebugPort        int
+	TelemetryEnabled bool
 
 	StatsdHost string
 	StatsdPort int
@@ -166,20 +168,15 @@ func load(configPath string) (*Config, error) {
 		SocketAddress:      cfg.GetString(key(spNS, "sysprobe_socket")),
 		MaxConnsPerMessage: cfg.GetInt(key(spNS, "max_conns_per_message")),
 
-		LogFile:   cfg.GetString(key(spNS, "log_file")),
-		LogLevel:  cfg.GetString(key(spNS, "log_level")),
-		DebugPort: cfg.GetInt(key(spNS, "debug_port")),
+		LogFile:          cfg.GetString(key(spNS, "log_file")),
+		LogLevel:         cfg.GetString(key(spNS, "log_level")),
+		DebugPort:        cfg.GetInt(key(spNS, "debug_port")),
+		TelemetryEnabled: cfg.GetBool(key(spNS, "telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
 		StatsdPort: cfg.GetInt("dogstatsd_port"),
 
 		ProfilingSettings: profSettings,
-	}
-
-	if err := ValidateSocketAddress(c.SocketAddress); err != nil {
-		log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
-		c.SocketAddress = defaultSystemProbeAddress
-		cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	}
 
 	if c.MaxConnsPerMessage > maxConnsMessageBatchSize {
@@ -190,7 +187,7 @@ func load(configPath string) (*Config, error) {
 
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
 
 	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
@@ -229,7 +226,25 @@ func load(configPath string) (*Config, error) {
 
 	if len(c.EnabledModules) > 0 {
 		c.Enabled = true
-		cfg.Set(key(spNS, "enabled"), c.Enabled)
+		if err := ValidateSocketAddress(c.SocketAddress); err != nil {
+			log.Errorf("Could not parse %s.sysprobe_socket: %s", spNS, err)
+			c.SocketAddress = defaultSystemProbeAddress
+		}
+	} else {
+		c.Enabled = false
+		c.SocketAddress = ""
+	}
+
+	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
+	cfg.Set(key(spNS, "enabled"), c.Enabled)
+
+	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
+		if !usmEnabled {
+			log.Info("service monitoring is disabled, disabling process service inference")
+			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+		} else {
+			log.Info("process service inference is enabled")
+		}
 	}
 
 	return c, nil

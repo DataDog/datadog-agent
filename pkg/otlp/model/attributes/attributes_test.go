@@ -36,7 +36,8 @@ func TestTagsFromAttributes(t *testing.T) {
 		conventions.AttributeAWSECSClusterARN:      "cluster_arn",
 		"tags.datadoghq.com/service":               "service_name",
 	}
-	attrs := pcommon.NewMapFromRaw(attributeMap)
+	attrs := pcommon.NewMap()
+	attrs.FromRaw(attributeMap)
 
 	assert.ElementsMatch(t, []string{
 		fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutableName, "otelcol"),
@@ -72,14 +73,24 @@ func TestContainerTagFromAttributes(t *testing.T) {
 		"empty_string_val":                         "",
 	}
 
-	assert.Equal(t, "container_name:sample_app,image_tag:sample_app_image_tag,kube_container_name:kube_sample_app,kube_replica_set:sample_replica_set,kube_daemon_set:sample_daemonset_name,pod_name:sample_pod_name,cloud_provider:sample_cloud_provider,region:sample_region,zone:sample_zone,task_family:sample_task_family,ecs_cluster_name:sample_ecs_cluster_name,ecs_container_name:sample_ecs_container_name", ContainerTagFromAttributes(attributeMap))
+	assert.Equal(t, map[string]string{
+		"container_name":      "sample_app",
+		"image_tag":           "sample_app_image_tag",
+		"kube_container_name": "kube_sample_app",
+		"kube_replica_set":    "sample_replica_set",
+		"kube_daemon_set":     "sample_daemonset_name",
+		"pod_name":            "sample_pod_name",
+		"cloud_provider":      "sample_cloud_provider",
+		"region":              "sample_region",
+		"zone":                "sample_zone",
+		"task_family":         "sample_task_family",
+		"ecs_cluster_name":    "sample_ecs_cluster_name",
+		"ecs_container_name":  "sample_ecs_container_name",
+	}, ContainerTagFromAttributes(attributeMap))
 }
 
 func TestContainerTagFromAttributesEmpty(t *testing.T) {
-	var empty string
-	attributeMap := map[string]string{}
-
-	assert.Equal(t, empty, ContainerTagFromAttributes(attributeMap))
+	assert.Empty(t, ContainerTagFromAttributes(map[string]string{}))
 }
 
 func TestOriginIDFromAttributes(t *testing.T) {
@@ -90,24 +101,36 @@ func TestOriginIDFromAttributes(t *testing.T) {
 	}{
 		{
 			name: "pod UID and container ID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeContainerID: "container_id_goes_here",
-				conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerID: "container_id_goes_here",
+					conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only container ID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeContainerID: "container_id_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerID: "container_id_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "container_id://container_id_goes_here",
 		},
 		{
 			name: "only pod UID",
-			attrs: pcommon.NewMapFromRaw(map[string]interface{}{
-				conventions.AttributeK8SPodUID: "k8s_pod_uid_goes_here",
-			}),
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SPodUID: "k8s_pod_uid_goes_here",
+				})
+				return attributes
+			}(),
 			originID: "kubernetes_pod_uid://k8s_pod_uid_goes_here",
 		},
 		{

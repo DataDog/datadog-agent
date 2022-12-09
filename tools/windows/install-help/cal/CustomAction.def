@@ -2,9 +2,9 @@ LIBRARY customaction
 
 EXPORTS
 	DllMain
-    FinalizeInstall
+	FinalizeInstall
 	PreStopServices
 	PostStartServices
 	DoUninstall
-    DoRollback
-	
+	DoRollback
+	ValidateDDAgentUserDlgInput

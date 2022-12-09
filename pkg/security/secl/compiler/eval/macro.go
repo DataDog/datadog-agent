@@ -31,13 +31,13 @@ type MacroEvaluator struct {
 }
 
 // NewMacro parses an expression and returns a new macro
-func NewMacro(id, expression string, model Model, replCtx ReplacementContext) (*Macro, error) {
+func NewMacro(id, expression string, model Model, parsingContext *ast.ParsingContext, replCtx ReplacementContext) (*Macro, error) {
 	macro := &Macro{
 		ID:    id,
 		Store: replCtx.MacroStore,
 	}
 
-	if err := macro.Parse(expression); err != nil {
+	if err := macro.Parse(parsingContext, expression); err != nil {
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
@@ -82,8 +82,8 @@ func (m *Macro) GetAst() *ast.Macro {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (m *Macro) Parse(expression string) error {
-	astMacro, err := ast.ParseMacro(expression)
+func (m *Macro) Parse(parsingContext *ast.ParsingContext, expression string) error {
+	astMacro, err := parsingContext.ParseMacro(expression)
 	if err != nil {
 		return err
 	}

@@ -10,10 +10,12 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cast"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 )
@@ -37,6 +39,7 @@ type MacroDefinition struct {
 	Expression             string        `yaml:"expression"`
 	Description            string        `yaml:"description"`
 	AgentVersionConstraint string        `yaml:"agent_version"`
+	Filters                []string      `yaml:"filters"`
 	Values                 []string      `yaml:"values"`
 	Combine                CombinePolicy `yaml:"combine"`
 }
@@ -74,9 +77,11 @@ type RuleDefinition struct {
 	Description            string             `yaml:"description"`
 	Tags                   map[string]string  `yaml:"tags"`
 	AgentVersionConstraint string             `yaml:"agent_version"`
+	Filters                []string           `yaml:"filters"`
 	Disabled               bool               `yaml:"disabled"`
 	Combine                CombinePolicy      `yaml:"combine"`
 	Actions                []ActionDefinition `yaml:"actions"`
+	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
 }
 
@@ -210,12 +215,12 @@ func (rs *RuleSet) ListMacroIDs() []MacroID {
 }
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
-func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
+func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*MacroDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
 	for _, macroDef := range macros {
-		if _, err := rs.AddMacro(macroDef); err != nil {
+		if _, err := rs.AddMacro(parsingContext, macroDef); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -224,7 +229,7 @@ func (rs *RuleSet) AddMacros(macros []*MacroDefinition) *multierror.Error {
 }
 
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
-func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
+func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, macroDef *MacroDefinition) (*eval.Macro, error) {
 	var err error
 
 	if _, exists := rs.macroStore.Macros[macroDef.ID]; exists {
@@ -237,7 +242,7 @@ func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 	case macroDef.Expression != "" && len(macroDef.Values) > 0:
 		return nil, &ErrMacroLoad{Definition: macroDef, Err: errors.New("only one of 'expression' and 'values' can be defined")}
 	case macroDef.Expression != "":
-		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, rs.replCtx()); err != nil {
+		if macro.Macro, err = eval.NewMacro(macroDef.ID, macroDef.Expression, rs.model, parsingContext, rs.replCtx()); err != nil {
 			return nil, &ErrMacroLoad{Definition: macroDef, Err: err}
 		}
 	default:
@@ -252,11 +257,11 @@ func (rs *RuleSet) AddMacro(macroDef *MacroDefinition) (*eval.Macro, error) {
 }
 
 // AddRules adds rules to the ruleset and generate their partials
-func (rs *RuleSet) AddRules(rules []*RuleDefinition) *multierror.Error {
+func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, rules []*RuleDefinition) *multierror.Error {
 	var result *multierror.Error
 
 	for _, ruleDef := range rules {
-		if _, err := rs.AddRule(ruleDef); err != nil {
+		if _, err := rs.AddRule(parsingContext, ruleDef); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -288,7 +293,7 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 }
 
 // AddRule creates the rule evaluator and adds it to the bucket of its events
-func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
+func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, ruleDef *RuleDefinition) (*eval.Rule, error) {
 	if ruleDef.Disabled {
 		return nil, nil
 	}
@@ -317,11 +322,11 @@ func (rs *RuleSet) AddRule(ruleDef *RuleDefinition) (*eval.Rule, error) {
 		Definition: ruleDef,
 	}
 
-	if err := rule.Parse(); err != nil {
-		return nil, &ErrRuleLoad{Definition: ruleDef, Err: fmt.Errorf("syntax error: %w", err)}
+	if err := rule.Parse(parsingContext); err != nil {
+		return nil, &ErrRuleLoad{Definition: ruleDef, Err: &ErrRuleSyntax{Err: err}}
 	}
 
-	if err := rule.GenEvaluator(rs.model, rs.replCtx()); err != nil {
+	if err := rule.GenEvaluator(rs.model, parsingContext, rs.replCtx()); err != nil {
 		return nil, &ErrRuleLoad{Definition: ruleDef, Err: err}
 	}
 
@@ -459,6 +464,17 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
+func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, error) {
+	for _, rule := range rules {
+		isTrue, err := rule.PartialEval(ctx, field)
+		if err != nil || isTrue {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// IsDiscarder partially evaluates an Event against a field
 func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error) {
 	eventType, err := event.GetFieldEventType(field)
 	if err != nil {
@@ -473,13 +489,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	ctx := rs.pool.Get(event.GetPointer())
 	defer rs.pool.Put(ctx)
 
-	for _, rule := range bucket.rules {
-		isTrue, err := rule.PartialEval(ctx, field)
-		if err != nil || isTrue {
-			return false, err
-		}
-	}
-	return true, nil
+	return IsDiscarder(ctx, field, bucket.rules)
 }
 
 func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
@@ -568,15 +578,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 				}
 			}
 
-			isDiscarder := true
-			for _, rule := range bucket.rules {
-				isTrue, err := rule.PartialEval(ctx, field)
-				if err != nil || isTrue {
-					isDiscarder = false
-					break
-				}
-			}
-			if isDiscarder {
+			if isDiscarder, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
 				rs.NotifyDiscarderFound(event, field, eventType)
 			}
 		}
@@ -632,6 +634,8 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		ruleIndex  = make(map[string]*RuleDefinition)
 	)
 
+	parsingContext := ast.NewParsingContext()
+
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {
 		errs = multierror.Append(errs, err)
@@ -663,7 +667,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	}
 
 	// Add the macros to the ruleset and generate macros evaluators
-	if err := rs.AddMacros(allMacros); err.ErrorOrNil() != nil {
+	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -772,7 +776,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	}
 
 	// Add rules to the ruleset and generate rules evaluators
-	if err := rs.AddRules(allRules); err.ErrorOrNil() != nil {
+	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 

@@ -148,6 +148,22 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
+			// if the filter has type "EventTypeUnset", it does not receive
+			// events for entities that are currently in the store.
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: NewFilter(nil, fooSource, EventTypeUnset),
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: fooContainer,
+				},
+			},
+			expected: []EventBundle{
+				{},
+			},
+		},
+		{
 			// will receive events for entities that are currently
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
@@ -665,6 +681,47 @@ func TestListContainersWithFilter(t *testing.T) {
 	runningContainers := testStore.ListContainersWithFilter(GetRunningContainers)
 
 	assert.DeepEqual(t, []*Container{runningContainer}, runningContainers)
+}
+
+func TestListImages(t *testing.T) {
+	image := &ContainerImageMetadata{
+		EntityID: EntityID{
+			Kind: KindContainerImageMetadata,
+			ID:   "abc",
+		},
+	}
+
+	tests := []struct {
+		name           string
+		preEvents      []CollectorEvent
+		expectedImages []*ContainerImageMetadata
+	}{
+		{
+			name: "some images stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: image,
+				},
+			},
+			expectedImages: []*ContainerImageMetadata{image},
+		},
+		{
+			name:           "no containers stored",
+			preEvents:      nil,
+			expectedImages: []*ContainerImageMetadata{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			assert.DeepEqual(t, test.expectedImages, testStore.ListImages())
+		})
+	}
 }
 
 func newTestStore() *store {

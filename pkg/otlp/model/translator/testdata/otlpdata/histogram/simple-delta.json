@@ -1,0 +1,53 @@
+{
+  "resourceMetrics": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "host.name",
+            "value": {
+              "stringValue": "hostname"
+            }
+          }
+        ]
+      },
+      "scopeMetrics": [
+        {
+          "scope": {},
+          "metrics": [
+            {
+              "name": "doubleHist.test",
+              "histogram": {
+                "dataPoints": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "attribute_tag",
+                        "value": {
+                          "stringValue": "attribute_value"
+                        }
+                      }
+                    ],
+                    "timeUnixNano": "1667560641226420924",
+                    "count": "20",
+                    "sum": 3.141592653589793,
+                    "bucketCounts": [
+                      "2",
+                      "18"
+                    ],
+                    "explicitBounds": [
+                      0
+                    ],
+                    "min": -100,
+                    "max": 100
+                  }
+                ],
+                "aggregationTemporality": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -15,7 +15,8 @@ enum erpc_op {
     RESOLVE_PARENT_OP,
     REGISTER_SPAN_TLS_OP, // can be used outside of the CWS, do not change the value
     EXPIRE_INODE_DISCARDER_OP,
-    EXPIRE_PID_DISCARDER_OP
+    EXPIRE_PID_DISCARDER_OP,
+    BUMP_DISCARDERS_REVISION,
 };
 
 struct discard_request_t {
@@ -67,7 +68,7 @@ int __attribute__((always_inline)) handle_expire_inode_discarder(void *data) {
     struct expire_inode_discarder_t discarder;
     bpf_probe_read(&discarder, sizeof(discarder), data);
 
-    expire_inode_discarder(discarder.mount_id, discarder.inode);
+    expire_inode_discarders(discarder.mount_id, discarder.inode);
 
     return 0;
 }
@@ -92,6 +93,16 @@ int __attribute__((always_inline)) handle_expire_pid_discarder(void *data) {
     bpf_probe_read(&pid, sizeof(pid), data);
 
     expire_pid_discarder(pid);
+
+    return 0;
+}
+
+int __attribute__((always_inline)) handle_bump_discarders_revision(void *data) {
+    if (!is_runtime_request()) {
+        return 0;
+    }
+
+    bump_discarders_revision();
 
     return 0;
 }
@@ -127,18 +138,16 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
 
     void *data = req + sizeof(op);
 
-    if (!is_flushing_discarders()) {
-        switch (op) {
-            case DISCARD_INODE_OP:
-                return handle_discard_inode(data);
-            case DISCARD_PID_OP:
-                return handle_discard_pid(data);
-        }
+    switch (op) {
+        case DISCARD_INODE_OP:
+            return handle_discard_inode(data);
+        case DISCARD_PID_OP:
+            return handle_discard_pid(data);
     }
 
     switch (op) {
         case RESOLVE_SEGMENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY);
+            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY); // func (dr *DentryResolver) ResolveFromERPC in the userspace code side triggers handle_dr_request
         case RESOLVE_PATH_OP:
             return handle_dr_request(ctx, data, DR_ERPC_KEY);
         case RESOLVE_PARENT_OP:
@@ -149,6 +158,9 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
             return handle_expire_inode_discarder(data);
         case EXPIRE_PID_DISCARDER_OP:
             return handle_expire_pid_discarder(data);
+        case BUMP_DISCARDERS_REVISION:
+            return handle_bump_discarders_revision(data);
+
     }
 
     return 0;

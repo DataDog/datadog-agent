@@ -27,6 +27,7 @@ func init() {
 	myPid = manager.Getpid()
 }
 
+// KprobeStats is the count of hits and misses for a kprobe/kretprobe
 type KprobeStats struct {
 	Hits   int64
 	Misses int64

@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/mocks"
+	"github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 
 	assert "github.com/stretchr/testify/require"
@@ -121,7 +123,7 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from shell command",
 			expression: `shell("cat /home/root/hiya-buddy.txt", "/bin/bash")`,
 			setup: func(t *testing.T) {
-				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
+				command.Runner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 					assert.Equal("/bin/bash", name)
 					assert.Equal([]string{"cat /home/root/hiya-buddy.txt"}, args)
 					return 0, []byte("hiya buddy"), nil
@@ -133,7 +135,7 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from binary command",
 			expression: `exec("/bin/buddy", "/home/root/hiya-buddy.txt")`,
 			setup: func(t *testing.T) {
-				commandRunner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
+				command.Runner = func(ctx context.Context, name string, args []string, captureStdout bool) (int, []byte, error) {
 					assert.Equal("/bin/buddy", name)
 					assert.Equal([]string{"/home/root/hiya-buddy.txt"}, args)
 					return 0, []byte("hiya buddy"), nil
@@ -145,12 +147,9 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (processes, error) {
-					return processes{
-						42: {
-							Name:    "buddy",
-							Cmdline: []string{"--path=/home/root/hiya-buddy.txt"},
-						},
+				processutils.Fetcher = func() (processutils.Processes, error) {
+					return processutils.Processes{
+						42: processutils.NewCheckedFakeProcess(42, "buddy", []string{"--path=/home/root/hiya-buddy.txt"}),
 					}, nil
 				}
 			},
@@ -160,8 +159,8 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process missing process",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (processes, error) {
-					return processes{}, nil
+				processutils.Fetcher = func() (processutils.Processes, error) {
+					return processutils.Processes{}, nil
 				}
 			},
 			expectError: errors.New(`1:1: call to "process.flag()" failed: failed to find process: buddy`),
@@ -170,11 +169,9 @@ func TestResolveValueFrom(t *testing.T) {
 			name:       "from process missing flag",
 			expression: `process.flag("buddy", "--path")`,
 			setup: func(t *testing.T) {
-				processFetcher = func() (processes, error) {
-					return processes{
-						42: {
-							Name: "buddy",
-						},
+				processutils.Fetcher = func() (processutils.Processes, error) {
+					return processutils.Processes{
+						42: processutils.NewCheckedFakeProcess(42, "buddy", nil),
 					}, nil
 				}
 			},
@@ -182,12 +179,12 @@ func TestResolveValueFrom(t *testing.T) {
 		},
 		{
 			name:        "from json file",
-			expression:  `json("daemon.json", ".\"log-driver\"")`,
+			expression:  `json("audit/testdata/daemon.json", ".\"log-driver\"")`,
 			expectValue: "json-file",
 		},
 		{
 			name:        "from file yaml",
-			expression:  `yaml("pod.yaml", ".apiVersion")`,
+			expression:  `yaml("file/testdata/pod.yaml", ".apiVersion")`,
 			expectValue: "v1",
 		},
 	}
@@ -195,7 +192,7 @@ func TestResolveValueFrom(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			reporter := &mocks.Reporter{}
-			b, err := NewBuilder(reporter, WithHostRootMount("./testdata/file/"))
+			b, err := NewBuilder(reporter, WithHostRootMount("../resources/"))
 			assert.NoError(err)
 
 			env, ok := b.(env.Env)

@@ -37,11 +37,13 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 
 	mgr := &manager.Manager{
 		Probes: []*manager.Probe{
-			{ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFSection:  string(probes.SocketDnsFilter),
-				EBPFFuncName: funcName,
-				UID:          probeUID,
-			}},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFSection:  string(probes.SocketDNSFilter),
+					EBPFFuncName: funcName,
+					UID:          probeUID,
+				},
+			},
 		},
 	}
 
@@ -63,6 +65,10 @@ func (e *ebpfProgram) Init() error {
 		})
 	}
 
+	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
+	if e.cfg.AttachKprobesWithKprobeEventsABI {
+		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
+	}
 	return e.InitWithOptions(e.bytecode, manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -71,12 +77,13 @@ func (e *ebpfProgram) Init() error {
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probes.SocketDnsFilter),
+					EBPFSection:  string(probes.SocketDNSFilter),
 					EBPFFuncName: funcName,
 					UID:          probeUID,
 				},
 			},
 		},
-		ConstantEditors: constantEditors,
+		ConstantEditors:           constantEditors,
+		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	})
 }

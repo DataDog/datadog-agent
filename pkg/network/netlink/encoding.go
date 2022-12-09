@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && !android
-// +build linux,!android
+//go:build linux
+// +build linux
 
 package netlink
 
@@ -48,22 +48,22 @@ func EncodeConn(conn *Con) ([]byte, error) {
 func marshalIPTuple(ae *netlink.AttributeEncoder, tuple *ConTuple) error {
 	var err error
 	ae.Nested(ctaTupleIP, func(nae *netlink.AttributeEncoder) error {
-		if !tuple.Src.IP().IsZero() {
-			if tuple.Src.IP().Is4() || tuple.Src.IP().Is4in6() {
-				b := tuple.Src.IP().As4()
+		if !AddrIsZero(tuple.Src.Addr()) {
+			if tuple.Src.Addr().Is4() || tuple.Src.Addr().Is4In6() {
+				b := tuple.Src.Addr().As4()
 				nae.Bytes(ctaIPv4Src, b[:])
 			} else {
-				b := tuple.Src.IP().As16()
+				b := tuple.Src.Addr().As16()
 				nae.Bytes(ctaIPv6Src, b[:])
 			}
 		}
 
-		if !tuple.Dst.IP().IsZero() {
-			if tuple.Dst.IP().Is4() || tuple.Dst.IP().Is4in6() {
-				b := tuple.Dst.IP().As4()
+		if !AddrIsZero(tuple.Dst.Addr()) {
+			if tuple.Dst.Addr().Is4() || tuple.Dst.Addr().Is4In6() {
+				b := tuple.Dst.Addr().As4()
 				nae.Bytes(ctaIPv4Dst, b[:])
 			} else {
-				b := tuple.Dst.IP().As16()
+				b := tuple.Dst.Addr().As16()
 				nae.Bytes(ctaIPv6Dst, b[:])
 			}
 		}

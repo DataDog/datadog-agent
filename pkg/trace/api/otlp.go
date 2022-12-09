@@ -11,7 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -39,6 +39,10 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// keyStatsComputed specifies the resource attribute key which indicates if stats have been
+// computed for the resource spans.
+const keyStatsComputed = "_dd.stats_computed"
+
 const (
 	// otlpProtocolHTTP specifies that the incoming connection was made over plain HTTP.
 	otlpProtocolHTTP = "http"
@@ -49,16 +53,17 @@ const (
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
-	wg      sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv *http.Server        // the running HTTP server on a started receiver, if enabled
-	grpcsrv *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out     chan<- *Payload     // the outgoing payload channel
-	conf    *config.AgentConfig // receiver config
+	wg          sync.WaitGroup      // waits for a graceful shutdown
+	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
+	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
+	out         chan<- *Payload     // the outgoing payload channel
+	conf        *config.AgentConfig // receiver config
+	cidProvider IDProvider          // container ID provider
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -66,8 +71,9 @@ func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
 	if cfg.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", cfg.BindHost, cfg.HTTPPort),
-			Handler: o,
+			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
+			Handler:     o,
+			ConnContext: connContext,
 		}
 		o.wg.Add(1)
 		go func() {
@@ -86,7 +92,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			ptraceotlp.RegisterServer(o.grpcsrv, o)
+			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -117,12 +123,12 @@ func (o *OTLPReceiver) Stop() {
 }
 
 // Export implements ptraceotlp.Server
-func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.Request) (ptraceotlp.Response, error) {
+func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
-	return ptraceotlp.NewResponse(), nil
+	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
+	return ptraceotlp.NewExportResponse(), nil
 }
 
 // ServeHTTP implements http.Handler
@@ -142,14 +148,14 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r = gzipr
 	}
 	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
-	slurp, err := ioutil.ReadAll(rd)
+	slurp, err := io.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)
 		return
 	}
 	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	in := ptraceotlp.NewRequest()
+	in := ptraceotlp.NewExportRequest()
 	switch getMediaType(req) {
 	case "application/x-protobuf":
 		if err := in.UnmarshalProto(slurp); err != nil {
@@ -166,7 +172,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	o.processRequest(otlpProtocolHTTP, req.Header, in)
+	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
 }
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
@@ -201,15 +207,15 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in ptraceotlp.Request) {
+func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -239,7 +245,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = fastHeaderGet(header, headerContainerID)
+		containerID = o.cidProvider.GetContainerID(ctx, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
@@ -261,7 +267,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 		for i := 0; i < libspans.Spans().Len(); i++ {
 			spancount++
 			span := libspans.Spans().At(i)
-			traceID := traceIDToUint64(span.TraceID().Bytes())
+			traceID := traceIDToUint64(span.TraceID())
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
@@ -297,7 +303,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
-		Source: tagstats,
+		Source:              tagstats,
+		ClientComputedStats: rattr[keyStatsComputed] != "",
 	}
 	for k, spans := range tracesByID {
 		prio := int32(sampler.PriorityAutoKeep)
@@ -352,7 +359,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(rspans ptrace.ResourceSpans, header 
 	}
 	select {
 	case o.out <- &p:
-		// 👍
+		// Stats will be computed for p. Mark the original resource spans to ensure that they don't
+		// get computed twice in case these spans pass through here again.
+		//
+		// Spans can pass through here multiple times because this code path gets used by the:
+		//  - OpenTelemetry Collector Datadog processor, when computing stats.
+		//  - OpenTelemetry Collector Datadog exporter, when flushing.
+		//  - Datadog Agent OTLP Ingest, when used in conjunction with an SDK or a Collector.
+		rspans.Resource().Attributes().PutBool(keyStatsComputed, true)
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
@@ -455,11 +469,11 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
-	traceID := in.TraceID().Bytes()
+	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
-		SpanID:   spanIDToUint64(in.SpanID().Bytes()),
-		ParentID: spanIDToUint64(in.ParentSpanID().Bytes()),
+		SpanID:   spanIDToUint64(in.SpanID()),
+		ParentID: spanIDToUint64(in.ParentSpanID()),
 		Start:    int64(in.StartTimestamp()),
 		Duration: int64(in.EndTimestamp()) - int64(in.StartTimestamp()),
 		Meta:     make(map[string]string, len(rattr)),
@@ -477,27 +491,35 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Events().Len() > 0 {
 		setMetaOTLP(span, "events", marshalEvents(in.Events()))
 	}
+	if svc, ok := in.Attributes().Get(semconv.AttributePeerService); ok {
+		// the span attribute "peer.service" takes precedence over any resource attributes,
+		// in the same way that "service.name" does as part of setMetaOTLP
+		span.Service = svc.Str()
+	}
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
-			setMetricOTLP(span, k, v.DoubleVal())
+			setMetricOTLP(span, k, v.Double())
 		case pcommon.ValueTypeInt:
-			setMetricOTLP(span, k, float64(v.IntVal()))
+			setMetricOTLP(span, k, float64(v.Int()))
 		default:
 			setMetaOTLP(span, k, v.AsString())
 		}
 		return true
 	})
-	if ctags := attributes.ContainerTagFromAttributes(span.Meta); ctags != "" {
-		setMetaOTLP(span, tagContainersTags, ctags)
+	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
+		if _, ok := span.Meta[k]; !ok {
+			// overwrite only if it does not exist
+			setMetaOTLP(span, k, v)
+		}
 	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))
 		}
 	}
-	if in.TraceState() != ptrace.TraceStateEmpty {
-		setMetaOTLP(span, "w3c.tracestate", string(in.TraceState()))
+	if in.TraceState().AsRaw() != "" {
+		setMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
 		setMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
@@ -526,11 +548,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		span.Name = name
 	}
 	if span.Service == "" {
-		if svc := span.Meta[string(semconv.AttributePeerService)]; svc != "" {
-			span.Service = svc
-		} else {
-			span.Service = "OTLPResourceNoServiceName"
-		}
+		span.Service = "OTLPResourceNoServiceName"
 	}
 	if span.Resource == "" {
 		if r := resourceFromTags(span.Meta); r != "" {
@@ -575,7 +593,7 @@ func resourceFromTags(meta map[string]string) string {
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status ptrace.SpanStatus, events ptrace.SpanEventSlice, span *pb.Span) {
+func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.Span) {
 	if status.Code() != ptrace.StatusCodeError {
 		return
 	}

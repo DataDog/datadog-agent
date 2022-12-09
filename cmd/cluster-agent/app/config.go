@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/cluster-agent/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"

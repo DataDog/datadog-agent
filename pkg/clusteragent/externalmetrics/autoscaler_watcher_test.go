@@ -9,6 +9,7 @@
 package externalmetrics
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,6 +26,11 @@ import (
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics/model"
+)
+
+const (
+	autoscalingGroup = "autoscaling"
+	hpaResource      = "horizontalpodautoscalers"
 )
 
 func init() {
@@ -60,6 +66,18 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 		f.kubeObjects = append(f.kubeObjects, hpa)
 	}
 	kubeClient := kube_fake.NewSimpleClientset(f.kubeObjects...)
+	kubeClient.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: fmt.Sprintf("%s/%s", autoscalingGroup, "v2beta1"),
+			APIResources: []metav1.APIResource{
+				{
+					Name:    hpaResource,
+					Group:   autoscalingGroup,
+					Version: "v2beta1",
+				},
+			},
+		},
+	}
 	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
 
 	for _, wpa := range f.wpaLister {
@@ -68,7 +86,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -80,7 +98,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	}
 
 	for _, wpa := range f.wpaLister {
-		wpaInformer.ForResource(*gvr).Informer().GetIndexer().Add(wpa)
+		wpaInformer.ForResource(gvr).Informer().GetIndexer().Add(wpa)
 	}
 
 	return autoscalerWatcher, kubeInformer, wpaInformer

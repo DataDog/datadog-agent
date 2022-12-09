@@ -15,10 +15,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	cmdconfig "github.com/DataDog/datadog-agent/cmd/agent/common/commands/config"
+	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/app"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/app/subcommands"
+	cmdconfig "github.com/DataDog/datadog-agent/cmd/process-agent/commands/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -93,7 +96,15 @@ func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
 }
 
 func init() {
-	rootCmd.AddCommand(configCommand, app.StatusCmd, app.VersionCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
+	rootCmd.AddCommand(configCommand, app.StatusCmd, app.CheckCmd, app.EventsCmd, app.TaggerCmd)
+
+	globalParams := command.GlobalParams{}
+
+	for _, factory := range subcommands.ProcessAgentSubcommands() {
+		for _, subcmd := range factory(&globalParams) {
+			rootCmd.AddCommand(subcmd)
+		}
+	}
 }
 
 const (
@@ -163,17 +174,26 @@ func runAgent(exit chan struct{}) {
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
+	// Log any potential misconfigs that are related to the process agent
+	misconfig.ToLog(misconfig.ProcessAgent)
+
 	// Start workload metadata store before tagger (used for containerCollection)
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(mainCtx)
 
 	// Tagger must be initialized after agent config has been setup
 	var t tagger.Tagger
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
-		t = remote.NewTagger()
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			t = remote.NewTagger(options)
+		}
 	} else {
 		t = local.NewTagger(store)
 	}
+
 	tagger.SetDefaultTagger(t)
 	err = tagger.Init(mainCtx)
 	if err != nil {

@@ -8,7 +8,7 @@ package configutils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +46,7 @@ func buildTestFactories(t *testing.T) component.Factories {
 
 func TestNewConfigProviderFromMap(t *testing.T) {
 	// build constant provider
-	content, err := ioutil.ReadFile(testPath)
+	content, err := os.ReadFile(testPath)
 	require.NoError(t, err)
 	cfgMap, err := NewMapFromYAMLString(string(content))
 	require.NoError(t, err)
@@ -54,9 +54,11 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 
 	// build default provider from same data
 	settings := service.ConfigProviderSettings{
-		Locations:     []string{fmt.Sprintf("file:%s", testPath)},
-		MapProviders:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
-		MapConverters: []confmap.Converter{expandconverter.New()},
+		ResolverSettings: confmap.ResolverSettings{
+			URIs:       []string{fmt.Sprintf("file:%s", testPath)},
+			Providers:  makeConfigMapProviderMap(fileprovider.New(), envprovider.New(), yamlprovider.New()),
+			Converters: []confmap.Converter{expandconverter.New()},
+		},
 	}
 	defaultProvider, err := service.NewConfigProvider(settings)
 	require.NoError(t, err)

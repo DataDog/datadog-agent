@@ -59,10 +59,6 @@ $ sudo dlv attach `pgrep -f '/opt/datadog-agent/bin/agent/agent run'`
 If you're running a stripped binary of the agent, you can `attach` and point
 delve at the debug symbols.
 
-> As of writing this, no release has been made with [PR
-> 3073](https://github.com/go-delve/delve/pull/3073) which is needed.
-> Any version > 1.9 should have this PR, but build from `master` until then.
-
 Configure delve to search for debug symbols in the path you installed debug
 symbols to.
 

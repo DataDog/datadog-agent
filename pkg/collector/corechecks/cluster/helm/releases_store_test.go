@@ -33,71 +33,92 @@ func TestAdd(t *testing.T) {
 		Namespace: "default",
 	}
 
-	store.add(&rel, k8sSecrets)
-	assert.Equal(t, &rel, store.get("default/my_datadog", 1, k8sSecrets))
+	genericTags := []string{"foo:1"}
+	tagsForMetricsAndEvents := []string{"bar:2"}
+
+	store.add(&rel, k8sSecrets, genericTags, tagsForMetricsAndEvents)
+
+	assert.Equal(t, &taggedRelease{
+		release:                 &rel,
+		commonTags:              genericTags,
+		tagsForMetricsAndEvents: tagsForMetricsAndEvents,
+	}, store.get("default/my_datadog", 1, k8sSecrets))
+
 	assert.Nil(t, store.get("default/my_datadog", 1, k8sConfigmaps)) // Different storage
 }
 
 func TestGetAll(t *testing.T) {
 	store := newReleasesStore()
 
-	releasesInSecrets := []*release{
+	releasesInSecrets := []*taggedRelease{
 		{
-			Name: "my_datadog",
-			Info: &info{
-				Status: "deployed",
-			},
-			Chart: &chart{
-				Metadata: &metadata{
-					Name:       "datadog",
-					Version:    "2.30.5",
-					AppVersion: "7",
+			release: &release{
+				Name: "my_datadog",
+				Info: &info{
+					Status: "deployed",
 				},
+				Chart: &chart{
+					Metadata: &metadata{
+						Name:       "datadog",
+						Version:    "2.30.5",
+						AppVersion: "7",
+					},
+				},
+				Version:   1,
+				Namespace: "default",
 			},
-			Version:   1,
-			Namespace: "default",
+			commonTags:              []string{"foo:1"},
+			tagsForMetricsAndEvents: []string{"bar:2"},
 		},
 		{
-			Name: "my_proxy",
-			Info: &info{
-				Status: "deployed",
-			},
-			Chart: &chart{
-				Metadata: &metadata{
-					Name:       "nginx",
-					Version:    "1.0.0",
-					AppVersion: "1",
+			release: &release{
+				Name: "my_proxy",
+				Info: &info{
+					Status: "deployed",
 				},
-			},
-			Version:   2,
-			Namespace: "default",
-		},
-	}
-
-	releasesInConfigMaps := []*release{
-		{
-			Name: "my_app",
-			Info: &info{
-				Status: "deployed",
-			},
-			Chart: &chart{
-				Metadata: &metadata{
-					Name:       "some_app",
-					Version:    "1.1.0",
-					AppVersion: "1",
+				Chart: &chart{
+					Metadata: &metadata{
+						Name:       "nginx",
+						Version:    "1.0.0",
+						AppVersion: "1",
+					},
 				},
+				Version:   2,
+				Namespace: "default",
 			},
-			Version:   2,
-			Namespace: "app",
+			commonTags:              []string{"foo:10"},
+			tagsForMetricsAndEvents: []string{"bar:20"},
 		},
 	}
 
-	for _, rel := range releasesInSecrets {
-		store.add(rel, k8sSecrets)
+	releasesInConfigMaps := []*taggedRelease{
+		{
+			release: &release{
+				Name: "my_app",
+				Info: &info{
+					Status: "deployed",
+				},
+				Chart: &chart{
+					Metadata: &metadata{
+						Name:       "some_app",
+						Version:    "1.1.0",
+						AppVersion: "1",
+					},
+				},
+				Version:   2,
+				Namespace: "app",
+			},
+			commonTags:              []string{"foo:1"},
+			tagsForMetricsAndEvents: []string{"bar:2"},
+		},
 	}
 
-	for _, rel := range releasesInConfigMaps {
-		store.add(rel, k8sConfigmaps)
+	for _, taggedRel := range releasesInSecrets {
+		store.add(taggedRel.release, k8sSecrets, taggedRel.commonTags, taggedRel.tagsForMetricsAndEvents)
+	}
+
+	for _, taggedRel := range releasesInConfigMaps {
+		store.add(taggedRel.release, k8sConfigmaps, taggedRel.commonTags, taggedRel.tagsForMetricsAndEvents)
 	}
 
 	assert.ElementsMatch(t, releasesInSecrets, store.getAll(k8sSecrets))
@@ -141,7 +162,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	for _, rel := range releases {
-		store.add(rel, k8sSecrets)
+		store.add(rel, k8sSecrets, nil, nil)
 	}
 
 	// Should return true when there are more revisions
@@ -158,54 +179,60 @@ func TestGetLatestRevisions(t *testing.T) {
 	// Start with a release with revisions 1 and 2, and another one with
 	// revision 10. 10 is just an example to verify that the code does
 	// not assume that revisions will always start from 1.
-	releases := map[string]map[revision]*release{
+	releases := map[string]map[revision]*taggedRelease{
 		"my_datadog": {
-			revision(1): {
-				Name: "my_datadog",
-				Info: &info{
-					Status: "superseded",
-				},
-				Chart: &chart{
-					Metadata: &metadata{
-						Name:       "datadog",
-						Version:    "2.30.5",
-						AppVersion: "7",
+			revision(1): &taggedRelease{
+				release: &release{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "superseded",
 					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   1,
+					Namespace: "default",
 				},
-				Version:   1,
-				Namespace: "default",
 			},
-			revision(2): {
-				Name: "my_datadog",
-				Info: &info{
-					Status: "deployed",
-				},
-				Chart: &chart{
-					Metadata: &metadata{
-						Name:       "datadog",
-						Version:    "2.30.5",
-						AppVersion: "7",
+			revision(2): &taggedRelease{
+				release: &release{
+					Name: "my_datadog",
+					Info: &info{
+						Status: "deployed",
 					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "datadog",
+							Version:    "2.30.5",
+							AppVersion: "7",
+						},
+					},
+					Version:   2,
+					Namespace: "default",
 				},
-				Version:   2,
-				Namespace: "default",
 			},
 		},
 		"my_proxy": {
-			revision(10): {
-				Name: "my_proxy",
-				Info: &info{
-					Status: "deployed",
-				},
-				Chart: &chart{
-					Metadata: &metadata{
-						Name:       "nginx",
-						Version:    "1.0.0",
-						AppVersion: "1",
+			revision(10): &taggedRelease{
+				release: &release{
+					Name: "my_proxy",
+					Info: &info{
+						Status: "deployed",
 					},
+					Chart: &chart{
+						Metadata: &metadata{
+							Name:       "nginx",
+							Version:    "1.0.0",
+							AppVersion: "1",
+						},
+					},
+					Version:   10,
+					Namespace: "default",
 				},
-				Version:   10,
-				Namespace: "default",
 			},
 		},
 	}
@@ -229,8 +256,8 @@ func TestGetLatestRevisions(t *testing.T) {
 			store := newReleasesStore()
 
 			for _, releasesByRevision := range releases {
-				for _, rel := range releasesByRevision {
-					store.add(rel, test.storage)
+				for _, taggedRel := range releasesByRevision {
+					store.add(taggedRel.release, test.storage, nil, nil)
 				}
 			}
 
@@ -238,25 +265,25 @@ func TestGetLatestRevisions(t *testing.T) {
 			// other revision is 1) and revision 10 for the "my_proxy" release.
 			assert.ElementsMatch(
 				t,
-				[]*release{releases["my_datadog"][revision(2)], releases["my_proxy"][revision(10)]},
+				[]*taggedRelease{releases["my_datadog"][revision(2)], releases["my_proxy"][revision(10)]},
 				store.getLatestRevisions(test.storage),
 			)
 
 			// After deleting revision 2 of "my_datadog", the only remaining
 			// revision of "my_datadog" is 1, so we should get that one.
-			store.delete(releases["my_datadog"][revision(2)], test.storage)
+			store.delete(releases["my_datadog"][revision(2)].release, test.storage)
 			assert.ElementsMatch(
 				t,
-				[]*release{releases["my_datadog"][revision(1)], releases["my_proxy"][revision(10)]},
+				[]*taggedRelease{releases["my_datadog"][revision(1)], releases["my_proxy"][revision(10)]},
 				store.getLatestRevisions(test.storage),
 			)
 
 			// Here we delete the last remaining revision of "my_datadog", so it
 			// shouldn't appear in the result anymore.
-			store.delete(releases["my_datadog"][revision(1)], test.storage)
+			store.delete(releases["my_datadog"][revision(1)].release, test.storage)
 			assert.ElementsMatch(
 				t,
-				[]*release{releases["my_proxy"][revision(10)]},
+				[]*taggedRelease{releases["my_proxy"][revision(10)]},
 				store.getLatestRevisions(test.storage),
 			)
 		})

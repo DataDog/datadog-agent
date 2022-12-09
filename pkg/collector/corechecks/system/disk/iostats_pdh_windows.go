@@ -25,8 +25,7 @@ import (
 var (
 	modkernel32 = windows.NewLazyDLL("kernel32.dll")
 
-	procGetLogicalDriveStringsW = modkernel32.NewProc("GetLogicalDriveStringsW")
-	procGetDriveType            = modkernel32.NewProc("GetDriveTypeW")
+	procGetDriveType = modkernel32.NewProc("GetDriveTypeW")
 
 	driveLetterPattern    = regexp.MustCompile(`[A-Za-z]:`)
 	unmountedDrivePattern = regexp.MustCompile(`HarddiskVolume([0-9])+`)
@@ -71,8 +70,8 @@ func isDrive(instance string) bool {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.commonConfigure(data, initConfig, source)
+func (c *IOCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.commonConfigure(integrationConfigDigest, data, initConfig, source)
 	if err != nil {
 		return err
 	}
@@ -104,7 +103,7 @@ func (c *IOCheck) Run() error {
 	// Try to initialize any nil counters
 	for name := range c.counternames {
 		if c.counters[name] == nil {
-			c.counters[name], err = pdhutil.GetMultiInstanceCounter("LogicalDisk", name, nil, isDrive)
+			c.counters[name], err = pdhutil.GetEnglishMultiInstanceCounter("LogicalDisk", name, isDrive)
 			if err != nil {
 				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
 			}
@@ -141,7 +140,7 @@ func (c *IOCheck) Run() error {
 			}
 
 			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
-				val /= 1024
+				val /= kB
 			}
 			if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
 				// r_await/w_await are in milliseconds, but the performance counter

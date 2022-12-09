@@ -8,14 +8,15 @@ package util
 import (
 	"encoding/binary"
 	"net"
+	"net/netip"
 	"sync"
 
-	"inet.af/netaddr"
+	"go4.org/netipx"
 )
 
 // Address is an IP abstraction that is family (v4/v6) agnostic
 type Address struct {
-	netaddr.IP
+	netip.Addr
 }
 
 // WriteTo writes the address byte representation into the supplied buffer
@@ -34,7 +35,7 @@ func (a Address) WriteTo(b []byte) int {
 // You may want to consider using `WriteTo` instead to avoid allocations
 func (a Address) Bytes() []byte {
 	// Note: this implicitly converts IPv4-in-6 to IPv4
-	if a.Is4() || a.Is4in6() {
+	if a.Is4() || a.Is4In6() {
 		v := a.As4()
 		return v[:]
 	}
@@ -48,15 +49,20 @@ func (a Address) Len() int {
 	return int(a.BitLen()) / 8
 }
 
+// IsZero reports whether a is its zero value
+func (a Address) IsZero() bool {
+	return a.Addr == netip.Addr{}
+}
+
 // AddressFromNetIP returns an Address from a provided net.IP
 func AddressFromNetIP(ip net.IP) Address {
-	addr, _ := netaddr.FromStdIP(ip)
+	addr, _ := netipx.FromStdIP(ip)
 	return Address{addr}
 }
 
 // AddressFromString creates an Address using the string representation of an IP
 func AddressFromString(s string) Address {
-	ip, _ := netaddr.ParseIP(s)
+	ip, _ := netip.ParseAddr(s)
 	return Address{ip}
 }
 
@@ -79,11 +85,11 @@ func FromLowHigh(l, h uint64) Address {
 
 // ToLowHigh converts an address into a pair of uint64 numbers
 func ToLowHigh(addr Address) (l, h uint64) {
-	return ToLowHighIP(addr.IP)
+	return ToLowHighIP(addr.Addr)
 }
 
 // ToLowHighIP converts a netaddr.IP into a pair of uint64 numbers
-func ToLowHighIP(a netaddr.IP) (l, h uint64) {
+func ToLowHighIP(a netip.Addr) (l, h uint64) {
 	if a.Is6() {
 		return toLowHigh16(a.As16())
 	}
@@ -99,18 +105,18 @@ func toLowHigh16(b [16]byte) (l, h uint64) {
 // V4Address creates an Address using the uint32 representation of an v4 IP
 func V4Address(ip uint32) Address {
 	return Address{
-		netaddr.IPv4(
+		netip.AddrFrom4([4]byte{
 			uint8(ip),
-			uint8(ip>>8),
-			uint8(ip>>16),
-			uint8(ip>>24),
-		),
+			uint8(ip >> 8),
+			uint8(ip >> 16),
+			uint8(ip >> 24),
+		}),
 	}
 }
 
 // V4AddressFromBytes creates an Address using the byte representation of an v4 IP
 func V4AddressFromBytes(buf []byte) Address {
-	return Address{netaddr.IPFrom4(*(*[4]byte)(buf))}
+	return Address{netip.AddrFrom4(*(*[4]byte)(buf))}
 }
 
 // V6Address creates an Address using the uint128 representation of an v6 IP
@@ -118,12 +124,12 @@ func V6Address(low, high uint64) Address {
 	var a [16]byte
 	binary.LittleEndian.PutUint64(a[:8], high)
 	binary.LittleEndian.PutUint64(a[8:], low)
-	return Address{netaddr.IPFrom16(a)}
+	return Address{netip.AddrFrom16(a)}
 }
 
 // V6AddressFromBytes creates an Address using the byte representation of an v6 IP
 func V6AddressFromBytes(buf []byte) Address {
-	return Address{netaddr.IPFrom16(*(*[16]byte)(buf))}
+	return Address{netip.AddrFrom16(*(*[16]byte)(buf))}
 }
 
 // IPBufferPool is meant to be used in conjunction with `NetIPFromAddress`

@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -58,7 +58,8 @@ func TestConfigEndpoint(t *testing.T) {
 			grpc := mockAgentSecureServer{}
 			rcv := api.NewHTTPReceiver(config.New(), sampler.NewDynamicConfig(), make(chan *api.Payload, 5000), nil)
 			mux := http.NewServeMux()
-			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", nil))
+			cfg := &config.AgentConfig{}
+			mux.Handle("/v0.7/config", remoteConfigHandler(rcv, &grpc, "", cfg))
 			server := httptest.NewServer(mux)
 			if tc.valid {
 				var request pbgo.ClientGetConfigsRequest
@@ -70,7 +71,7 @@ func TestConfigEndpoint(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
@@ -79,7 +80,7 @@ func TestConfigEndpoint(t *testing.T) {
 	}
 }
 
-func TestTags(t *testing.T) {
+func TestUpstreamRequest(t *testing.T) {
 
 	var tcs = []struct {
 		name                    string
@@ -89,33 +90,41 @@ func TestTags(t *testing.T) {
 	}{
 		{
 			name:      "both tracer and container tags",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar","baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar","baz:qux"]}}}`,
 		},
 		{
 			name:                    "tracer tags only",
-			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:      "container tags only",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "no tracer",
 			tracerReq:               `{"client":{"id":"test_client"}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
+			cfg:                     &config.AgentConfig{},
+		},
+		{
+			name:                    "tracer service and env are normalized",
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test ww w@","env":"test@ww","tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test_ww_w","env":"test_ww","tags":["foo:bar"]}}}`,
+			cfg:                     &config.AgentConfig{},
 		},
 	}
 	for _, tc := range tcs {
@@ -138,14 +147,12 @@ func TestTags(t *testing.T) {
 			req.Header.Set("Datadog-Container-ID", "cid")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			assert.Nil(err)
+			assert.NoError(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
-
 		})
-
 	}
 }
 

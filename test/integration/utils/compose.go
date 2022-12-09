@@ -17,6 +17,7 @@ import (
 
 	log "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 )
 
@@ -131,7 +132,12 @@ func getNetworkMode() (string, error) {
 	}
 
 	// Get container id if containerized
-	co, err := du.InspectSelf(context.TODO())
+	selfContainerID, err := metrics.GetProvider().GetMetaCollector().GetSelfContainerID()
+	if err != nil {
+		return "host", nil
+	}
+
+	co, err := du.Inspect(context.TODO(), selfContainerID, false)
 	if err != nil {
 		return "host", nil
 	}

@@ -8,8 +8,6 @@
 package memory
 
 import (
-	"runtime"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -19,9 +17,11 @@ import (
 
 // For testing purpose
 var virtualMemory = winutil.VirtualMemory
-var swapMemory = winutil.SwapMemory
-var pageMemory = winutil.PagefileMemory
-var runtimeOS = runtime.GOOS
+
+var (
+	swapMemory = winutil.SwapMemory
+	pageMemory = winutil.PagefileMemory
+)
 
 // Check doesn't need additional fields
 type Check struct {
@@ -35,14 +35,9 @@ type Check struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(initConfig, data, source); err != nil {
-		return err
-	}
-
-	return err
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	return c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 }
-
 
 // Run executes the check
 func (c *Check) Run() error {
@@ -55,7 +50,7 @@ func (c *Check) Run() error {
 
 	// counter ("Memory", "Cache Bytes")
 	if c.cacheBytes == nil {
-		c.cacheBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Cache Bytes")
+		c.cacheBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Cache Bytes")
 	}
 	if c.cacheBytes != nil {
 		val, err = c.cacheBytes.GetValue()
@@ -68,7 +63,7 @@ func (c *Check) Run() error {
 
 	// counter ("Memory", "Committed Bytes")
 	if c.committedBytes == nil {
-		c.committedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Committed Bytes")
+		c.committedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Committed Bytes")
 	}
 	if c.committedBytes != nil {
 		val, err = c.committedBytes.GetValue()
@@ -81,7 +76,7 @@ func (c *Check) Run() error {
 
 	// counter ("Memory", "Pool Paged Bytes")
 	if c.pagedBytes == nil {
-		c.pagedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Pool Paged Bytes")
+		c.pagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Paged Bytes")
 	}
 	if c.pagedBytes != nil {
 		val, err = c.pagedBytes.GetValue()
@@ -94,7 +89,7 @@ func (c *Check) Run() error {
 
 	// counter ("Memory", "Pool Nonpaged Bytes")
 	if c.nonpagedBytes == nil {
-		c.nonpagedBytes, err = pdhutil.GetSingleInstanceCounter("Memory", "Pool Nonpaged Bytes")
+		c.nonpagedBytes, err = pdhutil.GetEnglishSingleInstanceCounter("Memory", "Pool Nonpaged Bytes")
 	}
 	if c.nonpagedBytes != nil {
 		val, err = c.nonpagedBytes.GetValue()

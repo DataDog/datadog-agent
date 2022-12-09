@@ -218,12 +218,22 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "open_by_handle_at"}, EntryAndExit, true),
 				},
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__io_openat_prep", EBPFFuncName: "kprobe___io_openat_prep"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat", EBPFFuncName: "kprobe_io_openat"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_openat2", EBPFFuncName: "kprobe_io_openat2"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_openat2", EBPFFuncName: "kretprobe_io_openat2"}},
 				}},
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/filp_close", EBPFFuncName: "kprobe_filp_close"}},
+				}},
+
+				// iouring
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/io_uring/io_uring_create", EBPFFuncName: "io_uring_create"}},
+					&manager.OneOf{Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_allocate_scq_urings", EBPFFuncName: "kprobe_io_allocate_scq_urings"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/io_sq_offload_start", EBPFFuncName: "kprobe_io_sq_offload_start"}},
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kretprobe/io_ring_ctx_alloc", EBPFFuncName: "kretprobe_io_ring_ctx_alloc"}},
+					}},
 				}},
 
 				// Mount probes
@@ -579,5 +589,12 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			},
 		}
 	}
+
+	if ShouldUseModuleLoadTracepoint() {
+		selectorsPerEventTypeStore["load_module"] = append(selectorsPerEventTypeStore["load_module"], &manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
+		}})
+	}
+
 	return selectorsPerEventTypeStore
 }

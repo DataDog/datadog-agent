@@ -89,8 +89,8 @@ func (c *Check) Run() error {
 }
 
 // Configure the CPU check
-func (c *Check) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, data, source)
+func (c *Check) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}

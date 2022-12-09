@@ -63,13 +63,29 @@ type Client struct {
 
 // NewClient creates a new client
 func NewClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+	return newClient(agentName, true, agentVersion, products, pollInterval)
+}
+
+// NewUnverifiedClient creates a new client that does not perform any TUF verification
+func NewUnverifiedClient(agentName string, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
+	return newClient(agentName, false, agentVersion, products, pollInterval)
+}
+
+func newClient(agentName string, doTufVerification bool, agentVersion string, products []data.Product, pollInterval time.Duration) (*Client, error) {
 	ctx, close := context.WithCancel(context.Background())
 	grpcClient, err := grpc.GetDDAgentSecureClient(ctx)
 	if err != nil {
 		close()
 		return nil, err
 	}
-	repository, err := state.NewRepository(meta.RootsDirector().Last())
+
+	var repository *state.Repository
+
+	if doTufVerification {
+		repository, err = state.NewRepository(meta.RootsDirector().Last())
+	} else {
+		repository, err = state.NewUnverifiedRepository()
+	}
 	if err != nil {
 		close()
 		return nil, err
