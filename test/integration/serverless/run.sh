@@ -216,82 +216,13 @@ for function_name in "${all_functions[@]}"; do
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize metrics
-        logs=$(
-            echo "$raw_logs" |
-                perl -p -e "s/raise Exception/\n/g" |
-                grep -v "BEGINLOG.*" |
-                grep -v "BEGINTRACE.*" |
-                grep "BEGINMETRIC.*" |
-                perl -p -e "s/BEGINMETRIC/\1/g" |
-                perl -p -e "s/ENDMETRIC/\1/g" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/(min\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(max\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(cnt\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(avg\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(sum\":)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(k\":\[)[0-9\.e\-]{1,30}/\1XXX/g" |
-                perl -p -e "s/(datadog-nodev)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(datadog_lambda:v)[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/dd_lambda_layer:datadog-go[0-9.]{1,}/dd_lambda_layer:datadog-gox.x.x/g" |
-                perl -p -e "s/(dd_lambda_layer:datadog-python)[0-9_]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(serverless.lambda-extension.integration-test.count)[0-9\.]+/\1/g" |
-                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                node parse-json.js
-        )
+        logs=$(python3 log_normalize.py --type metric --logs "$raw_logs" | node parse-json.js)
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize logs
-        logs=$(
-            echo "$raw_logs" |
-                grep "BEGINLOG" |
-                grep -v "BEGINMETRIC.*" |
-                grep -v "BEGINTRACE.*" |
-                perl -p -e "s/BEGINLOG/\1/g" |
-                perl -p -e "s/ENDLOG/\1/g" |
-                perl -p -e "s/(\"timestamp\": )\d{13}/\1\"XXX\"/g" |
-                perl -p -e "s/(\"timestamp\": )\d{13}/\1\"XXX\"/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3}/TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/TIMESTAMP/g" |
-                perl -p -e "s/\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
-                perl -p -e "s/\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/TIMESTAMP/g" |
-                perl -p -e "s/\"timestamp\":\d{13},/\1/g" |
-                perl -p -e "s/([a-zA-Z0-9]{8}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{4}\-[a-zA-Z0-9]{12})/\0\XXX/g" |
-                perl -p -e "s/$stage/STAGE/g" |
-                perl -p -e "s/(architecture:)(x86_64|arm64)/\1XXX/g" |
-                # ignore a Lambda error that occurs sporadically for log-csharp
-                # see here for more info: https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
-                perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
-                 /An error occurred while attempting to execute your code.: LambdaException/ or \
-                 /terminate called after throwing an instance of 'std::logic_error'/ or \
-                 /basic_string::_M_construct null not valid/" |
-                node parse-json.js
-        )
+        logs=$(python3 log_normalize.py --type log --logs "$raw_logs" | node parse-json.js)
     else
         # Normalize traces
-        logs=$(
-            echo "$raw_logs" |
-                grep "BEGINTRACE" |
-                grep -v "BEGINMETRIC.*" |
-                grep -v "BEGINLOG.*" |
-                perl -p -e "s/BEGINTRACE/\1/g" |
-                perl -p -e "s/ENDTRACE/\1/g" |
-                perl -p -e "s/(ts\":)[0-9]{10}/\1XXX/g" |
-                perl -p -e "s/((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)\":)[0-9]+/\1null/g" |
-                perl -p -e "s/((tracer_version|language_version)\":)[\"a-zA-Z0-9~\-\.\_]+/\1null/g" |
-                perl -p -e "s/(duration\":)[0-9]+/\1null/g" |
-                perl -p -e "s/((datadog_lambda|dd_trace)\":\")[0-9]+\.[0-9]+\.[0-9]+/\1X\.X\.X/g" |
-                perl -p -e "s/(,\"request_id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
-                perl -p -e "s/(,\"runtime-id\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
-                perl -p -e "s/(,\"system.pid\":\")[a-zA-Z0-9\-,]+\"/\1null\"/g" |
-                perl -p -e "s/(\"_dd.no_p_sr\":)[0-9\.]+/\1null/g" |
-                perl -p -e "s/(\"architecture\":)\"(x86_64|arm64)\"/\1\"XXX\"/g" |
-                perl -p -e "s/(\"process_id\":)[0-9]+/\1null/g" |
-                perl -p -e "s/$stage/XXXXXX/g" |
-                perl -p -e "s/[ ]$//g" |
-                node parse-json.js
-        )
+        logs=$(python3 log_normalize.py --type trace --logs "$raw_logs" | node parse-json.js)
     fi
 
     function_snapshot_path="./snapshots/${function_name}"
