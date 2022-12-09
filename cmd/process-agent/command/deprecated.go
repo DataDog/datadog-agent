@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package command
 
 import (
 	"fmt"
@@ -52,11 +52,11 @@ func replaceFlagSubCommandPosArg(replaceWith string) replaceFlagFunc {
 	}
 }
 
-// fixDeprecatedFlags transforms args so that they are conforming to the new CLI structure:
+// FixDeprecatedFlags transforms args so that they are conforming to the new CLI structure:
 // - replace non-posix flags posix flags
 // - replace deprecated flags with their command equivalents
 // - display warnings when deprecated flags are encountered
-func fixDeprecatedFlags(args []string, w io.Writer) []string {
+func FixDeprecatedFlags(args []string, w io.Writer) []string {
 	var (
 		replaceCfgPath = replaceFlagExact("--cfgpath")
 		replaceVersion = replaceFlagExact("version")
