@@ -10,7 +10,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"regexp"
-	"unsafe"
 )
 
 // containerIDPattern is the pattern of a container ID
@@ -32,24 +31,9 @@ func SliceToArray(src []byte, dst []byte) {
 
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
-	var nstrs int
-	for i := 0; i+4 < len(data); {
-		// size of arg
-		size := ByteOrder.Uint32(data[i : i+4])
-		if size == 0 {
-			break
-		}
-
-		nstrs++
-		i += 4 + int(size)
-	}
-
-	if nstrs == 0 {
-		return nil, nil
-	}
-
-	result := make([]string, 0, nstrs)
+	var result []string
 	len := uint32(len(data))
+
 	for i := uint32(0); i < len; {
 		if i+4 >= len {
 			return result, ErrStringArrayOverflow
@@ -63,11 +47,14 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 
 		if i+n > len {
 			// truncated
-			return append(result, NullTerminatedString(data[i:len])), ErrStringArrayOverflow
+			arg := NullTerminatedString(data[i:len])
+			return append(result, arg), ErrStringArrayOverflow
 		}
 
-		result = append(result, NullTerminatedString(data[i:i+n]))
+		arg := NullTerminatedString(data[i : i+n])
 		i += n
+
+		result = append(result, arg)
 	}
 
 	return result, nil
@@ -85,10 +72,9 @@ func UnmarshalString(data []byte, size int) (string, error) {
 func NullTerminatedString(d []byte) string {
 	idx := bytes.IndexByte(d, 0)
 	if idx == -1 {
-		return *(*string)(unsafe.Pointer(&d))
+		return string(d)
 	}
-	d = d[:idx]
-	return *(*string)(unsafe.Pointer(&d))
+	return string(d[:idx])
 }
 
 // UnmarshalPrintableString unmarshal printable string
