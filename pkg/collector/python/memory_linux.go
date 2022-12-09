@@ -10,5 +10,5 @@ package python
 
 import (
 	// Makes backtraces include Cgo frames. Linux-only due to https://github.com/golang/go/issues/45558
-	_ "github.com/benesch/cgosymbolizer"
+	_ "github.com/ianlancetaylor/cgosymbolizer"
 )

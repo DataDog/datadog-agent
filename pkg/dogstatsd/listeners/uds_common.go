@@ -273,6 +273,7 @@ func (l *UDSListener) Listen() {
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
+	// TODO(remy): stop the origin tracker
 	l.packetsBuffer.Close()
 	l.conn.Close()
 
