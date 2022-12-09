@@ -26,14 +26,17 @@ func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPo
 // extractVerticalPodAutoscalerSpec converts the Kubernetes spec to our custom one
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L73
 func extractVerticalPodAutoscalerSpec(s *v1.VerticalPodAutoscalerSpec) *model.VerticalPodAutoscalerSpec {
-	return &model.VerticalPodAutoscalerSpec{
+	spec := &model.VerticalPodAutoscalerSpec{
 		Target: &model.VerticalPodAutoscalerTarget{
 			Kind: s.TargetRef.Kind,
 			Name: s.TargetRef.Name,
 		},
-		UpdateMode:       string(*s.UpdatePolicy.UpdateMode),
 		ResourcePolicies: extractContainerResourcePolicies(s.ResourcePolicy),
 	}
+	if s.UpdatePolicy != nil && s.UpdatePolicy.UpdateMode != nil {
+		spec.UpdateMode = string(*s.UpdatePolicy.UpdateMode)
+	}
+	return spec
 }
 
 // extractContainerResourcePolicy pulls the ContainerResourcePolicy out of PodResourcePolicy
@@ -48,10 +51,12 @@ func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.Containe
 			MinAllowed:         extractResourceMetrics(&policy.MinAllowed),
 			MaxAllowed:         extractResourceMetrics(&policy.MaxAllowed),
 			ControlledResource: extractControlledResources(policy.ControlledResources),
-			ControlledValues:   string(*policy.ControlledValues),
 		}
 		if policy.Mode != nil {
 			m.Mode = string(*policy.Mode)
+		}
+		if policy.ControlledValues != nil {
+			m.ControlledValues = string(*policy.ControlledValues)
 		}
 		policies = append(policies, &m)
 	}
@@ -61,6 +66,10 @@ func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.Containe
 // extractResourceMetrics converts Kuberentes ResourceLists to our protobuf model
 // https://github.com/kubernetes/api/blob/v0.23.8/core/v1/types.go#L5176
 func extractResourceMetrics(rl *corev1.ResourceList) *model.ResourceMetrics {
+	if rl == nil {
+		return &model.ResourceMetrics{}
+	}
+
 	mv := map[string]float64{}
 	for name, quantity := range *rl {
 		value, valid := quantity.AsInt64()
@@ -78,6 +87,10 @@ func extractResourceMetrics(rl *corev1.ResourceList) *model.ResourceMetrics {
 // extractControlledResources converts typed Kuberentes ResourceNames to a slice of strings
 // https://github.com/kubernetes/api/blob/v0.23.8/core/v1/types.go#L5147
 func extractControlledResources(rn *[]corev1.ResourceName) []string {
+	if rn == nil {
+		return []string{}
+	}
+
 	names := []string{}
 	for _, name := range *rn {
 		names = append(names, string(name))
@@ -88,6 +101,10 @@ func extractControlledResources(rn *[]corev1.ResourceName) []string {
 // extractVerticalPodAutoscalerStatus converts Kubernetes PodAutoscalerStatus to our protobuf model
 // https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1/types.go#L218
 func extractVerticalPodAutoscalerStatus(s *v1.VerticalPodAutoscalerStatus) *model.VerticalPodAutoscalerStatus {
+	if s == nil {
+		return &model.VerticalPodAutoscalerStatus{}
+	}
+
 	status := model.VerticalPodAutoscalerStatus{}
 	for _, condition := range s.Conditions {
 		if condition.Type == v1.RecommendationProvided &&
