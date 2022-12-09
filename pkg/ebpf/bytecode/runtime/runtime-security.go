@@ -4,8 +4,4 @@
 
 package runtime
 
-<<<<<<< HEAD
-var RuntimeSecurity = newAsset("runtime-security.c", "405ce09398747ca31f390a5725477cd1f22ab15897155edd5f32f3eff3cfa779")
-=======
-var RuntimeSecurity = newAsset("runtime-security.c", "892102cc6d1c2575e93123b7c8fafcaca3c14c7ce939584de70705351c481b8f")
->>>>>>> 286a90c54d... use unshare syscall to propagate mountpoints when a mount namespace is copied
+var RuntimeSecurity = newAsset("runtime-security.c", "871228962c5fcbc5e86eee892dbbe5a729a3189c8bae3f9f77db3f9732ab56c6")
