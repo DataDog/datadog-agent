@@ -204,7 +204,7 @@ func (ev *Event) ResolveMountRoot(e *model.Mount) (string, error) {
 
 func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
+		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -216,7 +216,7 @@ func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
 
 func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
+		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""

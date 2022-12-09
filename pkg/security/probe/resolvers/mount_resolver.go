@@ -463,16 +463,6 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 	return nil, ErrMountNotFound
 }
 
-func (mr *MountResolver) GetMountFullPath(mountID uint32) (string, error) {
-	if mountID == 0 {
-		return "", ErrMountUndefined
-	}
-	mr.lock.RLock()
-	defer mr.lock.RUnlock()
-
-	return mr.resolveMountPath(mountID, 1, "")
-}
-
 // GetMountIDOffset returns the mount id offset
 func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	offset := uint64(284)
