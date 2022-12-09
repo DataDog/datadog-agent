@@ -145,6 +145,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
+		mr.cgroupsResolver.DelByPID1(pid)
 		return err
 	}
 
