@@ -20,9 +20,9 @@ otlp_config:
   receiver:
     protocols:
       http:
-        endpoint: 127.0.0.1:8080
+        endpoint: 127.0.0.1:4318
       grpc:
-        endpoint: 127.0.0.1:8081
+        endpoint: 127.0.0.1:4317
   metrics:
     enabled: true
   traces:

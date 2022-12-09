@@ -6,28 +6,11 @@ generator:
       bytes_per_second: "5 Mb"
       block_sizes: ["0.25Mb", "0.125Mb", "512Kb", "128Kb", "64Kb"]
       maximum_prebuild_cache_size_bytes: "512 Mb"
-      variant: "opentelemetry_logs"
+      variant: "opentelemetry_traces"
       parallel_connections: 2
 
 blackhole:
-# OTLP/gRPC response endpoint: null response is 'full success'
-  - http:
-      binding_addr: "127.0.0.1:8080"
-      body_variant: "nothing"
-      content_type: "application/grpc"
-# OTLP/HTTP response endpoint
-  - http:
-      binding_addr: "127.0.0.1:8081"
-      body_variant: "nothing"
-      content_type: "application/x-protobuf"
-# Used as a Vector socket sink until it supports an OTel sink
-  - tcp:
-      binding_addr: "127.0.0.1:15400"
-# Used for agent control API
-  - http:
-      binding_addr: "127.0.0.1:9092"
-      body_variant: "nothing"
-# Used for agent trace forwarding
+  # APM ingest listener
   - http:
       binding_addr: "127.0.0.1:9091"
       body_variant: "nothing"
