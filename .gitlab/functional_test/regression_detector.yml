@@ -72,7 +72,7 @@ single-machine-performance-regression_detector:
             job sync
             --submission-metadata submission_metadata
             --output-path outputs
-    - cat outputs/report.html
+    - cat outputs/report.md
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --aws-named-profile ${AWS_NAMED_PROFILE}
             job result
