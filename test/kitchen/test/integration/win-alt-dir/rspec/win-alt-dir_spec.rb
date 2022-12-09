@@ -30,7 +30,7 @@ shared_examples_for 'a correctly created binary root' do
     JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('PROJECTLOCATION')
   }
   it 'has the proper binary root' do
-    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog")
+    expect(File).not_to exist("#{ENV['ProgramFiles']}\\DataDog\\Datadog Agent")
     expect(File).to exist("#{binary_path}")
   end
 end

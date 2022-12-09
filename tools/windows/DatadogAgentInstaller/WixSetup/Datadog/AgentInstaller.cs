@@ -217,7 +217,7 @@ namespace WixSetup.Datadog
                     .Where(x => x.Parent.HasAttribute("Id",
                         value => value.StartsWith("APPLICATIONDATADIRECTORY") ||
                                  value.StartsWith("EXAMPLECONFSLOCATION")))
-                    .ForEach(c => c.SetAttributeValue("Permanent", "yes"));
+                    .ForEach(c => c.SetAttributeValue("KeyPath", "yes"));
                 document
                     .Select("Wix/Product")
                     .AddElement("CustomActionRef", "Id=WixFailWhenDeferred");
@@ -228,6 +228,8 @@ namespace WixSetup.Datadog
             project.UI = WUI.WixUI_Common;
             project.CustomUI = _agentInstallerUi;
 
+            project.ResolveWildCards(pruneEmptyDirectories: true);
+
             return project;
         }
 
@@ -235,18 +237,14 @@ namespace WixSetup.Datadog
         {
             var targetBinFolder = CreateBinFolder();
             var binFolder =
-                new Dir(new Id("%ProgramFiles%"),
-                    new Dir(new Id("APPLICATIONROOTDIRECTORY"), "Datadog",
-                        new InstallDir(new Id("PROJECTLOCATION"), "Datadog Agent",
-                            targetBinFolder,
-                            new Dir("LICENSES",
-                                new Files($@"{InstallerSource}\LICENSES\*")
-                                ),
-                            new DirFiles($@"{InstallerSource}\*.json"),
-                            new DirFiles($@"{InstallerSource}\*.txt"),
-                            new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
-                        )
-                    )
+                new Dir(new Id("PROJECTLOCATION"), "%ProgramFiles%\\Datadog\\Datadog Agent",
+                    targetBinFolder,
+                    new Dir("LICENSES",
+                        new Files($@"{InstallerSource}\LICENSES\*")
+                        ),
+                    new DirFiles($@"{InstallerSource}\*.json"),
+                    new DirFiles($@"{InstallerSource}\*.txt"),
+                    new CompressedDir(this, "embedded3", $@"{InstallerSource}\embedded3")
                 );
             if (_agentPython.IncludePython2)
             {
