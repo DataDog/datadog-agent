@@ -207,6 +207,7 @@ type Event struct {
 	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -512,7 +513,7 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
-// Mount represents a mountpoint
+// Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32 `field:"mount_id"` // Mount ID of the new mount
 	GroupID        uint32 `field:"-"`
@@ -522,7 +523,6 @@ type Mount struct {
 	RootMountID    uint32 `field:"-"`
 	RootInode      uint64 `field:"-"`
 	BindSrcMountID uint32 `field:"-"`
-	BindSrcInode   uint64 `field:"-"`
 	FSType         string `field:"fs_type"` // Type of the mounted file system
 	MountPointStr  string `field:"-"`
 	RootStr        string `field:"-"`
@@ -538,6 +538,11 @@ type MountEvent struct {
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // Source path of a bind mount
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
+}
+
+// UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
+type UnshareMountNSEvent struct {
+	Mount
 }
 
 // GetFSType returns the filesystem type of the mountpoint

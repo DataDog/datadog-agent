@@ -11,7 +11,6 @@ package tests
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
 	"syscall"
@@ -384,45 +383,49 @@ func TestMountEvent(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	tmpfsMountPoint := testDrive.Path("tmpfs_mnt")
-	if err = os.Mkdir(tmpfsMountPoint, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	bindMountPoint := testDrive.Path("bind_mnt")
-	if err = os.Mkdir(bindMountPoint, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	bindSourcePath := testDrive.Path("bind_src")
-	if err = os.Mkdir(bindSourcePath, 0755); err != nil {
-		t.Fatal(err)
-	}
+	tmpfsMountPointName := "tmpfs_mnt"
+	bindMountPointName := "bind_mnt"
+	bindMountSourceName := "bind_src"
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mount_tmpfs",
-			Expression: fmt.Sprintf(`mount.mountpoint.path == "%s" && mount.fs_type == "tmpfs" && process.file.path == "%s"`, tmpfsMountPoint, executable),
+			Expression: fmt.Sprintf(`mount.mountpoint.path == "{{.Root}}/%s" && mount.fs_type == "tmpfs" && process.file.path == "%s"`, tmpfsMountPointName, executable),
 		},
 		{
 			ID:         "test_mount_bind",
-			Expression: fmt.Sprintf(`mount.mountpoint.path == "%s" && mount.source.path == "%s" && mount.fs_type == "%s" && process.file.path == "%s"`, bindMountPoint, bindSourcePath, testDrive.FSType(), executable),
+			Expression: fmt.Sprintf(`mount.mountpoint.path == "{{.Root}}/%s" && mount.source.path == "{{.Root}}/%s" && mount.fs_type == "%s" && process.file.path == "%s"`, bindMountPointName, bindMountSourceName, testDrive.FSType(), executable),
 		},
 		{
 			ID:         "test_mount_in_container_root",
-			Expression: `mount.source.path == "/" && mount.fs_type != "overlay" && container.id != ""`,
+			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && container.id != ""`,
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
+	tmpfsMountPointPath := testDrive.Path(tmpfsMountPointName)
+	if err = os.Mkdir(tmpfsMountPointPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	bindMountPointPath := testDrive.Path(bindMountPointName)
+	if err = os.Mkdir(bindMountPointPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	bindMountSourcePath := testDrive.Path(bindMountSourceName)
+	if err = os.Mkdir(bindMountSourcePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mount-tmpfs", func(t *testing.T) {
 		tmpfsMount := newTestMount(
-			tmpfsMountPoint,
+			tmpfsMountPointPath,
 			withFSType("tmpfs"),
 		)
 
@@ -433,7 +436,7 @@ func TestMountEvent(t *testing.T) {
 			return tmpfsMount.unmount(syscall.MNT_FORCE)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
-			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPoint)
+			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
 			assertFieldEqual(t, event, "process.file.path", executable)
 			if !validateMountSchema(t, event) {
@@ -444,8 +447,8 @@ func TestMountEvent(t *testing.T) {
 
 	t.Run("mount-bind", func(t *testing.T) {
 		bindMount := newTestMount(
-			bindMountPoint,
-			withSource(bindSourcePath),
+			bindMountPointPath,
+			withSource(bindMountSourcePath),
 			withFlags(syscall.MS_BIND),
 		)
 
@@ -456,8 +459,8 @@ func TestMountEvent(t *testing.T) {
 			return bindMount.unmount(syscall.MNT_FORCE)
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_bind")
-			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPoint)
-			assertFieldEqual(t, event, "mount.source.path", bindSourcePath)
+			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
+			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
 			assertFieldEqual(t, event, "process.file.path", executable)
 			if !validateMountSchema(t, event) {
@@ -473,15 +476,19 @@ func TestMountEvent(t *testing.T) {
 		return
 	}
 
-	wrapperTruePositive.Run(t, "mount-in-container-root", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		// wrapper.Run triggers the signal
+	t.Run("mount-in-container-root", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
+			if _, err := wrapperTruePositive.start(); err != nil {
+				return err
+			}
+			if _, err := wrapperTruePositive.stop(); err != nil {
+				return err
+			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_in_container_root")
+			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
-			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
 			if !validateMountSchema(t, event) {
 				t.Error(event.String())
 			}
@@ -493,10 +500,18 @@ func TestMountEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// testing false-positives
-	wrapperFalsePositive.Run(t, "mount-in-container-legitimate", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("mount-in-container-legitimate", func(t *testing.T) {
 		err = test.GetSignal(t, func() error {
+			if _, err := wrapperFalsePositive.start(); err != nil {
+				return err
+			}
+			if _, err := wrapperFalsePositive.stop(); err != nil {
+				return err
+			}
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: event %s matched rule %s", event, rule.Expression)

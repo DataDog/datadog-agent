@@ -169,14 +169,14 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) error {
+func (ev *Event) SetMountPoint(e *model.Mount) error {
 	var err error
 	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountPoint(e *model.Mount) (string, error) {
 	if len(e.MountPointStr) == 0 {
 		if err := ev.SetMountPoint(e); err != nil {
 			return "", err
@@ -186,14 +186,14 @@ func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) error {
+func (ev *Event) SetMountRoot(e *model.Mount) error {
 	var err error
 	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountRoot(e *model.Mount) (string, error) {
 	if len(e.RootStr) == 0 {
 		if err := ev.SetMountRoot(e); err != nil {
 			return "", err
@@ -207,6 +207,7 @@ func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
 		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
 		if err != nil {
 			e.MountPointPathResolutionError = err
+			ev.SetPathResolutionError(err)
 			return ""
 		}
 		e.MountPointPath = mountPointPath
@@ -219,11 +220,13 @@ func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
 		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ResolveContainerID(&ev.ContainerContext))
 		if err != nil {
 			e.MountSourcePathResolutionError = err
+			ev.SetPathResolutionError(err)
 			return ""
 		}
-		rootStr, err := ev.ResolveMountRoot(e)
+		rootStr, err := ev.ResolveMountRoot(&e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
+			ev.SetPathResolutionError(err)
 			return ""
 		}
 		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)

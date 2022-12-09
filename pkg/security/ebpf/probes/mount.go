@@ -43,8 +43,15 @@ var mountProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/copy_tree",
-			EBPFFuncName: "kprobe_copy_tree",
+			EBPFSection:  "kprobe/__attach_mnt",
+			EBPFFuncName: "kprobe___attach_mnt",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/attach_mnt",
+			EBPFFuncName: "kprobe_attach_mnt",
 		},
 	},
 }
@@ -62,5 +69,12 @@ func getMountProbes() []*manager.Probe {
 		},
 		SyscallFuncName: "umount",
 	}, EntryAndExit)...)
+	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID: SecurityAgentUID,
+		},
+		SyscallFuncName: "unshare",
+	}, Entry)...)
+
 	return mountProbes
 }

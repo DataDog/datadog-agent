@@ -925,8 +925,8 @@ func newExitEventSerializer(e *Event) *ExitEventSerializer {
 }
 
 func newMountEventSerializer(e *Event) *MountEventSerializer {
-	src, srcErr := e.ResolveMountRoot(&e.Mount)
-	dst, dstErr := e.ResolveMountPoint(&e.Mount)
+	src, srcErr := e.ResolveMountRoot(&e.Mount.Mount)
+	dst, dstErr := e.ResolveMountPoint(&e.Mount.Mount)
 	mountPointPath := e.ResolveMountPointPath(&e.Mount)
 	mountSourcePath := e.ResolveMountSourcePath(&e.Mount)
 

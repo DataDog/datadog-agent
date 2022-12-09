@@ -218,6 +218,16 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } bind;
+
+        struct {
+            struct mount *mnt;
+            struct mount *parent;
+            struct dentry *mp_dentry;
+            const char *fstype;
+            struct path_key_t root_key;
+            struct path_key_t path_key;
+            unsigned long flags;
+        } unshare_mntns;
     };
 };
 

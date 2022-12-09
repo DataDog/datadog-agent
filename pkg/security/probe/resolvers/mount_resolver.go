@@ -62,7 +62,7 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	return 0, nil
 }
 
-// newMountFromMountInfo - Creates a new MountEvent from parsed MountInfo data
+// newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) (*model.Mount, error) {
 	groupID, err := parseGroupID(mnt)
 	if err != nil {
@@ -71,14 +71,14 @@ func newMountFromMountInfo(mnt *mountinfo.Info) (*model.Mount, error) {
 
 	// create a MountEvent out of the parsed MountInfo
 	return &model.Mount{
-		ParentMountID: uint32(mnt.Parent),
-		MountPointStr: mnt.Mountpoint,
-		Path:          mnt.Mountpoint,
-		RootStr:       mnt.Root,
 		MountID:       uint32(mnt.ID),
 		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		ParentMountID: uint32(mnt.Parent),
 		FSType:        mnt.FSType,
+		MountPointStr: mnt.Mountpoint,
+		Path:          mnt.Mountpoint,
+		RootStr:       mnt.Root,
 	}, nil
 }
 
@@ -243,28 +243,28 @@ func (mr *MountResolver) Insert(e model.Mount, pid uint32, containerID string) e
 	return nil
 }
 
-func (mr *MountResolver) insert(e *model.Mount) {
+func (mr *MountResolver) insert(m *model.Mount) {
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[e.MountID]; ok {
+	if prev, ok := mr.mounts[m.MountID]; ok {
 		mr.delete(prev)
 	}
 
-	// if we're inserting a mountpoint from a mount event (!= procfs) that isn't the root fs
+	// if we're inserting a mountpoint from a kernel event (!= procfs) that isn't the root fs
 	// then remove the leading slash from the mountpoint
-	if len(e.Path) == 0 && e.MountPointStr != "/" {
-		e.MountPointStr = strings.TrimPrefix(e.MountPointStr, "/")
+	if len(m.Path) == 0 && m.MountPointStr != "/" {
+		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 	}
 
-	deviceMounts := mr.devices[e.Device]
+	deviceMounts := mr.devices[m.Device]
 	if deviceMounts == nil {
 		deviceMounts = make(map[uint32]*model.Mount)
-		mr.devices[e.Device] = deviceMounts
+		mr.devices[m.Device] = deviceMounts
 	}
-	deviceMounts[e.MountID] = e
-	mr.mounts[e.MountID] = e
+	deviceMounts[m.MountID] = m
+	mr.mounts[m.MountID] = m
 
-	if mr.minMountID > e.MountID {
-		mr.minMountID = e.MountID
+	if mr.minMountID > m.MountID {
+		mr.minMountID = m.MountID
 	}
 }
 
