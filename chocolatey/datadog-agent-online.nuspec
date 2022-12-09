@@ -4,7 +4,7 @@
     <id>datadog-agent</id>
     <version>$package_version$</version>
     <packageSourceUrl>https://github.com/DataDog/datadog-agent/tree/main/chocolatey</packageSourceUrl>
-    <owners>package@datadoghq.com</owners>
+    <owners>Datadog</owners>
     <title>Datadog Agent</title>
     <authors>Datadog</authors>
     <projectUrl>https://github.com/DataDog/datadog-agent</projectUrl>
