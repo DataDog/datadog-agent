@@ -1,11 +1,7 @@
-variables:
-  # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
-  BASE_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
-  INDEX_FILE: index.txt
-
 benchmark:
   stage: benchmarks
-  image: $BASE_CI_IMAGE
+  # This base image is created here: https://gitlab.ddbuild.io/DataDog/apm-reliability/relenv-microbenchmarking-platform
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/relenv-microbenchmarking-platform:trace-agent
   timeout: 1h
   rules:
     !reference [.on_trace_agent_changes_or_manual]
@@ -13,11 +9,11 @@ benchmark:
   # tags: ["runner:apm-k8s-tweaked-metal"] # TODO: Commented out until we have the metal runners available in this repo
   tags: ["runner:main"]
   script:
-    - ./.gitlab/benchmarks/scripts/capture-hardware-software-info.sh
-    - ./.gitlab/benchmarks/scripts/run-benchmarks.sh
-    # - ./.gitlab/scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
-    - ./.gitlab/benchmarks/scripts/analyze-results.sh
-    - ./.gitlab/benchmarks/scripts/post-pr-comment.sh
+    - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
+    - ./test/benchmarks/apm_scripts/run-benchmarks.sh
+    # - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh #commented out until we have merged our permissions changes
+    - ./test/benchmarks/apm_scripts/analyze-results.sh
+    - ./test/benchmarks/apm_scripts/post-pr-comment.sh
   artifacts:
     name: "reports"
     paths:

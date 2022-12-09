@@ -352,6 +352,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
+/test/benchmarks/apm_scripts/           @DataDog/agent-apm
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

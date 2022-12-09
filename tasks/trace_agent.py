@@ -127,7 +127,6 @@ def cross_compile(ctx, tag=""):
 
 @task
 def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
-
     """
     Runs the benchmarks. Use "--bench=X" to specify benchmarks to run. Use the "--output=X" argument to specify where to output results.
     """
