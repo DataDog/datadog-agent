@@ -240,26 +240,41 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc2)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc4)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc5)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.sysInfo,
+			Hints: []model.CollectorProcHint{
+				model.CollectorProcHint_hintProcessDiscovery,
+			},
 		},
 	}
 
