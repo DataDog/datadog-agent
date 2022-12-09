@@ -250,7 +250,7 @@ var checkConfigFilePermissions = func(filename string) error {
 			allowedAccountForWrite := compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser
 			hasOnlyAllowForRead := pAce.AccessMask&^(windows.FILE_GENERIC_READ) == 0
 			if !allowedAccountForWrite && !hasOnlyAllowForRead {
-				return fmt.Errorf("invalid permissions for config file '%s': users/groups other than LOCAL_SYSTEM and Administrators have rights on it", filename)
+				return fmt.Errorf("invalid permissions for config file '%s': users/groups other than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretUser)
 			}
 		}
 	}
