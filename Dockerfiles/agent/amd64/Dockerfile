@@ -1,4 +1,7 @@
 FROM ubuntu:22.04 AS baseimage
+LABEL baseimage.os "ubuntu jammy LTS"
+LABEL baseimage.name "ubuntu:22.04"
+
 ARG CIBUILD
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package command
 
 import (
 	"strings"
@@ -187,7 +187,7 @@ func TestFixDeprecatedFlags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.cli, func(t *testing.T) {
 			w := strings.Builder{}
-			actualArgs := fixDeprecatedFlags(strings.Split(tc.cli, " "), &w)
+			actualArgs := FixDeprecatedFlags(strings.Split(tc.cli, " "), &w)
 
 			assert.Equal(t, tc.expectArgs, actualArgs)
 			assert.Equal(t, tc.expectWarn, w.String())

@@ -7,33 +7,49 @@ package app
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const taggerListURLTpl = "http://%s/agent/tagger-list"
 
-// TaggerCmd is a command that prints the process-agent version data
-var TaggerCmd = &cobra.Command{
-	Use:   "tagger-list",
-	Short: "Print the tagger content of a running agent",
-	Long:  "",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return getTaggerList(cmd)
-	},
-	SilenceUsage: true,
+type cliParams struct {
+	*command.GlobalParams
 }
 
-func getTaggerList(cmd *cobra.Command) error {
+// Commands returns a slice of subcommands for the `tagger-list` command in the Process Agent
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
+		GlobalParams: globalParams,
+	}
+
+	taggerCmd := &cobra.Command{
+		Use:   "tagger-list",
+		Short: "Print the tagger content of a running agent",
+		Long:  "",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(taggerList,
+				fx.Supply(cliParams),
+			)
+		},
+		SilenceUsage: true,
+	}
+
+	return []*cobra.Command{taggerCmd}
+}
+
+func taggerList(cliParams *cliParams) error {
 	log.Info("Got a request for the tagger-list. Calling tagger.")
 
-	if err := initConfig(os.Stdout, cmd); err != nil {
+	if err := command.BootstrapConfig(cliParams.GlobalParams); err != nil {
 		return err
 	}
 

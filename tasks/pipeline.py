@@ -14,7 +14,13 @@ from .libs.common.color import color_message
 from .libs.common.gitlab import Gitlab, get_gitlab_bot_token, get_gitlab_token
 from .libs.datadog_api import create_count, send_metrics
 from .libs.pipeline_data import get_failed_jobs
-from .libs.pipeline_notifications import base_message, find_job_owners, get_failed_tests, send_slack_message
+from .libs.pipeline_notifications import (
+    GITHUB_SLACK_MAP,
+    base_message,
+    find_job_owners,
+    get_failed_tests,
+    send_slack_message,
+)
 from .libs.pipeline_stats import get_failed_jobs_stats
 from .libs.pipeline_tools import (
     FilteredOutException,
@@ -319,30 +325,6 @@ def wait_for_pipeline_from_ref(gitlab, ref):
 
 
 # Tasks to trigger pipeline notifications
-
-GITHUB_SLACK_MAP = {
-    "@DataDog/agent-platform": "#agent-platform",
-    "@DataDog/container-integrations": "#container-integrations",
-    "@DataDog/platform-integrations": "#platform-integrations",
-    "@DataDog/agent-network": "#network-agent",
-    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
-    "@DataDog/agent-apm": "#apm-agent",
-    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
-    "@DataDog/processes": "#process-agent-ops",
-    "@DataDog/agent-core": "#agent-core",
-    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
-    "@DataDog/agent-shared-components": "#agent-shared-components",
-    "@DataDog/container-app": "#container-app",
-    "@DataDog/metrics-aggregation": "#metrics-aggregation",
-    "@DataDog/serverless": "#serverless-agent",
-    "@DataDog/remote-config": "#remote-config-monitoring",
-    "@DataDog/agent-all": "#datadog-agent-pipelines",
-    "@DataDog/ebpf-platform": "#ebpf-platform",
-    "@DataDog/Networks": "#networks",
-    "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
-    "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
-    "@DataDog/opentelemetry": "#opentelemetry-ops",
-}
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
