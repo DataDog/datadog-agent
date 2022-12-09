@@ -2501,14 +2501,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
-	case "mount.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Mount.Mount.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
 	case "mount.mountpoint.path":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2516,14 +2508,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
-		}, nil
-	case "mount.parent_mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				return int((*Event)(ctx.Object).Mount.Mount.ParentMountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
 		}, nil
 	case "mount.retval":
 		return &eval.IntEvaluator{
@@ -12847,9 +12831,7 @@ func (e *Event) GetFields() []eval.Field {
 		"mmap.protection",
 		"mmap.retval",
 		"mount.fs_type",
-		"mount.mount_id",
 		"mount.mountpoint.path",
-		"mount.parent_mount_id",
 		"mount.retval",
 		"mount.source.path",
 		"mprotect.req_protection",
@@ -14217,12 +14199,8 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(e.MMap.SyscallEvent.Retval), nil
 	case "mount.fs_type":
 		return e.Mount.Mount.FSType, nil
-	case "mount.mount_id":
-		return int(e.Mount.Mount.MountID), nil
 	case "mount.mountpoint.path":
 		return e.ResolveMountPointPath(&e.Mount), nil
-	case "mount.parent_mount_id":
-		return int(e.Mount.Mount.ParentMountID), nil
 	case "mount.retval":
 		return int(e.Mount.SyscallEvent.Retval), nil
 	case "mount.source.path":
@@ -18320,11 +18298,7 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "mmap", nil
 	case "mount.fs_type":
 		return "mount", nil
-	case "mount.mount_id":
-		return "mount", nil
 	case "mount.mountpoint.path":
-		return "mount", nil
-	case "mount.parent_mount_id":
 		return "mount", nil
 	case "mount.retval":
 		return "mount", nil
@@ -20473,12 +20447,8 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "mount.fs_type":
 		return reflect.String, nil
-	case "mount.mount_id":
-		return reflect.Int, nil
 	case "mount.mountpoint.path":
 		return reflect.String, nil
-	case "mount.parent_mount_id":
-		return reflect.Int, nil
 	case "mount.retval":
 		return reflect.Int, nil
 	case "mount.source.path":
@@ -24320,26 +24290,12 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		e.Mount.Mount.FSType = str
 		return nil
-	case "mount.mount_id":
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mount.Mount.MountID"}
-		}
-		e.Mount.Mount.MountID = uint32(v)
-		return nil
 	case "mount.mountpoint.path":
 		str, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Mount.MountPointPath"}
 		}
 		e.Mount.MountPointPath = str
-		return nil
-	case "mount.parent_mount_id":
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Mount.Mount.ParentMountID"}
-		}
-		e.Mount.Mount.ParentMountID = uint32(v)
 		return nil
 	case "mount.retval":
 		v, ok := value.(int)

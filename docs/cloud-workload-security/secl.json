@@ -3077,21 +3077,9 @@
           "constants": ""
         },
         {
-          "name": "mount.mount_id",
-          "type": "int",
-          "definition": "Mount ID of the new mount",
-          "constants": ""
-        },
-        {
           "name": "mount.mountpoint.path",
           "type": "string",
           "definition": "Path of the mount point",
-          "constants": ""
-        },
-        {
-          "name": "mount.parent_mount_id",
-          "type": "int",
-          "definition": "The ID of the parent mount",
           "constants": ""
         },
         {
