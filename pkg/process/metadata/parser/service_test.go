@@ -79,6 +79,37 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "service:td-agent",
 		},
+		{
+			name: "java using the -jar flag to define the service",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
+			},
+			expectedServiceTag: "service:myservice",
+		},
+		{
+			name: "java class name as service",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "com.datadog.example.HelloWorld",
+			},
+			expectedServiceTag: "service:HelloWorld",
+		},
+		{
+			name: "java kafka",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
+			},
+			expectedServiceTag: "service:Kafka",
+		},
+		{
+			name: "java parsing for org.apache projects with cassandra as the service",
+			cmdline: []string{
+				"/usr/bin/java", "-Xloggc:/usr/share/cassandra/logs/gc.log", "-ea", "-XX:+HeapDumpOnOutOfMemoryError", "-Xss256k", "-Dlogback.configurationFile=logback.xml",
+				"-Dcassandra.logdir=/var/log/cassandra", "-Dcassandra.storagedir=/data/cassandra",
+				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
+				"org.apache.cassandra.service.CassandraDaemon",
+			},
+			expectedServiceTag: "service:cassandra",
+		},
 	}
 
 	for _, tt := range tests {

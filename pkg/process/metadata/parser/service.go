@@ -18,6 +18,12 @@ import (
 
 type serviceExtractorFn func(args []string) string
 
+const (
+	javaJarFlag      = "-jar"
+	javaJarExtension = ".jar"
+	javaApachePrefix = "org.apache."
+)
+
 // List of binaries that usually have additional process context of whats running
 var binsWithContext = map[string]serviceExtractorFn{
 	"python":    parseCommandContextPython,
@@ -26,7 +32,7 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"python3.7": parseCommandContextPython,
 	"ruby2.3":   parseCommandContext,
 	"ruby":      parseCommandContext,
-	"java":      parseCommandContext,
+	"java":      parseCommandContextJava,
 	"sudo":      parseCommandContext,
 }
 
@@ -204,6 +210,47 @@ func parseCommandContextPython(args []string) string {
 		}
 
 		prevArgIsFlag = hasFlagPrefix
+	}
+
+	return ""
+}
+
+func parseCommandContextJava(args []string) string {
+	prevArgIsFlag := false
+
+	for _, a := range args {
+		hasFlagPrefix := strings.HasPrefix(a, "-")
+		includesAssignment := strings.ContainsRune(a, '=') ||
+			strings.HasPrefix(a, "-X") ||
+			strings.HasPrefix(a, "-javaagent:") ||
+			strings.HasPrefix(a, "-verbose:")
+		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		if !shouldSkipArg {
+			arg := removeFilePath(a)
+
+			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
+				if strings.HasSuffix(arg, javaJarExtension) {
+					return arg[:len(arg)-len(javaJarExtension)]
+				}
+
+				if strings.HasPrefix(arg, javaApachePrefix) {
+					// take the project name after the package 'org.apache.' while stripping off the remaining package
+					// and class name
+					arg = arg[len(javaApachePrefix):]
+					if idx := strings.Index(arg, "."); idx != -1 {
+						return arg[:idx]
+					}
+				}
+				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
+					// take just the class name without the package
+					return arg[idx+1:]
+				}
+
+				return arg
+			}
+		}
+
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
 	}
 
 	return ""
