@@ -3,6 +3,8 @@
 ########################################
 
 FROM ubuntu:22.04 as builder
+LABEL baseimage.os "ubuntu jammy LTS"
+LABEL baseimage.name "ubuntu:22.04"
 
 WORKDIR /output
 
