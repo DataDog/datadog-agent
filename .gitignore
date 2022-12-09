@@ -45,6 +45,9 @@ Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
 
+# gotestsum-generated files
+module_test_output.json
+
 # jetbrains IDE directory
 /.idea/
 
