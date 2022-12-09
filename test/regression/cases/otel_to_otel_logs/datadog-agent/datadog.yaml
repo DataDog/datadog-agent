@@ -23,6 +23,8 @@ otlp_config:
         endpoint: 127.0.0.1:4318
       grpc:
         endpoint: 127.0.0.1:4317
+  metrics:
+    enabled: true
   traces:
     enabled: true
   debug:
