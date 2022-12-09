@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/gopsutil/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +21,14 @@ import (
 )
 
 func TestGetAvailableHelpers(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+	_, family, _, err := host.PlatformInformation()
+	require.NoError(t, err)
+	if kv < kernel.VersionCode(4, 10, 0) && family != "rhel" {
+		t.Skip("__BPF_FUNC_MAPPER macro not available on vanilla kernels < 4.10.0")
+	}
+
 	cfg := ebpf.NewConfig()
 	opts := kernel.KernelHeaderOptions{
 		DownloadEnabled: cfg.EnableKernelHeaderDownload,
