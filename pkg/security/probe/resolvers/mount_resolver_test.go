@@ -11,7 +11,6 @@ package resolvers
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -448,13 +447,13 @@ func TestMountResolver(t *testing.T) {
 					mr.insert(&evt.mount.Mount)
 				}
 				if evt.umount != nil {
-					if err := mr.Delete(evt.umount.MountID); err != nil {
+					mount, err := mr.ResolveMount(evt.umount.MountID, pid, "")
+					if err != nil {
 						t.Fatal(err)
 					}
+					mr.finalize(mount)
 				}
 			}
-
-			mr.dequeue(time.Now().Add(1 * time.Minute))
 
 			for _, testC := range tt.args.cases {
 				p, err := mr.ResolveMountPath(testC.mountID, pid, "")
