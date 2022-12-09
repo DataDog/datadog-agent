@@ -397,6 +397,9 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+    // &(tcp_sk(sk)->retrans_out);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
     int segs = 1;
@@ -405,6 +408,34 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 #endif
     log_debug("kprobe/tcp_retransmit\n");
 
+    return handle_retransmit(sk, segs);
+}
+
+// add kretprobe
+SEC("kretprobe/tcp_retransmit_skb")
+int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    struct sock *sk = (struct sock *)PT_REGS_RC(ctx);
+    if (!sk) {
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    // log_debug("kretprobe/tcp_retransmit_skb: tgid: %u, pid: %u\n", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    handle_tcp_stats(&t, sk, TCP_ESTABLISHED);
+    handle_message(&t, 0, 0, CONN_DIRECTION_INCOMING, 0, 0, PACKET_COUNT_NONE, sk);
+
+    port_binding_t pb = {};
+    pb.netns = t.netns;
+    pb.port = t.sport;
+    add_port_bind(&pb, port_bindings);
+
+    
+    log_debug("kretprobe/inet_csk_accept: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
     return handle_retransmit(sk, segs);
 }
 

@@ -440,7 +440,27 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d\n", segs);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = segs};
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
 
+SEC("kretprobe/tcp_retransmit_skb")
+int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    __u64 ret = (struct sock *)PT_REGS_RC(ctx);
+    if ret != 0 {
+        return 0;
+    }
+    __u64 tid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid)
+    if (args == NULL) {
+        return 0;
+    }
+    struct sock sk* = args->sock;
+    int segs = args->segs;
+    log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
     return handle_retransmit(sk, segs);
 }
 
@@ -448,7 +468,26 @@ SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
 int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = 1};
+    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
+    return 0;
+}
 
+SEC("kretprobe/tcp_retransmit_skb/pre_4_7_0")
+int kretprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
+    __u64 ret = (struct sock *)PT_REGS_RC(ctx);
+    if ret != 0 {
+        return 0;
+    }
+    __u64 tid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid)
+    if (args == NULL) {
+        return 0;
+    }
+    struct sock sk* = args->sock;
+    log_debug("kretprobe/tcp_retransmit/pre_4_7_0\n");
     return handle_retransmit(sk, 1);
 }
 

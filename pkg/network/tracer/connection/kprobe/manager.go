@@ -48,6 +48,7 @@ var mainProbes = map[probes.ProbeName]string{
 	probes.UDPv6RecvMsg:                   "kprobe__udpv6_recvmsg",
 	probes.UDPv6RecvMsgReturn:             "kretprobe__udpv6_recvmsg",
 	probes.TCPRetransmit:                  "kprobe__tcp_retransmit_skb",
+	probes.TcpRetransmitRet: 			   "kretprobe__tcp_retransmit_skb",
 	probes.InetCskAcceptReturn:            "kretprobe__inet_csk_accept",
 	probes.InetCskListenStop:              "kprobe__inet_csk_listen_stop",
 	probes.UDPDestroySock:                 "kprobe__udp_destroy_sock",
@@ -64,6 +65,7 @@ var mainProbes = map[probes.ProbeName]string{
 
 var altProbes = map[probes.ProbeName]string{
 	probes.TCPRetransmitPre470:              "kprobe__tcp_retransmit_skb_pre_4_7_0",
+	probes.TCPRetransmitPre470Ret:           "kretprobe__tcp_retransmit_skb_pre_4_7_0",
 	probes.IP6MakeSkbPre470:                 "kprobe__ip6_make_skb__pre_4_7_0",
 	probes.UDPRecvMsgPre410:                 "kprobe__udp_recvmsg_pre_4_1_0",
 	probes.UDPv6RecvMsgPre410:               "kprobe__udpv6_recvmsg_pre_4_1_0",
