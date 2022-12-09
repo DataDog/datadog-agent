@@ -226,9 +226,9 @@ build_processed_btfhub_archive:
     # Convert to qcow2 format
     - qemu-img convert -f raw -O qcow2 $RELEASE_IMG "$QCOW2_IMG.$DEBARCH.$IMAGE_VERSION"
     - rm $RELEASE_IMG
-    - tar -czvf "$QCOW2_IMG.$DEBARCH.$IMAGE_VERSION.tar.gz" $QCOW2_IMG
+    - tar -czvf $ARCHIVE_NAME $QCOW2_IMG
     # Upload qcow2 image to S3 bucket
-    - $S3_CP_CMD $QCOW2_IMG $S3_DD_AGENT_OMNIBUS_KERNEL_VERSION_TESTING_URI/${QCOW2_IMG}.${DEBARCH}.${IMAGE_VERSION} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+    - $S3_CP_CMD $ARCHIVE_NAME $S3_DD_AGENT_OMNIBUS_KERNEL_VERSION_TESTING_URI/${ARCHIVE_NAME} --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
   timeout: 2h 00m
 
 build_microvm_filesystem_x64:
@@ -240,6 +240,7 @@ build_microvm_filesystem_x64:
     DEBARCH: "amd64"
     RELEASE_IMG: bullseye.img
     QCOW2_IMG: bullseye.qcow2
+    ARCHIVE_NAME: $QCOW2_IMG.$DEBARCH-$IMAGE_VERSION.tar.gz 
     FSBASE: "$CI_BUILDS_DIR/fsbase"
     IMG_SIZE: 10G
     PREINSTALL_PKGS: bison,cmake,curl,flex,g++,gcc,gcc-multilib,git,libbpf-dev,libedit-dev,libelf-dev,libfl-dev,libstdc++-10-dev,libtinfo-dev,libtinfo5,libxml2-dev,libzip-dev,linux-libc-dev,make,ninja-build,patch,pkg-config,python3-distro,python3-distutils,python3-netaddr,python3-setuptools,python3-pip,python3-pyroute2,python3-dev,wget,xz-utils
