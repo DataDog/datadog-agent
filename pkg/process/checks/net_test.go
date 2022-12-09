@@ -629,7 +629,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	ex := parser.NewServiceExtractor()
 	ex.Extract(procsByPid)
 
-	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, nil, nil, tags, nil, ex)
+	chunks := batchConnections(cfg, 0, conns, nil, "nid", nil, nil, model.KernelHeaderFetchResult_FetchNotAttempted, nil, nil, nil, tags, nil, ex)
 
 	assert.Len(t, chunks, 1)
 	connections := chunks[0].(*model.CollectorConnections)
