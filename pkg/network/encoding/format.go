@@ -56,7 +56,11 @@ func FormatConnection(
 ) *model.Connection {
 	c := connPool.Get().(*model.Connection)
 	c.Pid = int32(conn.Pid)
-	c.Laddr = formatAddr(conn.Source, conn.SPort, conn.ContainerID, ipc)
+	var containerID string
+	if conn.ContainerID != nil {
+		containerID = *conn.ContainerID
+	}
+	c.Laddr = formatAddr(conn.Source, conn.SPort, containerID, ipc)
 	c.Raddr = formatAddr(conn.Dest, conn.DPort, "", ipc)
 	c.Family = formatFamily(conn.Family)
 	c.Type = formatType(conn.Type)

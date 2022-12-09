@@ -391,8 +391,9 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	addTag("version", p.Envs["DD_VERSION"])
 	addTag("service", p.Envs["DD_SERVICE"])
 
-	c.ContainerID = p.ContainerID
-	c.PidExecTime = p.StartTime
+	if p.ContainerID != "" {
+		c.ContainerID = &p.ContainerID
+	}
 }
 
 // Stop stops the tracer

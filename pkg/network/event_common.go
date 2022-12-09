@@ -300,8 +300,7 @@ type ConnectionStats struct {
 	IntraHost bool
 	IsAssured bool
 
-	ContainerID string
-	PidExecTime int64
+	ContainerID *string
 
 	Protocol ProtocolType
 }
