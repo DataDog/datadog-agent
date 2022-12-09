@@ -116,10 +116,9 @@ func TestTCPRemoveEntries(t *testing.T) {
 
 	conn, ok := findConnection(c2.LocalAddr(), c2.RemoteAddr(), connections)
 	require.True(t, ok)
-	m := conn.MonotonicSum()
-	assert.Equal(t, clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, 0, int(m.RecvBytes))
-	assert.Equal(t, 0, int(m.Retransmits))
+	assert.Equal(t, clientMessageSize, int(conn.Monotonic.SentBytes))
+	assert.Equal(t, 0, int(conn.Monotonic.RecvBytes))
+	assert.Equal(t, 0, int(conn.Monotonic.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 }
@@ -172,9 +171,8 @@ func TestTCPRetransmit(t *testing.T) {
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
 
-	m := conn.MonotonicSum()
-	assert.Equal(t, 100*clientMessageSize, int(m.SentBytes))
-	assert.True(t, int(m.Retransmits) > 0)
+	assert.Equal(t, 100*clientMessageSize, int(conn.Monotonic.SentBytes))
+	assert.True(t, int(conn.Monotonic.Retransmits) > 0)
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 }
@@ -223,7 +221,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 
 	totalSent := 0
 	for _, c := range conns {
-		totalSent += int(c.MonotonicSum().SentBytes)
+		totalSent += int(c.Monotonic.SentBytes)
 	}
 	assert.Equal(t, numProcesses*clientMessageSize, totalSent)
 
@@ -232,7 +230,7 @@ func TestTCPRetransmitSharedSocket(t *testing.T) {
 	// same socket
 	connsWithRetransmits := 0
 	for _, c := range conns {
-		if c.MonotonicSum().Retransmits > 0 {
+		if c.Monotonic.Retransmits > 0 {
 			connsWithRetransmits++
 		}
 	}
@@ -339,7 +337,7 @@ func TestTCPMiscount(t *testing.T) {
 
 	// TODO this should not happen but is expected for now
 	// we don't have the correct count since retries happened
-	assert.False(t, uint64(len(x)) == conn.MonotonicSum().SentBytes)
+	assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 
 	tel := tr.ebpfTracer.GetTelemetry()
 	assert.NotZero(t, tel["tcp_sent_miscounts"])
@@ -566,7 +564,7 @@ func TestUnconnectedUDPSendIPv6(t *testing.T) {
 
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
-	assert.Equal(t, bytesSent, int(outgoing[0].MonotonicSum().SentBytes))
+	assert.Equal(t, bytesSent, int(outgoing[0].Monotonic.SentBytes))
 }
 
 func TestGatewayLookupNotEnabled(t *testing.T) {
@@ -912,7 +910,7 @@ func TestConnectionAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.MonotonicSum()
+		m := conn.Monotonic
 		return ok && m.SentBytes > 0 && m.RecvBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
@@ -953,7 +951,7 @@ func TestConnectionNotAssured(t *testing.T) {
 		conns := getConnections(t, tr)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		m := conn.MonotonicSum()
+		m := conn.Monotonic
 		return ok && m.SentBytes > 0 && m.RecvBytes == 0
 	}, 3*time.Second, 500*time.Millisecond, "could not find udp connection")
 
@@ -1166,13 +1164,13 @@ func TestUDPPeekCount(t *testing.T) {
 		return outgoing != nil && incoming != nil
 	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
 
-	m := outgoing.MonotonicSum()
+	m := outgoing.Monotonic
 	require.Equal(t, len(msg), int(m.SentBytes))
 	require.Equal(t, 0, int(m.RecvBytes))
 	require.True(t, outgoing.IntraHost)
 
 	// make sure the inverse values are seen for the other message
-	m = incoming.MonotonicSum()
+	m = incoming.Monotonic
 	require.Equal(t, 0, int(m.SentBytes))
 	require.Equal(t, len(msg), int(m.RecvBytes))
 	require.True(t, incoming.IntraHost)
@@ -1242,8 +1240,8 @@ func TestUDPPythonReusePort(t *testing.T) {
 			assert.Equal(t, network.INCOMING, c.Direction, "incoming direction")
 
 			// make sure the inverse values are seen for the other message
-			assert.Equal(t, serverBytes, int(c.MonotonicSum().SentBytes), "incoming sent")
-			assert.Equal(t, clientBytes, int(c.MonotonicSum().RecvBytes), "incoming recv")
+			assert.Equal(t, serverBytes, int(c.Monotonic.SentBytes), "incoming sent")
+			assert.Equal(t, clientBytes, int(c.Monotonic.RecvBytes), "incoming recv")
 			assert.True(t, c.IntraHost, "incoming intrahost")
 		}
 	}
@@ -1252,8 +1250,8 @@ func TestUDPPythonReusePort(t *testing.T) {
 		for _, c := range outgoing {
 			assert.Equal(t, network.OUTGOING, c.Direction, "outgoing direction")
 
-			assert.Equal(t, clientBytes, int(c.MonotonicSum().SentBytes), "outgoing sent")
-			assert.Equal(t, serverBytes, int(c.MonotonicSum().RecvBytes), "outgoing recv")
+			assert.Equal(t, clientBytes, int(c.Monotonic.SentBytes), "outgoing sent")
+			assert.Equal(t, serverBytes, int(c.Monotonic.RecvBytes), "outgoing recv")
 			assert.True(t, c.IntraHost, "outgoing intrahost")
 		}
 	}
@@ -1335,8 +1333,8 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 		assert.Equal(t, network.INCOMING, incoming.Direction)
 
 		// make sure the inverse values are seen for the other message
-		assert.Equal(t, serverMessageSize, int(incoming.MonotonicSum().SentBytes), "incoming sent")
-		assert.Equal(t, clientMessageSize, int(incoming.MonotonicSum().RecvBytes), "incoming recv")
+		assert.Equal(t, serverMessageSize, int(incoming.Monotonic.SentBytes), "incoming sent")
+		assert.Equal(t, clientMessageSize, int(incoming.Monotonic.RecvBytes), "incoming recv")
 		assert.True(t, incoming.IntraHost, "incoming intrahost")
 	}
 
@@ -1344,8 +1342,8 @@ func testUDPReusePort(t *testing.T, udpnet string, ip string) {
 	if assert.True(t, ok, "unable to find outgoing connection") {
 		assert.Equal(t, network.OUTGOING, outgoing.Direction)
 
-		assert.Equal(t, clientMessageSize, int(outgoing.MonotonicSum().SentBytes), "outgoing sent")
-		assert.Equal(t, serverMessageSize, int(outgoing.MonotonicSum().RecvBytes), "outgoing recv")
+		assert.Equal(t, clientMessageSize, int(outgoing.Monotonic.SentBytes), "outgoing sent")
+		assert.Equal(t, serverMessageSize, int(outgoing.Monotonic.RecvBytes), "outgoing recv")
 		assert.True(t, outgoing.IntraHost, "outgoing intrahost")
 	}
 }
@@ -1499,10 +1497,10 @@ func TestSendfileRegression(t *testing.T) {
 		t.Logf("%+v", conns.Conns)
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		return ok && conn.MonotonicSum().SentBytes > 0
+		return ok && conn.Monotonic.SentBytes > 0
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
-	assert.Equalf(t, int64(clientMessageSize), int64(conn.MonotonicSum().SentBytes), "sendfile data wasn't properly traced")
+	assert.Equalf(t, int64(clientMessageSize), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
 
 func TestSendfileError(t *testing.T) {
@@ -1550,7 +1548,7 @@ func TestSendfileError(t *testing.T) {
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by sendfile(2)")
 
-	assert.Equalf(t, int64(0), int64(conn.MonotonicSum().SentBytes), "sendfile data wasn't properly traced")
+	assert.Equalf(t, int64(0), int64(conn.Monotonic.SentBytes), "sendfile data wasn't properly traced")
 }
 
 func sendFile(t *testing.T, c net.Conn, f *os.File, offset *int64, count int) (int, error) {
@@ -1653,7 +1651,7 @@ func TestShortWrite(t *testing.T) {
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "couldn't find connection used by short write")
 
-	assert.Equal(t, sent, conn.MonotonicSum().SentBytes)
+	assert.Equal(t, sent, conn.Monotonic.SentBytes)
 }
 
 func TestKprobeAttachWithKprobeEvents(t *testing.T) {
@@ -1714,7 +1712,7 @@ func TestBlockingReadCounts(t *testing.T) {
 		return found
 	}, 3*time.Second, 500*time.Millisecond)
 
-	assert.Equal(t, uint64(n), conn.MonotonicSum().RecvBytes)
+	assert.Equal(t, uint64(n), conn.Monotonic.RecvBytes)
 }
 
 func TestTCPDirectionWithPreexistingConnection(t *testing.T) {
@@ -1813,7 +1811,7 @@ func TestPreexistingConnectionDirection(t *testing.T) {
 
 	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
 	require.True(t, ok)
-	m := conn.MonotonicSum()
+	m := conn.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
 	assert.Equal(t, 0, int(m.Retransmits))
