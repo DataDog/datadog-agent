@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
@@ -36,7 +36,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type eventCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	sourceName string
 	sourceType string
@@ -44,7 +44,7 @@ type eventCliParams struct {
 	data       []string
 }
 
-func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
+func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventArgs := &eventCliParams{
 		GlobalParams: globalParams,
 	}
@@ -59,7 +59,7 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -81,7 +81,7 @@ func eventRun(log complog.Component, config compconfig.Component, eventArgs *eve
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := common.NewLogContextCompliance()
+	endpoints, dstContext, err := command.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}

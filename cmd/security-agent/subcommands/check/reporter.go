@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/compliance/utils"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -32,7 +32,7 @@ func NewCheckReporter(stopper startstop.Stopper, report bool, dumpReportsPath st
 	r := &RunCheckReporter{}
 
 	if report {
-		endpoints, dstContext, err := common.NewLogContextCompliance()
+		endpoints, dstContext, err := command.NewLogContextCompliance()
 		if err != nil {
 			return nil, err
 		}

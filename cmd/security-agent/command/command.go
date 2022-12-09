@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package app
+package command
 
 import (
 	"path"
@@ -12,19 +12,20 @@ import (
 	"github.com/spf13/cobra"
 
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
-	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/start"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
-	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func CreateSecurityAgentCmd() *cobra.Command {
-	globalParams := common.GlobalParams{}
+type GlobalParams struct {
+	ConfPathArray []string
+}
+
+type SubcommandFactory func(*GlobalParams) []*cobra.Command
+
+const LoggerName = "SECURITY"
+
+// MakeCommand makes the top-level Cobra command for this command.
+func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
+	globalParams := GlobalParams{}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -52,17 +53,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
-	factories := []common.SubcommandFactory{
-		status.Commands,
-		flare.Commands,
-		subconfig.Commands,
-		compliance.Commands,
-		runtime.Commands,
-		subversion.Commands,
-		start.Commands,
-	}
-
-	for _, factory := range factories {
+	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {
 			SecurityAgentCmd.AddCommand(subcmd)
 		}

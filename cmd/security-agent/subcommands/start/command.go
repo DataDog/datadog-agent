@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -39,19 +40,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/spf13/cobra"
 )
 
 type startCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	pidfilePath string
 }
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &startCliParams{
 		GlobalParams: globalParams,
 	}
@@ -69,7 +69,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				).LogForOneShot(command.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},
@@ -147,7 +147,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	}
 
 	err = coreconfig.SetupLogger(
-		common.LoggerName,
+		command.LoggerName,
 		coreconfig.Datadog.GetString("log_level"),
 		logFile,
 		syslogURI,

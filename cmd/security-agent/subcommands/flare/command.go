@@ -8,12 +8,13 @@ package flare
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -22,16 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
 
-type flareCliParams struct {
-	*common.GlobalParams
+type cliParams struct {
+	*command.GlobalParams
 
 	customerEmail string
 	autoconfirm   bool
 	caseID        string
 }
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := &flareCliParams{
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -47,11 +48,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			// The flare command should not log anything, all errors should be reported directly to the console without the log format
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateBundleParams(
-					"",
-					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
-					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},
@@ -64,7 +61,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(log config.Component, config config.Component, params *flareCliParams) error {
+func requestFlare(log log.Component, config config.Component, params *cliParams) error {
 	if params.customerEmail == "" {
 		var err error
 		params.customerEmail, err = input.AskForEmail()

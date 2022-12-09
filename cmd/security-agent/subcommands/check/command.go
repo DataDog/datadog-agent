@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -44,12 +44,12 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	bp := core.CreateBundleParams(
 		"",
 		core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 		core.WithConfigLoadSecurityAgent(true),
-	).LogForOneShot(common.LoggerName, "info", true)
+	).LogForOneShot(command.LoggerName, "info", true)
 
 	return Commands(bp)
 }

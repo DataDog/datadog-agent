@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -24,14 +24,14 @@ import (
 )
 
 type statusCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	json            bool
 	prettyPrintJSON bool
 	file            string
 }
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &statusCliParams{
 		GlobalParams: globalParams,
 	}
@@ -47,7 +47,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				).LogForOneShot(command.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},

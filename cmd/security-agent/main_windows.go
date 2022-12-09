@@ -14,7 +14,7 @@ import (
 
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -67,7 +67,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = app.CreateSecurityAgentCmd().Execute(); err != nil {
+	if err = command.MakeCommand().Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
@@ -82,13 +82,13 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 	log.Infof("Service control function")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	err := app.RunAgent(ctx, "")
+	err := command.RunAgent(ctx, "")
 
 	if err != nil {
 		log.Errorf("Failed to start agent %v", err)
 		elog.Error(0xc0000008, err.Error())
 		errno = 1 // indicates non-successful return from handler.
-		app.StopAgent(cancel)
+		command.StopAgent(cancel)
 		changes <- svc.Status{State: svc.Stopped}
 		return
 	}
@@ -124,7 +124,7 @@ loop:
 	elog.Info(0x40000006, ServiceName)
 	log.Infof("Initiating service shutdown")
 	changes <- svc.Status{State: svc.StopPending}
-	app.StopAgent(cancel)
+	command.StopAgent(cancel)
 	changes <- svc.Status{State: svc.Stopped}
 	return
 }

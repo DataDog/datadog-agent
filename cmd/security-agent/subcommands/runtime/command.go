@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"io"
 	"os"
 	"path"
@@ -24,7 +25,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -58,7 +58,7 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
@@ -77,12 +77,12 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type checkPoliciesCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	dir string
 }
 
-func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -97,7 +97,7 @@ func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", false)),
+				).LogForOneShot(command.LoggerName, "off", false)),
 				core.Bundle,
 			)
 		},
@@ -109,7 +109,7 @@ func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
-func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
@@ -119,7 +119,7 @@ func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command 
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -128,7 +128,7 @@ func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command 
 	return []*cobra.Command{reloadPoliciesCmd}
 }
 
-func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonPolicyCmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
@@ -143,7 +143,7 @@ func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type evalCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	dir       string
 	ruleID    string
@@ -151,7 +151,7 @@ type evalCliParams struct {
 	debug     bool
 }
 
-func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalArgs := &evalCliParams{
 		GlobalParams: globalParams,
 	}
@@ -166,7 +166,7 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", false)),
+				).LogForOneShot(command.LoggerName, "off", false)),
 				core.Bundle,
 			)
 		},
@@ -182,7 +182,7 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{evalCmd}
 }
 
-func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -197,7 +197,7 @@ func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Com
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", false)),
+				).LogForOneShot(command.LoggerName, "off", false)),
 				core.Bundle,
 			)
 		},
@@ -208,7 +208,7 @@ func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Com
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
 
-func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
@@ -218,7 +218,7 @@ func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Co
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -226,7 +226,7 @@ func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Co
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
-func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
@@ -236,7 +236,7 @@ func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -246,13 +246,13 @@ func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type downloadPolicyCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	check      bool
 	outputPath string
 }
 
-func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	downloadPolicyArgs := &downloadPolicyCliParams{
 		GlobalParams: globalParams,
 	}
@@ -267,7 +267,7 @@ func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command 
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", false)),
+				).LogForOneShot(command.LoggerName, "off", false)),
 				core.Bundle,
 			)
 		},
@@ -280,12 +280,12 @@ func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command 
 }
 
 type processCacheDumpCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	withArgs bool
 }
 
-func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -300,7 +300,7 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -317,12 +317,12 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type dumpNetworkNamespaceCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	snapshotInterfaces bool
 }
 
-func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
 	}
@@ -337,7 +337,7 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -353,7 +353,7 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
-func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
@@ -364,7 +364,7 @@ func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "info", true)),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},
@@ -741,7 +741,7 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.", coreconfig.Datadog)
-	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
+	return command.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
 }
 
 func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {

@@ -8,7 +8,7 @@ package version
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -20,7 +20,7 @@ import (
 	"go.uber.org/fx"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version info",
@@ -31,7 +31,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				).LogForOneShot(command.LoggerName, "off", true)),
 				core.Bundle,
 			)
 		},
