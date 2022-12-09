@@ -175,7 +175,7 @@ build_processed_btfhub_archive:
     !reference [.manual]
   stage: deps_build
   before_script:
-    - rm -r "$CI_BUILDS_DIR/fsbase" || true
+    - rm -r "$CI_PROJECT_DIR/fsbase" || true
   script:
     # base for new deb environment
     - mkdir $FSBASE
@@ -250,7 +250,7 @@ build_microvm_filesystem_x64:
     RELEASE_IMG: bullseye.img
     QCOW2_IMG: bullseye.qcow2
     ARCHIVE_NAME: $QCOW2_IMG.$DEBARCH-$IMAGE_VERSION.tar.gz 
-    FSBASE: "$CI_BUILDS_DIR/fsbase"
+    FSBASE: "$CI_PROJECT_DIR/fsbase"
     IMG_SIZE: 10G
     PREINSTALL_PKGS: bison,cmake,curl,flex,g++,gcc,gcc-multilib,git,libbpf-dev,libedit-dev,libelf-dev,libfl-dev,libstdc++-10-dev,libtinfo-dev,libtinfo5,libxml2-dev,libzip-dev,linux-libc-dev,make,ninja-build,patch,pkg-config,python3-distro,python3-distutils,python3-netaddr,python3-setuptools,python3-pip,python3-pyroute2,python3-dev,wget,xz-utils
 
@@ -263,7 +263,7 @@ build_microvm_filesystem_arm64:
     DEBARCH: "arm64"
     RELEASE_IMG: bullseye.img
     QCOW2_IMG: bullseye.qcow2
-    FSBASE: "$CI_BUILDS_DIR/fsbase"
+    FSBASE: "$CI_PROJECT_DIR/fsbase"
     IMG_SIZE: 10G
     PREINSTALL_PKGS: bison,cmake,curl,flex,g++,gcc,gcc-multilib,git,libbpf-dev,libedit-dev,libelf-dev,libfl-dev,libstdc++-10-dev,libtinfo-dev,libtinfo5,libxml2-dev,libzip-dev,linux-libc-dev,make,ninja-build,patch,pkg-config,python3-distro,python3-distutils,python3-netaddr,python3-setuptools,python3-pip,python3-pyroute2,python3-dev,wget,xz-utils
     SOURCE_LIST: |
