@@ -43,7 +43,7 @@ type cliParams struct {
 	waitInterval    time.Duration
 }
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

@@ -7,10 +7,10 @@ package app
 
 import (
 	"fmt"
-	"go.uber.org/fx"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -25,7 +25,7 @@ type cliParams struct {
 	*command.GlobalParams
 }
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `tagger-list` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

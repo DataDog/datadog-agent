@@ -12,11 +12,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
 	payload "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -42,7 +41,7 @@ type cliParams struct {
 	eventsOutputJSON bool
 }
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `events` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

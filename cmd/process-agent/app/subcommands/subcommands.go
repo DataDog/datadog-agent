@@ -16,8 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 )
 
-// ProcessAgentSubcommands returns SubcommandFactories for the subcommands supported
-// with the current build flags.
+// ProcessAgentSubcommands returns SubcommandFactories for the subcommands in the Process Agent
 func ProcessAgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		cmdcheck.Commands,

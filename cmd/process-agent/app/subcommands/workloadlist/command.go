@@ -28,7 +28,7 @@ type cliParams struct {
 	verboseList bool
 }
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `workload-list` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

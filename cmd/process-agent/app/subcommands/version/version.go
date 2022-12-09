@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `version` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := version.MakeCommand("Agent")
 

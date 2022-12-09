@@ -50,7 +50,7 @@ type cliParams struct {
 	*command.GlobalParams
 }
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `status` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

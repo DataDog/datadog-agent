@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
-// Commands returns a slice of subcommands for the 'process-agent' command.
+// Commands returns a slice of subcommands for the `config` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
