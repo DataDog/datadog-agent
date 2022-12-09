@@ -68,7 +68,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	// groupID is not use for the path resolution, don't make it critical
 	groupID, _ := parseGroupID(mnt)
 
-	// create a MountEvent out of the parsed MountInfo
+	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID:       uint32(mnt.ID),
 		GroupID:       groupID,
@@ -101,7 +101,7 @@ type MountResolver struct {
 	devices         map[uint32]map[uint32]*model.Mount
 	deleteQueue     []deleteRequest
 	minMountID      uint32
-	redemption      *simplelru.LRU[uint32, *model.MountEvent]
+	redemption      *simplelru.LRU[uint32, *model.Mount]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -173,7 +173,7 @@ func (mr *MountResolver) finalizeChildren(parent *model.Mount) {
 	}
 }
 
-// finalizeDevice deletes MountEvent sharing the same device id for overlay fs mount
+// finalizeDevice deletes Mount sharing the same device id for overlay fs mount
 func (mr *MountResolver) finalizeDevice(mount *model.Mount) {
 	if !mount.IsOverlayFS() {
 		return
@@ -198,7 +198,7 @@ func (mr *MountResolver) finalize(mount *model.Mount) {
 	mr.finalizeDevice(mount)
 }
 
-func (mr *MountResolver) delete(mount *model.MountEvent) {
+func (mr *MountResolver) delete(mount *model.Mount) {
 	if m, exists := mr.mounts[mount.MountID]; exists {
 		mr.redemption.Add(mount.MountID, m)
 	}
@@ -590,7 +590,7 @@ func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *Cgro
 		procMissStats:   atomic.NewInt64(0),
 	}
 
-	redemption, err := simplelru.NewLRU(1024, func(mountID uint32, mount *model.MountEvent) {
+	redemption, err := simplelru.NewLRU(1024, func(mountID uint32, mount *model.Mount) {
 		mr.finalize(mount)
 	})
 	if err != nil {
