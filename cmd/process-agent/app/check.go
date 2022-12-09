@@ -103,7 +103,13 @@ func runCheckCmd(cmd *cobra.Command, args []string) error {
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
 	// Start workload metadata store before tagger (used for containerCollection)
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
+	var workloadmetaCollectors workloadmeta.CollectorCatalog
+	if ddconfig.Datadog.GetBool("process_config.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
+	} else {
+		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
+	}
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 	store.Start(ctx)
 
 	// Tagger must be initialized after agent config has been setup

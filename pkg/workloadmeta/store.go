@@ -330,6 +330,46 @@ func (s *store) Notify(events []CollectorEvent) {
 	}
 }
 
+// Reset implements Store#Reset
+func (s *store) Reset(newEntities []Entity, source Source) {
+	s.storeMut.RLock()
+	defer s.storeMut.RUnlock()
+
+	var events []CollectorEvent
+
+	// Create a "set" event for each entity that need to be in the store.
+	// The store will takes care of not sending events for entities that already
+	// exist and haven't changed.
+	for _, newEntity := range newEntities {
+		events = append(events, CollectorEvent{
+			Type:   EventTypeSet,
+			Source: source,
+			Entity: newEntity,
+		})
+	}
+
+	// Create an "unset" event for each entity that needs to be deleted
+	newEntitiesByKindAndID := classifyByKindAndID(newEntities)
+	for kind, storedEntitiesOfKind := range s.store {
+		initialEntitiesOfKind, found := newEntitiesByKindAndID[kind]
+		if !found {
+			initialEntitiesOfKind = make(map[string]Entity)
+		}
+
+		for ID, storedEntity := range storedEntitiesOfKind {
+			if _, found = initialEntitiesOfKind[ID]; !found {
+				events = append(events, CollectorEvent{
+					Type:   EventTypeUnset,
+					Source: source,
+					Entity: storedEntity.cached,
+				})
+			}
+		}
+	}
+
+	s.Notify(events)
+}
+
 func (s *store) startCandidates(ctx context.Context) bool {
 	s.collectorMut.Lock()
 	defer s.collectorMut.Unlock()
@@ -577,6 +617,23 @@ func notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) 
 			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 		}
 	}
+}
+
+func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
+	res := make(map[Kind]map[string]Entity)
+
+	for _, entity := range entities {
+		kind := entity.GetID().Kind
+		entityID := entity.GetID().ID
+
+		_, found := res[kind]
+		if !found {
+			res[kind] = make(map[string]Entity)
+		}
+		res[kind][entityID] = entity
+	}
+
+	return res
 }
 
 // CreateGlobalStore creates a workloadmeta store, sets it as the default
