@@ -37,6 +37,20 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "service:nginx",
 		},
+		{
+			name: "java using the -jar flag",
+			cmdline: []string{
+				"\"C:\\Program Files\\Java\\jdk-17.0.1\\bin\\java\"", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "myService.jar",
+			},
+			expectedServiceTag: "service:myService",
+		},
+		{
+			name: "java with exe extension",
+			cmdline: []string{
+				"C:\\Program Files\\Java\\jdk-17.0.1\\bin\\java.exe", "com.dog.myService",
+			},
+			expectedServiceTag: "service:myService",
+		},
 	}
 
 	for _, tt := range tests {
