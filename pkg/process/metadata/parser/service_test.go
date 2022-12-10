@@ -110,6 +110,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "service:cassandra",
 		},
+		{
+			name: "java space in java executable path",
+			cmdline: []string{
+				"/home/dd/my java dir/java", "com.dog.cat",
+			},
+			expectedServiceTag: "service:cat",
+		},
 	}
 
 	for _, tt := range tests {

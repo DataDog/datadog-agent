@@ -33,6 +33,7 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"ruby2.3":   parseCommandContext,
 	"ruby":      parseCommandContext,
 	"java":      parseCommandContextJava,
+	"java.exe":  parseCommandContextJava,
 	"sudo":      parseCommandContext,
 }
 
@@ -104,10 +105,15 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 
 	exe := cmd[0]
 	// check if all args are packed into the first argument
-	if idx := strings.IndexRune(exe, ' '); idx != -1 {
-		exe = exe[0:idx]
-		cmd = strings.Split(cmd[0], " ")
+	if len(cmd) == 1 {
+		if idx := strings.IndexRune(exe, ' '); idx != -1 {
+			exe = exe[0:idx]
+			cmd = strings.Split(cmd[0], " ")
+		}
 	}
+
+	// trim quotes from string
+	exe = strings.Trim(exe, "\"")
 
 	// Extract executable from commandline args
 	exe = trimColonRight(removeFilePath(exe))
