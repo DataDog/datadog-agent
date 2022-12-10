@@ -112,7 +112,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 		}
 	}
 
-	// trim quotes from string
+	// trim any quotes from the executable
 	exe = strings.Trim(exe, "\"")
 
 	// Extract executable from commandline args
