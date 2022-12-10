@@ -212,7 +212,10 @@ func GetDebugInfo() (*SecretInfo, error) {
 	if secretBackendCommand == "" {
 		return nil, fmt.Errorf("No secret_backend_command set: secrets feature is not enabled")
 	}
-	info := &SecretInfo{ExecutablePath: secretBackendCommand}
+	info := &SecretInfo{
+		ExecutablePath:       secretBackendCommand,
+		ExecutablePathSHA256: secretBackendCommandSHA256,
+	}
 	info.populateRights()
 
 	info.SecretsHandles = map[string][]string{}
