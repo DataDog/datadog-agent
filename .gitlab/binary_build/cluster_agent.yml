@@ -15,11 +15,10 @@ cluster_agent-build_amd64:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
   variables:
     ARCH: amd64
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
 
 cluster_agent-build_arm64:
@@ -28,9 +27,8 @@ cluster_agent-build_arm64:
     !reference [.on_tag_or_a7_all_builds]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
   variables:
     ARCH: arm64
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3

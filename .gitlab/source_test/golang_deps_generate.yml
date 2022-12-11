@@ -7,9 +7,6 @@ golang_deps_generate:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_deps"]
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
   script:
     - inv agent.build-dep-tree
     - tar -czf dependency_tree.tgz dependency_tree.txt

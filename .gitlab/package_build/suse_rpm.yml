@@ -3,7 +3,6 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
-    - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -60,7 +59,7 @@ agent_suse-x64-a6:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "generate_minimized_btfs_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 6
@@ -78,7 +77,7 @@ agent_suse-x64-a7:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_system-probe-x64", "go_deps", "generate_minimized_btfs_x64"]
+  needs: ["go_mod_tidy_check", "build_system-probe-x64", "generate_minimized_btfs_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
     AGENT_MAJOR_VERSION: 7
@@ -94,13 +93,12 @@ iot_agent_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
   before_script:
     - source /root/.bashrc && conda activate ddpy3
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
-    - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -130,11 +128,10 @@ dogstatsd_suse-x64:
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/suse_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64"]
   variables:
     AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: /credentials
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     # remove artifacts from previous pipelines that may come from the cache

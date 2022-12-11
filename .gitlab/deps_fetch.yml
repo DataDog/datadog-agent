@@ -17,6 +17,7 @@ go_deps:
   tags: ["runner:main"]
   needs: []
   script:
+    - echo $GOPROXY
     - inv -e deps --verbose
     - cd $GOPATH/pkg/mod/ && tar czf $CI_PROJECT_DIR/modcache.tar.gz .
   artifacts:

@@ -4,7 +4,6 @@ include:
   - /.gitlab/maintenance_jobs.yml
   - /.gitlab/deps_build.yml
   - /.gitlab/package_deps_build.yml
-  - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
@@ -55,7 +54,6 @@ workflow:
 stages:
   - maintenance_jobs
   - deps_build
-  - deps_fetch
   - source_test
   - source_test_junit_upload
   - binary_build

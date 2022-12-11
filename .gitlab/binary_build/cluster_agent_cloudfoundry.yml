@@ -5,7 +5,7 @@ cluster_agent_cloudfoundry-build_amd64:
   stage: binary_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
-  needs: ["go_mod_tidy_check", "go_deps"]
+  needs: ["go_mod_tidy_check"]
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -13,7 +13,6 @@ cluster_agent_cloudfoundry-build_amd64:
   variables:
     ARCH: amd64
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - source /root/.bashrc && conda activate ddpy3
   script:
     - inv check-go-version
