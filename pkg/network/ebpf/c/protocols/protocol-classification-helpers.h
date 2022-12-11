@@ -62,82 +62,62 @@ static __always_inline int16_t read_big_endian_int16(const char* buf) {
     return bpf_ntohs(*val);
 }
 
-struct bla {
-    uint8_t frame_type;
-    uint16_t channel;
-    uint32_t length;
-    uint16_t class_id;
-    uint16_t method_id;
-};
-
-struct bla22 {
-    uint8_t a[11];
-};
-
 // The method checks if the given buffer starts is amqp message.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
-      static const uint16_t kConnectionClass = 10;
-      static const uint16_t kBasicClass = 60;
+    static const uint16_t kConnectionClass = 10;
+    static const uint16_t kBasicClass = 60;
 
-      static const uint16_t kMethodConnectionStart = 10;
-      static const uint16_t kMethodConnectionStartOk = 11;
-      static const uint16_t kMethodBasicPublish = 40;
-      static const uint16_t kMethodBasicDeliver = 60;
+    static const uint16_t kMethodConnectionStart = 10;
+    static const uint16_t kMethodConnectionStartOk = 11;
+    static const uint16_t kMethodBasicPublish = 40;
+    static const uint16_t kMethodBasicDeliver = 60;
 
-      static const uint8_t kFrameMethodType = 1;
-      static const uint8_t kMinFrameLength = 18;
-      if (buf_size < kMinFrameLength) {
+    static const uint8_t kFrameMethodType = 1;
+    static const uint8_t kMinFrameLength = 18;
+    if (buf_size < kMinFrameLength) {
         return false;
-      }
+    }
 
-      uint8_t frame_type = buf[0];
-      // Check only for types Connection Start/Start-OK. Publish/Deliver
-      if (frame_type != kFrameMethodType) {
+    uint8_t frame_type = buf[0];
+    // Check only for types Connection Start/Start-OK. Publish/Deliver
+    if (frame_type != kFrameMethodType) {
         return false;
-      }
+    }
 
-      // verfier issue, could not read big indian with the number 7 and 9
-      struct bla22 *bla0 = (struct bla22*)(buf);
-      //read_big_endian_int16(buf + 9);
-      // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver are the most likely methods to
-      // consider
+    __u16 class_id = buf[7] << 8 | buf[8];
+    __u16 method_id = buf[9] << 8 | buf[10];
+    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver are the most likely methods to
+    // consider
 
-      log_debug("[classificationrabbit] -------------------1 buf is %d %d %d", buf[0], buf[1], buf[2]);
-      log_debug("[classificationrabbit] -------------------2 buf is %d %d %d", buf[3], buf[4], buf[5]);
-      log_debug("[classificationrabbit] -------------------3 buf is %d %d %d", buf[6], buf[7], buf[8]);
-      log_debug("[classificationrabbit] -------------------4 buf is %d %d %d", buf[9], buf[10], buf[11]);
+    log_debug("[classificationrabbit] -------------------1 buf is %d %d %d", buf[0], buf[1], buf[2]);
+    log_debug("[classificationrabbit] -------------------2 buf is %d %d %d", buf[3], buf[4], buf[5]);
+    log_debug("[classificationrabbit] -------------------3 buf is %d %d %d", buf[6], buf[7], buf[8]);
+    log_debug("[classificationrabbit] -------------------4 buf is %d %d %d", buf[9], buf[10], buf[11]);
 
-      log_debug("[classificationrabbit1] -------------------1 bla0.a is %d %d %d", bla0.a[0], bla0.a[1], bla0.a[2]);
-      log_debug("[classificationrabbit1] -------------------2 bla0.a is %d %d %d", bla0.a[3], bla0.a[4], bla0.a[5]);
-      log_debug("[classificationrabbit1] -------------------3 bla0.a is %d %d %d", bla0.a[6], bla0.a[7], bla0.a[8]);
-      log_debug("[classificationrabbit1] -------------------4 bla0.a is %d %d %d", bla0.a[9], bla0.a[10], bla0.a[11]);
+    log_debug("[protocol classificationrabbit class results is: %d %d]\n", class_id, method_id);
 
-
-      log_debug("[protocol classificationrabbit results is: %d %d]\n", sizee, bpf_ntohl(sizee));
-//      log_debug("[protocol classificationrabbit results is: %d %d]\n", class_id, method_id);
-
-      if (class_id == kConnectionClass && method_id == kMethodConnectionStart) {
-            log_debug("[protocol classificationrabbit wowowow22]\n");
+    if (class_id == kConnectionClass && method_id == kMethodConnectionStart) {
+        log_debug("[protocol classificationrabbit wowowow22]\n");
         return true;
-      }
-      if (class_id == kConnectionClass && method_id == kMethodConnectionStartOk) {
-                  log_debug("[protocol classificationrabbit wowowow33]\n");
+    }
+    if (class_id == kConnectionClass && method_id == kMethodConnectionStartOk) {
+        log_debug("[protocol classificationrabbit wowowow33]\n");
         return true;
-      }
+    }
 
-      if (class_id == kBasicClass && method_id == kMethodBasicPublish) {
-                        log_debug("[protocol classificationrabbit wowowow44]\n");
+    if (class_id == kBasicClass && method_id == kMethodBasicPublish) {
+        log_debug("[protocol classificationrabbit wowowow44]\n");
         return true;
-      }
-      if (class_id == kBasicClass && method_id == kMethodBasicDeliver) {
-                        log_debug("[protocol classificationrabbit wowowow55]\n");
+    }
 
+    if (class_id == kBasicClass && method_id == kMethodBasicDeliver) {
+        log_debug("[protocol classificationrabbit wowowow55]\n");
         return true;
-      }
+    }
 
-                        log_debug("[protocol classificationrabbit wowowownoneee]\n");
-      return false;
+    log_debug("[protocol classificationrabbit wowowownoneee]\n");
+    return false;
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
