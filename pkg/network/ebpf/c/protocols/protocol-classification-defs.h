@@ -25,6 +25,7 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
+    PROTOCOL_AMQP,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,
