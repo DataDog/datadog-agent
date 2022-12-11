@@ -122,6 +122,11 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.EnableHTTPSMonitoring = false
 		config.EnableKafkaMonitoring = false
 	}
+	kafkaSupported := currKernelVersion >= kafka.MinimumKernelVersion
+	if !kafkaSupported && config.EnableKafkaMonitoring {
+		log.Warnf("Kafka monitoring is explicitly enabled, but the kernel version (%v) is not supported, disabling kafka monitoring", currKernelVersion)
+		config.EnableKafkaMonitoring = false
+	}
 
 	offsetBuf, err := netebpf.ReadOffsetBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
