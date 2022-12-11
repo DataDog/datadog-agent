@@ -124,7 +124,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 	kafkaSupported := currKernelVersion >= kafka.MinimumKernelVersion
 	if !kafkaSupported && config.EnableKafkaMonitoring {
-		log.Warnf("Kafka monitoring is explicitly enabled, but the kernel version (%v) is not supported, disabling kafka monitoring", currKernelVersion)
+		log.Warnf("kafka monitoring is explicitly enabled, but the kernel version (%v) is not supported, disabling kafka monitoring", currKernelVersion)
 		config.EnableKafkaMonitoring = false
 	}
 
