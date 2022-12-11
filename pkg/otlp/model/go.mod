@@ -5,8 +5,8 @@ go 1.18
 replace github.com/DataDog/datadog-agent/pkg/quantile => ../../quantile
 
 require (
-	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.40.1
+	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/trace v0.42.0-rc.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/golang/protobuf v1.5.2
 	github.com/patrickmn/go-cache v2.1.0+incompatible
