@@ -132,6 +132,28 @@ func (h *Hotspot) connect() (cleanup func(), err error) {
 	return func() { defer h.conn.Close() }, nil
 }
 
+func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, response string) {
+	line := 0
+	scanner := bufio.NewScanner(bytes.NewReader(buf))
+	for scanner.Scan() {
+		s := string(scanner.Bytes())
+		switch line {
+		case 0:
+			returnCommand, _ = strconv.Atoi(s)
+		case 1:
+			if strings.HasPrefix(s, "return code: ") {
+				returnCode, _ = strconv.Atoi(s[len("return code: "):])
+			}
+		}
+		response += s + "\n"
+		line++
+	}
+	return returnCommand, returnCode, response
+}
+
+// command: tailingNull is necessary here to flush command
+//	otherwise the JVM is block waiting for more bytes
+//	This is apply only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Write([]byte{'1', 0}); err != nil { // Protocol version
 		return err
@@ -153,23 +175,8 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Read(buf); err != nil {
 		return err
 	}
+	returnCommand, returnCode, responseText := h.parseResponse(buf)
 
-	returnCommand := 0
-	returnCode := 0
-	responseText := ""
-	line := 0
-	scanner := bufio.NewScanner(bytes.NewReader(buf))
-	for scanner.Scan() {
-		s := string(scanner.Bytes())
-		if line == 0 {
-			returnCommand, _ = strconv.Atoi(s)
-		}
-		if line == 1 && strings.HasPrefix(s, "return code: ") {
-			returnCode, _ = strconv.Atoi(s[len("return code: "):])
-		}
-		responseText += s + "\n"
-		line++
-	}
 	if returnCommand != 0 {
 		return fmt.Errorf("command '%s' return command %d code %d\n%s\n", cmd, returnCommand, returnCode, responseText)
 	}
@@ -241,15 +248,15 @@ func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 	}
 	defer cleanConn()
 
-	loadCommand := ""
+	var loadCommand string
 	isJar := strings.HasSuffix(filepath.Base(agent), ".jar")
 	if isJar { // agent is a .jar
-		loadCommand += fmt.Sprintf("load instrument false %s", agentPath)
+		loadCommand = fmt.Sprintf("load instrument false %s", agentPath)
 		if args != "" {
 			loadCommand += "=" + args
 		}
 	} else {
-		loadCommand += fmt.Sprintf("load %s true", agentPath)
+		loadCommand = fmt.Sprintf("load %s true", agentPath)
 		if args != "" {
 			loadCommand += " " + args
 		}
