@@ -9,38 +9,20 @@
 package main
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
-	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/flare"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
-	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	"os"
 
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-
+	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func main() {
 	// set the Agent flavor
 	flavor.SetFlavor(flavor.SecurityAgent)
 
-	subcommandFactories := []command.SubcommandFactory{
-		status.Commands,
-		flare.Commands,
-		subconfig.Commands,
-		compliance.Commands,
-		runtime.Commands,
-		subversion.Commands,
-		start.Commands,
-	}
-
-	if err := command.MakeCommand(subcommandFactories).Execute(); err != nil {
-		os.Exit(-1)
-	}
+	os.Exit(runcmd.Run(command.MakeCommand(subcommands.SecurityAgentSubcommands())))
 }

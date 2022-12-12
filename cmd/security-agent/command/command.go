@@ -19,7 +19,7 @@ type GlobalParams struct {
 	ConfPathArray []string
 }
 
-type SubcommandFactory func(*GlobalParams) []*cobra.Command
+type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
 const LoggerName = "SECURITY"
 

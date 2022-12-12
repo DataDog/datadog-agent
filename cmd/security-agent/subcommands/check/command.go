@@ -44,18 +44,8 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	bp := core.CreateBundleParams(
-		"",
-		core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
-		core.WithConfigLoadSecurityAgent(true),
-	).LogForOneShot(command.LoggerName, "info", true)
-
-	return Commands(bp)
-}
-
 // Commands returns a cobra command to run security agent checks
-func Commands(bundleParams core.BundleParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	checkArgs := &checkCliParams{}
 
 	cmd := &cobra.Command{
@@ -70,7 +60,11 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 
 			return fxutil.OneShot(runCheck,
 				fx.Supply(checkArgs),
-				fx.Supply(bundleParams),
+				fx.Supply(core.CreateBundleParams(
+					"",
+					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
+					core.WithConfigLoadSecurityAgent(true),
+				).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},

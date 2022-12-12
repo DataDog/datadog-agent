@@ -10,10 +10,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
