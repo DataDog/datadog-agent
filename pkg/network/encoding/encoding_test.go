@@ -129,7 +129,9 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 			NpmEnabled: false,
 			TsmEnabled: false,
 		},
-		Tags:                 network.GetStaticTags(1),
+		Tags: network.GetStaticTags(1),
+		// This was back-ported from the main, as we are using a newer version of agent-payload which contains that
+		// change.
 		CORETelemetryByAsset: map[string]model.COREResult{},
 	}
 	if runtime.GOOS == "linux" {
