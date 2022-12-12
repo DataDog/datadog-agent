@@ -11,12 +11,13 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type GlobalParams struct {
-	ConfPathArray []string
+	DefaultConfPath string
+	ConfPathArray   []string
 }
 
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
@@ -25,7 +26,9 @@ const LoggerName = "SECURITY"
 
 // MakeCommand makes the top-level Cobra command for this command.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
-	globalParams := GlobalParams{}
+	globalParams := &GlobalParams{
+		DefaultConfPath: common.DefaultConfPath,
+	}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -34,12 +37,10 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if flagNoColor {
 				color.NoColor = true
 			}
-
-			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			log.Flush()
@@ -47,14 +48,14 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 	}
 
 	defaultConfPathArray := []string{
-		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
-		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
+		path.Join(globalParams.DefaultConfPath, "datadog.yaml"),
+		path.Join(globalParams.DefaultConfPath, "security-agent.yaml"),
 	}
 	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
 
 	for _, factory := range subcommandFactories {
-		for _, subcmd := range factory(&globalParams) {
+		for _, subcmd := range factory(globalParams) {
 			SecurityAgentCmd.AddCommand(subcmd)
 		}
 	}

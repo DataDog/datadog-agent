@@ -37,7 +37,7 @@ type BundleParams struct {
 	// the component's config data.
 	ConfigLoadSysProbe bool
 
-	// SecurityAgentConfigFilePaths are the paths at which to look for security-aegnt
+	// SecurityAgentConfigFilePaths are the paths at which to look for security-agent
 	// configuration, usually given by the --cfgpath command-line flag.
 	SecurityAgentConfigFilePaths []string
 
