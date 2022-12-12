@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -35,18 +37,18 @@ var (
 	infoErrorTmpl             *template.Template
 	infoDockerSocket          string
 	infoLastCollectTime       string
-	infoProcCount             int
-	infoContainerCount        int
-	infoProcessQueueSize      int
-	infoRTProcessQueueSize    int
-	infoConnectionsQueueSize  int
-	infoEventQueueSize        int
-	infoPodQueueSize          int
-	infoProcessQueueBytes     int
-	infoRTProcessQueueBytes   int
-	infoConnectionsQueueBytes int
-	infoEventQueueBytes       int
-	infoPodQueueBytes         int
+	infoProcCount             atomic.Int64
+	infoContainerCount        atomic.Int64
+	infoProcessQueueSize      atomic.Int64
+	infoRTProcessQueueSize    atomic.Int64
+	infoConnectionsQueueSize  atomic.Int64
+	infoEventQueueSize        atomic.Int64
+	infoPodQueueSize          atomic.Int64
+	infoProcessQueueBytes     atomic.Int64
+	infoRTProcessQueueBytes   atomic.Int64
+	infoConnectionsQueueBytes atomic.Int64
+	infoEventQueueBytes       atomic.Int64
+	infoPodQueueBytes         atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
 )
@@ -135,16 +137,10 @@ func updateLastCollectTime(t time.Time) {
 	infoLastCollectTime = t.Format("2006-01-02 15:04:05")
 }
 
-func publishProcCount() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoProcCount
-}
-
-func publishContainerCount() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoContainerCount
+func publishInt(i *atomic.Int64) expvar.Func {
+	return func() any {
+		return i.Load()
+	}
 }
 
 func updateProcContainerCount(msgs []model.MessageBody) {
@@ -159,10 +155,8 @@ func updateProcContainerCount(msgs []model.MessageBody) {
 		}
 	}
 
-	infoMutex.Lock()
-	defer infoMutex.Unlock()
-	infoProcCount = procCount
-	infoContainerCount = containerCount
+	infoProcCount.Store(int64(procCount))
+	infoContainerCount.Store(int64(containerCount))
 }
 
 type queueStats struct {
@@ -179,18 +173,16 @@ type queueStats struct {
 }
 
 func updateQueueStats(stats *queueStats) {
-	infoMutex.Lock()
-	defer infoMutex.Unlock()
-	infoProcessQueueSize = stats.processQueueSize
-	infoRTProcessQueueSize = stats.rtProcessQueueSize
-	infoConnectionsQueueSize = stats.connectionsQueueSize
-	infoEventQueueSize = stats.eventQueueSize
-	infoPodQueueSize = stats.podQueueSize
-	infoProcessQueueBytes = int(stats.processQueueBytes)
-	infoRTProcessQueueBytes = int(stats.rtProcessQueueBytes)
-	infoConnectionsQueueBytes = int(stats.connectionsQueueBytes)
-	infoEventQueueBytes = int(stats.eventQueueBytes)
-	infoPodQueueBytes = int(stats.podQueueBytes)
+	infoProcessQueueSize.Store(int64(stats.processQueueSize))
+	infoRTProcessQueueSize.Store(int64(stats.rtProcessQueueSize))
+	infoConnectionsQueueSize.Store(int64(stats.connectionsQueueSize))
+	infoEventQueueSize.Store(int64(stats.eventQueueSize))
+	infoPodQueueSize.Store(int64(stats.podQueueSize))
+	infoProcessQueueBytes.Store(stats.processQueueBytes)
+	infoRTProcessQueueBytes.Store(stats.rtProcessQueueBytes)
+	infoConnectionsQueueBytes.Store(stats.connectionsQueueBytes)
+	infoEventQueueBytes.Store(stats.eventQueueBytes)
+	infoPodQueueBytes.Store(stats.podQueueBytes)
 }
 
 func updateEnabledChecks(enabledChecks []string) {
@@ -203,66 +195,6 @@ func publishEnabledChecks() interface{} {
 	infoMutex.RLock()
 	defer infoMutex.RUnlock()
 	return infoEnabledChecks
-}
-
-func publishProcessQueueSize() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoProcessQueueSize
-}
-
-func publishPodQueueSize() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoPodQueueSize
-}
-
-func publishRTProcessQueueSize() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoRTProcessQueueSize
-}
-
-func publishConnectionsQueueSize() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoConnectionsQueueSize
-}
-
-func publishEventQueueSize() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoEventQueueSize
-}
-
-func publishProcessQueueBytes() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoProcessQueueBytes
-}
-
-func publishPodQueueBytes() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoPodQueueBytes
-}
-
-func publishRTProcessQueueBytes() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoRTProcessQueueBytes
-}
-
-func publishConnectionsQueueBytes() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoConnectionsQueueBytes
-}
-
-func publishEventQueueBytes() interface{} {
-	infoMutex.RLock()
-	defer infoMutex.RUnlock()
-	return infoEventQueueBytes
 }
 
 func publishContainerID() interface{} {
@@ -383,18 +315,18 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("version", expvar.Func(publishVersion))
 		expvar.Publish("docker_socket", expvar.Func(publishDockerSocket))
 		expvar.Publish("last_collect_time", expvar.Func(publishLastCollectTime))
-		expvar.Publish("process_count", expvar.Func(publishProcCount))
-		expvar.Publish("container_count", expvar.Func(publishContainerCount))
-		expvar.Publish("process_queue_size", expvar.Func(publishProcessQueueSize))
-		expvar.Publish("rtprocess_queue_size", expvar.Func(publishRTProcessQueueSize))
-		expvar.Publish("connections_queue_size", expvar.Func(publishConnectionsQueueSize))
-		expvar.Publish("event_queue_size", expvar.Func(publishEventQueueSize))
-		expvar.Publish("pod_queue_size", expvar.Func(publishPodQueueSize))
-		expvar.Publish("process_queue_bytes", expvar.Func(publishProcessQueueBytes))
-		expvar.Publish("rtprocess_queue_bytes", expvar.Func(publishRTProcessQueueBytes))
-		expvar.Publish("connections_queue_bytes", expvar.Func(publishConnectionsQueueBytes))
-		expvar.Publish("event_queue_bytes", expvar.Func(publishEventQueueBytes))
-		expvar.Publish("pod_queue_bytes", expvar.Func(publishPodQueueBytes))
+		expvar.Publish("process_count", publishInt(&infoProcCount))
+		expvar.Publish("container_count", publishInt(&infoContainerCount))
+		expvar.Publish("process_queue_size", publishInt(&infoProcessQueueSize))
+		expvar.Publish("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
+		expvar.Publish("connections_queue_size", publishInt(&infoConnectionsQueueSize))
+		expvar.Publish("event_queue_size", publishInt(&infoEventQueueSize))
+		expvar.Publish("pod_queue_size", publishInt(&infoPodQueueSize))
+		expvar.Publish("process_queue_bytes", publishInt(&infoProcessQueueBytes))
+		expvar.Publish("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
+		expvar.Publish("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
+		expvar.Publish("event_queue_bytes", publishInt(&infoEventQueueBytes))
+		expvar.Publish("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		expvar.Publish("container_id", expvar.Func(publishContainerID))
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints))

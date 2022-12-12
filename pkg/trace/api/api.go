@@ -12,7 +12,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"mime"
@@ -31,7 +30,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/appsec"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -75,7 +73,6 @@ type HTTPReceiver struct {
 	dynConf             *sampler.DynamicConfig
 	server              *http.Server
 	statsProcessor      StatsProcessor
-	appsecHandler       http.Handler
 	containerIDProvider IDProvider
 
 	rateLimiterResponse int // HTTP status code when refusing
@@ -93,10 +90,6 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 	if features.Has("429") {
 		rateLimiterResponse = http.StatusTooManyRequests
 	}
-	appsecHandler, err := appsec.NewIntakeReverseProxy(conf)
-	if err != nil {
-		log.Errorf("Could not instantiate AppSec: %v", err)
-	}
 	return &HTTPReceiver{
 		Stats:       info.NewReceiverStats(),
 		RateLimiter: newRateLimiter(),
@@ -105,8 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		appsecHandler:       appsecHandler,
-		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
+		containerIDProvider: NewIDProvider("/proc"),
 
 		rateLimiterResponse: rateLimiterResponse,
 
@@ -509,6 +501,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	req.Header.Set("Accept", "application/msgpack")
 	var in pb.ClientStatsPayload
 	if err := msgp.Decode(rd, &in); err != nil {
+		log.Errorf("Error decoding pb.ClientStatsPayload: %v", err)
 		httpDecodingError(err, []string{"handler:stats", "codec:msgpack", "v:v0.6"}, w)
 		return
 	}
@@ -526,7 +519,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	tracen, err := traceCount(req)
 	if err == nil && r.rateLimited(tracen) {
 		// this payload can not be accepted
-		io.Copy(ioutil.Discard, req.Body) //nolint:errcheck
+		io.Copy(io.Discard, req.Body) //nolint:errcheck
 		w.WriteHeader(r.rateLimiterResponse)
 		r.replyOK(req, v, w)
 		ts.PayloadRefused.Inc()

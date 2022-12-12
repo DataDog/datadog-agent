@@ -6,6 +6,31 @@ from collections import defaultdict
 from .common.gitlab import Gitlab, get_gitlab_token
 from .types import FailedJobType, Test
 
+DEFAULT_SLACK_CHANNEL = "#agent-platform"
+GITHUB_SLACK_MAP = {
+    "@DataDog/agent-platform": DEFAULT_SLACK_CHANNEL,
+    "@DataDog/container-integrations": "#container-integrations",
+    "@DataDog/platform-integrations": "#platform-integrations",
+    "@DataDog/agent-network": "#network-agent",
+    "@DataDog/agent-security": "#security-and-compliance-agent-ops",
+    "@DataDog/agent-apm": "#apm-agent",
+    "@DataDog/infrastructure-integrations": "#infrastructure-integrations",
+    "@DataDog/processes": "#process-agent-ops",
+    "@DataDog/agent-core": "#agent-core",
+    "@DataDog/agent-metrics-logs": "#agent-metrics-logs",
+    "@DataDog/agent-shared-components": "#agent-shared-components",
+    "@DataDog/container-app": "#container-app",
+    "@DataDog/metrics-aggregation": "#metrics-aggregation",
+    "@DataDog/serverless": "#serverless-agent",
+    "@DataDog/remote-config": "#remote-config-monitoring",
+    "@DataDog/agent-all": "#datadog-agent-pipelines",
+    "@DataDog/ebpf-platform": "#ebpf-platform",
+    "@DataDog/Networks": "#networks",
+    "@DataDog/universal-service-monitoring": "#universal-service-monitoring",
+    "@DataDog/windows-kernel-integrations": "#windows-kernel-integrations",
+    "@DataDog/opentelemetry": "#opentelemetry-ops",
+}
+
 
 def read_owners(owners_file):
     from codeowners import CodeOwners

@@ -8,9 +8,11 @@ package trace
 import (
 	"context"
 	"strings"
+	"sync"
 
 	tracecmdconfig "github.com/DataDog/datadog-agent/cmd/trace-agent/config"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -54,12 +56,12 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
-func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
+func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionContext *executioncontext.ExecutionContext) {
 	if enabled {
-		// during hostname resolution the first step is to make a GRPC call which is timeboxed to a 2 seconds deadline
-		// in the serverless mode, we don't start the GRPC server so this call will fail and cause a 2 seconds delay
-		// by setting cmd_port to -1, this will cause the GRPC client to fail instantly
-		ddConfig.Datadog.Set("cmd_port", "-1")
+		// Set the serverless config option which will be used to determine if
+		// hostname should be resolved. Skipping hostname resolution saves >1s
+		// in load time between gRPC calls and agent commands.
+		ddConfig.Datadog.Set("serverless.enabled", true)
 
 		tc, confErr := loadConfig.Load()
 		if confErr != nil {
@@ -70,6 +72,14 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load) {
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
 			s.spanModifier = &spanModifier{}
+			if executionContext != nil {
+				s.spanModifier.coldStartSpanCreator = &ColdStartSpanCreator{
+					executionContext: executionContext,
+					traceAgent:       s,
+					createSpan:       &sync.Once{},
+				}
+			}
+
 			s.ta.ModifySpan = s.spanModifier.ModifySpan
 			s.ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
 			s.cancel = cancel

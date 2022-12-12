@@ -18,7 +18,7 @@ spec:
           - name: ci_pipeline_id
           - name: ci_job_id
       script:
-        image: alpine/helm:3.9.0
+        image: alpine/k8s:1.25.4
         envFrom:
           - secretRef:
               name: dd-keys
@@ -106,6 +106,10 @@ spec:
               pullSecrets:
                 - name: docker-registry
             containers:
+              agent:
+                env:
+                  - name:  DD_USE_V2_API_SERIES
+                    value: "false"
               systemProbe:
                 logLevel: TRACE
                 env:
@@ -142,6 +146,8 @@ spec:
             admissionController:
               enabled: true
             env:
+              - name:  DD_USE_V2_API_SERIES
+                value: "false"
               - name: DATADOG_HOST
                 value: {{inputs.parameters.dd-url}}
           EOF
@@ -156,9 +162,11 @@ spec:
       inputs:
         parameters:
           - name: namespace
-      container:
-        image: alpine/helm:3.9.0
-        args: ["--namespace", "{{inputs.parameters.namespace}}", "uninstall", "datadog-agent"]
+      script:
+        image: alpine/k8s:1.25.4
+        command: [sh]
+        source: |
+          helm --namespace {{inputs.parameters.namespace}} uninstall datadog-agent
 
     - name: health
       inputs:
@@ -166,7 +174,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -192,7 +200,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -213,7 +221,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -408,7 +416,7 @@ spec:
           - name: site
       activeDeadlineSeconds: 900
       script:
-        image: python
+        image: public.ecr.aws/docker/library/python:latest
         envFrom:
           - secretRef:
               name: dd-keys
@@ -434,7 +442,7 @@ spec:
           - name: site
       activeDeadlineSeconds: 500
       script:
-        image: python
+        image: public.ecr.aws/docker/library/python:latest
         envFrom:
           - secretRef:
               name: dd-keys
@@ -459,7 +467,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -475,7 +483,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -491,7 +499,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -507,7 +515,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -523,7 +531,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -539,7 +547,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -555,7 +563,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -571,7 +579,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -587,7 +595,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -603,7 +611,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -619,7 +627,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail
@@ -635,7 +643,7 @@ spec:
           - name: namespace
       activeDeadlineSeconds: 300
       script:
-        image: argoproj/argoexec:v3.3.1
+        image: alpine/k8s:1.25.4
         command: [sh]
         source: |
           set -euo pipefail

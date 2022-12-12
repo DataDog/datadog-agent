@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
@@ -76,9 +76,6 @@ type Tracer struct {
 
 	activeBuffer *network.ConnectionBuffer
 	bufferLock   sync.Mutex
-
-	// Internal buffer used to compute bytekeys
-	buf []byte
 
 	// Connections for the tracer to exclude
 	sourceExcludes []*network.ConnectionFilter
@@ -180,7 +177,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		conntracker:                conntracker,
 		sourceExcludes:             network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:               network.ParseConnectionFilters(config.ExcludedDestinationConnections),
-		buf:                        make([]byte, network.ConnectionByteKeyMaxLen),
 		sysctlUDPConnTimeout:       sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(config.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
 		gwLookup:                   gwLookup,
@@ -334,6 +330,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 
 // Stop stops the tracer
 func (t *Tracer) Stop() {
+	if t.gwLookup != nil {
+		t.gwLookup.Close()
+	}
 	t.reverseDNS.Close()
 	t.ebpfTracer.Stop()
 	t.httpMonitor.Stop()
@@ -364,6 +363,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	ctm := t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	rctm := t.getRuntimeCompilationTelemetry()
 	khfr := int32(kernel.HeaderProvider.GetResult())
+	coretm := ddebpf.GetCORETelemetryByAsset()
 	t.lastCheck.Store(time.Now().Unix())
 
 	return &network.Connections{
@@ -374,6 +374,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		ConnTelemetry:               ctm,
 		KernelHeaderFetchResult:     khfr,
 		CompilationTelemetryByAsset: rctm,
+		CORETelemetryByAsset:        coretm,
 	}, nil
 }
 

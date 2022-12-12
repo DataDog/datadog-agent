@@ -34,17 +34,11 @@ const (
 // PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.
 // Computed rates are sent in http responses to trace-agent. The rates are continuously adjusted in function
 // of the received traffic to match a targetTPS (target traces per second).
-// In order of priority, the sampler will match a targetTPS set remotely (remoteRates) and then the local targetTPS.
 type PrioritySampler struct {
 	agentEnv string
-	// localRates targetTPS is defined locally on the agent
+	// sampler targetTPS is defined locally on the agent
 	// This sampler tries to get the received number of sampled trace chunks/s to match its targetTPS.
-	localRates *Sampler
-	// remoteRates targetTPS is set remotely and distributed by remote configurations.
-	// One target is defined per combination of tracerEnv, service and it applies only to root spans.
-	// remoteRates can be nil if remote config is not enabled
-	// or in the core-agent remote client.
-	remoteRates *RemoteRates
+	sampler *Sampler
 
 	// rateByService contains the sampling rates in % to communicate with trace-agent clients.
 	// This struct is shared with the agent API which sends the rates in http responses to spans post requests
@@ -57,8 +51,7 @@ type PrioritySampler struct {
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
 		agentEnv:      conf.DefaultEnv,
-		localRates:    newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
-		remoteRates:   newRemoteRates(conf.RemoteSamplingClient, conf.MaxRemoteTPS, conf.AgentVersion),
+		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
 		exit:          make(chan struct{}),
@@ -68,16 +61,13 @@ func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *Prior
 
 // Start runs and block on the Sampler main loop
 func (s *PrioritySampler) Start() {
-	if s.remoteRates != nil {
-		s.remoteRates.Start()
-	}
 	go func() {
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
 		for {
 			select {
 			case <-statsTicker.C:
-				s.reportStats()
+				s.sampler.report()
 			case <-s.exit:
 				return
 			}
@@ -85,12 +75,12 @@ func (s *PrioritySampler) Start() {
 	}()
 }
 
-// report sampler stats
-func (s *PrioritySampler) reportStats() {
-	s.localRates.report()
-	if s.remoteRates != nil {
-		s.remoteRates.report()
-	}
+func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
+	s.sampler.updateTargetTPS(targetTPS)
+}
+
+func (s *PrioritySampler) GetTargetTPS() float64 {
+	return s.sampler.targetTPS.Load()
 }
 
 // update sampling rates
@@ -100,9 +90,6 @@ func (s *PrioritySampler) updateRates() {
 
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
-	if s.remoteRates != nil {
-		s.remoteRates.Stop()
-	}
 	close(s.exit)
 }
 
@@ -135,37 +122,13 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	s.countSignature(now, root, signature, clientDroppedP0sWeight)
 
 	if sampled {
-		rate := s.applyRate(sampled, root, signature)
-		s.countSampled(now, root, signature, rate)
+		s.applyRate(root, signature)
+		s.sampler.countSample()
 	}
 	return sampled
 }
 
-// countSignature counts all chunks received with local chunk root signature.
-func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
-	rootWeight := weightRoot(root)
-	newRates := s.localRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
-
-	// remoteRates only considers root spans
-	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
-	}
-
-	if newRates {
-		s.updateRates()
-	}
-}
-
-// countSampled counts sampled chunks with local chunk root signature.
-func (s *PrioritySampler) countSampled(now time.Time, root *pb.Span, signature Signature, rate float64) {
-	s.localRates.countSample()
-	// remoteRates only considers root spans
-	if s.remoteRates != nil && root.ParentID == 0 {
-		s.remoteRates.countSample(root, signature)
-	}
-}
-
-func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signature) float64 {
+func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 {
 	if root.ParentID != 0 {
 		return 1.0
 	}
@@ -178,33 +141,31 @@ func (s *PrioritySampler) applyRate(sampled bool, root *pb.Span, signature Signa
 	if rate, ok := getMetric(root, ruleRateKey); ok {
 		return rate
 	}
-
 	// slow path used by older tracer versions
 	// dd-trace-go used to set the rate in deprecatedRateKey
 	if rate, ok := getMetric(root, deprecatedRateKey); ok {
 		return rate
 	}
-	if s.remoteRates != nil {
-		// use a remote rate, if available
-		rate, ok := s.remoteRates.getSignatureSampleRate(signature)
-		if ok {
-			setMetric(root, deprecatedRateKey, rate)
-			return rate
-		}
-	}
-	// Use the rate from the default local feedback loop
-	rate := s.localRates.getSignatureSampleRate(signature)
+	rate := s.sampler.getSignatureSampleRate(signature)
+
 	setMetric(root, deprecatedRateKey, rate)
+
 	return rate
+}
+
+// countSignature counts all chunks received with local chunk root signature.
+func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
+	rootWeight := weightRoot(root)
+	newRates := s.sampler.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
+
+	if newRates {
+		s.updateRates()
+	}
 }
 
 // ratesByService returns all rates by service, this information is useful for
 // agents to pick the right service rate.
-func (s *PrioritySampler) ratesByService() map[ServiceSignature]rm {
-	var remoteRates map[Signature]rm
-	if s.remoteRates != nil {
-		remoteRates = s.remoteRates.getAllSignatureSampleRates()
-	}
-	localRates, defaultRate := s.localRates.getAllSignatureSampleRates()
-	return s.catalog.ratesByService(s.agentEnv, localRates, remoteRates, defaultRate)
+func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
+	rates, defaultRate := s.sampler.getAllSignatureSampleRates()
+	return s.catalog.ratesByService(s.agentEnv, rates, defaultRate)
 }

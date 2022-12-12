@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -60,12 +61,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
+			bundleParams := core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", false))
+			bundleParams.SecurityAgentConfigFilePaths = []string{
+				path.Join(common.DefaultConfPath, "security-agent.yaml"),
+			}
+			bundleParams.ConfigLoadSecurityAgent = true
+			bundleParams.SysProbeConfFilePath = globalParams.SysProbeConfFilePath
+			bundleParams.ConfigLoadSysProbe = true
+
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigLoadSecrets: true,
-				}.LogForOneShot("CORE", "off", false)),
+				fx.Supply(bundleParams),
 				core.Bundle,
 			)
 		},
@@ -85,7 +91,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 type profileCollector func(prefix, debugURL string, cpusec int, target *flare.ProfileData) error
-type agentProfileCollector func(cliParams *cliParams, pdata *flare.ProfileData, seconds int, c profileCollector) error
+type agentProfileCollector func(cliParams *cliParams, pdata *flare.ProfileData, c profileCollector) error
 
 func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int, collector profileCollector) error {
 	prevSettings, err := setRuntimeProfilingSettings(cliParams)
@@ -94,27 +100,58 @@ func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int
 	}
 	defer resetRuntimeProfilingSettings(prevSettings)
 
-	agentCollectors := []struct {
+	type agentCollector struct {
 		name string
 		fn   agentProfileCollector
-	}{
-		{
-			name: "core",
-			fn:   readCoreAgentProfileData,
-		},
-		{
-			name: "trace",
-			fn:   readTraceAgentProfileData,
-		},
-		{
+	}
+
+	agentCollectors := []agentCollector{{
+		name: "core",
+		fn:   serviceProfileCollector("core", "expvar_port", seconds),
+	}}
+
+	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
+		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
+		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+		agentCollectors = append(agentCollectors, agentCollector{
 			name: "process",
-			fn:   readProcessAgentProfileData,
-		},
+			fn:   serviceProfileCollector("process", "process_config.expvar_port", seconds),
+		})
+	}
+
+	if k := "apm_config.enabled"; pkgconfig.Datadog.GetBool(k) {
+		traceCpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
+		if v := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
+			if v > seconds {
+				// do not exceed requested duration
+				traceCpusec = seconds
+			} else {
+				// fit within set limit
+				traceCpusec = v - 1
+			}
+		}
+
+		agentCollectors = append(agentCollectors, agentCollector{
+			name: "trace",
+			fn:   serviceProfileCollector("trace", "apm_config.receiver_port", traceCpusec),
+		})
+	}
+
+	agentCollectors = append(agentCollectors, agentCollector{
+		name: "security-agent",
+		fn:   serviceProfileCollector("security-agent", "security_agent.expvar_port", seconds),
+	})
+
+	if debugPort := pkgconfig.Datadog.GetInt("system_probe_config.debug_port"); debugPort > 0 {
+		agentCollectors = append(agentCollectors, agentCollector{
+			name: "system-probe",
+			fn:   serviceProfileCollector("system-probe", "system_probe_config.debug_port", seconds),
+		})
 	}
 
 	var errs error
 	for _, c := range agentCollectors {
-		if err := c.fn(cliParams, pdata, seconds, collector); err != nil {
+		if err := c.fn(cliParams, pdata, collector); err != nil {
 			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", c.name, err))
 		}
 	}
@@ -122,36 +159,12 @@ func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int
 	return errs
 }
 
-func readCoreAgentProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int, collector profileCollector) error {
-	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from core.", cliParams.profiling))
-	coreDebugURL := fmt.Sprintf("http://127.0.0.1:%s/debug/pprof", pkgconfig.Datadog.GetString("expvar_port"))
-	return collector("core", coreDebugURL, seconds, pdata)
-}
-
-func readTraceAgentProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int, collector profileCollector) error {
-	if k := "apm_config.enabled"; pkgconfig.Datadog.IsSet(k) && !pkgconfig.Datadog.GetBool(k) {
-		return nil
+func serviceProfileCollector(service string, portConfig string, seconds int) agentProfileCollector {
+	return func(cliParams *cliParams, pdata *flare.ProfileData, collector profileCollector) error {
+		fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
+		return collector(service, pprofURL, seconds, pdata)
 	}
-	traceDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt("apm_config.receiver_port"))
-	cpusec := 4 // 5s is the default maximum connection timeout on the trace-agent HTTP server
-	if v := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout"); v > 0 {
-		if v > seconds {
-			// do not exceed requested duration
-			cpusec = seconds
-		} else {
-			// fit within set limit
-			cpusec = v - 1
-		}
-	}
-	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from trace.", cpusec))
-	return collector("trace", traceDebugURL, cpusec, pdata)
-}
-
-func readProcessAgentProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int, collector profileCollector) error {
-	// We are unconditionally collecting process agent profile in the flare as best effort
-	processDebugURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt("process_config.expvar_port"))
-	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from process.", cliParams.profiling))
-	return collector("process", processDebugURL, seconds, pdata)
 }
 
 func makeFlare(log log.Component, config config.Component, cliParams *cliParams) error {
@@ -167,7 +180,6 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 
 	customerEmail := cliParams.customerEmail
 	if customerEmail == "" {
-		var err error
 		customerEmail, err = input.AskForEmail()
 		if err != nil {
 			fmt.Println("Error reading email, please retry or contact support")
@@ -230,7 +242,6 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 
 func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	var e error
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
@@ -241,39 +252,40 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
-	if e != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", e)))
-		return createArchive(logFiles, pdata, e)
+	if err = util.SetAuthToken(); err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
+		return createArchive(logFiles, pdata, err)
 	}
 
 	p, err := json.Marshal(pdata)
 	if err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", e)))
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", err)))
 		return "", err
 	}
 
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
-	if e != nil {
+	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
+	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintln(color.Output, fmt.Sprintf("The agent ran into an error while making the flare: %s", color.RedString(string(r))))
-			e = fmt.Errorf("Error getting flare from running agent: %s", r)
+			err = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
-			e = fmt.Errorf("Error getting flare from running agent: %w", e)
+			err = fmt.Errorf("Error getting flare from running agent: %w", err)
 		}
-		return createArchive(logFiles, pdata, e)
+		return createArchive(logFiles, pdata, err)
 	}
+
 	return string(r), nil
 }
 
 func createArchive(logFiles []string, pdata flare.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, e := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
-	if e != nil {
-		fmt.Printf("The flare zipfile failed to be created: %s\n", e)
-		return "", e
+	filePath, err := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
+	if err != nil {
+		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
+		return "", err
 	}
+
 	return filePath, nil
 }
 

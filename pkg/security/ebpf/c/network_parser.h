@@ -59,8 +59,6 @@ struct bpf_map_def SEC("maps/packets") packets = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct packet_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct packet_t *get_packet() {

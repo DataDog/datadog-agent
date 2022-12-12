@@ -10,14 +10,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"strconv"
 	"strings"
 
-	"github.com/theupdateframework/go-tuf/client"
-	"github.com/theupdateframework/go-tuf/data"
-	"github.com/theupdateframework/go-tuf/util"
-	"github.com/theupdateframework/go-tuf/verify"
+	"github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/data"
+	"github.com/DataDog/go-tuf/util"
+	"github.com/DataDog/go-tuf/verify"
 )
 
 type tufRootsClient struct {
@@ -130,7 +129,7 @@ func (s *rootClientRemoteStore) GetMeta(name string) (stream io.ReadCloser, size
 			return nil, 0, err
 		}
 		if parsedRoot.Version == metaPath.version {
-			return ioutil.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
+			return io.NopCloser(bytes.NewReader(root)), int64(len(root)), nil
 		}
 	}
 	return nil, 0, client.ErrNotFound{File: name}

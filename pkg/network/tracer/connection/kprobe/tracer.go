@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -38,6 +39,12 @@ const (
 	defaultClosedChannelSize = 500
 
 	probeUID = "net"
+)
+
+var (
+	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
+	// socket filter, and a tracepoint (4.7.0+).
+	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
 )
 
 type kprobeTracer struct {
@@ -54,6 +61,11 @@ type kprobeTracer struct {
 	removeTuple   *netebpf.ConnTuple
 
 	telemetry telemetry
+
+	// A method to run during the "Stop" action of the tracer to close the socket filter we've created for the protocol
+	// classification feature.
+	// If classification feature is disabled, then the value will be nil.
+	closeProtocolClassifierSocketFilterFn func()
 }
 
 type telemetry struct {
@@ -68,6 +80,22 @@ func newTelemetry() telemetry {
 		tcpConns6: atomic.NewInt64(0),
 		udpConns6: atomic.NewInt64(0),
 	}
+}
+
+// ClassificationSupported returns true if the current kernel version supports the classification feature.
+// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the socket
+// filter, and a tracepoint (4.7.0+)
+func ClassificationSupported(config *config.Config) bool {
+	if !config.ProtocolClassificationEnabled {
+		return false
+	}
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	return currentKernelVersion >= classificationMinimumKernel
 }
 
 // New creates a new tracer
@@ -138,6 +166,23 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	m := newManager(config, perfHandlerTCP, runtimeTracer)
 	m.DumpHandler = dumpMapsHandler
 
+	var closeProtocolClassifierSocketFilterFn func()
+	if ClassificationSupported(config) {
+		socketFilerProbe, _ := m.GetProbe(manager.ProbeIdentificationPair{
+			EBPFSection:  string(probes.ProtocolClassifierSocketFilter),
+			EBPFFuncName: mainProbes[probes.ProtocolClassifierSocketFilter],
+			UID:          probeUID,
+		})
+		if socketFilerProbe == nil {
+			return nil, fmt.Errorf("error retrieving protocol classifier socket filter")
+		}
+
+		closeProtocolClassifierSocketFilterFn, err = filter.HeadlessSocketFilter(config, socketFilerProbe)
+		if err != nil {
+			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
+		}
+	}
+
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		return nil, errors.New("failed to detect kernel version")
@@ -184,12 +229,13 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 	}
 
 	tr := &kprobeTracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
+		m:                                     m,
+		config:                                config,
+		closeConsumer:                         closeConsumer,
+		pidCollisions:                         atomic.NewInt64(0),
+		removeTuple:                           &netebpf.ConnTuple{},
+		telemetry:                             newTelemetry(),
+		closeProtocolClassifierSocketFilterFn: closeProtocolClassifierSocketFilterFn,
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -243,6 +289,12 @@ func (t *kprobeTracer) FlushPending() {
 func (t *kprobeTracer) Stop() {
 	_ = t.m.Stop(manager.CleanAll)
 	t.closeConsumer.Stop()
+	if t.closeProtocolClassifierSocketFilterFn != nil {
+		t.closeProtocolClassifierSocketFilterFn()
+		// The stop can be called multiple times, by setting the field to nil we ensure it won't close the socket filter
+		// twice (which will lead to a panic).
+		t.closeProtocolClassifierSocketFilterFn = nil
+	}
 }
 
 func (t *kprobeTracer) GetMap(name string) *ebpf.Map {
@@ -404,11 +456,13 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[connection.PerfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
+		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
 		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
 		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
 		"missed_udp_close":    int64(telemetry.Missed_udp_close),
 		"udp_sends_processed": int64(telemetry.Udp_sends_processed),
 		"udp_sends_missed":    int64(telemetry.Udp_sends_missed),
+		"udp_dropped_conns":   int64(telemetry.Udp_dropped_conns),
 	}
 
 	for k, v := range t.telemetry.get() {
@@ -463,6 +517,18 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
+	if conn.Type != network.TCP {
+		return
+	}
+
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.RTT = tcpStats.Rtt
+	conn.RTTVar = tcpStats.Rtt_var
+}
+
 // getTCPStats reads tcp related stats for the given ConnTuple
 func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
@@ -488,4 +554,54 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 	tuple.Pid = pid
 	return true
+}
+
+func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	*stats = network.ConnectionStats{
+		Pid:              t.Pid,
+		NetNS:            t.Netns,
+		Source:           t.SourceAddress(),
+		Dest:             t.DestAddress(),
+		SPort:            t.Sport,
+		DPort:            t.Dport,
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
+		Cookie:           s.Cookie,
+	}
+
+	if s.Protocol < uint8(network.MaxProtocols) {
+		stats.Protocol = network.ProtocolType(s.Protocol)
+	} else {
+		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
+	}
+
+	stats.Monotonic = network.StatCounters{
+		SentBytes:   s.Sent_bytes,
+		RecvBytes:   s.Recv_bytes,
+		SentPackets: s.Sent_packets,
+		RecvPackets: s.Recv_packets,
+	}
+
+	if t.Type() == netebpf.TCP {
+		stats.Type = network.TCP
+	} else {
+		stats.Type = network.UDP
+	}
+
+	switch t.Family() {
+	case netebpf.IPv4:
+		stats.Family = network.AFINET
+	case netebpf.IPv6:
+		stats.Family = network.AFINET6
+	}
+
+	switch s.ConnectionDirection() {
+	case netebpf.Incoming:
+		stats.Direction = network.INCOMING
+	case netebpf.Outgoing:
+		stats.Direction = network.OUTGOING
+	default:
+		stats.Direction = network.OUTGOING
+	}
 }

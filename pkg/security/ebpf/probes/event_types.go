@@ -241,6 +241,7 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/attach_recursive_mnt", EBPFFuncName: "kprobe_attach_recursive_mnt"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/propagate_mnt", EBPFFuncName: "kprobe_propagate_mnt"}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_sb_umount", EBPFFuncName: "kprobe_security_sb_umount"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/clone_mnt", EBPFFuncName: "kprobe_clone_mnt"}},
 				}},
 				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mount"}, EntryAndExit, true),
@@ -248,6 +249,13 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
 					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "umount"}, EntryAndExit),
 				},
+				&manager.OneOf{Selectors: ExpandSyscallProbesSelector(
+					manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "unshare"}, Entry),
+				},
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/__attach_mnt", EBPFFuncName: "kprobe___attach_mnt"}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/attach_mnt", EBPFFuncName: "kprobe_attach_mnt"}},
+				}},
 
 				// Rename probes
 				&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -589,5 +597,12 @@ func GetSelectorsPerEventType() map[eval.EventType][]manager.ProbesSelector {
 			},
 		}
 	}
+
+	if ShouldUseModuleLoadTracepoint() {
+		selectorsPerEventTypeStore["load_module"] = append(selectorsPerEventTypeStore["load_module"], &manager.BestEffort{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "tracepoint/module/module_load", EBPFFuncName: "module_load"}},
+		}})
+	}
+
 	return selectorsPerEventTypeStore
 }

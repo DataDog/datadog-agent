@@ -20,6 +20,8 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <linux/un.h>
+#include <err.h>
+#include <errno.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -591,6 +593,56 @@ int test_exec_in_pthread(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_sleep(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify at a sleep duration\n");
+        return EXIT_FAILURE;
+    }
+    int duration = atoi(argv[1]);
+    if (duration <= 0) {
+        fprintf(stderr, "Please specify at a valid sleep duration\n");
+    }
+    sleep(duration);
+    return EXIT_SUCCESS;
+}
+
+int test_memfd_create(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please specify at least a file name \n");
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 1; i != argc; i++) {
+        char *filename = argv[i];
+
+        int fd = memfd_create(filename, 0);
+        if (fd <= 0) {
+            err(1, "%s failed", "memfd_create");
+        }
+
+        const char *script = "#!/bin/bash\necho Hello, world!\n";
+
+        FILE *stream = fdopen(fd, "w");
+        if (stream == NULL){
+            err(1, "%s failed", "fdopen");
+        }
+        if (fputs(script, stream) == EOF){
+            err(1, "%s failed", "fputs");
+        }
+
+        char * const argv[] = {filename, NULL};
+        char * const envp[] = {NULL};
+        fflush(stream);
+        if (fexecve(fd, argv, envp) < 0){
+            err(1, "%s failed", "fexecve");
+        }
+
+        fclose(stream);
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please pass a command\n");
@@ -654,6 +706,10 @@ int main(int argc, char **argv) {
             exit_code = test_unlink(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "sleep") == 0) {
+            exit_code = test_sleep(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "fileless") == 0) {
+            exit_code = test_memfd_create(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);
             exit_code = EXIT_FAILURE;

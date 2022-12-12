@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
+	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -38,7 +39,8 @@ func newConfig(deps dependencies) (Component, error) {
 		deps.Params.ConfFilePath,
 		deps.Params.ConfigName,
 		!deps.Params.ConfigLoadSecrets,
-		!deps.Params.ConfigMissingOK)
+		!deps.Params.ConfigMissingOK,
+		deps.Params.DefaultConfPath)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +48,13 @@ func newConfig(deps dependencies) (Component, error) {
 	if deps.Params.ConfigLoadSysProbe {
 		_, err := sysconfig.Merge(deps.Params.SysProbeConfFilePath)
 		if err != nil {
-			return nil, err
+			return &cfg{warnings}, err
+		}
+	}
+
+	if deps.Params.ConfigLoadSecurityAgent {
+		if err := secconfig.Merge(deps.Params.SecurityAgentConfigFilePaths); err != nil {
+			return &cfg{warnings}, err
 		}
 	}
 

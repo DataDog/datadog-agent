@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -81,6 +82,8 @@ func ExtractPersistentVolume(pv *corev1.PersistentVolume) *model.PersistentVolum
 	}
 
 	addAdditionalPersistentVolumeTags(message)
+
+	message.Tags = append(message.Tags, transformers.RetrieveUnifiedServiceTags(pv.ObjectMeta.Labels)...)
 
 	return message
 }

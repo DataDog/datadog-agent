@@ -9,7 +9,6 @@
 package kernel
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -98,18 +97,23 @@ func (k *Version) String() string {
 }
 
 var kernelVersionCache struct {
-	sync.Mutex
+	sync.RWMutex
 	*Version
 }
 
 // NewKernelVersion returns a new kernel version helper
 func NewKernelVersion() (*Version, error) {
-	kernelVersionCache.Lock()
-	defer kernelVersionCache.Unlock()
-
+	// fast read path
+	kernelVersionCache.RLock()
 	if kernelVersionCache.Version != nil {
+		kernelVersionCache.RUnlock()
 		return kernelVersionCache.Version, nil
 	}
+	kernelVersionCache.RUnlock()
+
+	// slow write path
+	kernelVersionCache.Lock()
+	defer kernelVersionCache.Unlock()
 
 	var err error
 	kernelVersionCache.Version, err = newKernelVersion()
@@ -172,7 +176,7 @@ func newKernelVersion() (*Version, error) {
 		}
 	}
 
-	return nil, errors.New("failed to detect operating system version")
+	return nil, fmt.Errorf("failed to detect operating system version for %s", unameRelease)
 }
 
 // IsDebianKernel returns whether the kernel is a debian kernel
@@ -200,7 +204,7 @@ func (k *Version) UbuntuKernelVersion() *kernel.UbuntuKernelVersion {
 
 // IsRH7Kernel returns whether the kernel is a rh7 kernel
 func (k *Version) IsRH7Kernel() bool {
-	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && k.OsRelease["VERSION_ID"] == "7"
+	return (k.OsRelease["ID"] == "centos" || k.OsRelease["ID"] == "rhel") && strings.HasPrefix(k.OsRelease["VERSION_ID"], "7")
 }
 
 // IsRH8Kernel returns whether the kernel is a rh8 kernel

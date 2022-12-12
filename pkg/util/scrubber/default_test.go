@@ -6,7 +6,6 @@
 package scrubber
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,11 +28,11 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	wd, _ := os.Getwd()
 
 	inputConf := filepath.Join(wd, "test", "conf.yaml")
-	inputConfData, err := ioutil.ReadFile(inputConf)
+	inputConfData, err := os.ReadFile(inputConf)
 	require.NoError(t, err)
 
 	outputConf := filepath.Join(wd, "test", "conf_scrubbed.yaml")
-	outputConfData, err := ioutil.ReadFile(outputConf)
+	outputConfData, err := os.ReadFile(outputConf)
 	require.NoError(t, err)
 
 	cleaned, err := ScrubBytes([]byte(inputConfData))
@@ -126,6 +125,12 @@ func TestConfigAppKey(t *testing.T) {
 	assertClean(t,
 		`   app_key:   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb'   `,
 		`   app_key:   '***********************************abbbb'   `)
+}
+
+func TestConfigRCAppKey(t *testing.T) {
+	assertClean(t,
+		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,
+		`key: "***********************************ABCDE"`)
 }
 
 func TestConfigStripURLPassword(t *testing.T) {

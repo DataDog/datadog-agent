@@ -121,8 +121,8 @@ func (r *Rule) GetAst() *ast.Rule {
 }
 
 // Parse - Transforms the SECL `Expression` into its AST representation
-func (r *Rule) Parse() error {
-	astRule, err := ast.ParseRule(r.Expression)
+func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
+	astRule, err := parsingContext.ParseRule(r.Expression)
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,8 @@ func (r *Rule) Parse() error {
 	return nil
 }
 
-func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
+// NewRuleEvaluator returns a new evaluator for a rule
+func NewRuleEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*RuleEvaluator, error) {
 	macros := make(map[MacroID]*MacroEvaluator)
 	for id, macro := range replCtx.Macros {
 		macros[id] = macro.evaluator
@@ -167,17 +168,17 @@ func ruleToEvaluator(rule *ast.Rule, model Model, replCtx ReplacementContext) (*
 }
 
 // GenEvaluator - Compile and generates the RuleEvaluator
-func (r *Rule) GenEvaluator(model Model, replCtx ReplacementContext) error {
+func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext, replCtx ReplacementContext) error {
 	r.Model = model
 	r.ReplacementCtx = replCtx
 
 	if r.ast == nil {
-		if err := r.Parse(); err != nil {
+		if err := r.Parse(parsingCtx); err != nil {
 			return err
 		}
 	}
 
-	evaluator, err := ruleToEvaluator(r.ast, model, replCtx)
+	evaluator, err := NewRuleEvaluator(r.ast, model, replCtx)
 	if err != nil {
 		if err, ok := err.(*ErrAstToEval); ok {
 			return fmt.Errorf("rule syntax error: %s: %w", err, &ErrRuleParse{pos: err.Pos, expr: r.Expression})

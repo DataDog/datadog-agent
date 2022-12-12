@@ -2,6 +2,8 @@
 #ifndef __BPF_CORE_READ_H__
 #define __BPF_CORE_READ_H__
 
+#include "bpf_helpers.h"
+
 /*
  * enum bpf_field_info_kind is passed as a second argument into
  * __builtin_preserve_field_info() built-in to get a specific aspect of
@@ -480,5 +482,21 @@ enum bpf_enum_value_kind {
 	__r;								    \
 })
 
+#ifdef COMPILE_RUNTIME
+
+#undef BPF_CORE_READ
+#define BPF_CORE_READ BPF_PROBE_READ
+#undef BPF_CORE_READ_USER
+#define BPF_CORE_READ_USER BPF_PROBE_READ_USER
+#undef BPF_CORE_READ_INTO
+#define BPF_CORE_READ_INTO BPF_PROBE_READ_INTO
+#undef BPF_CORE_READ_USER_INTO
+#define BPF_CORE_READ_USER_INTO BPF_PROBE_READ_USER_INTO
+#undef BPF_CORE_READ_STR_INTO
+#define BPF_CORE_READ_STR_INTO BPF_PROBE_READ_STR_INTO
+#undef BPF_CORE_READ_USER_STR_INTO
+#define BPF_CORE_READ_USER_STR_INTO BPF_PROBE_READ_USER_STR_INTO
+
 #endif
 
+#endif

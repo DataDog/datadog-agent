@@ -245,7 +245,7 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 	}
 
 	var conn *netlink.Conn
-	err = util.WithNS(c.procRoot, c.rootNetNs, func() error {
+	err = util.WithNS(c.rootNetNs, func() error {
 		conn, err = netlink.Dial(unix.AF_UNSPEC, &netlink.Config{})
 		return err
 	})
@@ -293,11 +293,11 @@ func (c *Consumer) DumpTable(family uint8) (<-chan Event, error) {
 }
 
 func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return util.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -306,6 +306,7 @@ func (c *Consumer) dumpTable(family uint8, output chan Event, ns netns.NsHandle)
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -394,11 +395,11 @@ func (c *Consumer) DumpAndDiscardTable(family uint8) (<-chan bool, error) {
 }
 
 func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
-	return util.WithNS(c.procRoot, ns, func() error {
+	return util.WithNS(ns, func() error {
 
 		log.Tracef("dumping table for ns %s family %d", ns, family)
 
-		sock, err := NewSocket()
+		sock, err := NewSocket(ns)
 		if err != nil {
 			return fmt.Errorf("could not open netlink socket for net ns %d: %w", int(ns), err)
 		}
@@ -407,6 +408,7 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 
 		defer func() {
 			_ = conn.Close()
+			c.socket = nil
 		}()
 
 		req := netlink.Message{
@@ -447,18 +449,15 @@ func (c *Consumer) GetStats() map[string]int64 {
 func (c *Consumer) Stop() {
 	if c.conn != nil {
 		c.conn.Close()
+		c.socket = nil
 	}
 	c.breaker.Stop()
 	c.rootNetNs.Close()
 }
 
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
-	err := util.WithNS(c.procRoot, c.rootNetNs, func() error {
-		var err error
-		c.socket, err = NewSocket()
-		return err
-	})
-
+	var err error
+	c.socket, err = NewSocket(c.rootNetNs)
 	if err != nil {
 		return err
 	}
@@ -569,7 +568,7 @@ ReadLoop:
 // receive netlink messages and discard them immediately
 func (c *Consumer) receiveAndDiscard() {
 	for {
-		done, err := c.socket.ReceiveAndDiscard()
+		done, _, err := c.socket.ReceiveAndDiscard()
 		if err != nil {
 			log.Tracef("consumer netlink socket error: %s", err)
 			switch socketError(err) {
@@ -615,6 +614,7 @@ func (c *Consumer) throttle(numMessages int) error {
 	// Close current socket
 	c.conn.Close()
 	c.conn = nil
+	c.socket = nil
 
 	if pre315Kernel {
 		// we cannot recreate the socket and set a bpf filter on

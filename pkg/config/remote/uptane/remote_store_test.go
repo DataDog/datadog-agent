@@ -7,11 +7,11 @@ package uptane
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"testing"
 
+	"github.com/DataDog/go-tuf/client"
 	"github.com/stretchr/testify/assert"
-	"github.com/theupdateframework/go-tuf/client"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -222,7 +222,7 @@ func assertGetMeta(t *testing.T, store *remoteStore, path string, expectedConten
 	}
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(expectedContent)), size)
-	content, err := ioutil.ReadAll(stream)
+	content, err := io.ReadAll(stream)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, content)
 }
@@ -235,7 +235,7 @@ func assertGetTarget(t *testing.T, store *remoteStore, path string, expectedCont
 	}
 	assert.NoError(t, err)
 	assert.Equal(t, int64(len(expectedContent)), size)
-	content, err := ioutil.ReadAll(stream)
+	content, err := io.ReadAll(stream)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedContent, content)
 }

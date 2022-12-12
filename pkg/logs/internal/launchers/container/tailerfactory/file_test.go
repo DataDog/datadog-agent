@@ -9,13 +9,14 @@
 package tailerfactory
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -78,7 +79,7 @@ func TestMakeFileSource_docker_success(t *testing.T) {
 
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
 		pipelineProvider: pipeline.NewMockProvider(),
@@ -129,13 +130,43 @@ func TestMakeFileSource_docker_no_file(t *testing.T) {
 	}
 }
 
+func TestDockerOverride(t *testing.T) {
+	tmp := t.TempDir()
+	mockConfig := coreConfig.Mock(t)
+	customPath := filepath.Join(tmp, "/custom/path")
+	mockConfig.Set("logs_config.docker_path_override", customPath)
+
+	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "docker",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+
+	tf.findDockerLogPath(source.Config.Identifier)
+
+	child, err := tf.makeFileSource(source)
+
+	require.NoError(t, err)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, p, child.Config.Path)
+}
+
 func TestMakeK8sSource(t *testing.T) {
 	fileTestSetup(t)
 
 	dir := filepath.Join(podLogsBasePath, filepath.FromSlash("podns_podname_poduuid/cname"))
 	require.NoError(t, os.MkdirAll(dir, 0o777))
 	filename := filepath.Join(dir, "somefile.log")
-	require.NoError(t, ioutil.WriteFile(filename, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(filename, []byte("{}"), 0o666))
 	wildcard := filepath.Join(dir, "*.log")
 
 	store := workloadmeta.NewMockStore()
@@ -179,7 +210,7 @@ func TestMakeK8sSource_pod_not_found(t *testing.T) {
 
 	p := filepath.Join(platformDockerLogsBasePath, "containers/abc/abc-json.log")
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-	require.NoError(t, ioutil.WriteFile(p, []byte("{}"), 0o666))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
 
 	tf := &factory{
 		pipelineProvider:  pipeline.NewMockProvider(),
@@ -211,7 +242,7 @@ func TestFindK8sLogPath(t *testing.T) {
 			expectedPattern := filepath.FromSlash(test.expectedPattern)
 			p := filepath.Join(podLogsBasePath, pathExists)
 			require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
-			require.NoError(t, ioutil.WriteFile(p, []byte("xx"), 0o666))
+			require.NoError(t, os.WriteFile(p, []byte("xx"), 0o666))
 			defer func() {
 				require.NoError(t, os.RemoveAll(podLogsBasePath))
 			}()

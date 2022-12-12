@@ -137,7 +137,6 @@ func (c *PythonCheck) Cancel() {
 	if err := getRtLoaderError(); err != nil {
 		log.Warnf("failed to cancel check %s: %s", c.id, err)
 	}
-	aggregator.DestroySender(c.id)
 }
 
 // String representation (for debug and logging)
@@ -208,9 +207,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = check.Identify(c, data, initConfig)
+	c.id = check.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {

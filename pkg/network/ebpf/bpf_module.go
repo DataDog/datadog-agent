@@ -14,34 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
-// ReadBPFModule from the asset file
-func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, debug, "tracer")
-}
-
-// ReadHTTPModule from the asset file
-func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, debug, "http")
-}
-
-// ReadDNSModule from the asset file
-func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, debug, "dns")
-}
-
-// ReadOffsetBPFModule from the asset file
-func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, debug, "offset-guess")
-}
-
-func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, debug, "tracer-fentry")
-}
-
-func readModule(bpfDir string, debug bool, name string) (bytecode.AssetReader, error) {
-	file := name + ".o"
+func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
+	var file string
 	if debug {
-		file = name + "-debug.o"
+		file = fmt.Sprintf("%s-debug.o", moduleName)
+	} else {
+		file = fmt.Sprintf("%s.o", moduleName)
 	}
 
 	ebpfReader, err := bytecode.GetReader(bpfDir, file)
@@ -50,4 +28,28 @@ func readModule(bpfDir string, debug bool, name string) (bytecode.AssetReader, e
 	}
 
 	return ebpfReader, nil
+}
+
+// ReadBPFModule from the asset file
+func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "tracer", debug)
+}
+
+// ReadHTTPModule from the asset file
+func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "http", debug)
+}
+
+// ReadDNSModule from the asset file
+func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "dns", debug)
+}
+
+// ReadOffsetBPFModule from the asset file
+func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "offset-guess", debug)
+}
+
+func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	return readModule(bpfDir, "tracer-fentry", debug)
 }

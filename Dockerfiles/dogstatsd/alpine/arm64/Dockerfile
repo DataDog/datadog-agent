@@ -1,5 +1,7 @@
 FROM alpine:3.12
 
+LABEL baseimage.os "alpine"
+LABEL baseimage.name "alpine:3.12"
 LABEL maintainer "Datadog <package@datadoghq.com>"
 
 ENV DOCKER_DD_AGENT=true

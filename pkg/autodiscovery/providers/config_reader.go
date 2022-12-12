@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +71,13 @@ func InitConfigFilesReader(paths []string) {
 		// Removing some time (1s) to avoid races with polling interval.
 		// If cache expiration is set to be == ticker interval the cache may be used if t1B (cache read time) - t0B (ticker time) < t1A (cache store time) - t0A (ticker time).
 		// Which is likely to be the case because the code path on a cache write is slower.
-		fileCacheExpiration = time.Duration(config.Datadog.GetInt("autoconf_config_files_poll_interval")-1) * time.Second
+		configExpSeconds := config.Datadog.GetInt("autoconf_config_files_poll_interval") - 1
+		// If we are below < 1, cache is basically disabled, we cannot put 0 as it's considered no expiration by cache.Cache
+		if configExpSeconds < 1 {
+			fileCacheExpiration = time.Nanosecond
+		} else {
+			fileCacheExpiration = time.Duration(configExpSeconds) * time.Second
+		}
 	}
 
 	doOnce.Do(func() {
@@ -165,7 +170,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 	for _, path := range r.paths {
 		log.Infof("Searching for configuration files at: %s", path)
 
-		entries, err := ioutil.ReadDir(path)
+		entries, err := os.ReadDir(path)
 		if err != nil {
 			log.Warnf("Skipping, %s", err)
 			continue
@@ -230,7 +235,7 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, map[str
 
 // collectEntry collects a file entry and return it's configuration if valid
 // the integrationName can be manually provided else it'll use the filename
-func collectEntry(file os.FileInfo, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
+func collectEntry(file os.DirEntry, path string, integrationName string, integrationErrors map[string]string) (configEntry, map[string]string) {
 	const defaultExt string = ".default"
 	fileName := file.Name()
 	ext := filepath.Ext(fileName)
@@ -291,7 +296,7 @@ func collectEntry(file os.FileInfo, path string, integrationName string, integra
 	return entry, integrationErrors
 }
 
-func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[string]string) (configPkg, map[string]string) {
+func collectDir(parentPath string, folder os.DirEntry, integrationErrors map[string]string) (configPkg, map[string]string) {
 	configs := []integration.Config{}
 	defaultConfigs := []integration.Config{}
 	otherConfigs := []integration.Config{}
@@ -305,7 +310,7 @@ func collectDir(parentPath string, folder os.FileInfo, integrationErrors map[str
 	}
 
 	// search for yaml files within this directory
-	subEntries, err := ioutil.ReadDir(dirPath)
+	subEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		log.Warnf("Skipping config directory %s: %s", dirPath, err)
 		return configPkg{configs, defaultConfigs, otherConfigs}, integrationErrors
@@ -345,7 +350,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 
 	// Read file contents
 	// FIXME: ReadFile reads the entire file, possible security implications
-	yamlFile, err := ioutil.ReadFile(fpath)
+	yamlFile, err := os.ReadFile(fpath)
 	if err != nil {
 		return conf, err
 	}

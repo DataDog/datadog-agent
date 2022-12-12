@@ -6,6 +6,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -25,6 +26,13 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		payloads := bytes.Split(body, []byte("\n"))
+
 		var network, address string
 		if r.conf.StatsdPort == 0 {
 			http.Error(w, "Agent dogstatsd UDP port not configured, but required for dogstatsd proxy.", http.StatusServiceUnavailable)
@@ -38,9 +46,11 @@ func (r *HTTPReceiver) dogstatsdProxyHandler() http.Handler {
 			return
 		}
 		defer conn.Close()
-		if _, err := io.Copy(conn, req.Body); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		for _, p := range payloads {
+			if _, err := conn.Write(p); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 	})
 }

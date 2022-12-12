@@ -105,18 +105,13 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
-			switch err.(type) {
-			case ErrDentryPathKeyNotFound:
-				// this error is the only one we don't care about
-			default:
-				f.PathResolutionError = err
-				ev.SetPathResolutionError(err)
-			}
+			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
 	}
+
 	return f.PathnameStr
 }
 
@@ -134,8 +129,12 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	if f.Filesystem == "" {
-		f.Filesystem = ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+	if f.Filesystem == "" && !f.IsFileless() {
+		fs, err := ev.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			ev.SetPathResolutionError(f, err)
+		}
+		f.Filesystem = fs
 	}
 	return f.Filesystem
 }
@@ -161,44 +160,81 @@ func (ev *Event) ResolveHelpers(e *model.BPFProgram) []uint32 {
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
 func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {
-		fragments := strings.Split(ev.ResolveXAttrName(e), ".")
-		if len(fragments) > 0 {
-			e.Namespace = fragments[0]
+		ns, _, found := strings.Cut(ev.ResolveXAttrName(e), ".")
+		if found {
+			e.Namespace = ns
 		}
 	}
 	return e.Namespace
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) {
-	e.MountPointStr, e.MountPointPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+func (ev *Event) SetMountPoint(e *model.Mount) error {
+	var err error
+	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) string {
+func (ev *Event) ResolveMountPoint(e *model.Mount) (string, error) {
 	if len(e.MountPointStr) == 0 {
-		ev.SetMountPoint(e)
+		if err := ev.SetMountPoint(e); err != nil {
+			return "", err
+		}
 	}
-	return e.MountPointStr
+	return e.MountPointStr, nil
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) {
-	e.RootStr, e.RootPathResolutionError = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+func (ev *Event) SetMountRoot(e *model.Mount) error {
+	var err error
+	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) string {
+func (ev *Event) ResolveMountRoot(e *model.Mount) (string, error) {
 	if len(e.RootStr) == 0 {
-		ev.SetMountRoot(e)
+		if err := ev.SetMountRoot(e); err != nil {
+			return "", err
+		}
 	}
-	return e.RootStr
+	return e.RootStr, nil
+}
+
+func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
+	if len(e.MountPointPath) == 0 {
+		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountPointPathResolutionError = err
+			return ""
+		}
+		e.MountPointPath = mountPointPath
+	}
+	return e.MountPointPath
+}
+
+func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
+	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
+		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		rootStr, err := ev.ResolveMountRoot(&e.Mount)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+	}
+	return e.MountSourcePath
 }
 
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+		if entry, _ := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -436,7 +472,8 @@ func (ev *Event) String() string {
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
-func (ev *Event) SetPathResolutionError(err error) {
+func (ev *Event) SetPathResolutionError(fileFields *model.FileEvent, err error) {
+	fileFields.PathResolutionError = err
 	ev.pathResolutionError = err
 }
 
@@ -474,7 +511,7 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
+func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -490,14 +527,16 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		// mark interpreter as resolved too
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry, false
 	}
 
-	return ev.ProcessCacheEntry
+	return ev.ProcessCacheEntry, true
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
 func (ev *Event) GetProcessServiceTag() string {
-	entry := ev.ResolveProcessCacheEntry()
+	entry, _ := ev.ResolveProcessCacheEntry()
 	if entry == nil {
 		return ""
 	}

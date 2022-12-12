@@ -18,9 +18,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -89,11 +89,10 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
-	stats := &testutil.TestStatsClient{}
 	cfg := config.New()
+	stats := &teststatsd.Client{}
+	defer testutil.WithStatsClient(stats)()
 
-	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
-	metrics.Client = stats
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
@@ -123,10 +122,10 @@ func TestOTLPMetrics(t *testing.T) {
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, testutil.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
@@ -341,7 +340,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -351,6 +351,43 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ClientComputedStats", func(t *testing.T) {
+		rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{},
+				Spans: []*testutil.OTLPSpan{
+					{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}},
+				},
+			},
+		}).Traces().ResourceSpans().At(0)
+		_, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
+		require.False(ok)
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		timeout := time.After(500 * time.Millisecond)
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are computed this time
+			require.False(p.ClientComputedStats)
+		}
+		// after the first receive, the keyStatsComputed attribute has to be applied,
+		// so that on the second run stats are skipped
+		v, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
+		require.True(ok)
+		require.Equal("true", v.AsString())
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are not computed the second time
+			require.True(p.ClientComputedStats)
+		}
+	})
 }
 
 func TestOTLPSetAttributes(t *testing.T) {
@@ -785,7 +822,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"name":                    "john",
 					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
 					"env":                     "staging",
-					"otel.status_code":        "STATUS_CODE_ERROR",
+					"otel.status_code":        "Error",
 					"otel.status_description": "Error",
 					"otel.library.name":       "ddtracer",
 					"otel.library.version":    "v2",
@@ -853,7 +890,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				StatusCode: ptrace.StatusCodeError,
 			}),
 			out: &pb.Span{
-				Service:  "myservice",
+				Service:  "userbase",
 				Name:     "ddtracer.server",
 				Resource: "GET /path",
 				TraceID:  2594128270069917171,
@@ -867,7 +904,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"env":                     "prod",
 					"deployment.environment":  "prod",
 					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "STATUS_CODE_ERROR",
+					"otel.status_code":        "Error",
 					"otel.status_description": "Error",
 					"otel.library.name":       "ddtracer",
 					"otel.library.version":    "v2",
@@ -950,7 +987,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Meta: map[string]string{
 					"name":                    "john",
 					"env":                     "staging",
-					"otel.status_code":        "STATUS_CODE_ERROR",
+					"otel.status_code":        "Error",
 					"otel.status_description": "Error",
 					"otel.library.name":       "ddtracer",
 					"otel.library.version":    "v2",
@@ -1008,12 +1045,13 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Duration: 200000000,
 				Meta: map[string]string{
 					"env":                             "staging",
-					"_dd.tags.container":              "container_id:cid,kube_container_name:k8s-container",
+					"container_id":                    "cid",
+					"kube_container_name":             "k8s-container",
 					semconv.AttributeContainerID:      "cid",
 					semconv.AttributeK8SContainerName: "k8s-container",
 					"http.method":                     "GET",
 					"http.route":                      "/path",
-					"otel.status_code":                "STATUS_CODE_UNSET",
+					"otel.status_code":                "Unset",
 					"otel.library.name":               "ddtracer",
 					"otel.library.version":            "v2",
 					"name":                            "john",
@@ -1028,50 +1066,52 @@ func TestOTLPConvertSpan(t *testing.T) {
 			},
 		},
 	} {
-		lib := pcommon.NewInstrumentationScope()
-		lib.SetName(tt.libname)
-		lib.SetVersion(tt.libver)
-		assert := assert.New(t)
-		want := tt.out
-		got := o.convertSpan(tt.rattr, lib, tt.in)
-		if len(want.Meta) != len(got.Meta) {
-			t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
-		}
-		for k, v := range want.Meta {
-			switch k {
-			case "events":
-				// events contain maps with no guaranteed order of
-				// traversal; best to unpack to compare
-				var gote, wante []testutil.OTLPSpanEvent
-				if err := json.Unmarshal([]byte(v), &wante); err != nil {
-					t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-				}
-				if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
-					t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-				}
-				assert.Equal(wante, gote)
-			case "_dd.container_tags":
-				// order not guaranteed, so we need to unpack and sort to compare
-				gott := strings.Split(got.Meta[tagContainersTags], ",")
-				wantt := strings.Split(want.Meta[tagContainersTags], ",")
-				sort.Strings(gott)
-				sort.Strings(wantt)
-				assert.Equal(wantt, gott)
-			default:
-				assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+		t.Run("", func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName(tt.libname)
+			lib.SetVersion(tt.libver)
+			assert := assert.New(t)
+			want := tt.out
+			got := o.convertSpan(tt.rattr, lib, tt.in)
+			if len(want.Meta) != len(got.Meta) {
+				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
-		}
-		if len(want.Metrics) != len(got.Metrics) {
-			t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
-		}
-		for k, v := range want.Metrics {
-			assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
-		}
-		want.Meta = nil
-		want.Metrics = nil
-		got.Meta = nil
-		got.Metrics = nil
-		assert.Equal(want, got, i)
+			for k, v := range want.Meta {
+				switch k {
+				case "events":
+					// events contain maps with no guaranteed order of
+					// traversal; best to unpack to compare
+					var gote, wante []testutil.OTLPSpanEvent
+					if err := json.Unmarshal([]byte(v), &wante); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					assert.Equal(wante, gote)
+				case "_dd.container_tags":
+					// order not guaranteed, so we need to unpack and sort to compare
+					gott := strings.Split(got.Meta[tagContainersTags], ",")
+					wantt := strings.Split(want.Meta[tagContainersTags], ",")
+					sort.Strings(gott)
+					sort.Strings(wantt)
+					assert.Equal(wantt, gott)
+				default:
+					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+				}
+			}
+			if len(want.Metrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
+			}
+			for k, v := range want.Metrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			want.Meta = nil
+			want.Metrics = nil
+			got.Meta = nil
+			got.Metrics = nil
+			assert.Equal(want, got, i)
+		})
 	}
 }
 

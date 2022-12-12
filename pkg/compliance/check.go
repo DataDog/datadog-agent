@@ -6,8 +6,15 @@
 package compliance
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+)
+
+const (
+	// DefaultTimeout holds the default duration for checks timeout
+	DefaultTimeout = 30 * time.Second
 )
 
 // Check is the interface for compliance checks

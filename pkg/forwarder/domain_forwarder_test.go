@@ -248,8 +248,14 @@ func TestDomainForwarderRetryQueueAllPayloadsMaxSize(t *testing.T) {
 	flushInterval = 1 * time.Minute
 
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
-	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 1+2, 0, telemetry)
-	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true})
+	transactionRetryQueue := retry.NewTransactionRetryQueue(
+		transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true},
+		nil,
+		1+2,
+		0,
+		telemetry,
+		retry.NewPointCountTelemetryMock())
+	forwarder := newDomainForwarder("test", transactionRetryQueue, 0, 10, transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, retry.NewPointCountTelemetry("domain", nil))
 	forwarder.blockedList.close("blocked")
 	forwarder.blockedList.errorPerEndpoint["blocked"].until = time.Now().Add(1 * time.Minute)
 
@@ -301,9 +307,15 @@ forwarder_requeue_buffer_size: 1300
 func newDomainForwarderForTest(connectionResetInterval time.Duration) *domainForwarder {
 	sorter := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
 	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
-	transactionRetryQueue := retry.NewTransactionRetryQueue(transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}, nil, 2, 0, telemetry)
+	transactionRetryQueue := retry.NewTransactionRetryQueue(
+		transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true},
+		nil,
+		2,
+		0,
+		telemetry,
+		retry.NewPointCountTelemetryMock())
 
-	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter)
+	return newDomainForwarder("test", transactionRetryQueue, 1, connectionResetInterval, sorter, retry.NewPointCountTelemetry("domain", nil))
 }
 
 func requireLenForwarderRetryQueue(t *testing.T, forwarder *domainForwarder, expectedValue int) {

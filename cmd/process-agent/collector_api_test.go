@@ -7,7 +7,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -729,7 +729,7 @@ func (m *mockEndpoint) handleValidate(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	require.NoError(m.t, err)
 
 	err = req.Body.Close()
@@ -770,7 +770,7 @@ func (m *mockEndpoint) handle(w http.ResponseWriter, req *http.Request) {
 }
 
 func (m *mockEndpoint) handleEvents(w http.ResponseWriter, req *http.Request) {
-	body, err := ioutil.ReadAll(req.Body)
+	body, err := io.ReadAll(req.Body)
 	require.NoError(m.t, err)
 
 	err = req.Body.Close()
