@@ -8,10 +8,6 @@
 
 package kafka
 
-func (tx *ebpfKafkaTx) isIPV4() bool {
-	return true
-}
-
 func (tx *ebpfKafkaTx) SrcIPHigh() uint64 {
 	return tx.Tup.Saddr_h
 }
