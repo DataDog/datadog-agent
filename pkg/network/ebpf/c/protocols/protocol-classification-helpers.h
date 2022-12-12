@@ -65,58 +65,39 @@ static __always_inline int16_t read_big_endian_int16(const char* buf) {
 // The method checks if the given buffer starts is amqp message.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
-    static const uint16_t kConnectionClass = 10;
-    static const uint16_t kBasicClass = 60;
-
-    static const uint16_t kMethodConnectionStart = 10;
-    static const uint16_t kMethodConnectionStartOk = 11;
-    static const uint16_t kMethodBasicPublish = 40;
-    static const uint16_t kMethodBasicDeliver = 60;
-
-    static const uint8_t kFrameMethodType = 1;
-    static const uint8_t kMinFrameLength = 18;
-    if (buf_size < kMinFrameLength) {
+    if (buf_size < MIN_FRAME_LENGTH) {
         return false;
     }
 
     uint8_t frame_type = buf[0];
-    // Check only for types Connection Start/Start-OK. Publish/Deliver
-    if (frame_type != kFrameMethodType) {
+    // Check only for method frame type.
+    if (frame_type != FRAME_METHOD_TYPE) {
         return false;
     }
 
     __u16 class_id = buf[7] << 8 | buf[8];
     __u16 method_id = buf[9] << 8 | buf[10];
-    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver are the most likely methods to
+    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
     // consider
-
-    log_debug("[classificationrabbit] -------------------1 buf is %d %d %d", buf[0], buf[1], buf[2]);
-    log_debug("[classificationrabbit] -------------------2 buf is %d %d %d", buf[3], buf[4], buf[5]);
-    log_debug("[classificationrabbit] -------------------3 buf is %d %d %d", buf[6], buf[7], buf[8]);
-    log_debug("[classificationrabbit] -------------------4 buf is %d %d %d", buf[9], buf[10], buf[11]);
-
-    log_debug("[protocol classificationrabbit class results is: %d %d]\n", class_id, method_id);
-
-    if (class_id == kConnectionClass && method_id == kMethodConnectionStart) {
-        log_debug("[protocol classificationrabbit wowowow22]\n");
+    if (class_id == CONNECTION_CLASS && method_id == METHOD_CONNECTION_START) {
         return true;
     }
-    if (class_id == kConnectionClass && method_id == kMethodConnectionStartOk) {
-        log_debug("[protocol classificationrabbit wowowow33]\n");
+    if (class_id == CONNECTION_CLASS && method_id == METHOD_CONNECTION_START_OK) {
         return true;
     }
 
-    if (class_id == kBasicClass && method_id == kMethodBasicPublish) {
-        log_debug("[protocol classificationrabbit wowowow44]\n");
+    if (class_id == BASIC_CLASS && method_id == METHOD_PUBLISH) {
         return true;
     }
 
-    if (class_id == kBasicClass && method_id == kMethodBasicDeliver) {
-        log_debug("[protocol classificationrabbit wowowow55]\n");
+    if (class_id == BASIC_CLASS && method_id == METHOD_DELIVER) {
         return true;
     }
 
-    log_debug("[protocol classificationrabbit wowowownoneee]\n");
+    if (class_id == BASIC_CLASS && method_id == METHOD_CONSUME) {
+        return true;
+    }
+
     return false;
 }
 
@@ -163,8 +144,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
     } else if (is_amqp(buf, size)) {
-        *protocol = PROTOCOL_AMQP;
-            log_debug("[protocol classification wowowowfinaallllll]\n");
+//        *protocol = PROTOCOL_AMQP;
+            log_debug("[protocol classification 1]\n");
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
