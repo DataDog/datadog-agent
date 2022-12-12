@@ -80,6 +80,33 @@ execute 'ensure conntrack is enabled' do
   action :run
 end
 
+case node[:platform]
+    when 'centos', 'redhat'
+        execute 'check space' do
+            command <<-EOF
+                echo "before"
+                echo "ls -lh /tmp/kitchen"
+                ls -lh /tmp/kitchen
+                echo "ls -lh /mnt/kitchen"
+                ls -lh /mnt/kitchen
+
+                df -h /tmp/kitchen
+                df -h /mnt/kitchen
+
+                echo test > /mnt/kitchen/test.txt
+
+                echo "after"
+                echo "ls -lh /tmp/kitchen"
+                ls -lh /tmp/kitchen
+                echo "ls -lh /mnt/kitchen"
+                ls -lh /mnt/kitchen
+            EOF
+            user "root"
+            live_stream true
+            ignore_failure true
+        end
+end
+
 execute 'disable firewalld on redhat' do
   command "systemctl disable --now firewalld"
   user "root"
