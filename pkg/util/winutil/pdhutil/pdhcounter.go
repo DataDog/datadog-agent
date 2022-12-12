@@ -26,6 +26,7 @@ var (
 	pfnPdhCollectQueryData              = PdhCollectQueryData
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
+	pfnPdhRemoveCounter                 = PdhRemoveCounter
 	pfnPdhCloseQuery                    = PdhCloseQuery
 	pfnPdhMakeCounterPath               = pdhMakeCounterPath
 )
@@ -39,7 +40,7 @@ type CounterInstanceVerify func(string) bool
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw
 type PdhQuery struct {
-	handle   PDH_HQUERY
+	Handle   PDH_HQUERY
 	counters []PdhCounter
 }
 
@@ -50,10 +51,16 @@ type PdhCounter interface {
 	// Return false if a query must not attempt to initialize this counter.
 	ShouldInit() bool
 
-	// Called during (*PdhQuery).CollectQueryData for counters that return true from ShouldInit()
+	// Called during (*PdhQuery).CollectQueryData via AddToQuery() for counters that return true from ShouldInit()
 	// Must call the appropriate PdhAddCounter/PdhAddEnglishCounter function to add the
 	// counter to the query.
 	AddToQuery(*PdhQuery) error
+
+	// Given the result of PdhCounter.AddToQuery, should update initError and initFailCount
+	CheckInitError(error) error
+
+	// Calls PdhRemoveCounter and updates internal state (handle field)
+	Remove() error
 }
 
 // Manages a PDH counter with no instance or for a specific instance
@@ -119,7 +126,12 @@ func (counter *pdhCounter) ShouldInit() bool {
 	return true
 }
 
-func (counter *pdhCounter) countInitError(err error) error {
+func (counter *pdhCounter) CheckInitError(err error) error {
+	if err == nil {
+		counter.initError = nil
+		return nil
+	}
+
 	counter.initFailCount += 1
 	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
@@ -133,18 +145,38 @@ func (counter *pdhCounter) countInitError(err error) error {
 	return counter.initError
 }
 
+func (counter *pdhCounter) Remove() error {
+	if counter.handle == PDH_HCOUNTER(0) {
+		return fmt.Errorf("Counter is not initialized")
+	}
+
+	pdherror := PdhRemoveCounter(counter.handle)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("RemoveCounter failed: %#x", pdherror)
+	}
+
+	counter.handle = PDH_HCOUNTER(0)
+	return nil
+}
+
 // Implements PdhCounter.AddToQuery for english counters.
 func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 	path, err := pfnPdhMakeCounterPath("", counter.ObjectName, counter.InstanceName, counter.CounterName)
 	if err != nil {
-		return counter.countInitError(fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err))
+		return fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
 	}
-	pdherror := pfnPdhAddEnglishCounter(query.handle, path, uintptr(0), &counter.handle)
+	pdherror := pfnPdhAddEnglishCounter(query.Handle, path, uintptr(0), &counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		return counter.countInitError(fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror))
+		return fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
 	}
-	counter.initError = nil
 	return nil
+}
+
+// Calls PdhCounter.AddToQuery and handles initError logic
+// Counters should implement PdhCounter.AddToQuery to override init logic
+func AddToQuery(query *PdhQuery, counter PdhCounter) error {
+	err := counter.AddToQuery(query)
+	return counter.CheckInitError(err)
 }
 
 func (query *PdhQuery) AddCounter(counter PdhCounter) {
@@ -157,7 +189,7 @@ func (query *PdhQuery) AddCounter(counter PdhCounter) {
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
 //
 // Implementation detail: This function does not actually call the Windows API PdhAddEnglishCounter. That happens
-//   when (*PdhQuery).CollectQueryData calls PdhCounter.AddToQuery. This function only links our pdhCounter struct
+//   when (*PdhQuery).CollectQueryData calls AddToQuery. This function only links our pdhCounter struct
 //   to our PdhQuery struct.
 //   We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
 //   duplicate/error prone code in the checks that uses this package.
@@ -211,7 +243,7 @@ func (query *PdhQuery) CollectQueryData() error {
 			// https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc784382(v=ws.10)
 			_, _ = tryRefreshPdhObjectCache()
 
-			err := counter.AddToQuery(query)
+			err := AddToQuery(query, counter)
 			if err == nil {
 				addedNewCounter = true
 			} else {
@@ -223,14 +255,14 @@ func (query *PdhQuery) CollectQueryData() error {
 		// if we added a new counter then we need an additional call to
 		// PdhCollectQuery data because some counters require two datapoints
 		// before they can return a value.
-		pdherror := pfnPdhCollectQueryData(query.handle)
+		pdherror := pfnPdhCollectQueryData(query.Handle)
 		if ERROR_SUCCESS != pdherror {
 			return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
 		}
 	}
 
 	// Update the counters
-	pdherror := pfnPdhCollectQueryData(query.handle)
+	pdherror := pfnPdhCollectQueryData(query.Handle)
 	if ERROR_SUCCESS != pdherror {
 		return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
 	}
@@ -297,7 +329,7 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 func CreatePdhQuery() (*PdhQuery, error) {
 	var q PdhQuery
 
-	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.handle)
+	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.Handle)
 	if ERROR_SUCCESS != pdherror {
 		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
 		return nil, err
@@ -310,5 +342,6 @@ func CreatePdhQuery() (*PdhQuery, error) {
 // PdhCloseQuery closes all counter handles associated with the query.
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 func (query *PdhQuery) Close() {
-	pfnPdhCloseQuery(query.handle)
+	pfnPdhCloseQuery(query.Handle)
+	query.Handle = PDH_HQUERY(0)
 }
