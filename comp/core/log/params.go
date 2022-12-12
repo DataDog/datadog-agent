@@ -18,30 +18,30 @@ import (
 // return the updated LogParams.  One of `LogForOneShot` or `LogForDaemon`
 // must be called.
 type Params struct {
-	// LoggerName is the name that appears in the logfile
-	LoggerName string
+	// loggerName is the name that appears in the logfile
+	loggerName string
 
-	// LogLevelFn returns the log level. This field is set by methods on this
+	// logLevelFn returns the log level. This field is set by methods on this
 	// type.
-	LogLevelFn func(configGetter) string
+	logLevelFn func(configGetter) string
 
-	// LogFileFn returns the log file. This field is set by methods on this type.
-	LogFileFn func(configGetter) string
+	// logFileFn returns the log file. This field is set by methods on this type.
+	logFileFn func(configGetter) string
 
-	// LogSyslogURIFn returns the syslog URI. This field is set by methods on this type.
-	LogSyslogURIFn func(configGetter) string
+	// logSyslogURIFn returns the syslog URI. This field is set by methods on this type.
+	logSyslogURIFn func(configGetter) string
 
-	// LogSyslogRFCFn returns a boolean determining whether to use syslog RFC
+	// logSyslogRFCFn returns a boolean determining whether to use syslog RFC
 	// 5424. This field is set by methods on this type.
-	LogSyslogRFCFn func(configGetter) bool
+	logSyslogRFCFn func(configGetter) bool
 
-	// LogToConsoleFn returns a boolean determining whether to write logs to
+	// logToConsoleFn returns a boolean determining whether to write logs to
 	// the console. This field is set by methods on this type.
-	LogToConsoleFn func(configGetter) bool
+	logToConsoleFn func(configGetter) bool
 
-	// LogFormatJSONFn returns a boolean determining whether logs should be
+	// logFormatJSONFn returns a boolean determining whether logs should be
 	// written in JSON format.
-	LogFormatJSONFn func(configGetter) bool
+	logFormatJSONFn func(configGetter) bool
 }
 
 // configGetter is a subset of the comp/core/config component, able to get
@@ -60,17 +60,17 @@ type configGetter interface {
 // enabled, and JSON formatting is disabled.
 func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params := Params{}
-	params.LoggerName = loggerName
+	params.loggerName = loggerName
 	if overrideFromEnv {
-		params.LogLevelFn = func(configGetter) string { return config.GetEnvDefault("DD_LOG_LEVEL", level) }
+		params.logLevelFn = func(configGetter) string { return config.GetEnvDefault("DD_LOG_LEVEL", level) }
 	} else {
-		params.LogLevelFn = func(configGetter) string { return level }
+		params.logLevelFn = func(configGetter) string { return level }
 	}
-	params.LogFileFn = func(configGetter) string { return "" }
-	params.LogSyslogURIFn = func(configGetter) string { return "" }
-	params.LogSyslogRFCFn = func(configGetter) bool { return false }
-	params.LogToConsoleFn = func(configGetter) bool { return true }
-	params.LogFormatJSONFn = func(configGetter) bool { return false }
+	params.logFileFn = func(configGetter) string { return "" }
+	params.logSyslogURIFn = func(configGetter) string { return "" }
+	params.logSyslogRFCFn = func(configGetter) bool { return false }
+	params.logToConsoleFn = func(configGetter) bool { return true }
+	params.logFormatJSONFn = func(configGetter) bool { return false }
 	return params
 }
 
@@ -90,9 +90,9 @@ func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 // as JSON if `log_format_json` is set.
 func LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 	params := Params{}
-	params.LoggerName = loggerName
-	params.LogLevelFn = func(g configGetter) string { return g.GetString("log_level") }
-	params.LogFileFn = func(g configGetter) string {
+	params.loggerName = loggerName
+	params.logLevelFn = func(g configGetter) string { return g.GetString("log_level") }
+	params.logFileFn = func(g configGetter) string {
 		if g.GetBool("disable_file_logging") {
 			return ""
 		}
@@ -102,7 +102,7 @@ func LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 		}
 		return logFile
 	}
-	params.LogSyslogURIFn = func(g configGetter) string {
+	params.logSyslogURIFn = func(g configGetter) string {
 		if runtime.GOOS == "windows" {
 			return "" // syslog not supported on Windows
 		}
@@ -119,14 +119,14 @@ func LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 
 		return uri
 	}
-	params.LogSyslogRFCFn = func(g configGetter) bool { return g.GetBool("syslog_rfc") }
-	params.LogToConsoleFn = func(g configGetter) bool { return g.GetBool("log_to_console") }
-	params.LogFormatJSONFn = func(g configGetter) bool { return g.GetBool("log_format_json") }
+	params.logSyslogRFCFn = func(g configGetter) bool { return g.GetBool("syslog_rfc") }
+	params.logToConsoleFn = func(g configGetter) bool { return g.GetBool("log_to_console") }
+	params.logFormatJSONFn = func(g configGetter) bool { return g.GetBool("log_format_json") }
 	return params
 }
 
 // LogToFile modifies the parameters to set the destination log file, overriding any
 // previous logfile parameter.
 func (params *Params) LogToFile(logFile string) {
-	params.LogFileFn = func(configGetter) string { return logFile }
+	params.logFileFn = func(configGetter) string { return logFile }
 }

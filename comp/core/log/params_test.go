@@ -30,13 +30,13 @@ func TestLogForOneShot_noOverride(t *testing.T) {
 	g := &getter{}
 	t.Setenv("DD_LOG_LEVEL", "debug")
 
-	require.Equal(t, "TEST", params.LoggerName)
-	require.Equal(t, "trace", params.LogLevelFn(g))
-	require.Equal(t, "", params.LogFileFn(g))
-	require.Equal(t, "", params.LogSyslogURIFn(g))
-	require.Equal(t, false, params.LogSyslogRFCFn(g))
-	require.Equal(t, true, params.LogToConsoleFn(g))
-	require.Equal(t, false, params.LogFormatJSONFn(g))
+	require.Equal(t, "TEST", params.loggerName)
+	require.Equal(t, "trace", params.logLevelFn(g))
+	require.Equal(t, "", params.logFileFn(g))
+	require.Equal(t, "", params.logSyslogURIFn(g))
+	require.Equal(t, false, params.logSyslogRFCFn(g))
+	require.Equal(t, true, params.logToConsoleFn(g))
+	require.Equal(t, false, params.logFormatJSONFn(g))
 }
 
 func TestLogForOneShot_override(t *testing.T) {
@@ -44,13 +44,13 @@ func TestLogForOneShot_override(t *testing.T) {
 	g := &getter{}
 	t.Setenv("DD_LOG_LEVEL", "debug")
 
-	require.Equal(t, "TEST", params.LoggerName)
-	require.Equal(t, "debug", params.LogLevelFn(g))
-	require.Equal(t, "", params.LogFileFn(g))
-	require.Equal(t, "", params.LogSyslogURIFn(g))
-	require.Equal(t, false, params.LogSyslogRFCFn(g))
-	require.Equal(t, true, params.LogToConsoleFn(g))
-	require.Equal(t, false, params.LogFormatJSONFn(g))
+	require.Equal(t, "TEST", params.loggerName)
+	require.Equal(t, "debug", params.logLevelFn(g))
+	require.Equal(t, "", params.logFileFn(g))
+	require.Equal(t, "", params.logSyslogURIFn(g))
+	require.Equal(t, false, params.logSyslogRFCFn(g))
+	require.Equal(t, true, params.logToConsoleFn(g))
+	require.Equal(t, false, params.logFormatJSONFn(g))
 }
 
 func TestLogForDaemon_windows(t *testing.T) {
@@ -67,13 +67,13 @@ func TestLogForDaemon_windows(t *testing.T) {
 		},
 	}
 
-	require.Equal(t, "TEST", params.LoggerName)
-	require.Equal(t, "trace", params.LogLevelFn(g))
-	require.Equal(t, "", params.LogFileFn(g))
-	require.Equal(t, "", params.LogSyslogURIFn(g)) // still empty
-	require.Equal(t, false, params.LogSyslogRFCFn(g))
-	require.Equal(t, true, params.LogToConsoleFn(g))
-	require.Equal(t, false, params.LogFormatJSONFn(g))
+	require.Equal(t, "TEST", params.loggerName)
+	require.Equal(t, "trace", params.logLevelFn(g))
+	require.Equal(t, "", params.logFileFn(g))
+	require.Equal(t, "", params.logSyslogURIFn(g)) // still empty
+	require.Equal(t, false, params.logSyslogRFCFn(g))
+	require.Equal(t, true, params.logToConsoleFn(g))
+	require.Equal(t, false, params.logFormatJSONFn(g))
 }
 
 func TestLogForDaemon_linux(t *testing.T) {
@@ -101,52 +101,52 @@ func TestLogForDaemon_linux(t *testing.T) {
 		params := LogForDaemon("TEST", "log_file", "unused")
 		g := makeGetter()
 		g.strs["log_file"] = "/foo/bar"
-		require.Equal(t, "TEST", params.LoggerName)
-		require.Equal(t, "trace", params.LogLevelFn(g))
-		require.Equal(t, "/foo/bar", params.LogFileFn(g))
-		require.Equal(t, "", params.LogSyslogURIFn(g))
-		require.Equal(t, true, params.LogSyslogRFCFn(g))
-		require.Equal(t, false, params.LogToConsoleFn(g))
-		require.Equal(t, true, params.LogFormatJSONFn(g))
+		require.Equal(t, "TEST", params.loggerName)
+		require.Equal(t, "trace", params.logLevelFn(g))
+		require.Equal(t, "/foo/bar", params.logFileFn(g))
+		require.Equal(t, "", params.logSyslogURIFn(g))
+		require.Equal(t, true, params.logSyslogRFCFn(g))
+		require.Equal(t, false, params.logToConsoleFn(g))
+		require.Equal(t, true, params.logFormatJSONFn(g))
 	})
 
 	t.Run("log_file default", func(t *testing.T) {
 		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.strs["log_file"] = ""
-		require.Equal(t, "TEST", params.LoggerName)
-		require.Equal(t, "trace", params.LogLevelFn(g))
-		require.Equal(t, "/default/log", params.LogFileFn(g))
-		require.Equal(t, "", params.LogSyslogURIFn(g))
-		require.Equal(t, true, params.LogSyslogRFCFn(g))
-		require.Equal(t, false, params.LogToConsoleFn(g))
-		require.Equal(t, true, params.LogFormatJSONFn(g))
+		require.Equal(t, "TEST", params.loggerName)
+		require.Equal(t, "trace", params.logLevelFn(g))
+		require.Equal(t, "/default/log", params.logFileFn(g))
+		require.Equal(t, "", params.logSyslogURIFn(g))
+		require.Equal(t, true, params.logSyslogRFCFn(g))
+		require.Equal(t, false, params.logToConsoleFn(g))
+		require.Equal(t, true, params.logFormatJSONFn(g))
 	})
 
 	t.Run("disable_file_logging", func(t *testing.T) {
 		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.bools["disable_file_logging"] = true
-		require.Equal(t, "TEST", params.LoggerName)
-		require.Equal(t, "trace", params.LogLevelFn(g))
-		require.Equal(t, "", params.LogFileFn(g))
-		require.Equal(t, "", params.LogSyslogURIFn(g))
-		require.Equal(t, true, params.LogSyslogRFCFn(g))
-		require.Equal(t, false, params.LogToConsoleFn(g))
-		require.Equal(t, true, params.LogFormatJSONFn(g))
+		require.Equal(t, "TEST", params.loggerName)
+		require.Equal(t, "trace", params.logLevelFn(g))
+		require.Equal(t, "", params.logFileFn(g))
+		require.Equal(t, "", params.logSyslogURIFn(g))
+		require.Equal(t, true, params.logSyslogRFCFn(g))
+		require.Equal(t, false, params.logToConsoleFn(g))
+		require.Equal(t, true, params.logFormatJSONFn(g))
 	})
 
 	t.Run("log to syslog", func(t *testing.T) {
 		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.bools["log_to_syslog"] = true
-		require.Equal(t, "TEST", params.LoggerName)
-		require.Equal(t, "trace", params.LogLevelFn(g))
-		require.Equal(t, "/default/log", params.LogFileFn(g))
-		require.Equal(t, "unixgram:///dev/log", params.LogSyslogURIFn(g))
-		require.Equal(t, true, params.LogSyslogRFCFn(g))
-		require.Equal(t, false, params.LogToConsoleFn(g))
-		require.Equal(t, true, params.LogFormatJSONFn(g))
+		require.Equal(t, "TEST", params.loggerName)
+		require.Equal(t, "trace", params.logLevelFn(g))
+		require.Equal(t, "/default/log", params.logFileFn(g))
+		require.Equal(t, "unixgram:///dev/log", params.logSyslogURIFn(g))
+		require.Equal(t, true, params.logSyslogRFCFn(g))
+		require.Equal(t, false, params.logToConsoleFn(g))
+		require.Equal(t, true, params.logFormatJSONFn(g))
 	})
 
 	t.Run("log to syslog with uri", func(t *testing.T) {
@@ -154,13 +154,13 @@ func TestLogForDaemon_linux(t *testing.T) {
 		g := makeGetter()
 		g.bools["log_to_syslog"] = true
 		g.strs["syslog_uri"] = "test:///"
-		require.Equal(t, "TEST", params.LoggerName)
-		require.Equal(t, "trace", params.LogLevelFn(g))
-		require.Equal(t, "/default/log", params.LogFileFn(g))
-		require.Equal(t, "test:///", params.LogSyslogURIFn(g))
-		require.Equal(t, true, params.LogSyslogRFCFn(g))
-		require.Equal(t, false, params.LogToConsoleFn(g))
-		require.Equal(t, true, params.LogFormatJSONFn(g))
+		require.Equal(t, "TEST", params.loggerName)
+		require.Equal(t, "trace", params.logLevelFn(g))
+		require.Equal(t, "/default/log", params.logFileFn(g))
+		require.Equal(t, "test:///", params.logSyslogURIFn(g))
+		require.Equal(t, true, params.logSyslogRFCFn(g))
+		require.Equal(t, false, params.logToConsoleFn(g))
+		require.Equal(t, true, params.logFormatJSONFn(g))
 	})
 }
 
@@ -169,5 +169,5 @@ func TestLogToFile(t *testing.T) {
 	params.LogToFile("/some/file")
 	g := &getter{}
 
-	require.Equal(t, "/some/file", params.LogFileFn(g))
+	require.Equal(t, "/some/file", params.logFileFn(g))
 }
