@@ -188,6 +188,22 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
     return 0;
 }
 
+static __always_inline int handle_retransmit_retrans_out(struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 zero = 0;
+
+    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
+        return 0;
+    }
+
+    int retrans_out = &(tcp_sk(sk)->retrans_out);
+
+    tcp_stats_t stats = { .retransmits = retrans_out, .rtt = 0, .rtt_var = 0 };
+    update_tcp_stats(&t, stats);
+
+    return 0;
+}
+
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
     u32 rtt = 0;
     u32 rtt_var = 0;
