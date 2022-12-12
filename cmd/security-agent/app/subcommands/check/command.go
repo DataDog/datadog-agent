@@ -46,7 +46,7 @@ type checkCliParams struct {
 
 func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	bp := core.BundleParams{
-		ConfigParams: core.ConfigParams{SecurityAgentConfigFilePaths: globalParams.ConfPathArray, ConfigLoadSecurityAgent: true},
+		ConfigParams: config.NewSecurityAgentParams(globalParams.ConfPathArray, true),
 		LogParams:    log.LogForOneShot(common.LoggerName, "info", true)}
 	return Commands(bp)
 }
