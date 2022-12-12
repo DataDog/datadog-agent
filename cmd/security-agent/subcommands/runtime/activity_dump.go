@@ -62,7 +62,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -86,7 +86,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -141,7 +141,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -214,7 +214,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),

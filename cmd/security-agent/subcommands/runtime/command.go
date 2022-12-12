@@ -94,7 +94,7 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "off", false)),
@@ -116,7 +116,7 @@ func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -163,7 +163,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "off", false)),
@@ -194,7 +194,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "off", false)),
@@ -215,7 +215,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -233,7 +233,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -264,7 +264,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "off", false)),
@@ -297,7 +297,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -334,7 +334,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
@@ -361,7 +361,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.CreateBundleParams(
-					"",
+					globalParams.DefaultConfPath,
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(command.LoggerName, "info", true)),
