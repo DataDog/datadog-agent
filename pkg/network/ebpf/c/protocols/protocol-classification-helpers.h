@@ -5,16 +5,14 @@
 #include <linux/types.h>
 
 #include "bpf_builtins.h"
-#include "bpf_helpers_custom.h"
+#include "bpf_helpers.h"
 #include "bpf_telemetry.h"
 #include "http2.h"
 #include "ip.h"
 #include "map-defs.h"
 #include "protocol-classification-defs.h"
 #include "protocol-classification-maps.h"
-
-
-#define __packed __attribute__((__packed__))
+#include "protocols/protocol-classification-sql-defs.h"
 
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -104,45 +102,29 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 // of the message (this length count includes itself, but not the message-type byte). The remaining contents of the
 // message are determined by the message type
 struct pg_message_header {
-    char message_tag;
-    uint32_t message_len; // Big-endian: use bpf_ntohl to read this field
-    char payload[0];
-} __packed;
+    __u8 message_tag;
+    __u32 message_len; // Big-endian: use bpf_ntohl to read this field
+} __attribute__((aligned(8)));
+#define PG_HDR_SIZE 5
 
 static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, POSTGRES_MIN_MSG_SIZE);
 
-    const struct pg_message_header *hdr = (struct pg_message_header *)buf;
+    struct pg_message_header hdr;
+    hdr.message_tag = *buf;
+    hdr.message_len = *(__u32*)(buf+1);
 
-    switch (hdr->message_tag) {
-    case POSTGRES_BIND_MAGIC_BYTE:
-    case POSTGRES_CLOSE_MAGIC_BYTE:
-    case POSTGRES_DESCRIBE_MAGIC_BYTE:
-    case POSTGRES_EXECUTE_MAGIC_BYTE:
-    case POSTGRES_COPY_FAIL_MAGIC_BYTE:
-    case POSTGRES_FLUSH_MAGIC_BYTE:
-    case POSTGRES_PARSE_MAGIC_BYTE:
-    case POSTGRES_PASSWORD_MESSAGE_MAGIC_BYTE:
-    case POSTGRES_QUERY_MAGIC_BYTE:
-    case POSTGRES_SYNC_MAGIC_BYTE:
-    case POSTGRES_TERMINATE_MAGIC_BYTE:
-        break;
-    default:
+    // We only classify queries for now
+    if (hdr.message_tag != POSTGRES_QUERY_MAGIC_BYTE) {
         return false;
     }
 
-    uint32_t message_len = bpf_ntohl(hdr->message_len);
+    __u32 message_len = bpf_ntohl(hdr.message_len);
     if (message_len < POSTGRES_MIN_PAYLOAD_LEN || message_len > POSTGRES_MAX_PAYLOAD_LEN) {
         return false;
     }
 
-    char message_last_byte = buf[message_len];
-    // If the input includes a whole message (1 byte tag + length), check the last character.
-    if ((message_len + 1 <= (int)buf_size) && (message_last_byte != '\0')) {
-        return false;
-    }
-
-    return true;
+    return is_sql_command(buf+5, buf_size - 5);
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param

@@ -22,13 +22,14 @@
 // The first byte of a message identifies the message type, and the next four bytes specify the length of the rest
 // of the message (this length count includes itself, but not the message-type byte). The remaining contents of the
 // message are determined by the message type.
-// The minimum payloads are for the MOVE/COPY messages which are 4 bytes, so the minimum size is 8 bytes (4 bytes for
-// message len, and 4 bytes for the smallest payload).
-#define POSTGRES_MIN_PAYLOAD_LEN 8
+// Some messages do not have a payload at all, so the minimum size, including
+// the length itself, is 4 bytes.
+#define POSTGRES_MIN_PAYLOAD_LEN 4
 // Assume typical query message size is below an artificial limit.
 // 30000 is copied from postgres code base:
 // https://github.com/postgres/postgres/tree/master/src/interfaces/libpq/fe-protocol3.c#L94
 #define POSTGRES_MAX_PAYLOAD_LEN 30000
+
 #define POSTGRES_BIND_MAGIC_BYTE 'B'
 #define POSTGRES_CLOSE_MAGIC_BYTE 'C'
 #define POSTGRES_DESCRIBE_MAGIC_BYTE 'D'
