@@ -26,10 +26,11 @@ var (
 
 func init() {
 	bundleParams := core.BundleParams{
-		ConfigParams: config.Params{
-			ConfFilePath: confPath,
-			ConfigName:   "datadog-cluster",
-		},
+		ConfigParams: config.NewParams(
+			"",
+			config.WithConfFilePath(confPath),
+			config.WithConfigName("datadog-cluster"),
+		),
 		LogParams: log.LogForOneShot(string(loggerName), "off", true),
 	}
 

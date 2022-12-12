@@ -27,10 +27,11 @@ func TestRealConfig(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	fxutil.Test(t, fx.Options(
-		fx.Supply(Params{
-			ConfigMissingOK: true,
-			ConfFilePath:    dir,
-		}),
+		fx.Supply(NewParams(
+			"",
+			WithConfigMissingOK(true),
+			WithConfFilePath(dir),
+		)),
 		Module,
 	), func(config Component) {
 		require.Equal(t, "https://example.com", config.GetString("dd_url"))

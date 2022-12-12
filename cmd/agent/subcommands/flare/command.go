@@ -61,13 +61,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			config := config.NewAgentParams(globalParams.ConfFilePath, true)
-			config.SecurityAgentConfigFilePaths = []string{
-				path.Join(common.DefaultConfPath, "security-agent.yaml"),
-			}
-			config.ConfigLoadSecurityAgent = true
-			config.SysProbeConfFilePath = globalParams.SysProbeConfFilePath
-			config.ConfigLoadSysProbe = true
+			config := config.NewAgentParams(globalParams.ConfFilePath, true,
+				config.WithSecurityAgentConfigFilePaths([]string{
+					path.Join(common.DefaultConfPath, "security-agent.yaml"),
+				}),
+				config.WithConfigLoadSecurityAgent(true),
+				config.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				config.WithConfigLoadSysProbe(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),

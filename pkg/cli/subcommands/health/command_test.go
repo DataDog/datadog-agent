@@ -27,6 +27,6 @@ func TestCommand(t *testing.T) {
 		[]string{"health"},
 		requestHealth,
 		func(coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }
