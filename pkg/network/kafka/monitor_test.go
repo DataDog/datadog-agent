@@ -14,10 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func skipTestIfKernelNotSupported(t *testing.T) {

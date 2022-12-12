@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"sync"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 // MonitorStats is used for holding two kinds of stats:
