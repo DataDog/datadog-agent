@@ -22,12 +22,12 @@ static __inline bool kafka_read_big_endian_int32(kafka_transaction_t *kafka_tran
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
     *result = read_big_endian_int32(current_offset);
-    kafka_transaction->current_offset_in_request_fragment += 4;
+    kafka_transaction->base.current_offset_in_request_fragment += 4;
     return true;
 }
 
@@ -35,12 +35,12 @@ static __inline bool kafka_read_big_endian_int16(kafka_transaction_t *kafka_tran
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
-    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
+    char* current_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
     if (current_offset < kafka_transaction->request_fragment || current_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE) {
         return false;
     }
     *result = read_big_endian_int16(current_offset);
-    kafka_transaction->current_offset_in_request_fragment += 2;
+    kafka_transaction->base.current_offset_in_request_fragment += 2;
     return true;
 }
 
@@ -69,7 +69,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         // We are only interested in fetch and produce requests
         return false;
     }
-    kafka_transaction->request_api_key = request_api_key;
+    kafka_transaction->base.request_api_key = request_api_key;
 
     int16_t request_api_version = 0;
     if (!kafka_read_big_endian_int16(kafka_transaction, &request_api_version)) {
@@ -79,7 +79,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
-    kafka_transaction->request_api_version = request_api_version;
+    kafka_transaction->base.request_api_version = request_api_version;
 
     int32_t correlation_id = 0;
     if (!kafka_read_big_endian_int32(kafka_transaction, &correlation_id)) {
@@ -89,7 +89,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (correlation_id < 0) {
         return false;
     }
-    kafka_transaction->correlation_id = correlation_id;
+    kafka_transaction->base.correlation_id = correlation_id;
 
     const int16_t MINIMUM_API_VERSION_FOR_CLIENT_ID = 1;
     if (request_api_version >= MINIMUM_API_VERSION_FOR_CLIENT_ID) {
@@ -100,7 +100,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         if (client_id_size < 0) {
             return false;
         }
-        kafka_transaction->current_offset_in_request_fragment += client_id_size;
+        kafka_transaction->base.current_offset_in_request_fragment += client_id_size;
         log_debug("kafka: client_id_size: %d", client_id_size);
     }
     return true;
@@ -112,12 +112,12 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
         return false;
     }
 
-    log_debug("kafka: current_offset: %d", kafka_transaction->current_offset_in_request_fragment);
-    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+    log_debug("kafka: current_offset: %d", kafka_transaction->base.current_offset_in_request_fragment);
+    if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         return false;
     }
 
-    switch (kafka_transaction->request_api_key) {
+    switch (kafka_transaction->base.request_api_key) {
         case KAFKA_PRODUCE:
             return try_parse_produce_request(kafka_transaction);
             break;
@@ -125,26 +125,26 @@ static __always_inline bool try_parse_request(kafka_transaction_t *kafka_transac
             return try_parse_fetch_request(kafka_transaction);
             break;
         default:
-            log_debug("kafka: got unsupported request_api_key: %d", kafka_transaction->request_api_key);
+            log_debug("kafka: got unsupported request_api_key: %d", kafka_transaction->base.request_api_key);
             return false;
     }
 }
 
 static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka_transaction) {
     log_debug("kafka: trying to parse produce request");
-    if (kafka_transaction->request_api_version >= 9) {
-        log_debug("kafka: Produce request version 9 and above is not supported: %d", kafka_transaction->request_api_version);
+    if (kafka_transaction->base.request_api_version >= 9) {
+        log_debug("kafka: Produce request version 9 and above is not supported: %d", kafka_transaction->base.request_api_version);
         return false;
     }
 
-    if (kafka_transaction->request_api_version >= 3) {
+    if (kafka_transaction->base.request_api_version >= 3) {
         int16_t transactional_id_size = 0;
         if (!kafka_read_big_endian_int16(kafka_transaction, &transactional_id_size)) {
             return false;
         }
         log_debug("kafka: transactional_id_size: %d", transactional_id_size);
         if (transactional_id_size > 0) {
-            kafka_transaction->current_offset_in_request_fragment += transactional_id_size;
+            kafka_transaction->base.current_offset_in_request_fragment += transactional_id_size;
         }
     }
 
@@ -169,14 +169,13 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         return false;
     }
 
-
     return extract_and_set_first_topic_name(kafka_transaction);
 }
 
 static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_transaction) {
     log_debug("kafka: trying to parse fetch request");
-    if (kafka_transaction->request_api_version >= 12) {
-        log_debug("kafka: fetch request version 12 and above is not supported: %d", kafka_transaction->request_api_version);
+    if (kafka_transaction->base.request_api_version >= 12) {
+        log_debug("kafka: fetch request version 12 and above is not supported: %d", kafka_transaction->base.request_api_version);
         return false;
     }
 
@@ -185,20 +184,20 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    kafka_transaction->current_offset_in_request_fragment += 12;
+    kafka_transaction->base.current_offset_in_request_fragment += 12;
 
-    if (kafka_transaction->request_api_version >= 3) {
+    if (kafka_transaction->base.request_api_version >= 3) {
         // max_bytes => INT32
-        kafka_transaction->current_offset_in_request_fragment += 4;
+        kafka_transaction->base.current_offset_in_request_fragment += 4;
 
-        if (kafka_transaction->request_api_version >= 4) {
+        if (kafka_transaction->base.request_api_version >= 4) {
             // isolation_level => INT8
-            kafka_transaction->current_offset_in_request_fragment += 1;
+            kafka_transaction->base.current_offset_in_request_fragment += 1;
 
-            if (kafka_transaction->request_api_version >= 7) {
+            if (kafka_transaction->base.request_api_version >= 7) {
                 // session_id => INT32
                 // session_epoch => INT32
-                kafka_transaction->current_offset_in_request_fragment += 8;
+                kafka_transaction->base.current_offset_in_request_fragment += 8;
             }
         }
     }
@@ -208,9 +207,9 @@ static __always_inline bool try_parse_fetch_request(kafka_transaction_t *kafka_t
 
 static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t *kafka_transaction) {
     // Skipping number of entries for now
-    kafka_transaction->current_offset_in_request_fragment += 4;
+    kafka_transaction->base.current_offset_in_request_fragment += 4;
 
-    if (kafka_transaction->current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
+    if (kafka_transaction->base.current_offset_in_request_fragment > sizeof(kafka_transaction->request_fragment)) {
         log_debug("kafka: Current offset is above the request fragment size");
         return false;
     }
@@ -231,7 +230,7 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     // Using the barrier macro instructs the compiler to not keep memory values cached in registers across the assembler instruction
     // If we don't use it here, the verifier will classify registers with false type and fail to load the program
     barrier();
-    char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->current_offset_in_request_fragment;
+    char* topic_name_beginning_offset = kafka_transaction->request_fragment + kafka_transaction->base.current_offset_in_request_fragment;
 
     // Make the verifier happy by checking that the topic name offset doesn't exceed the total fragment buffer size
     if (topic_name_beginning_offset > kafka_transaction->request_fragment + KAFKA_BUFFER_SIZE ||
@@ -239,12 +238,12 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
         return false;
     }
 
-    __builtin_memcpy(kafka_transaction->topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
+    __builtin_memcpy(kafka_transaction->base.topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
 
     // Making sure the topic name is a-z, A-Z, 0-9, dot, dash or underscore.
 #pragma unroll(TOPIC_NAME_MAX_STRING_SIZE - 1)
     for (int i = 0; i < TOPIC_NAME_MAX_STRING_SIZE; i++) {
-        char ch = kafka_transaction->topic_name[i];
+        char ch = kafka_transaction->base.topic_name[i];
         if (ch == 0) {
             break;
         }

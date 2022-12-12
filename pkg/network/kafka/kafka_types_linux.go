@@ -22,7 +22,6 @@ type ebpfKafkaTx struct {
 	Correlation_id                     uint32
 	Tcp_seq                            uint32
 	Current_offset_in_request_fragment uint32
-	Request_fragment                   [320]byte
 	Topic_name                         [80]int8
 }
 type kafkaBatch struct {

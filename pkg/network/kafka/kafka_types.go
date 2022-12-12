@@ -16,7 +16,7 @@ import "C"
 
 type kafkaConnTuple C.conn_tuple_t
 
-type ebpfKafkaTx C.kafka_transaction_t
+type ebpfKafkaTx C.kafka_transaction_batch_entry_t
 type kafkaBatch C.kafka_batch_t
 type kafkaBatchKey C.kafka_batch_key_t
 
