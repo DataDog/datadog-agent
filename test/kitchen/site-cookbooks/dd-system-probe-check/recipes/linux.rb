@@ -105,6 +105,29 @@ case node[:platform]
             live_stream true
             ignore_failure true
         end
+        execute 'check space /mnt/resource' do
+            command <<-EOF
+                echo "before"
+                echo "ls -lh /tmp/kitchen"
+                ls -lh /tmp/kitchen
+                echo "ls -lh /mnt/resource/kitchen"
+                ls -lh /mnt/resource/kitchen
+
+                df -h /tmp/kitchen
+                df -h /mnt/resource/kitchen
+
+                echo test > /mnt/resource/kitchen/test.txt
+
+                echo "after"
+                echo "ls -lh /tmp/kitchen"
+                ls -lh /tmp/kitchen
+                echo "ls -lh /mnt/resource/kitchen"
+                ls -lh /mnt/resource/kitchen
+            EOF
+            user "root"
+            live_stream true
+            ignore_failure true
+        end
 end
 
 execute 'disable firewalld on redhat' do
