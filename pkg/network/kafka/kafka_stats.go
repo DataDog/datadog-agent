@@ -31,6 +31,14 @@ type Key struct {
 	KeyTuple
 }
 
+// NewKey generates a new Key
+func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string) Key {
+	return Key{
+		KeyTuple:  NewKeyTuple(saddr, daddr, sport, dport),
+		TopicName: topicName,
+	}
+}
+
 // NewKeyTuple generates a new KeyTuple
 func NewKeyTuple(saddr, daddr util.Address, sport, dport uint16) KeyTuple {
 	saddrl, saddrh := util.ToLowHigh(saddr)
