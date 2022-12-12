@@ -23,7 +23,7 @@ import (
 var (
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
-	pfnPdhCollectQueryData              = PdhCollectQueryData
+	pfnPdhCollectQueryData              = pdhCollectQueryData
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
 	pfnPdhRemoveCounter                 = PdhRemoveCounter
@@ -255,16 +255,16 @@ func (query *PdhQuery) CollectQueryData() error {
 		// if we added a new counter then we need an additional call to
 		// PdhCollectQuery data because some counters require two datapoints
 		// before they can return a value.
-		pdherror := pfnPdhCollectQueryData(query.Handle)
-		if ERROR_SUCCESS != pdherror {
-			return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
+		err := PdhCollectQueryData(query.Handle)
+		if err != nil {
+			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
 		}
 	}
 
 	// Update the counters
-	pdherror := pfnPdhCollectQueryData(query.Handle)
-	if ERROR_SUCCESS != pdherror {
-		return fmt.Errorf("Failed to collect query data %#x. This error indicates that the Windows performance counter database may need to be rebuilt.", pdherror)
+	err := PdhCollectQueryData(query.Handle)
+	if err != nil {
+		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
 	}
 	return nil
 }
@@ -344,4 +344,12 @@ func CreatePdhQuery() (*PdhQuery, error) {
 func (query *PdhQuery) Close() {
 	pfnPdhCloseQuery(query.Handle)
 	query.Handle = PDH_HQUERY(0)
+}
+
+func PdhCollectQueryData(hQuery PDH_HQUERY) error {
+	pdherror := pfnPdhCollectQueryData(hQuery)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("Failed to collect query data %#x", pdherror)
+	}
+	return nil
 }

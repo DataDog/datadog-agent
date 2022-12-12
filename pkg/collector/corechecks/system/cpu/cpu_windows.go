@@ -116,9 +116,9 @@ func (counter *processorPDHCounter) addToQueryWithExtraChecks(query *pdhutil.Pdh
 	// This call may fail for the first counter added to the query. Once at least one Processor
 	// counter is successfully added this call will succeed and we must depend on the GetValue() call.
 	for i := 0; i < 2; i++ {
-		pdherror := pdhutil.PdhCollectQueryData(query.Handle)
-		if 0 != pdherror {
-			return fmt.Errorf("Failed to collect query data: %#x.", pdherror)
+		err = pdhutil.PdhCollectQueryData(query.Handle)
+		if err != nil {
+			return err
 		}
 	}
 	_, err = counter.GetValue()
