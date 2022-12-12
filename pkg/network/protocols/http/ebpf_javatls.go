@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	javaUSMAgentJarPath = "/opt/datadog-agent/embedded/share/system-probe/java/USMAgent.jar"
+	javaUSMAgentJarPath = "/opt/datadog-agent/embedded/share/system-probe/java/agent-usm-7.43.0.jar"
 	randomID            = int64(0)
 )
 
@@ -45,7 +45,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		log.Errorf("goTLS support requires runtime-compilation to be enabled")
 		return nil
 	}
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, "USMAgent.jar")
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, "agent-usm-7.43.0.jar")
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
