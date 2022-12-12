@@ -174,7 +174,7 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
-	if err := consumer.flush(e.s); err != nil {
+	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil

@@ -21,6 +21,10 @@ func setCorrectRight(path string) {
 	os.Chmod(path, 0700)
 }
 
+// testCheckRightsStub is a dummy checkRights stub for *nix
+func testCheckRightsStub() {
+}
+
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }

@@ -24,7 +24,7 @@ type Check interface {
 	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check
-	Configure(config, initConfig integration.Data, source string) error
+	Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
 	Interval() time.Duration
 	// ID provides a unique identifier for every check instance

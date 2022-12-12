@@ -38,8 +38,6 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct str_array_buffer_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct exec_event_t {
@@ -62,8 +60,6 @@ struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct exec_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
@@ -120,8 +116,6 @@ struct bpf_map_def SEC("maps/exec_count_fb") exec_count_fb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
@@ -129,8 +123,6 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/tasks_in_coredump") tasks_in_coredump = {
@@ -139,8 +131,6 @@ struct bpf_map_def SEC("maps/tasks_in_coredump") tasks_in_coredump = {
     .value_size = sizeof(u8),
     .max_entries = 64,
     .map_flags = BPF_F_NO_COMMON_LRU,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
@@ -148,8 +138,6 @@ struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u64),
     .max_entries = 512,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
@@ -301,7 +289,12 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     syscall->exec.is_parsed = 1;
 
     syscall->exec.dentry = get_file_dentry(file);
-    syscall->exec.file.path_key = get_inode_key_path(inode, path);
+
+    // set mount_id to 0 is this is a fileless exec, meaning that the vfs type is tmpfs and that is an internal mount
+    u32 mount_id = is_tmpfs(syscall->exec.dentry) && get_path_mount_flags(path) & MNT_INTERNAL ? 0 : get_path_mount_id(path);
+
+    syscall->exec.file.path_key.ino = get_inode_ino(inode);
+    syscall->exec.file.path_key.mount_id = mount_id;
     syscall->exec.file.path_key.path_id = get_path_id(0);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -313,7 +306,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             .executable = {
                 .path_key = {
                     .ino = syscall->exec.file.path_key.ino,
-                    .mount_id = get_path_mount_id(path),
+                    .mount_id = mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
                 },
                 .flags = syscall->exec.file.flags

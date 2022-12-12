@@ -46,6 +46,7 @@ func TestReadProfileData(t *testing.T) {
 	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(nil)
 	m.On("CreatePerformanceProfile", "trace", "http://127.0.0.1:1002/debug/pprof", 9, pdata).Return(nil)
 	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
+	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
 
 	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
 	assert.NoError(t, err)
@@ -64,6 +65,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 
 	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(nil)
 	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
+	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
 
 	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
 	assert.NoError(t, err)
@@ -85,6 +87,7 @@ func TestReadProfileDataErrors(t *testing.T) {
 	m.On("CreatePerformanceProfile", "core", "http://127.0.0.1:1001/debug/pprof", 30, pdata).Return(errors.New("can't connect to core agent"))
 	m.On("CreatePerformanceProfile", "trace", "http://127.0.0.1:1002/debug/pprof", 9, pdata).Return(errors.New("can't connect to trace agent"))
 	m.On("CreatePerformanceProfile", "process", "http://127.0.0.1:1003/debug/pprof", 30, pdata).Return(nil)
+	m.On("CreatePerformanceProfile", "security-agent", "http://127.0.0.1:5011/debug/pprof", 30, pdata).Return(nil)
 
 	err := readProfileData(&cliParams{}, pdata, 30, m.CreatePerformanceProfile)
 

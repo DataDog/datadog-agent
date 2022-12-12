@@ -65,14 +65,14 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
-func (c *CheckBase) BuildID(instance, initConfig integration.Data) {
-	c.checkID = check.BuildID(c.checkName, instance, initConfig)
+func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig integration.Data) {
+	c.checkID = check.BuildID(c.checkName, integrationConfigDigest, instance, initConfig)
 }
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.CommonConfigure(initConfig, data, source)
+func (c *CheckBase) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.CommonConfigure(integrationConfigDigest, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (c *CheckBase) Configure(data integration.Data, initConfig integration.Data
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-func (c *CheckBase) CommonConfigure(initConfig, instanceConfig integration.Data, source string) error {
+func (c *CheckBase) CommonConfigure(integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
 	handleConf := func(conf integration.Data, c *CheckBase) error {
 		commonOptions := integration.CommonInstanceConfig{}
 		err := yaml.Unmarshal(conf, &commonOptions)

@@ -111,7 +111,6 @@ type ProcessResolver struct {
 	pidCacheMap      *lib.Map
 	cacheSize        *atomic.Int64
 	opts             ProcessResolverOpts
-	cgroupsMonitor   *CgroupsMonitor
 
 	// stats
 	hitsStats      map[string]*atomic.Int64
@@ -414,7 +413,7 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 
 	entry.Process.ContainerID = string(containerID)
 	// resolve container path with the MountResolver
-	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.GetFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
+	entry.FileEvent.Filesystem, err = p.resolvers.MountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid, string(containerID))
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't get the filesystem: %w", proc.Pid, err)
 	}
@@ -544,7 +543,7 @@ func (p *ProcessResolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	}
 
 	if entry.IsContainerInit() {
-		p.cgroupsMonitor.AddID(entry.ContainerID)
+		p.resolvers.CgroupsResolver.AddPID1(entry.ContainerID, entry.Pid)
 	}
 
 	p.addedEntries.Inc()
@@ -588,7 +587,12 @@ func (p *ProcessResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	entry.Exit(exitTime)
 
 	if entry.IsContainerInit() {
-		p.cgroupsMonitor.DelID(entry.ContainerID)
+		p.resolvers.CgroupsResolver.Release(entry.ContainerID)
+	}
+
+	// Release also the parent if the entry is a fork child. The parent could have increased the ref counter too
+	if entry.IsThread && entry.Ancestor.IsContainerInit() {
+		p.resolvers.CgroupsResolver.Release(entry.Ancestor.ContainerID)
 	}
 
 	delete(p.entryCache, entry.Pid)
@@ -638,28 +642,31 @@ func (p *ProcessResolver) resolve(pid, tid uint32) *model.ProcessCacheEntry {
 }
 
 // SetProcessPath resolves process file path
-func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, ctx *model.PIDContext) (string, error) {
-
-	if fileEvent.Inode == 0 || fileEvent.MountID == 0 {
+func (p *ProcessResolver) SetProcessPath(fileEvent *model.FileEvent, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
 
 		p.pathErrStats.Inc()
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+
+		return pathnameStr, err
 	}
 
-	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, ctx)
+	if fileEvent.Inode == 0 {
+		return onError("", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
+	}
+
+	pathnameStr, err := p.resolvers.resolveFileFieldsPath(&fileEvent.FileFields, pidCtx, ctrCtx)
 	if err != nil {
-		fileEvent.SetPathnameStr("")
-		fileEvent.SetBasenameStr("")
-
-		p.pathErrStats.Inc()
-
-		return "", &resolvers.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID}
+		return onError(pathnameStr, err)
 	}
 
-	fileEvent.SetPathnameStr(pathnameStr)
-	fileEvent.SetBasenameStr(path.Base(fileEvent.PathnameStr))
+	if fileEvent.FileFields.IsFileless() {
+		fileEvent.SetPathnameStr("")
+	} else {
+		fileEvent.SetPathnameStr(pathnameStr)
+	}
+	fileEvent.SetBasenameStr(path.Base(pathnameStr))
 
 	return fileEvent.PathnameStr, nil
 }
@@ -685,7 +692,7 @@ func (p *ProcessResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *ProcessResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.resolvers.MountResolver.GetFilesystem(entry.FileEvent.MountID, entry.Pid)
+		fs, err := p.resolvers.MountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid, entry.ContainerID)
 		if err != nil {
 			return "", err
 		}
@@ -722,14 +729,14 @@ func (p *ProcessResolver) resolveFromCache(pid, tid uint32) *model.ProcessCacheE
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext); err != nil {
-		return fmt.Errorf("failed to resolve exec path: %w", err)
+func (p *ProcessResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
+	if _, err := p.SetProcessPath(&entry.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
+		return &ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext); err != nil {
-			return fmt.Errorf("failed to resolve interpreter path: %w", err)
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, &entry.PIDContext, ctrCtx); err != nil {
+			return &ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -773,12 +780,11 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: tid})
 
-	var cc model.ContainerContext
-	read, err := cc.UnmarshalBinary(procCache)
+	var ctrCtx model.ContainerContext
+	read, err := ctrCtx.UnmarshalBinary(procCache)
 	if err != nil {
 		return nil
 	}
-	entry.ContainerID = cc.ID
 
 	if _, err := entry.UnmarshalProcEntryBinary(procCache[read:]); err != nil {
 		return nil
@@ -789,7 +795,7 @@ func (p *ProcessResolver) resolveFromKernelMaps(pid, tid uint32) *model.ProcessC
 	}
 
 	// resolve paths and other context fields
-	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
+	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
 		return nil
 	}
 
@@ -1279,11 +1285,6 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 	})
 
 	return variables
-}
-
-// SetCgroupsMonitor set the cgroup monitor
-func (p *ProcessResolver) SetCgroupsMonitor(monitor *CgroupsMonitor) {
-	p.cgroupsMonitor = monitor
 }
 
 // NewProcessResolver returns a new process resolver
