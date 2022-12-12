@@ -53,7 +53,7 @@ func newBatchManager(batchMap *ebpf.Map, numCPUs int) (*batchManager, error) {
 	}, nil
 }
 
-func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]kafkaTX, error) {
+func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]*ebpfKafkaTx, error) {
 	state := &m.stateByCPU[event.CPU]
 	batch := batchFromEventData(event.Data)
 
@@ -66,7 +66,7 @@ func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]kafkaTX, 
 	state.idx = int(batch.Idx) + 1
 	state.pos = 0
 
-	txns := make([]kafkaTX, len(batch.Transactions()[offset:]))
+	txns := make([]*ebpfKafkaTx, len(batch.Transactions()[offset:]))
 	tocopy := batch.Transactions()[offset:]
 	for idx := range tocopy {
 		txns[idx] = &tocopy[idx]
@@ -74,8 +74,8 @@ func (m *batchManager) GetTransactionsFrom(event *ddebpf.DataEvent) ([]kafkaTX, 
 	return txns, nil
 }
 
-func (m *batchManager) GetPendingTransactions() []kafkaTX {
-	transactions := make([]kafkaTX, 0, KAFKABatchSize*KAFKABatchPages/2)
+func (m *batchManager) GetPendingTransactions() []*ebpfKafkaTx {
+	transactions := make([]*ebpfKafkaTx, 0, KAFKABatchSize*KAFKABatchPages/2)
 	for i := 0; i < m.numCPUs; i++ {
 		for lookup := 0; lookup < maxLookupsPerCPU; lookup++ {
 			var (

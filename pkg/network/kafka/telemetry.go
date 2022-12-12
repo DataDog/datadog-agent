@@ -38,7 +38,7 @@ func newTelemetry() *telemetry {
 	return t
 }
 
-func (t *telemetry) aggregate(transactions []kafkaTX, err error) {
+func (t *telemetry) aggregate(transactions []*ebpfKafkaTx, err error) {
 	t.totalHits.Add(int64(len(transactions)))
 
 	if err == errLostBatch {

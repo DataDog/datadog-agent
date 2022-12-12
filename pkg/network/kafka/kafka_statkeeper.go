@@ -26,14 +26,14 @@ func newKafkaStatkeeper(c *config.Config, telemetry *telemetry) *kafkaStatKeeper
 	}
 }
 
-func (statKeeper *kafkaStatKeeper) Process(transactions []kafkaTX) {
+func (statKeeper *kafkaStatKeeper) Process(transactions []*ebpfKafkaTx) {
 	for i := range transactions {
 		tx := transactions[i]
 		statKeeper.add(tx)
 	}
 }
 
-func (statKeeper *kafkaStatKeeper) add(transaction kafkaTX) {
+func (statKeeper *kafkaStatKeeper) add(transaction *ebpfKafkaTx) {
 	key := Key{
 		KeyTuple: KeyTuple{
 			SrcIPHigh: transaction.SrcIPHigh(),

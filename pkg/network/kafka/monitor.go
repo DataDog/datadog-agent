@@ -33,7 +33,7 @@ type MonitorStats struct {
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received Kafka transactions;
 type Monitor struct {
-	handler func([]kafkaTX)
+	handler func([]*ebpfKafkaTx)
 
 	ebpfProgram            *ebpfProgram
 	batchManager           *batchManager
@@ -82,7 +82,7 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 	telemetry := newTelemetry()
 	statkeeper := newKafkaStatkeeper(c, telemetry)
 
-	handler := func(transactions []kafkaTX) {
+	handler := func(transactions []*ebpfKafkaTx) {
 		if statkeeper != nil {
 			statkeeper.Process(transactions)
 		}
@@ -220,7 +220,7 @@ func (m *Monitor) Stop() {
 	m.stopped = true
 }
 
-func (m *Monitor) process(transactions []kafkaTX, err error) {
+func (m *Monitor) process(transactions []*ebpfKafkaTx, err error) {
 	m.telemetry.aggregate(transactions, err)
 
 	if m.handler != nil && len(transactions) > 0 {
