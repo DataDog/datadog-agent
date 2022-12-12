@@ -12,6 +12,8 @@ import (
 
 // BundleParams defines the parameters for this bundle.
 type BundleParams = internal.BundleParams
+type ConfigParams = internal.ConfigParams
+type LogParams = internal.LogParams
 
 // CreateAgentBundleParams creates a new BundleParams for the Core Agent
 func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, options ...func(*BundleParams)) BundleParams {
@@ -24,7 +26,7 @@ func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, option
 // CreateBundleParams creates a new BundleParams
 func CreateBundleParams(defaultConfPath string, options ...func(*BundleParams)) BundleParams {
 	bundleParams := BundleParams{
-		DefaultConfPath: defaultConfPath,
+		ConfigParams: internal.ConfigParams{DefaultConfPath: defaultConfPath},
 	}
 	for _, o := range options {
 		o(&bundleParams)

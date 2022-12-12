@@ -18,6 +18,12 @@ import (
 // return the updated BundleParams.  One of `LogForOneShot` or `LogForDaemon`
 // must be called.
 type BundleParams struct {
+	ConfigParams
+	LogParams
+}
+
+// ConfigParams defines the parameters for the config component.
+type ConfigParams struct {
 	// ConfFilePath is the path at which to look for configuration, usually
 	// given by the --cfgpath command-line flag.
 	ConfFilePath string
@@ -53,12 +59,20 @@ type BundleParams struct {
 	// file does not exist.
 	ConfigMissingOK bool
 
-	// LoggerName is the name that appears in the logfile
-	LoggerName string
-
 	// DefaultConfPath determines the default configuration path.
 	// if DefaultConfPath is empty, then no default configuration path is used.
 	DefaultConfPath string
+}
+
+// LogParams defines the parameters for this log component.
+//
+// Logs-related parameters are implemented as unexported fields containing
+// callbacks.  These fields can be set with the `LogXxx()` methods, which
+// return the updated LogParams.  One of `LogForOneShot` or `LogForDaemon`
+// must be called.
+type LogParams struct {
+	// LoggerName is the name that appears in the logfile
+	LoggerName string
 
 	// LogLevelFn returns the log level. This field is set by methods on this
 	// type.
@@ -84,7 +98,7 @@ type BundleParams struct {
 }
 
 // configGetter is a subset of the comp/core/config component, able to get
-// config values for the xxxFn fields in BundleParams.  comp/core/log uses
+// config values for the xxxFn fields in LogParams.  comp/core/log uses
 // this interface to get parameters that may depend on a configuration value.
 type configGetter interface {
 	GetString(key string) string

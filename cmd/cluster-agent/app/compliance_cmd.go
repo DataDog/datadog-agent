@@ -24,8 +24,10 @@ var (
 
 func init() {
 	bundleParams := core.BundleParams{
-		ConfFilePath: confPath,
-		ConfigName:   "datadog-cluster",
+		ConfigParams: core.ConfigParams{
+			ConfFilePath: confPath,
+			ConfigName:   "datadog-cluster",
+		},
 	}.LogForOneShot(string(loggerName), "off", true)
 
 	complianceCmd.AddCommand(check.Commands(bundleParams)...)

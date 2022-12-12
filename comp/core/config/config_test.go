@@ -28,7 +28,7 @@ func TestRealConfig(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	fxutil.Test(t, fx.Options(
-		fx.Supply(internal.BundleParams{
+		fx.Supply(internal.ConfigParams{
 			ConfigMissingOK: true,
 			ConfFilePath:    dir,
 		}),
