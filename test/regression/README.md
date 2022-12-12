@@ -22,7 +22,7 @@ The structure of each case is as follows:
 * `lading/lading.yaml` -- __Required__ The [lading] configuration inside its own
   directory. Directory will be mount read-only in the container built from
   `Dockerfile` above at `/etc/lading`.
-* `agent/` -- __Required__ This is the configuration directory of your
+* `datadog-agent/` -- __Required__ This is the configuration directory of your
   program. Will be mounted read-only in the container build from `Dockerfile`
   above at `/etc/datadog-agent`.
 
