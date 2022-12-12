@@ -58,7 +58,8 @@ type configGetter interface {
 //
 // Otherwise, file logging is disabled, syslog is disabled, console logging is
 // enabled, and JSON formatting is disabled.
-func (params Params) LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
+func LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
+	params := Params{}
 	params.LoggerName = loggerName
 	if overrideFromEnv {
 		params.LogLevelFn = func(configGetter) string { return config.GetEnvDefault("DD_LOG_LEVEL", level) }
@@ -87,7 +88,8 @@ func (params Params) LogForOneShot(loggerName, level string, overrideFromEnv boo
 //
 // Console logging is enabled if `log_to_console` is set.  Lots are formatted
 // as JSON if `log_format_json` is set.
-func (params Params) LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
+func LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
+	params := Params{}
 	params.LoggerName = loggerName
 	params.LogLevelFn = func(g configGetter) string { return g.GetString("log_level") }
 	params.LogFileFn = func(g configGetter) string {

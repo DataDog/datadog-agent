@@ -16,7 +16,7 @@ import (
 
 func TestLogging(t *testing.T) {
 	fxutil.Test(t, fx.Options(
-		fx.Supply(Params{}.LogForOneShot("TEST", "debug", false)),
+		fx.Supply(LogForOneShot("TEST", "debug", false)),
 		fx.Supply(config.Params{}),
 		config.MockModule,
 		Module,

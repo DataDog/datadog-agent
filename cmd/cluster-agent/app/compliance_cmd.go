@@ -13,6 +13,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 var (
@@ -24,11 +26,12 @@ var (
 
 func init() {
 	bundleParams := core.BundleParams{
-		ConfigParams: core.ConfigParams{
+		ConfigParams: config.Params{
 			ConfFilePath: confPath,
 			ConfigName:   "datadog-cluster",
 		},
-	}.LogForOneShot(string(loggerName), "off", true)
+		LogParams: log.LogForOneShot(string(loggerName), "off", true),
+	}
 
 	complianceCmd.AddCommand(check.Commands(bundleParams)...)
 	ClusterAgentCmd.AddCommand(complianceCmd)

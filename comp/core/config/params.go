@@ -5,6 +5,8 @@
 
 package config
 
+import "github.com/DataDog/datadog-agent/cmd/agent/common"
+
 // Params defines the parameters for the config component.
 type Params struct {
 	// ConfFilePath is the path at which to look for configuration, usually
@@ -45,4 +47,65 @@ type Params struct {
 	// DefaultConfPath determines the default configuration path.
 	// if DefaultConfPath is empty, then no default configuration path is used.
 	DefaultConfPath string
+}
+
+// NewParams creates a new instance of Params
+func NewParams(defaultConfPath string, options ...func(*Params)) Params {
+	params := Params{
+		DefaultConfPath: defaultConfPath,
+	}
+	for _, o := range options {
+		o(&params)
+	}
+	return params
+}
+
+// NewParams creates a new instance of Params for the Agent.
+func NewAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
+	params := NewParams(common.DefaultConfPath, options...)
+	params.ConfFilePath = confFilePath
+	params.ConfigLoadSecrets = configLoadSecrets
+	return params
+}
+
+func WithConfigName(name string) func(*Params) {
+	return func(b *Params) {
+		b.ConfigName = name
+	}
+}
+
+func WithConfigMissingOK(v bool) func(*Params) {
+	return func(b *Params) {
+		b.ConfigMissingOK = v
+	}
+}
+
+func WithConfigLoadSysProbe(v bool) func(*Params) {
+	return func(b *Params) {
+		b.ConfigLoadSysProbe = v
+	}
+}
+
+func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*Params) {
+	return func(b *Params) {
+		b.SecurityAgentConfigFilePaths = securityAgentConfigFilePaths
+	}
+}
+
+func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
+	return func(b *Params) {
+		b.ConfigLoadSecurityAgent = configLoadSecurityAgent
+	}
+}
+
+func WithConfFilePath(confFilePath string) func(*Params) {
+	return func(b *Params) {
+		b.ConfFilePath = confFilePath
+	}
+}
+
+func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
+	return func(b *Params) {
+		b.ConfigLoadSecrets = configLoadSecrets
+	}
 }

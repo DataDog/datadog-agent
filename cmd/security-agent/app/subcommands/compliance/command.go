@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -56,11 +57,8 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: core.ConfigParams{
-						SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-						ConfigLoadSecurityAgent:      true,
-					},
-				}.LogForOneShot(common.LoggerName, "info", true)),
+					ConfigParams: core.ConfigParams{SecurityAgentConfigFilePaths: globalParams.ConfPathArray, ConfigLoadSecurityAgent: true},
+					LogParams:    log.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
