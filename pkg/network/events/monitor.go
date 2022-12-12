@@ -84,8 +84,8 @@ func (e *eventMonitor) HandleEvent(ev *sprobe.Event) {
 
 	_ = ev.ResolveProcessEnvp(&ev.ProcessContext.Process)
 
-	entry := ev.ResolveProcessCacheEntry()
-	if entry == nil {
+	entry, ok := ev.ResolveProcessCacheEntry()
+	if !ok {
 		return
 	}
 
