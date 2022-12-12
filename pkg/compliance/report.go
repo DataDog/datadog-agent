@@ -32,3 +32,10 @@ type ReportResource struct {
 	ID   string
 	Type string
 }
+
+// Reports aggregates compliance reports
+type Reports []*Report
+
+func (r Reports) Len() int           { return len(r) }
+func (r Reports) Less(i, j int) bool { return !r[i].Passed && r[i].Error == nil }
+func (r Reports) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }

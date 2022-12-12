@@ -25,7 +25,7 @@ type regoFixture struct {
 	findings string
 
 	processes     processutils.Processes
-	expectReports []*compliance.Report
+	expectReports compliance.Reports
 }
 
 func (f *regoFixture) newRegoCheck() (*regoCheck, error) {
@@ -116,7 +116,7 @@ func TestRegoCheck(t *testing.T) {
 				}
 			`,
 			findings: "data.test.findings",
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: true,
 					Data: event.Data{
@@ -178,7 +178,7 @@ func TestRegoCheck(t *testing.T) {
 			processes: processutils.Processes{
 				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: true,
 					Data: event.Data{
@@ -232,7 +232,7 @@ func TestRegoCheck(t *testing.T) {
 			processes: processutils.Processes{
 				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: false,
 					Data: event.Data{
@@ -277,7 +277,7 @@ func TestRegoCheck(t *testing.T) {
 			processes: processutils.Processes{
 				42: processutils.NewCheckedFakeProcess(42, "proc1", []string{"arg1", "--path=foo"}),
 			},
-			expectReports: []*compliance.Report{
+			expectReports: compliance.Reports{
 				{
 					Passed: false,
 					Data:   nil,
