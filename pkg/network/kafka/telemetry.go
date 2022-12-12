@@ -51,6 +51,7 @@ func (t *telemetry) reset() telemetry {
 	then := t.then.Swap(now)
 
 	delta := newTelemetry()
+	delta.totalHits.Store(t.totalHits.Swap(0))
 	delta.misses.Store(t.misses.Swap(0))
 	delta.dropped.Store(t.dropped.Swap(0))
 	delta.elapsed.Store(now - then)
