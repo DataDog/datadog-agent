@@ -26,7 +26,7 @@ func (g *getter) GetBool(k string) bool {
 }
 
 func TestLogForOneShot_noOverride(t *testing.T) {
-	params := Params{}.LogForOneShot("TEST", "trace", false)
+	params := LogForOneShot("TEST", "trace", false)
 	g := &getter{}
 	t.Setenv("DD_LOG_LEVEL", "debug")
 
@@ -40,7 +40,7 @@ func TestLogForOneShot_noOverride(t *testing.T) {
 }
 
 func TestLogForOneShot_override(t *testing.T) {
-	params := Params{}.LogForOneShot("TEST", "trace", true)
+	params := LogForOneShot("TEST", "trace", true)
 	g := &getter{}
 	t.Setenv("DD_LOG_LEVEL", "debug")
 
@@ -57,7 +57,7 @@ func TestLogForDaemon_windows(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip()
 	}
-	params := Params{}.LogForDaemon("TEST", "unused", "unused")
+	params := LogForDaemon("TEST", "unused", "unused")
 	g := &getter{
 		strs: map[string]string{
 			"log_level": "trace",
@@ -98,7 +98,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 	}
 
 	t.Run("log_file config", func(t *testing.T) {
-		params := Params{}.LogForDaemon("TEST", "log_file", "unused")
+		params := LogForDaemon("TEST", "log_file", "unused")
 		g := makeGetter()
 		g.strs["log_file"] = "/foo/bar"
 		require.Equal(t, "TEST", params.LoggerName)
@@ -111,7 +111,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 	})
 
 	t.Run("log_file default", func(t *testing.T) {
-		params := Params{}.LogForDaemon("TEST", "log_file", "/default/log")
+		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.strs["log_file"] = ""
 		require.Equal(t, "TEST", params.LoggerName)
@@ -124,7 +124,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 	})
 
 	t.Run("disable_file_logging", func(t *testing.T) {
-		params := Params{}.LogForDaemon("TEST", "log_file", "/default/log")
+		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.bools["disable_file_logging"] = true
 		require.Equal(t, "TEST", params.LoggerName)
@@ -137,7 +137,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 	})
 
 	t.Run("log to syslog", func(t *testing.T) {
-		params := Params{}.LogForDaemon("TEST", "log_file", "/default/log")
+		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.bools["log_to_syslog"] = true
 		require.Equal(t, "TEST", params.LoggerName)
@@ -150,7 +150,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 	})
 
 	t.Run("log to syslog with uri", func(t *testing.T) {
-		params := Params{}.LogForDaemon("TEST", "log_file", "/default/log")
+		params := LogForDaemon("TEST", "log_file", "/default/log")
 		g := makeGetter()
 		g.bools["log_to_syslog"] = true
 		g.strs["syslog_uri"] = "test:///"
@@ -165,7 +165,7 @@ func TestLogForDaemon_linux(t *testing.T) {
 }
 
 func TestLogToFile(t *testing.T) {
-	params := Params{}.LogForOneShot("TEST", "trace", true)
+	params := LogForOneShot("TEST", "trace", true)
 	params.LogToFile("/some/file")
 	g := &getter{}
 
