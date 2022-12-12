@@ -57,7 +57,7 @@ type PdhCounter interface {
 	AddToQuery(*PdhQuery) error
 
 	// Given the result of PdhCounter.AddToQuery, should update initError and initFailCount
-	CheckInitError(error) error
+	SetInitError(error) error
 
 	// Calls PdhRemoveCounter and updates internal state (handle field)
 	Remove() error
@@ -126,7 +126,7 @@ func (counter *pdhCounter) ShouldInit() bool {
 	return true
 }
 
-func (counter *pdhCounter) CheckInitError(err error) error {
+func (counter *pdhCounter) SetInitError(err error) error {
 	if err == nil {
 		counter.initError = nil
 		return nil
@@ -176,7 +176,7 @@ func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
 // Counters should implement PdhCounter.AddToQuery to override init logic
 func AddToQuery(query *PdhQuery, counter PdhCounter) error {
 	err := counter.AddToQuery(query)
-	return counter.CheckInitError(err)
+	return counter.SetInitError(err)
 }
 
 func (query *PdhQuery) AddCounter(counter PdhCounter) {
