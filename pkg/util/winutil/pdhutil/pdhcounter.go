@@ -150,7 +150,7 @@ func (counter *pdhCounter) Remove() error {
 		return fmt.Errorf("Counter is not initialized")
 	}
 
-	pdherror := PdhRemoveCounter(counter.handle)
+	pdherror := pfnPdhRemoveCounter(counter.handle)
 	if ERROR_SUCCESS != pdherror {
 		return fmt.Errorf("RemoveCounter failed: %#x", pdherror)
 	}
