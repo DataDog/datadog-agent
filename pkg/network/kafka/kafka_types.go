@@ -15,7 +15,6 @@ package kafka
 import "C"
 
 type kafkaConnTuple C.conn_tuple_t
-type kafkaBatchState C.kafka_batch_state_t
 
 type ebpfKafkaTx C.kafka_transaction_t
 type kafkaBatch C.kafka_batch_t

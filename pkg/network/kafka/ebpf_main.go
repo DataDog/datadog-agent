@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	kafkaInFlightMap                = "kafka_in_flight"
 	kafkaBatchesMap                 = "kafka_batches"
 	kafkaBatchStateMap              = "kafka_batch_state"
 	kafkaBatchEvents                = "kafka_batch_events"
@@ -48,7 +47,6 @@ type ebpfProgram struct {
 	*manager.Manager
 	cfg      *config.Config
 	bytecode bytecode.AssetReader
-	offsets  []manager.ConstantEditor
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
@@ -64,7 +62,7 @@ var tailCalls = []manager.TailCallRoute{
 	},
 }
 
-func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor) (*ebpfProgram, error) {
+func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 	bc, err := getBytecode(c)
 	if err != nil {
 		return nil, err
@@ -73,7 +71,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor) (*ebpfPr
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
-			{Name: kafkaInFlightMap},
 			{Name: kafkaLastTCPSeqPerConnectionMap},
 			{Name: kafkaBatchesMap},
 			{Name: kafkaBatchStateMap},
@@ -112,7 +109,6 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor) (*ebpfPr
 		Manager:                mgr,
 		bytecode:               bc,
 		cfg:                    c,
-		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
 	}
 
@@ -133,11 +129,6 @@ func (e *ebpfProgram) Init() error {
 			Max: math.MaxUint64,
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
-			kafkaInFlightMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
 			kafkaLastTCPSeqPerConnectionMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
@@ -166,7 +157,6 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
-		ConstantEditors: e.offsets,
 		VerifierOptions: ebpf.CollectionOptions{
 			Programs: ebpf.ProgramOptions{
 				// LogSize is the size of the log buffer given to the verifier. Give it a big enough (2 * 1024 * 1024)

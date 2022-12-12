@@ -2,15 +2,12 @@
 #include "tracer.h"
 #include "bpf_helpers.h"
 #include "ip.h"
-#include "ipv6.h"
+#include "port_range.h"
+
 #include "kafka/kafka-maps.h"
 #include "kafka/kafka-types.h"
 #include "kafka/kafka-buffer.h"
 #include "kafka/kafka.h"
-#include "sockfd.h"
-#include "tags-types.h"
-#include "sock.h"
-#include "port_range.h"
 
 // This entry point is needed to bypass a memory limit on socket filters
 // See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues

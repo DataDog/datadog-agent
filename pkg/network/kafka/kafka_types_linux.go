@@ -14,10 +14,6 @@ type kafkaConnTuple struct {
 	Pid      uint32
 	Metadata uint32
 }
-type kafkaBatchState struct {
-	Idx      uint64
-	To_flush uint64
-}
 
 type ebpfKafkaTx struct {
 	Tup                                kafkaConnTuple

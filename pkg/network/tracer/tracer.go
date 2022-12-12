@@ -834,7 +834,7 @@ func newKafkaMonitor(c *config.Config, offsets []manager.ConstantEditor) *kafka.
 		return nil
 	}
 
-	monitor, err := kafka.NewMonitor(c, offsets)
+	monitor, err := kafka.NewMonitor(c)
 	if err != nil {
 		log.Errorf("could not instantiate kafka monitor: %s", err)
 		return nil

@@ -51,8 +51,8 @@ type Monitor struct {
 }
 
 // NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor) (*Monitor, error) {
-	mgr, err := newEBPFProgram(c, offsets)
+func NewMonitor(c *config.Config) (*Monitor, error) {
+	mgr, err := newEBPFProgram(c)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up kafka ebpf program: %s", err)
 	}
