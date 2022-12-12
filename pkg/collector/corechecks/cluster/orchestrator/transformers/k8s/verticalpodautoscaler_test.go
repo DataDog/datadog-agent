@@ -130,12 +130,12 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 						{
 							ContainerName: "TestContainer",
 							Mode:          string(mode),
-							MinAllowed: &model.ResourceMetrics{
+							MinAllowed: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"cpu": float64(12345),
 								},
 							},
-							MaxAllowed: &model.ResourceMetrics{
+							MaxAllowed: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"memory": float64(6789),
 								},
@@ -150,22 +150,22 @@ func TestExtractVerticalPodAutoscaler(t *testing.T) {
 					Recommendations: []*model.ContainerRecommendations{
 						{
 							ContainerName: "TestContainer",
-							Target: &model.ResourceMetrics{
+							Target: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"cpu": float64(2),
 								},
 							},
-							LowerBound: &model.ResourceMetrics{
+							LowerBound: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"cpu": float64(1),
 								},
 							},
-							UpperBound: &model.ResourceMetrics{
+							UpperBound: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"cpu": float64(3),
 								},
 							},
-							UncappedTarget: &model.ResourceMetrics{
+							UncappedTarget: &model.ResourceList{
 								MetricValues: map[string]float64{
 									"cpu": float64(4),
 								},

@@ -48,8 +48,8 @@ func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.Containe
 	for _, policy := range p.ContainerPolicies {
 		m := model.ContainerResourcePolicy{
 			ContainerName:      policy.ContainerName,
-			MinAllowed:         extractResourceMetrics(&policy.MinAllowed),
-			MaxAllowed:         extractResourceMetrics(&policy.MaxAllowed),
+			MinAllowed:         extractResourceList(&policy.MinAllowed),
+			MaxAllowed:         extractResourceList(&policy.MaxAllowed),
 			ControlledResource: extractControlledResources(policy.ControlledResources),
 		}
 		if policy.Mode != nil {
@@ -63,11 +63,11 @@ func extractContainerResourcePolicies(p *v1.PodResourcePolicy) []*model.Containe
 	return policies
 }
 
-// extractResourceMetrics converts Kuberentes ResourceLists to our protobuf model
+// extractResourceList converts Kuberentes ResourceLists to our protobuf model
 // https://github.com/kubernetes/api/blob/v0.23.8/core/v1/types.go#L5176
-func extractResourceMetrics(rl *corev1.ResourceList) *model.ResourceMetrics {
+func extractResourceList(rl *corev1.ResourceList) *model.ResourceList {
 	if rl == nil {
-		return &model.ResourceMetrics{}
+		return &model.ResourceList{}
 	}
 
 	mv := map[string]float64{}
@@ -79,7 +79,7 @@ func extractResourceMetrics(rl *corev1.ResourceList) *model.ResourceMetrics {
 			mv[string(name)] = quantity.ToDec().AsApproximateFloat64()
 		}
 	}
-	return &model.ResourceMetrics{
+	return &model.ResourceList{
 		MetricValues: mv,
 	}
 }
@@ -123,10 +123,10 @@ func extractContainerRecommendations(cr []v1.RecommendedContainerResources) []*m
 	for _, r := range cr {
 		rec := model.ContainerRecommendations{
 			ContainerName:  r.ContainerName,
-			Target:         extractResourceMetrics(&r.Target),
-			LowerBound:     extractResourceMetrics(&r.LowerBound),
-			UpperBound:     extractResourceMetrics(&r.UpperBound),
-			UncappedTarget: extractResourceMetrics(&r.UncappedTarget),
+			Target:         extractResourceList(&r.Target),
+			LowerBound:     extractResourceList(&r.LowerBound),
+			UpperBound:     extractResourceList(&r.UpperBound),
+			UncappedTarget: extractResourceList(&r.UncappedTarget),
 		}
 		recs = append(recs, &rec)
 	}
