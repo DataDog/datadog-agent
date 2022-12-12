@@ -57,6 +57,15 @@ func TestDisablingDNSInspection(t *testing.T) {
 }
 
 func TestEnableKafkaMonitoring(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		cfg := New()
+
+		assert.False(t, cfg.EnableKafkaMonitoring)
+	})
+
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
