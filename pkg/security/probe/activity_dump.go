@@ -576,6 +576,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		return node
 	}
 
+	// drop processes with abnormal paths
+	if entry.GetPathResolutionError() != "" {
+		return node
+	}
+
 	// look for a ProcessActivityNode by process cookie
 	if entry.Cookie > 0 {
 		var found bool
@@ -1104,6 +1109,11 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 		filePath = event.ResolveFilePath(fileEvent)
 	} else {
 		filePath = fileEvent.PathnameStr
+	}
+
+	// drop file events with abnormal paths
+	if event != nil && event.GetPathResolutionError() != nil {
+		return false
 	}
 
 	parent, nextParentIndex := extractFirstParent(filePath)
