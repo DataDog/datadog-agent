@@ -56,6 +56,32 @@ func TestDisablingDNSInspection(t *testing.T) {
 	})
 }
 
+func TestEnableKafkaMonitoring(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableKafka.yaml")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableKafkaMonitoring)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		newConfig()
+		defer restoreGlobalConfig()
+
+		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_KAFKA_MONITORING", "true")
+		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_KAFKA_MONITORING")
+		_, err := sysconfig.New("")
+		require.NoError(t, err)
+		cfg := New()
+
+		assert.True(t, cfg.EnableKafkaMonitoring)
+	})
+}
+
 func TestEnableHTTPMonitoring(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		newConfig()
