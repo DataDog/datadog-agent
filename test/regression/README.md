@@ -24,7 +24,7 @@ The structure of each case is as follows:
   `Dockerfile` above at `/etc/lading`.
 * `agent/` -- __Required__ This is the configuration directory of your
   program. Will be mounted read-only in the container build from `Dockerfile`
-  above at `/etc/agent`.
+  above at `/etc/datadog-agent`.
 
 [Vector]: https://github.com/vectordotdev/vector/tree/master/regression
 [lading]: https://github.com/DataDog/lading
