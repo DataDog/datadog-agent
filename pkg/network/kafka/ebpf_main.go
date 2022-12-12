@@ -46,10 +46,9 @@ const (
 
 type ebpfProgram struct {
 	*manager.Manager
-	cfg        *config.Config
-	bytecode   bytecode.AssetReader
-	offsets    []manager.ConstantEditor
-	mapCleaner *ddebpf.MapCleaner
+	cfg      *config.Config
+	bytecode bytecode.AssetReader
+	offsets  []manager.ConstantEditor
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
@@ -186,7 +185,6 @@ func (e *ebpfProgram) Start() error {
 }
 
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
 	e.batchCompletionHandler.Stop()
 	return err
