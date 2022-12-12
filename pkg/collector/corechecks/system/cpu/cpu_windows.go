@@ -101,7 +101,7 @@ func (counter *processorPDHCounter) addToQueryWithExtraChecks(query *pdhutil.Pdh
 	}
 	defer func() {
 		if err != nil {
-			// PdhAddEnglishCounter failed, restore original object name
+			// failed, restore original object name
 			counter.ObjectName = origObjectName
 			// Remove the counter from the query
 			tmpErr := counter.Remove()
