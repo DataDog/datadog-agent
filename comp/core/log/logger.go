@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/internal"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +19,7 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-func newLogger(params internal.BundleParams, config config.Component) (Component, error) {
+func newLogger(params Params, config config.Component) (Component, error) {
 	if params.LogLevelFn == nil {
 		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
 	}

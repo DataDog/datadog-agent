@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package internal
+package log
 
 import (
 	"runtime"
@@ -11,66 +11,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// BundleParams defines the parameters for this bundle.
-//
-// Logs-related parameters are implemented as unexported fields containing
-// callbacks.  These fields can be set with the `LogXxx()` methods, which
-// return the updated BundleParams.  One of `LogForOneShot` or `LogForDaemon`
-// must be called.
-type BundleParams struct {
-	ConfigParams
-	LogParams
-}
-
-// ConfigParams defines the parameters for the config component.
-type ConfigParams struct {
-	// ConfFilePath is the path at which to look for configuration, usually
-	// given by the --cfgpath command-line flag.
-	ConfFilePath string
-
-	// ConfigName is the root of the name of the configuration file.  The
-	// comp/core/config component will search for a file with this name
-	// in ConfFilePath, using a variety of extensions.  The default is
-	// "datadog".
-	ConfigName string
-
-	// SysProbeConfFilePath is the path at which to look for system-probe
-	// configuration, usually given by --sysprobecfgpath.  This is not used
-	// unless ConfigLoadSysProbe is true.
-	SysProbeConfFilePath string
-
-	// ConfigLoadSysProbe determines whether to read the system-probe.yaml into
-	// the component's config data.
-	ConfigLoadSysProbe bool
-
-	// SecurityAgentConfigFilePaths are the paths at which to look for security-aegnt
-	// configuration, usually given by the --cfgpath command-line flag.
-	SecurityAgentConfigFilePaths []string
-
-	// ConfigLoadSecurityAgent determines whether to read the config from
-	// SecurityAgentConfigFilePaths or from ConfFilePath.
-	ConfigLoadSecurityAgent bool
-
-	// ConfigLoadSecrets determines whether secrets in the configuration file
-	// should be evaluated.  This is typically false for one-shot commands.
-	ConfigLoadSecrets bool
-
-	// ConfigMissingOK determines whether it is a fatal error if the config
-	// file does not exist.
-	ConfigMissingOK bool
-
-	// DefaultConfPath determines the default configuration path.
-	// if DefaultConfPath is empty, then no default configuration path is used.
-	DefaultConfPath string
-}
-
-// LogParams defines the parameters for this log component.
+// Params defines the parameters for this log component.
 //
 // Logs-related parameters are implemented as unexported fields containing
 // callbacks.  These fields can be set with the `LogXxx()` methods, which
 // return the updated LogParams.  One of `LogForOneShot` or `LogForDaemon`
 // must be called.
-type LogParams struct {
+type Params struct {
 	// LoggerName is the name that appears in the logfile
 	LoggerName string
 
@@ -111,7 +58,7 @@ type configGetter interface {
 //
 // Otherwise, file logging is disabled, syslog is disabled, console logging is
 // enabled, and JSON formatting is disabled.
-func (params BundleParams) LogForOneShot(loggerName, level string, overrideFromEnv bool) BundleParams {
+func (params Params) LogForOneShot(loggerName, level string, overrideFromEnv bool) Params {
 	params.LoggerName = loggerName
 	if overrideFromEnv {
 		params.LogLevelFn = func(configGetter) string { return config.GetEnvDefault("DD_LOG_LEVEL", level) }
@@ -140,7 +87,7 @@ func (params BundleParams) LogForOneShot(loggerName, level string, overrideFromE
 //
 // Console logging is enabled if `log_to_console` is set.  Lots are formatted
 // as JSON if `log_format_json` is set.
-func (params BundleParams) LogForDaemon(loggerName, logFileConfig, defaultLogFile string) BundleParams {
+func (params Params) LogForDaemon(loggerName, logFileConfig, defaultLogFile string) Params {
 	params.LoggerName = loggerName
 	params.LogLevelFn = func(g configGetter) string { return g.GetString("log_level") }
 	params.LogFileFn = func(g configGetter) string {
@@ -178,7 +125,6 @@ func (params BundleParams) LogForDaemon(loggerName, logFileConfig, defaultLogFil
 
 // LogToFile modifies the parameters to set the destination log file, overriding any
 // previous logfile parameter.
-func (params BundleParams) LogToFile(logFile string) BundleParams {
+func (params *Params) LogToFile(logFile string) {
 	params.LogFileFn = func(configGetter) string { return logFile }
-	return params
 }

@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -28,7 +27,7 @@ func TestRealConfig(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	fxutil.Test(t, fx.Options(
-		fx.Supply(internal.ConfigParams{
+		fx.Supply(Params{
 			ConfigMissingOK: true,
 			ConfFilePath:    dir,
 		}),
@@ -46,7 +45,7 @@ func TestMockConfig(t *testing.T) {
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
 	fxutil.Test(t, fx.Options(
-		fx.Supply(internal.BundleParams{}),
+		fx.Supply(Params{}),
 		MockModule,
 	), func(config Component) {
 		// values aren't set from env..

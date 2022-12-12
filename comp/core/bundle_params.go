@@ -7,13 +7,23 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/comp/core/internal"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
 // BundleParams defines the parameters for this bundle.
-type BundleParams = internal.BundleParams
-type ConfigParams = internal.ConfigParams
-type LogParams = internal.LogParams
+//
+// Logs-related parameters are implemented as unexported fields containing
+// callbacks.  These fields can be set with the `LogXxx()` methods, which
+// return the updated BundleParams.  One of `LogForOneShot` or `LogForDaemon`
+// must be called.
+type BundleParams struct {
+	ConfigParams
+	LogParams
+}
+
+type ConfigParams = config.Params
+type LogParams = log.Params
 
 // CreateAgentBundleParams creates a new BundleParams for the Core Agent
 func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, options ...func(*BundleParams)) BundleParams {
@@ -26,7 +36,7 @@ func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, option
 // CreateBundleParams creates a new BundleParams
 func CreateBundleParams(defaultConfPath string, options ...func(*BundleParams)) BundleParams {
 	bundleParams := BundleParams{
-		ConfigParams: internal.ConfigParams{DefaultConfPath: defaultConfPath},
+		ConfigParams: config.Params{DefaultConfPath: defaultConfPath},
 	}
 	for _, o := range options {
 		o(&bundleParams)
@@ -78,18 +88,35 @@ func WithConfigLoadSecrets(configLoadSecrets bool) func(*BundleParams) {
 
 func WithLogForOneShot(loggerName, level string, overrideFromEnv bool) func(*BundleParams) {
 	return func(b *BundleParams) {
-		*b = b.LogForOneShot(loggerName, level, overrideFromEnv)
+		b.LogParams = b.LogParams.LogForOneShot(loggerName, level, overrideFromEnv)
 	}
 }
 
 func WithLogForDaemon(loggerName, logFileConfig, defaultLogFile string) func(*BundleParams) {
 	return func(b *BundleParams) {
-		*b = b.LogForDaemon(loggerName, logFileConfig, defaultLogFile)
+		b.LogParams = b.LogParams.LogForDaemon(loggerName, logFileConfig, defaultLogFile)
 	}
 }
 
 func WithLogToFile(logFile string) func(*BundleParams) {
 	return func(b *BundleParams) {
-		*b = b.LogToFile(logFile)
+		b.LogParams.LogToFile(logFile)
 	}
+}
+
+// These functions are temporary. They are there to supply `BundleParams“ and not `log.Params“ in the following line.
+//
+//	fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false).LogForOneShot(globalParams.LoggerName, "off", true)),
+func (params BundleParams) LogForOneShot(loggerName, level string, overrideFromEnv bool) BundleParams {
+	params.LogParams = params.LogParams.LogForOneShot(loggerName, level, overrideFromEnv)
+	return params
+}
+
+func (params BundleParams) LogForDaemon(loggerName, logFileConfig, defaultLogFile string) BundleParams {
+	params.LogParams = params.LogParams.LogForDaemon(loggerName, logFileConfig, defaultLogFile)
+	return params
+}
+
+func (params *BundleParams) LogToFile(logFile string) {
+	params.LogParams.LogToFile(logFile)
 }
