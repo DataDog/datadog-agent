@@ -19,7 +19,7 @@ build do
   mkdir "#{install_dir}/embedded/nikos/embedded/bin"
   mkdir "#{install_dir}/embedded/nikos/embedded/lib"
 
-  copy 'pkg/network/java/USMAgent.jar', "#{install_dir}/embedded/share/system-probe/java/"
+  copy 'pkg/network/java/agent-usm-7.43.0.jar', "#{install_dir}/embedded/share/system-probe/java/"
 
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
     copy "#{ENV['SYSTEM_PROBE_BIN']}/system-probe", "#{install_dir}/embedded/bin/system-probe"
