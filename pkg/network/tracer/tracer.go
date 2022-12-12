@@ -364,6 +364,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
+	c.ContainerID = nil
+
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	if ts.IsZero() {
 		return
