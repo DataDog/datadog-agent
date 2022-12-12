@@ -22,13 +22,15 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductASMFeatures, ProductASMDD, ProductASMData}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASMFeatures, ProductASMDD, ProductASMData}
 
 const (
 	// ProductAPMSampling is the apm sampling product
 	ProductAPMSampling = "APM_SAMPLING"
 	// ProductCWSDD is the cloud workload security product managed by datadog employees
 	ProductCWSDD = "CWS_DD"
+	// ProductCWSCustom is the cloud workload security product managed by datadog customers
+	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
 	ProductASMFeatures = "ASM_FEATURES"
 	// ProductASMDD is the application security monitoring product managed by datadog employees
@@ -50,6 +52,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseASMFeaturesConfig(raw, metadata)
 	case ProductCWSDD:
 		c, err = parseConfigCWSDD(raw, metadata)
+	case ProductCWSCustom:
+		c, err = parseConfigCWSCustom(raw, metadata)
 	case ProductASMDD:
 		c, err = parseConfigASMDD(raw, metadata)
 	case ProductASMData:
@@ -118,6 +122,39 @@ func (r *Repository) CWSDDConfigs() map[string]ConfigCWSDD {
 	for path, conf := range configs {
 		// We control this, so if this has gone wrong something has gone horribly wrong
 		typed, ok := conf.(ConfigCWSDD)
+		if !ok {
+			panic("unexpected config stored as CWSDD Config")
+		}
+
+		typedConfigs[path] = typed
+	}
+
+	return typedConfigs
+}
+
+// ConfigCWSCustom is a deserialized CWS Custom configuration file along with its
+// associated remote config metadata
+type ConfigCWSCustom struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigCWSCustom(data []byte, metadata Metadata) (ConfigCWSCustom, error) {
+	return ConfigCWSCustom{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// CWSCustomConfigs returns the currently active CWSCustom config files
+func (r *Repository) CWSCustomConfigs() map[string]ConfigCWSCustom {
+	typedConfigs := make(map[string]ConfigCWSCustom)
+
+	configs := r.getConfigs(ProductCWSCustom)
+
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(ConfigCWSCustom)
 		if !ok {
 			panic("unexpected config stored as CWSDD Config")
 		}
