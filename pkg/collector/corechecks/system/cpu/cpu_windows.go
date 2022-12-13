@@ -114,7 +114,7 @@ func (counter *processorPDHCounter) addToQueryWithExtraChecks(query *pdhutil.Pdh
 	// Add succeeded, check if the counter is working (see above comment)
 	// Must call PdhCollectQueryData() twice before GetValue() will succeed.
 	// Ignoring PdhCollectQueryData() return value because its success is determined by the query
-	// and not specifically this counter, additonally if either call fails then GetValue() will too.
+	// and not specifically this counter, additionally if either call fails then GetValue() will too.
 	_ = pdhutil.PdhCollectQueryData(query.Handle)
 	_ = pdhutil.PdhCollectQueryData(query.Handle)
 	_, err = counter.GetValue()
