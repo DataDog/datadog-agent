@@ -7,6 +7,8 @@ package trace
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -71,7 +73,7 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.OTLPReceiver.BindHost = "127.0.0.1"
-			tc.OTLPReceiver.HTTPPort = 4318
+			tc.OTLPReceiver.HTTPPort = otlpReceiverPort()
 			tc.ReceiverPort = 0
 			tc.SynchronousFlushing = true
 			s.ta = agent.NewAgent(context, tc)
@@ -90,6 +92,15 @@ func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, executionCon
 			go s.ta.Run()
 		}
 	}
+}
+
+func otlpReceiverPort() int {
+	if port := os.Getenv("DD_OTLP_HTTP_PORT"); port != "" {
+		if i, err := strconv.Atoi(port); err == nil {
+			return i
+		}
+	}
+	return 4318
 }
 
 // Flush performs a synchronous flushing in the trace agent
