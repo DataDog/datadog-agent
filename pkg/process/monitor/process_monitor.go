@@ -127,6 +127,7 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 		for _, mmap := range *mmaps {
 			if c.Regex.MatchString(mmap.Path) {
 				p.enqueueCallback(c, pid)
+				break
 			}
 		}
 	}
