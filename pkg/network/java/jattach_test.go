@@ -98,6 +98,8 @@ func TestInject(t *testing.T) {
 		t.Run(tname, func(t *testing.T) {
 			p := ""
 			if tname == "namespace" {
+				// running the tagert process in a new PID namespace
+				// and testing if the test/plaform give enough permission to do that
 				p = "unshare -p --fork "
 				_, err = testutil.RunCommand(p + "id")
 				if err != nil {
