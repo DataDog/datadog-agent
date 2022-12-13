@@ -14,7 +14,7 @@ append_timestamp false
 # Do not set this environment variable if building locally.
 # This cache is only necessary because Datadog is building
 # the agent over and over again in a highly distributed environment.
-if ENV["S3_OMNIBUS_CACHE_BUCKET"]
+if ENV["S3_OMNIBUS_CACHE_BUCKET"] && ENV["USE_S3_CACHING"]
   use_s3_caching true
   s3_bucket ENV["S3_OMNIBUS_CACHE_BUCKET"]
   s3_endpoint "https://s3.amazonaws.com"
