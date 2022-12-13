@@ -55,11 +55,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
-				fx.Supply(core.CreateBundleParams(
-					globalParams.DefaultConfPath,
-					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
-					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(command.LoggerName, "info", true)),
+				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
 		},

@@ -21,6 +21,14 @@ func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, option
 	return params
 }
 
+// CreateSecurityAgentBundleParams creates a new BundleParams for the Security Agent
+func CreateSecurityAgentBundleParams(securityAgentConfigFilePaths []string, options ...func(*BundleParams)) BundleParams {
+	params := CreateBundleParams(common.DefaultConfPath, options...)
+	params.ConfigLoadSecurityAgent = true
+	params.SecurityAgentConfigFilePaths = securityAgentConfigFilePaths
+	return params
+}
+
 // CreateBundleParams creates a new BundleParams
 func CreateBundleParams(defaultConfPath string, options ...func(*BundleParams)) BundleParams {
 	bundleParams := BundleParams{
@@ -47,18 +55,6 @@ func WithConfigMissingOK(v bool) func(*BundleParams) {
 func WithConfigLoadSysProbe(v bool) func(*BundleParams) {
 	return func(b *BundleParams) {
 		b.ConfigLoadSysProbe = v
-	}
-}
-
-func WithSecurityAgentConfigFilePaths(securityAgentConfigFilePaths []string) func(*BundleParams) {
-	return func(b *BundleParams) {
-		b.SecurityAgentConfigFilePaths = securityAgentConfigFilePaths
-	}
-}
-
-func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*BundleParams) {
-	return func(b *BundleParams) {
-		b.ConfigLoadSecurityAgent = configLoadSecurityAgent
 	}
 }
 
