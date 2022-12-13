@@ -162,9 +162,25 @@ func (pm *ProcessMonitor) Stop() {
 	processMonitorLock.Unlock()
 }
 
+// GetProcessMonitor() create a monitor (only once) that register to netlink process events.
+//
+// This monitor can monitor.Subscribe(callback, filter) callback on particual event
+// like process EXEC, EXIT. The callback will be called when the filter will match.
+// Filter can be applied on :
+//   process name (NAME)
+//   /proc/pid/smaps file (MAPFILE)
+//   by default ANY is applied
+//
+// Typical initialization:
+// mon := GetProcessMonitor()
+// mon.Subcribe(callback)
+// mon.InitWithAllCurrentProcess()
+//
+// note: o GetProcessMonitor() will always return the same instance
+//         as we can only regiter once with netlink process event
+//       o mon.Subcribe() can be called at anytime, event later
+//
 func GetProcessMonitor() *ProcessMonitor {
-	// we want only one instance as
-	// netlink.ProcEventMonitor() netlink doesn't support multiple connections
 	processMonitorLock.RLock()
 	if processMonitor != nil {
 		defer processMonitorLock.RUnlock()
