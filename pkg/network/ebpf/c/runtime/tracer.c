@@ -421,7 +421,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     }
     struct sock sk = args.sock;
     
-    log_debug("kprobe/tcp_retransmit\n");
+    log_debug("kretprobe/tcp_retransmit\n");
     return handle_retransmit_retrans_out(sk);
 }
 
