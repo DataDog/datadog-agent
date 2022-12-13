@@ -155,7 +155,9 @@ func (m *Monitor) Start() error {
 	}()
 
 	if m.processMonitor != nil {
-		m.processMonitor.Initialize()
+		if err := m.processMonitor.Initialize(); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -10,6 +10,7 @@ package monitor
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"runtime"
 	"sync"
@@ -74,7 +75,7 @@ func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32)
 
 // Initialize() will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
-func (pm *ProcessMonitor) Initialize() {
+func (pm *ProcessMonitor) Initialize() error {
 	fn := func(pid int) error {
 		for _, c := range pm.procEventCallbacks[EXEC] {
 			pm.evalEXECCallback(c, uint32(pid))
@@ -85,10 +86,11 @@ func (pm *ProcessMonitor) Initialize() {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
-		log.Errorf("process monitor init, scanning all process failed %s", err)
+		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
 	}
 	// enable events to be processed
 	pm.initializing = false
+	return nil
 }
 
 func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
@@ -180,7 +182,7 @@ func (pm *ProcessMonitor) Stop() {
 // Typical initialization:
 // mon := GetProcessMonitor()
 // mon.Subcribe(callback)
-// mon.InitWithAllCurrentProcess()
+// mon.Initialize()
 //
 // note: o GetProcessMonitor() will always return the same instance
 //         as we can only regiter once with netlink process event
