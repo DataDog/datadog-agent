@@ -517,18 +517,6 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 	return nil
 }
 
-func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
-	if conn.Type != network.TCP {
-		return
-	}
-
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.RTT = tcpStats.Rtt
-	conn.RTTVar = tcpStats.Rtt_var
-}
-
 // getTCPStats reads tcp related stats for the given ConnTuple
 func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, seen map[netebpf.ConnTuple]struct{}) bool {
 	if tuple.Type() != netebpf.TCP {
@@ -554,54 +542,4 @@ func (t *kprobeTracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnT
 
 	tuple.Pid = pid
 	return true
-}
-
-func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
-	*stats = network.ConnectionStats{
-		Pid:              t.Pid,
-		NetNS:            t.Netns,
-		Source:           t.SourceAddress(),
-		Dest:             t.DestAddress(),
-		SPort:            t.Sport,
-		DPort:            t.Dport,
-		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		LastUpdateEpoch:  s.Timestamp,
-		IsAssured:        s.IsAssured(),
-		Cookie:           s.Cookie,
-	}
-
-	if s.Protocol < uint8(network.MaxProtocols) {
-		stats.Protocol = network.ProtocolType(s.Protocol)
-	} else {
-		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
-	}
-
-	stats.Monotonic = network.StatCounters{
-		SentBytes:   s.Sent_bytes,
-		RecvBytes:   s.Recv_bytes,
-		SentPackets: s.Sent_packets,
-		RecvPackets: s.Recv_packets,
-	}
-
-	if t.Type() == netebpf.TCP {
-		stats.Type = network.TCP
-	} else {
-		stats.Type = network.UDP
-	}
-
-	switch t.Family() {
-	case netebpf.IPv4:
-		stats.Family = network.AFINET
-	case netebpf.IPv6:
-		stats.Family = network.AFINET6
-	}
-
-	switch s.ConnectionDirection() {
-	case netebpf.Incoming:
-		stats.Direction = network.INCOMING
-	case netebpf.Outgoing:
-		stats.Direction = network.OUTGOING
-	default:
-		stats.Direction = network.OUTGOING
-	}
 }
