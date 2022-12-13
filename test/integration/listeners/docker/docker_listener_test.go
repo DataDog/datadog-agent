@@ -58,7 +58,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		false,
 	)
 
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 	store.Start(context.Background())
 
 	tagger.SetDefaultTagger(local.NewTagger(store))

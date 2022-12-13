@@ -541,6 +541,56 @@ CWS logs have the following JSON schema:
             ],
             "description": "ModuleEventSerializer serializes a module event to JSON"
         },
+        "MountEvent": {
+            "properties": {
+                "mountpoint": {
+                    "$ref": "#/$defs/File"
+                },
+                "source": {
+                    "$ref": "#/$defs/File"
+                },
+                "mount_id": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "integer"
+                },
+                "parent_mount_id": {
+                    "type": "integer"
+                },
+                "bind_src_mount_id": {
+                    "type": "integer"
+                },
+                "device": {
+                    "type": "integer"
+                },
+                "fs_type": {
+                    "type": "string"
+                },
+                "mountpoint_path": {
+                    "type": "string"
+                },
+                "mountsource_path": {
+                    "type": "string"
+                },
+                "mountpoint_path_error": {
+                    "type": "string"
+                },
+                "mountsource_path_error": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "mount_id",
+                "group_id",
+                "parent_mount_id",
+                "bind_src_mount_id",
+                "device"
+            ],
+            "description": "MountEventSerializer serializes a mount event to JSON"
+        },
         "NetworkContext": {
             "properties": {
                 "device": {
@@ -1108,6 +1158,9 @@ CWS logs have the following JSON schema:
         "exit": {
             "$ref": "#/$defs/ExitEvent"
         },
+        "mount": {
+            "$ref": "#/$defs/MountEvent"
+        },
         "usr": {
             "$ref": "#/$defs/UserContext"
         },
@@ -1148,6 +1201,7 @@ CWS logs have the following JSON schema:
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
+| `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -1961,6 +2015,69 @@ CWS logs have the following JSON schema:
 | `loaded_from_memory` | indicates if a module was loaded from memory, as opposed to a file |
 
 
+## `MountEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "mountpoint": {
+            "$ref": "#/$defs/File"
+        },
+        "source": {
+            "$ref": "#/$defs/File"
+        },
+        "mount_id": {
+            "type": "integer"
+        },
+        "group_id": {
+            "type": "integer"
+        },
+        "parent_mount_id": {
+            "type": "integer"
+        },
+        "bind_src_mount_id": {
+            "type": "integer"
+        },
+        "device": {
+            "type": "integer"
+        },
+        "fs_type": {
+            "type": "string"
+        },
+        "mountpoint_path": {
+            "type": "string"
+        },
+        "mountsource_path": {
+            "type": "string"
+        },
+        "mountpoint_path_error": {
+            "type": "string"
+        },
+        "mountsource_path_error": {
+            "type": "string"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "mount_id",
+        "group_id",
+        "parent_mount_id",
+        "bind_src_mount_id",
+        "device"
+    ],
+    "description": "MountEventSerializer serializes a mount event to JSON"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [File](#file) |
+| [File](#file) |
+
 ## `NetworkContext`
 
 
@@ -2748,5 +2865,5 @@ CWS logs have the following JSON schema:
 
 
 
-[1]: /security_platform/cloud_workload_security/
-[2]: /security_platform/cloud_workload_security/agent_expressions
+[1]: /security/cloud_workload_security/
+[2]: /security/cloud_workload_security/agent_expressions

@@ -68,11 +68,11 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(config, initConfig integration.Data, source string) error {
+func (m *OOMKillCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	// TODO: Remove that hard-code and put it somewhere else
 	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
-	err := m.CommonConfigure(initConfig, config, source)
+	err := m.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

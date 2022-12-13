@@ -1,0 +1,59 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "mount.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "/schemas/container_event.json"
+        },
+        {
+            "$ref": "/schemas/host_event.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "mount": {
+                    "type": "object",
+                    "required": [
+                        "mountpoint",
+                        "mount_id",
+                        "parent_mount_id",
+                        "fs_type"
+                    ],
+                    "properties": {
+                        "mountpoint": {
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "path"
+                            ]
+                        },
+                        "mount_id": {
+                            "type": "integer"
+                        },
+                        "parent_mount_id": {
+                            "type": "integer"
+                        },
+                        "fs_type": {
+                            "type": "string"
+                        },
+                        "source": {
+                            "properties": {
+                                "path": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "mount"
+            ]
+        }
+    ]
+}

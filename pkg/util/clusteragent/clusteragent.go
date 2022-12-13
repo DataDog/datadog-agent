@@ -104,7 +104,7 @@ func GetClusterAgentClient() (DCAClientInterface, error) {
 func (c *DCAClient) init() error {
 	var err error
 
-	c.clusterAgentAPIEndpoint, err = getClusterAgentEndpoint()
+	c.clusterAgentAPIEndpoint, err = GetClusterAgentEndpoint()
 	if err != nil {
 		return err
 	}
@@ -199,12 +199,12 @@ func (c *DCAClient) initLeaderClient() {
 	c.leaderClient = newLeaderClient(c.clusterAgentAPIClient, c.clusterAgentAPIEndpoint)
 }
 
-// getClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
+// GetClusterAgentEndpoint provides a validated https endpoint from configuration keys in datadog.yaml:
 // 1st. configuration key "cluster_agent.url" (or the DD_CLUSTER_AGENT_URL environment variable),
 //      add the https prefix if the scheme isn't specified
 // 2nd. environment variables associated with "cluster_agent.kubernetes_service_name"
 //      ${dcaServiceName}_SERVICE_HOST and ${dcaServiceName}_SERVICE_PORT
-func getClusterAgentEndpoint() (string, error) {
+func GetClusterAgentEndpoint() (string, error) {
 	const configDcaURL = "cluster_agent.url"
 	const configDcaSvcName = "cluster_agent.kubernetes_service_name"
 

@@ -219,41 +219,6 @@ func (s StatCounters) IsZero() bool {
 	return s == StatCounters{}
 }
 
-// StatCountersByCookie stores StatCounters by unique cookie
-type StatCountersByCookie []*struct {
-	StatCounters
-	Cookie uint32
-}
-
-// Get returns a StatCounters object for a cookie
-func (s StatCountersByCookie) Get(cookie uint32) (StatCounters, bool) {
-	for _, c := range s {
-		if c.Cookie == cookie {
-			return c.StatCounters, true
-		}
-	}
-
-	return StatCounters{}, false
-}
-
-// Put adds or sets a StatCounters object for a cookie
-func (s *StatCountersByCookie) Put(cookie uint32, sc StatCounters) {
-	for _, c := range *s {
-		if c.Cookie == cookie {
-			c.StatCounters = sc
-			return
-		}
-	}
-
-	*s = append(*s, &struct {
-		StatCounters
-		Cookie uint32
-	}{
-		StatCounters: sc,
-		Cookie:       cookie,
-	})
-}
-
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
 	Source util.Address
@@ -262,22 +227,11 @@ type ConnectionStats struct {
 	IPTranslation *IPTranslation
 	Via           *Via
 
-	// Monotonic stores a list of StatCounters
-	// each identified by a unique "cookie"
-	//
-	// this is necessary because we use connection
-	// info like src/dst address/port to uniquely
-	// identify a connection and port reuse or
-	// races in the ebpf code may occur that would
-	// make conflicts in the stats per connection
-	// impossible to resolve/detect
-	//
-	// the "cookie" is generated in the ebpf code
-	// when we first create counters for a connection;
-	// see the get_conn_stats() function
-	Monotonic StatCountersByCookie
+	Monotonic StatCounters
 
 	Last StatCounters
+
+	Cookie uint32
 
 	// Last time the stats for this connection were updated
 	LastUpdateEpoch uint64
@@ -352,26 +306,6 @@ func (c ConnectionStats) IsShortLived() bool {
 	return c.Last.TCPEstablished >= 1 && c.Last.TCPClosed >= 1
 }
 
-// MonotonicSum returns the sum of all the monotonic stats
-func (c ConnectionStats) MonotonicSum() StatCounters {
-	var stc StatCounters
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-	}
-
-	return stc
-}
-
-func (c ConnectionStats) clone() ConnectionStats {
-	cl := c
-	cl.Monotonic = make(StatCountersByCookie, 0, len(c.Monotonic))
-	for _, s := range c.Monotonic {
-		cl.Monotonic.Put(s.Cookie, s.StatCounters)
-	}
-
-	return cl
-}
-
 const keyFmt = "p:%d|src:%s:%d|dst:%s:%d|f:%d|t:%d"
 
 // BeautifyKey returns a human readable byte key (used for debugging purposes)
@@ -397,7 +331,7 @@ func BeautifyKey(key string) string {
 	family := (raw[8] >> 4) & 0xf
 	typ := raw[8] & 0xf
 
-	// Finally source addr, dest addr
+	// source addr, dest addr
 	addrSize := 4
 	if ConnectionFamily(family) == AFINET6 {
 		addrSize = 16
@@ -431,31 +365,24 @@ func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname
 		)
 	}
 
-	var stc StatCounters
-	cookies := make([]uint32, 0, len(c.Monotonic))
-	for _, st := range c.Monotonic {
-		stc = stc.Add(st.StatCounters)
-		cookies = append(cookies, st.Cookie)
-	}
-
 	str += fmt.Sprintf("(%s) %s sent (+%s), %s received (+%s)",
 		c.Direction,
-		humanize.Bytes(stc.SentBytes), humanize.Bytes(c.Last.SentBytes),
-		humanize.Bytes(stc.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
+		humanize.Bytes(c.Monotonic.SentBytes), humanize.Bytes(c.Last.SentBytes),
+		humanize.Bytes(c.Monotonic.RecvBytes), humanize.Bytes(c.Last.RecvBytes),
 	)
 
 	if c.Type == TCP {
 		str += fmt.Sprintf(
 			", %d retransmits (+%d), RTT %s (± %s), %d established (+%d), %d closed (+%d)",
-			stc.Retransmits, c.Last.Retransmits,
+			c.Monotonic.Retransmits, c.Last.Retransmits,
 			time.Duration(c.RTT)*time.Microsecond,
 			time.Duration(c.RTTVar)*time.Microsecond,
-			stc.TCPEstablished, c.Last.TCPEstablished,
-			stc.TCPClosed, c.Last.TCPClosed,
+			c.Monotonic.TCPEstablished, c.Last.TCPEstablished,
+			c.Monotonic.TCPClosed, c.Last.TCPClosed,
 		)
 	}
 
-	str += fmt.Sprintf(", last update epoch: %d, cookies: %+v", c.LastUpdateEpoch, cookies)
+	str += fmt.Sprintf(", last update epoch: %d, cookie: %d", c.LastUpdateEpoch, c.Cookie)
 	str += fmt.Sprintf(", protocol: %v", c.Protocol)
 
 	return str
@@ -511,6 +438,7 @@ func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
 
 	n += laddr.WriteTo(buf[n:]) // 4 or 16 bytes
 	n += raddr.WriteTo(buf[n:]) // 4 or 16 bytes
+
 	return buf[:n]
 }
 

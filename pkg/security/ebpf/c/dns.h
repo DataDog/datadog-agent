@@ -49,8 +49,6 @@ struct bpf_map_def SEC("maps/dns_event") dns_event = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct dns_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct dns_event_t *get_dns_event() {

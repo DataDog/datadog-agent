@@ -11,9 +11,11 @@ package secrets
 import (
 	"fmt"
 	"os"
+	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -28,82 +30,64 @@ func checkRights(filename string, allowGroupExec bool) error {
 	}
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("secretBackendCommand %s does not exist", filename)
+			return fmt.Errorf("secretBackendCommand '%s' does not exist", filename)
 		}
+		return fmt.Errorf("unable to check permissions for secretBackendCommand '%s': %s", filename, err)
 	}
 
-	var fileDacl *winutil.Acl
-	err := winutil.GetNamedSecurityInfo(filename,
-		winutil.SE_FILE_OBJECT,
-		winutil.DACL_SECURITY_INFORMATION,
-		nil,
-		nil,
-		&fileDacl,
-		nil,
-		nil)
+	fileDacl, err := getACL(filename)
 	if err != nil {
-		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+		return fmt.Errorf("could not query ACLs for '%s': %s", filename, err)
 	}
 
 	var aclSizeInfo winutil.AclSizeInformation
 	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
 	if err != nil {
-		return fmt.Errorf("could not query ACLs for %s: %s", filename, err)
+		return fmt.Errorf("could not query ACLs for '%s': %s", filename, err)
 	}
 
 	// create the sids that are acceptable to us (local system account and
 	// administrators group)
-	var localSystem *windows.SID
-	err = windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
-		1, // local system has 1 valid subauth
-		windows.SECURITY_LOCAL_SYSTEM_RID,
-		0, 0, 0, 0, 0, 0, 0,
-		&localSystem)
+	localSystem, err := getLocalSystemSID()
 	if err != nil {
 		return fmt.Errorf("could not query Local System SID: %s", err)
 	}
 	defer windows.FreeSid(localSystem)
 
-	var administrators *windows.SID
-	err = windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
-		2, // administrators group has 2 valid subauths
-		windows.SECURITY_BUILTIN_DOMAIN_RID,
-		windows.DOMAIN_ALIAS_RID_ADMINS,
-		0, 0, 0, 0, 0, 0,
-		&administrators)
+	administrators, err := getAdministratorsSID()
 	if err != nil {
 		return fmt.Errorf("could not query Administrator SID: %s", err)
 	}
 	defer windows.FreeSid(administrators)
 
-	secretuser, err := winutil.GetSidFromUser()
+	secretUser, err := getSecretUserSID()
 	if err != nil {
-		return fmt.Errorf("could not get SID for current user: %s", err)
+		return err
 	}
 
 	bSecretUserExplicitlyAllowed := false
 	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
 		var pAce *winutil.AccessAllowedAce
 		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
-			return fmt.Errorf("Could not query a ACE on %s: %s", filename, err)
+			return fmt.Errorf("could not query a ACE on '%s': %s", filename, err)
 		}
 
 		compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
 		compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
 		compareIsAdministrators := windows.EqualSid(compareSid, administrators)
-		compareIsSecretUser := windows.EqualSid(compareSid, secretuser)
+		compareIsSecretUser := windows.EqualSid(compareSid, secretUser)
 
 		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
 			// if we're denying access to local system or administrators,
 			// it's wrong. Otherwise, any explicit access denied is OK
 			if compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser {
-				return fmt.Errorf("Invalid executable '%s': Can't deny access LOCAL_SYSTEM, Administrators or %s", filename, secretuser)
+				return fmt.Errorf("invalid executable '%s': explicit deny access for LOCAL_SYSTEM, Administrators or %s", filename, secretUser)
 			}
 			// otherwise, it's fine; deny access to whomever
 		}
 		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
 			if !(compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser) {
-				return fmt.Errorf("Invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretuser)
+				return fmt.Errorf("invalid executable '%s': other users/groups than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretUser)
 			}
 			if compareIsSecretUser {
 				bSecretUserExplicitlyAllowed = true
@@ -113,7 +97,191 @@ func checkRights(filename string, allowGroupExec bool) error {
 
 	if !bSecretUserExplicitlyAllowed {
 		// there was never an ACE explicitly allowing the secret user, so we can't use it
-		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", secretuser, filename)
+		return fmt.Errorf("'%s' user is not allowed to execute secretBackendCommand '%s'", secretUser, filename)
 	}
 	return nil
+}
+
+// getACL retrieves the DACL for the file at filename path
+func getACL(filename string) (*winutil.Acl, error) {
+	var fileDacl *winutil.Acl
+	err := winutil.GetNamedSecurityInfo(filename,
+		winutil.SE_FILE_OBJECT,
+		winutil.DACL_SECURITY_INFORMATION,
+		nil,
+		nil,
+		&fileDacl,
+		nil,
+		nil)
+
+	return fileDacl, err
+}
+
+// getLocalSystemSID returns the SID of the Local System account
+func getLocalSystemSID() (*windows.SID, error) {
+	var localSystem *windows.SID
+	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		1, // local system has 1 valid subauth
+		windows.SECURITY_LOCAL_SYSTEM_RID,
+		0, 0, 0, 0, 0, 0, 0,
+		&localSystem)
+
+	return localSystem, err
+}
+
+// getAdministratorsSID returns the SID of the built-in Administrators group principal
+func getAdministratorsSID() (*windows.SID, error) {
+	var administrators *windows.SID
+	err := windows.AllocateAndInitializeSid(&windows.SECURITY_NT_AUTHORITY,
+		2, // administrators group has 2 valid subauths
+		windows.SECURITY_BUILTIN_DOMAIN_RID,
+		windows.DOMAIN_ALIAS_RID_ADMINS,
+		0, 0, 0, 0, 0, 0,
+		&administrators)
+	return administrators, err
+}
+
+// getSecretUserSID returns the SID of the user running the secret backend
+func getSecretUserSID() (*windows.SID, error) {
+	localSystem, err := getLocalSystemSID()
+	if err != nil {
+		return nil, fmt.Errorf("could not query Local System SID: %s", err)
+	}
+	defer windows.FreeSid(localSystem)
+
+	currentUser, err := winutil.GetSidFromUser()
+	if err != nil {
+		return nil, fmt.Errorf("could not get SID for current user: %s", err)
+	}
+
+	secretUser := currentUser
+
+	elevated, err := winutil.IsProcessElevated()
+	if err != nil {
+		return nil, fmt.Errorf("unable to determine if running elevated: %s", err)
+	}
+
+	if elevated || currentUser.Equals(localSystem) {
+		ddUser, err := getDDAgentUserSID()
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve SID for ddagentuser user: %s", err)
+		}
+		secretUser = ddUser
+	}
+	return secretUser, nil
+}
+
+// getDDAgentUserSID returns the SID of the ddagentuser configured at installation time
+var getDDAgentUserSID = func() (*windows.SID, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\Datadog\Datadog Agent`, registry.QUERY_VALUE)
+	if err != nil {
+		return nil, fmt.Errorf("could not open installer registry key: %s", err)
+	}
+	defer k.Close()
+
+	user, _, err := k.GetStringValue("installedUser")
+	if err != nil {
+		return nil, fmt.Errorf("could not read installedUser in registry: %s", err)
+	}
+
+	domain, _, err := k.GetStringValue("installedDomain")
+	if err != nil {
+		return nil, fmt.Errorf("could not read installedDomain in registry: %s", err)
+	}
+
+	sid, _, _, err := windows.LookupSID(domain, user)
+	return sid, err
+}
+
+// checkConfigFilePermissions validates that a config file has supported permissions when using secret_backend_command_sha256 hash
+var checkConfigFilePermissions = func(filename string) error {
+	if _, err := os.Stat(filename); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("config file '%s' does not exist", filename)
+		}
+		return fmt.Errorf("unable to check permissions for config file '%s': %s", filename, err)
+	}
+
+	fileDacl, err := getACL(filename)
+	if err != nil {
+		return fmt.Errorf("could not query ACLs for config file '%s': %s", filename, err)
+	}
+
+	var aclSizeInfo winutil.AclSizeInformation
+	err = winutil.GetAclInformation(fileDacl, &aclSizeInfo, winutil.AclSizeInformationEnum)
+	if err != nil {
+		return fmt.Errorf("could not query ACLs for config file '%s': %s", filename, err)
+	}
+
+	// create the sids that are acceptable to us (local system account and
+	// administrators group)
+	localSystem, err := getLocalSystemSID()
+	if err != nil {
+		return fmt.Errorf("could not query Local System SID: %s", err)
+	}
+	defer windows.FreeSid(localSystem)
+
+	administrators, err := getAdministratorsSID()
+	if err != nil {
+		return fmt.Errorf("could not query Administrator SID: %s", err)
+	}
+	defer windows.FreeSid(administrators)
+
+	secretUser, err := getSecretUserSID()
+	if err != nil {
+		return err
+	}
+
+	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
+		var pAce *winutil.AccessAllowedAce
+		if err := winutil.GetAce(fileDacl, i, &pAce); err != nil {
+			return fmt.Errorf("could not query a ACE on '%s': %s", filename, err)
+		}
+
+		if pAce.AceType == winutil.ACCESS_DENIED_ACE_TYPE {
+			return fmt.Errorf("invalid permissions for config file '%s': explicit DENY not supported", filename)
+		}
+
+		if pAce.AceType == winutil.ACCESS_ALLOWED_ACE_TYPE {
+			compareSid := (*windows.SID)(unsafe.Pointer(&pAce.SidStart))
+			compareIsLocalSystem := windows.EqualSid(compareSid, localSystem)
+			compareIsAdministrators := windows.EqualSid(compareSid, administrators)
+			compareIsSecretUser := windows.EqualSid(compareSid, secretUser)
+			allowedAccountForWrite := compareIsLocalSystem || compareIsAdministrators || compareIsSecretUser
+			hasOnlyAllowForRead := pAce.AccessMask&^(windows.FILE_GENERIC_READ) == 0
+			if !allowedAccountForWrite && !hasOnlyAllowForRead {
+				return fmt.Errorf("invalid permissions for config file '%s': users/groups other than LOCAL_SYSTEM, Administrators or %s have rights on it", filename, secretUser)
+			}
+		}
+	}
+
+	return nil
+}
+
+// lockOpenFile opens the file and prevents overwrite and delete by another process
+func lockOpenFile(name string) (*os.File, error) {
+	h, err := winOpenFileShareRead(name)
+	if err != nil {
+		return nil, err
+	}
+	return os.NewFile(uintptr(h), name), nil
+}
+
+// winOpenFileShareRead opens the file in FILE_SHARE_READ sharing mode
+func winOpenFileShareRead(path string) (syscall.Handle, error) {
+	const fileFlagNormal = 0x00000080
+	filename, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return syscall.Handle(0), err
+	}
+	handle, err := syscall.CreateFile(
+		filename,
+		syscall.GENERIC_READ,
+		syscall.FILE_SHARE_READ,
+		nil,
+		syscall.OPEN_EXISTING,
+		fileFlagNormal,
+		0)
+
+	return handle, err
 }

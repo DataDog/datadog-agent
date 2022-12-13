@@ -183,7 +183,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	defer os.Remove(testFile)
 
 	outputDir := t.TempDir()
-	_, err = test.StartActivityDumpComm(t, "testsuite", outputDir, []string{"protobuf"})
+	_, err = test.StartActivityDumpComm("testsuite", outputDir, []string{"protobuf"})
 	if err != nil {
 		t.Fatal(err)
 	}

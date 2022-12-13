@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type prioritySampler interface {
@@ -77,7 +78,7 @@ func (h *RemoteConfigHandler) onUpdate(update map[string]state.APMSamplingConfig
 		}
 	}
 
-	log.Debugf("updating samplers with remote configuration: %v", samplerconfigPayload)
+	log.Debugf("updating samplers with remote configuration: %v", spew.Sdump(samplerconfigPayload))
 	h.updateSamplers(samplerconfigPayload)
 }
 
