@@ -405,8 +405,8 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.pymalloc") {
-		initPymallocTelemetry()
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -465,7 +465,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymallocTelemetry() {
+func initPymemTelemetry() {
 	C.init_pymem_stats(rtloader)
 
 	// "Requested" here means requested from the OS, not allocated to Python objects.
