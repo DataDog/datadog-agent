@@ -6,7 +6,6 @@
 #include <linux/tcp.h>
 
 static __always_inline void* sock_rtt(struct sock *sk) {
-    // use this ish
     return &(tcp_sk(sk)->srtt_us);
 }
 
