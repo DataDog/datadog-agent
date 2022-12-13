@@ -39,10 +39,13 @@ type ClusterCollector struct {
 func NewClusterCollector() *ClusterCollector {
 	return &ClusterCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "clusters",
-			NodeType:         orchestrator.K8sCluster,
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "clusters",
+			NodeType:                  orchestrator.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}

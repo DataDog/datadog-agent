@@ -79,8 +79,9 @@ func (r *AgentVersionFilter) IsMacroAccepted(macro *MacroDefinition) (bool, erro
 
 // SECLRuleFilter defines a SECL rule filter
 type SECLRuleFilter struct {
-	model   eval.Model
-	context *eval.Context
+	model          eval.Model
+	context        *eval.Context
+	parsingContext *ast.ParsingContext
 }
 
 // NewSECLRuleFilter returns a new agent version based rule filter
@@ -90,6 +91,7 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 		context: &eval.Context{
 			Object: model.NewEvent().GetPointer(),
 		},
+		parsingContext: ast.NewParsingContext(),
 	}
 }
 
@@ -110,7 +112,7 @@ func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 	}
 
 	expression := mergeFilterExpressions(rule.Filters)
-	astRule, err := ast.ParseRule(expression)
+	astRule, err := r.parsingContext.ParseRule(expression)
 	if err != nil {
 		return false, err
 	}
@@ -137,7 +139,7 @@ func (r *SECLRuleFilter) IsMacroAccepted(macro *MacroDefinition) (bool, error) {
 	}
 
 	expression := mergeFilterExpressions(macro.Filters)
-	astRule, err := ast.ParseRule(expression)
+	astRule, err := r.parsingContext.ParseRule(expression)
 	if err != nil {
 		return false, err
 	}

@@ -86,6 +86,7 @@ if arm?
   blacklist_packages.push(/^aerospike==/)
 
   # This doesn't build on ARM
+  blacklist_folders.push('ibm_ace')
   blacklist_folders.push('ibm_mq')
   blacklist_packages.push(/^pymqi==/)
 end

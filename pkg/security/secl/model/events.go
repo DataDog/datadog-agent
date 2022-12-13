@@ -85,6 +85,8 @@ const (
 	VethPairEventType
 	// BindEventType Bind event
 	BindEventType
+	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
+	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
@@ -188,6 +190,8 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case UnshareMountNsEventType:
+		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
 

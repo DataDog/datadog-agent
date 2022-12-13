@@ -9,6 +9,7 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	appsv1 "k8s.io/api/apps/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -49,6 +50,7 @@ func ExtractDaemonSet(ds *appsv1.DaemonSet) *model.DaemonSet {
 	}
 
 	daemonSet.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(ds.Spec.Template)
+	daemonSet.Tags = append(daemonSet.Tags, transformers.RetrieveUnifiedServiceTags(ds.ObjectMeta.Labels)...)
 
 	return &daemonSet
 }

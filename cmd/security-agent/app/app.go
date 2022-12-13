@@ -11,9 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -29,7 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
+	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
+	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -81,6 +84,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 			return err
 		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			log.Flush()
+		},
 	}
 
 	defaultConfPathArray := []string{
@@ -92,11 +98,11 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 
 	factories := []common.SubcommandFactory{
 		status.Commands,
-		FlareCommands,
-		ConfigCommands,
-		ComplianceCommands,
-		RuntimeCommands,
-		VersionCommands,
+		flare.Commands,
+		subconfig.Commands,
+		compliance.Commands,
+		runtime.Commands,
+		subversion.Commands,
 		StartCommands,
 	}
 
@@ -226,20 +232,30 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	// Initialize the remote tagger
-	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init(ctx)
-		if err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	}
 
 	// Start workloadmeta store
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 	store.Start(ctx)
 
-	complianceAgent, err := startCompliance(hostnameDetected, stopper, statsdClient)
+	// Initialize the remote tagger
+	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			tagger.SetDefaultTagger(remote.NewTagger(options))
+			err := tagger.Init(ctx)
+			if err != nil {
+				log.Errorf("failed to start the tagger: %s", err)
+			}
+		}
+	}
+
+	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -249,7 +265,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostnameDetected, stopper, statsdClient)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -274,31 +290,6 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 func initRuntimeSettings() error {
 	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
-}
-
-// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
-// signal is received.
-func handleSignals(stopCh chan struct{}) {
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
-
-	// Block here until we receive the interrupt signal
-	for signo := range signalCh {
-		switch signo {
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			log.Infof("Received signal '%s', shutting down...", signo)
-
-			_ = tagger.Stop()
-
-			stopCh <- struct{}{}
-			return
-		}
-	}
 }
 
 // StopAgent stops the API server and clean up resources

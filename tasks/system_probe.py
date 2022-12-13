@@ -226,12 +226,12 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
 
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "co-re")
+    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
     container_integrations_co_re_programs = ["oom-kill"]
 
     for prog in container_integrations_co_re_programs:
-        infile = os.path.join(container_integrations_co_re_dir, f"{prog}.c")
+        infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
 
@@ -299,9 +299,17 @@ def ninja_cgo_type_files(nw, windows):
                 "pkg/network/ebpf/c/tcp_states.h",
                 "pkg/network/ebpf/c/prebuilt/offset-guess.h",
             ],
+            "pkg/network/protocols/http/gotls/go_tls_types.go": [
+                "pkg/network/ebpf/c/protocols/go-tls-types.h",
+            ],
             "pkg/network/protocols/http/http_types.go": [
                 "pkg/network/ebpf/c/tracer.h",
+                "pkg/network/ebpf/c/protocols/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http-types.h",
+                "pkg/network/ebpf/c/protocols/protocol-classification-defs.h",
+            ],
+            "pkg/network/telemetry/telemetry_types.go": [
+                "pkg/ebpf/c/telemetry_types.h",
             ],
         }
         nw.rule(
@@ -549,6 +557,17 @@ def test(
     ctx.run(cmd.format(**args), env=env)
 
 
+@contextlib.contextmanager
+def chdir(dirname=None):
+    curdir = os.getcwd()
+    try:
+        if dirname is not None:
+            os.chdir(dirname)
+        yield
+    finally:
+        os.chdir(curdir)
+
+
 @task
 def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     """
@@ -604,6 +623,14 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
             extra_path = os.path.join(pkg, extra)
             if os.path.isdir(extra_path):
                 shutil.copytree(extra_path, os.path.join(target_path, extra))
+
+        gotls_client_dir = os.path.join("testutil", "gotls_client")
+        gotls_client_binary = os.path.join(gotls_client_dir, "gotls_client")
+        gotls_extra_path = os.path.join(pkg, gotls_client_dir)
+        if not windows and os.path.isdir(gotls_extra_path):
+            gotls_binary_path = os.path.join(target_path, gotls_client_binary)
+            with chdir(gotls_extra_path):
+                ctx.run(f"go build -o {gotls_binary_path} -ldflags=\"-extldflags '-static'\" gotls_client.go")
 
     gopath = os.getenv("GOPATH")
     copy_files = [
@@ -868,6 +895,7 @@ def get_ebpf_build_flags():
             '-DCONFIG_64BIT',
             '-D__BPF_TRACING__',
             '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
+            '-DCOMPILE_PREBUILT',
         ]
     )
     flags.extend(
@@ -900,18 +928,17 @@ def get_ebpf_build_flags():
 def get_co_re_build_flags():
     flags = get_ebpf_build_flags()
 
+    flags.remove('-DCOMPILE_PREBUILT')
     flags.remove('-DCONFIG_64BIT')
     flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
-    flags.remove('-Ipkg/ebpf/c')
 
     arch = get_kernel_arch()
-    co_re_dir = os.path.join(".", "pkg", "ebpf", "c", "co-re")
     flags.extend(
         [
             f"-D__TARGET_ARCH_{arch}",
+            "-DCOMPILE_CORE",
             '-emit-llvm',
             '-g',
-            f"-I{co_re_dir}",
         ]
     )
 
@@ -926,8 +953,12 @@ def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
 
 
 def check_for_inline(ctx):
-    for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f) for f in get_ebpf_targets()]:
-        p.join()
+    for f in get_ebpf_targets():
+        if os.path.basename(f) == "bpf_helpers.h":
+            continue
+
+        for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f)]:
+            p.join()
 
 
 def ebpf_check_source_file(ctx, parallel_build, src_file):

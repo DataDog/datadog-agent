@@ -15,8 +15,12 @@ import (
 	"sort"
 	"testing"
 
+	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,23 +66,25 @@ func TestSetFieldValue(t *testing.T) {
 }
 
 func TestProcessArgsFlags(t *testing.T) {
+	var argsEntry model.ArgsEntry
+	argsEntry.SetValues([]string{
+		"cmd", "-abc", "--verbose", "test",
+		"-v=1", "--host=myhost",
+		"-9", "-", "--",
+	})
+
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
 				Process: &model.Process{
-					ArgsEntry: &model.ArgsEntry{
-						Values: []string{
-							"cmd", "-abc", "--verbose", "test",
-							"-v=1", "--host=myhost",
-							"-9", "-", "--",
-						},
-					},
+					ArgsEntry: &argsEntry,
 				},
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(nil))
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -121,23 +127,25 @@ func TestProcessArgsFlags(t *testing.T) {
 }
 
 func TestProcessArgsOptions(t *testing.T) {
+	var argsEntry model.ArgsEntry
+	argsEntry.SetValues([]string{
+		"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
+		"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
+		"--", "---", "-9",
+	})
+
 	e := Event{
 		Event: model.Event{
 			Exec: model.ExecEvent{
 				Process: &model.Process{
-					ArgsEntry: &model.ArgsEntry{
-						Values: []string{
-							"cmd", "--config", "/etc/myfile", "--host=myhost", "--verbose",
-							"-c", "/etc/myfile", "-e", "", "-h=myhost", "-v",
-							"--", "---", "-9",
-						},
-					},
+					ArgsEntry: &argsEntry,
 				},
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&Probe{}, nil, NewProcessResolverOpts(nil))
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}

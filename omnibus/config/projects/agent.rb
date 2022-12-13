@@ -16,6 +16,8 @@ end
 license "Apache-2.0"
 license_file "../LICENSE"
 
+third_party_licenses "../LICENSE-3rdparty.csv"
+
 homepage 'http://www.datadoghq.com'
 
 if windows?

@@ -104,6 +104,19 @@ func (s *Store) GetECSTask(id string) (*workloadmeta.ECSTask, error) {
 	return entity.(*workloadmeta.ECSTask), nil
 }
 
+// ListImages implements Store#ListImages
+func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
+	entities := s.listEntitiesByKind(workloadmeta.KindContainerImageMetadata)
+
+	images := make([]*workloadmeta.ContainerImageMetadata, 0, len(entities))
+	for _, entity := range entities {
+		image := entity.(*workloadmeta.ContainerImageMetadata)
+		images = append(images, image)
+	}
+
+	return images
+}
+
 // Set sets an entity in the store.
 func (s *Store) Set(entity workloadmeta.Entity) {
 	s.mu.Lock()
@@ -153,6 +166,11 @@ func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
 
 // Dump is not implemented in the testing store.
 func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+	panic("not implemented")
+}
+
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
 	panic("not implemented")
 }
 

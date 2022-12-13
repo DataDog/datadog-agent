@@ -6,6 +6,7 @@
 package core
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/internal"
 )
 
@@ -14,15 +15,17 @@ type BundleParams = internal.BundleParams
 
 // CreateAgentBundleParams creates a new BundleParams for the Core Agent
 func CreateAgentBundleParams(confFilePath string, configLoadSecrets bool, options ...func(*BundleParams)) BundleParams {
-	params := CreateBundleParams(options...)
+	params := CreateBundleParams(common.DefaultConfPath, options...)
 	params.ConfFilePath = confFilePath
 	params.ConfigLoadSecrets = configLoadSecrets
 	return params
 }
 
 // CreateBundleParams creates a new BundleParams
-func CreateBundleParams(options ...func(*BundleParams)) BundleParams {
-	bundleParams := BundleParams{}
+func CreateBundleParams(defaultConfPath string, options ...func(*BundleParams)) BundleParams {
+	bundleParams := BundleParams{
+		DefaultConfPath: defaultConfPath,
+	}
 	for _, o := range options {
 		o(&bundleParams)
 	}
@@ -71,14 +74,20 @@ func WithConfigLoadSecrets(configLoadSecrets bool) func(*BundleParams) {
 	}
 }
 
-func WithExcludeDefaultConfPath(excludeDefaultConfPath bool) func(*BundleParams) {
+func WithLogForOneShot(loggerName, level string, overrideFromEnv bool) func(*BundleParams) {
 	return func(b *BundleParams) {
-		b.ExcludeDefaultConfPath = excludeDefaultConfPath
+		*b = b.LogForOneShot(loggerName, level, overrideFromEnv)
 	}
 }
 
-func WithDefaultConfPath(defaultConfPath string) func(*BundleParams) {
+func WithLogForDaemon(loggerName, logFileConfig, defaultLogFile string) func(*BundleParams) {
 	return func(b *BundleParams) {
-		b.DefaultConfPath = defaultConfPath
+		*b = b.LogForDaemon(loggerName, logFileConfig, defaultLogFile)
+	}
+}
+
+func WithLogToFile(logFile string) func(*BundleParams) {
+	return func(b *BundleParams) {
+		*b = b.LogToFile(logFile)
 	}
 }

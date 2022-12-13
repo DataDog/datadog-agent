@@ -56,6 +56,10 @@ const (
 	DentryResolverRenameCallbackKprobeKey
 	// DentryResolverSELinuxCallbackKprobeKey is the key to the callback program to execute after resolving the destination dentry of a selinux event
 	DentryResolverSELinuxCallbackKprobeKey
+	// DentryResolverUnshareMntNSStageOneCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of a cloned mount when a new mount namespace is created using unshare
+	DentryResolverUnshareMntNSStageOneCallbackKprobeKey
+	// DentryResolverUnshareMntNSStageTwoCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of a cloned mount mountpoint when a new mount namespace is created using unshare
+	DentryResolverUnshareMntNSStageTwoCallbackKprobeKey
 )
 
 const (

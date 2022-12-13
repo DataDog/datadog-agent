@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -60,9 +61,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
+			bundleParams := core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", false))
+			bundleParams.SecurityAgentConfigFilePaths = []string{
+				path.Join(common.DefaultConfPath, "security-agent.yaml"),
+			}
+			bundleParams.ConfigLoadSecurityAgent = true
+			bundleParams.SysProbeConfFilePath = globalParams.SysProbeConfFilePath
+			bundleParams.ConfigLoadSysProbe = true
+
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForOneShot("CORE", "off", false)),
+				fx.Supply(bundleParams),
 				core.Bundle,
 			)
 		},
@@ -128,10 +137,15 @@ func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int
 		})
 	}
 
-	if pkgconfig.Datadog.GetBool("runtime_security_config.enabled") || pkgconfig.Datadog.GetBool("compliance_config.enabled") {
+	agentCollectors = append(agentCollectors, agentCollector{
+		name: "security-agent",
+		fn:   serviceProfileCollector("security-agent", "security_agent.expvar_port", seconds),
+	})
+
+	if debugPort := pkgconfig.Datadog.GetInt("system_probe_config.debug_port"); debugPort > 0 {
 		agentCollectors = append(agentCollectors, agentCollector{
-			name: "security-agent",
-			fn:   serviceProfileCollector("security-agent", "security_agent.expvar_port", seconds),
+			name: "system-probe",
+			fn:   serviceProfileCollector("system-probe", "system_probe_config.debug_port", seconds),
 		})
 	}
 
@@ -166,7 +180,6 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 
 	customerEmail := cliParams.customerEmail
 	if customerEmail == "" {
-		var err error
 		customerEmail, err = input.AskForEmail()
 		if err != nil {
 			fmt.Println("Error reading email, please retry or contact support")

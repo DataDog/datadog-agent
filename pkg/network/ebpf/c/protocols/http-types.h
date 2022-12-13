@@ -12,8 +12,6 @@
 // without risk of overriding data.
 #define HTTP_BATCH_PAGES 3
 
-#define HTTP_PROG 0
-
 // HTTP/1.1 XXX
 // _________^
 #define HTTP_STATUS_OFFSET 9
@@ -116,7 +114,7 @@ typedef struct {
     __u32 fd;
 } ssl_sock_t;
 
- #define LIB_PATH_MAX_SIZE 120
+#define LIB_PATH_MAX_SIZE 120
 
 typedef struct {
     __u32 pid;

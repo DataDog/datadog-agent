@@ -117,10 +117,10 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 	}
 
 	probe := "do_sys_open"
-	excludeSysOpen := "kprobe__do_sys_openat2"
+	excludeSysOpen := "do_sys_openat2"
 	if sysOpenAt2Supported(c) {
 		probe = "do_sys_openat2"
-		excludeSysOpen = "kprobe__do_sys_open"
+		excludeSysOpen = "do_sys_open"
 	}
 
 	perfHandler := ddebpf.NewPerfHandler(10)
@@ -195,10 +195,12 @@ func initEBPFProgram(t *testing.T) (*ddebpf.PerfHandler, func()) {
 
 	exclude := []string{
 		"socket__http_filter",
-		"socket__http_filter_entry",
+		"socket__protocol_dispatcher",
 		"kprobe__tcp_sendmsg",
 		"kretprobe__security_sock_rcv_skb",
-		excludeSysOpen,
+		"tracepoint__net__netif_receive_skb",
+		"kprobe__" + excludeSysOpen,
+		"kretprobe__" + excludeSysOpen,
 	}
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {

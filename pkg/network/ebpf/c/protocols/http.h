@@ -2,6 +2,7 @@
 #define __HTTP_H
 
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
@@ -30,7 +31,7 @@ static __always_inline void http_flush_batch(struct pt_regs *ctx) {
         return;
     }
 
-    bpf_perf_event_output(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
+    bpf_perf_event_output_with_telemetry(ctx, &http_batch_events, key.cpu, batch, sizeof(http_batch_t));
     log_debug("http batch flushed: cpu: %d idx: %d\n", key.cpu, batch->idx);
     batch->pos = 0;
     batch_state->idx_to_flush++;

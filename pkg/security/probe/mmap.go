@@ -36,7 +36,7 @@ var mmapCapabilities = Capabilities{
 	},
 }
 
-func mmapOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprovers, error) {
+func mmapOnNewApprovers(approvers rules.Approvers) (activeApprovers, error) {
 	intValues := func(fvs rules.FilterValues) []int {
 		var values []int
 		for _, v := range fvs {
@@ -45,7 +45,7 @@ func mmapOnNewApprovers(probe *Probe, approvers rules.Approvers) (activeApprover
 		return values
 	}
 
-	mmapApprovers, err := onNewBasenameApprovers(probe, model.MMapEventType, "file", approvers)
+	mmapApprovers, err := onNewBasenameApprovers(model.MMapEventType, "file", approvers)
 	if err != nil {
 		return nil, err
 	}

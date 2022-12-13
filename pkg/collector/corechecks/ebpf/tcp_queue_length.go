@@ -65,11 +65,11 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (t *TCPQueueLengthCheck) Configure(config, initConfig integration.Data, source string) error {
+func (t *TCPQueueLengthCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	// TODO: Remove that hard-code and put it somewhere else
 	process_net.SetSystemProbePath(dd_config.Datadog.GetString("system_probe_config.sysprobe_socket"))
 
-	err := t.CommonConfigure(initConfig, config, source)
+	err := t.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

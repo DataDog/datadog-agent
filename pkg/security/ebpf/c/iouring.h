@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/io_uring_ctx_pid") io_uring_ctx_pid = {
     .key_size = sizeof(void*),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 void __attribute__((always_inline)) cache_ioctx_pid_tgid(void *ioctx) {

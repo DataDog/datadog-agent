@@ -93,6 +93,10 @@ func TestProcessContext(t *testing.T) {
 			Expression: `open.file.path == "{{.Root}}/test-process-ancestors" && process.ancestors[_].file.name in ["dash", "bash"]`,
 		},
 		{
+			ID:         "test_rule_parent",
+			Expression: `open.file.path == "{{.Root}}/test-process-parent" && process.parent.file.name in ["dash", "bash"]`,
+		},
+		{
 			ID:         "test_rule_pid1",
 			Expression: `open.file.path == "{{.Root}}/test-process-pid1" && process.ancestors[_].pid == 1`,
 		},
@@ -230,7 +234,9 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
+
+			entry, _ := event.ResolveProcessCacheEntry()
+			assert.Equal(t, getInode(t, executable), entry.FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -685,8 +691,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
+			entry, _ := event.ResolveProcessCacheEntry()
+
+			if inode := getInode(t, executable); inode != entry.FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -717,6 +725,31 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
+			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+		})
+	})
+
+	test.Run(t, "parent", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		testFile, _, err := test.Path("test-process-parent")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		executable := "touch"
+
+		// Bash attempts to optimize away forks in the last command in a function body
+		// under appropriate circumstances (source: bash changelog)
+		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
+
+		test.WaitSignal(t, func() error {
+			cmd := cmdFunc("sh", args, nil)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w", out, err)
+			}
+			return nil
+		}, func(event *sprobe.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_parent")
+			assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
 			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
 		})
 	})
@@ -873,6 +906,7 @@ func TestProcessContext(t *testing.T) {
 			if kind == dockerWrapperType {
 				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.ContainerID)
 				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Ancestor.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessCacheEntry.Parent.ContainerID)
 			}
 		}))
 	})
@@ -1126,7 +1160,7 @@ func TestProcessExec(t *testing.T) {
 			return cmd.Run()
 		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
-			// TODO: use `process.ancestors[0].file.name` directly when this feature is reintroduced
+			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
 			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
 		}))
 	})
@@ -1138,6 +1172,7 @@ func TestProcessExec(t *testing.T) {
 			return cmd.Run()
 		}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
+			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
 		}))
 	})
 }
@@ -1499,6 +1534,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.True(t, event.ProcessContext.IsThread, "process should be marked as being a thread")
 		})
 	})
@@ -1514,6 +1550,7 @@ func TestProcessIsThread(t *testing.T) {
 			assert.Equal(t, unix.PROT_READ|unix.PROT_WRITE, event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE), "wrong mmap protection flags")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "wrong process file basename")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.Ancestor.ProcessContext.FileEvent.BasenameStr, "wrong parent process file basename")
+			assert.Equal(t, "syscall_tester", event.ProcessContext.Parent.FileEvent.BasenameStr, "wrong parent process file basename")
 			assert.False(t, event.ProcessContext.IsThread, "process should be marked as not being a thread")
 		})
 	})
@@ -1709,7 +1746,7 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root(), "alpine")
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return
@@ -1777,7 +1814,7 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 		scriptName      string
 		executedScript  string
 		innerScriptName string
-		check           func(event *sprobe.Event, rule *rules.Rule)
+		check           func(event *sprobe.Event)
 	}{
 		{
 			name: "regular exec",
@@ -1791,11 +1828,16 @@ func TestProcessIdentifyInterpreter(t *testing.T) {
 echo "Executing echo inside a bash script"
 
 %s - << EOF
-print('Executing print inside a python (%s) script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
 echo "Back to bash"`, python, python),
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "regularExec.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExec.sh"}, "ancestor file name not an option")
+			},
 		},
 		{
 			name: "regular exec without interpreter rule",
@@ -1811,12 +1853,14 @@ echo "Executing echo inside a bash script"
 %s <<__HERE__
 #!%s
 
-print "Executing print inside a perl (%s) script\n";
+print "Executing print inside a perl (%s) script inside a bash script\n";
 __HERE__
 
 echo "Back to bash"`, perl, perl, perl),
-			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", "")
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", "", "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "regularExecWithInterpreterRule.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"regularExecWithInterpreterRule.sh"}, "ancestor file name not an option")
 			},
 		},
 		{
@@ -1834,7 +1878,7 @@ echo "Executing echo inside a bash script"
 cat << EOF > pyscript.py
 #!%s
 
-print('Executing print inside a python (%s) script')
+print('Executing print inside a python (%s) script inside a bash script')
 
 EOF
 
@@ -1842,8 +1886,10 @@ echo "Back to bash"
 
 chmod 755 pyscript.py
 ./pyscript.py`, python, python),
-			check: func(event *sprobe.Event, rule *rules.Rule) {
-				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python))
+			check: func(event *sprobe.Event) {
+				assertFieldEqual(t, event, "exec.interpreter.file.name", filepath.Base(python), "wrong interpreter file name")
+				assertFieldEqual(t, event, "process.parent.file.name", "interpretedExec.sh", "wrong process parent file name")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"interpretedExec.sh"}, "ancestor file name not an option")
 			},
 		},
 		// TODO: Test for snapshotted processes
@@ -1921,9 +1967,7 @@ chmod 755 pyscript.py
 				return nil
 			}, validateExecEvent(t, noWrapperType, func(event *sprobe.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
-				if test.check != nil {
-					test.check(event, rule)
-				}
+				test.check(event)
 			}))
 		})
 	}
@@ -2025,4 +2069,107 @@ func TestProcessResolution(t *testing.T) {
 
 		io.WriteString(stdin, "\n")
 	})
+}
+
+func TestProcessFilelessExecution(t *testing.T) {
+
+	filelessDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless",
+		Expression: fmt.Sprintf(`exec.file.name == "%s" && exec.file.path == ""`, filelessExecutionFilenamePrefix),
+	}
+
+	filelessWithInterpreterDetectionRule := &rules.RuleDefinition{
+		ID:         "test_fileless_with_interpreter",
+		Expression: fmt.Sprintf(`exec.file.name == "%sscript" && exec.file.path == "" && exec.interpreter.file.name == "bash"`, filelessExecutionFilenamePrefix),
+	}
+
+	tests := []struct {
+		name                             string
+		rule                             *rules.RuleDefinition
+		syscallTesterToRun               string
+		syscallTesterScriptFilenameToRun string
+		check                            func(event *sprobe.Event, rule *rules.Rule)
+	}{
+		{
+			name:                             "fileless",
+			rule:                             filelessDetectionRule,
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "",
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "process.file.name", filelessExecutionFilenamePrefix, "process.file.name not matching")
+				assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"syscall_tester"}, "process.ancestors.file.name not matching")
+			},
+		},
+		{
+			name:                             "fileless with script name",
+			rule:                             filelessWithInterpreterDetectionRule,
+			syscallTesterToRun:               "fileless",
+			syscallTesterScriptFilenameToRun: "script",
+			check: func(event *sprobe.Event, rule *rules.Rule) {
+				assertFieldEqual(t, event, "process.file.name", "memfd:script", "process.file.name not matching")
+			},
+		},
+		{
+			name:               "real file with fileless prefix",
+			syscallTesterToRun: "none",
+			rule:               filelessDetectionRule,
+		},
+	}
+
+	var ruleList []*rules.RuleDefinition
+	alreadyAddedRules := make(map[string]bool)
+	for _, test := range tests {
+		if _, ok := alreadyAddedRules[test.rule.ID]; !ok {
+			alreadyAddedRules[test.rule.ID] = true
+			ruleList = append(ruleList, test.rule)
+		}
+	}
+
+	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer testModule.Close()
+
+	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.syscallTesterToRun == "none" {
+				err = testModule.GetSignal(t, func() error {
+					fileMode := 0o477
+					testFile, _, err := testModule.CreateWithOptions(filelessExecutionFilenamePrefix, 98, 99, fileMode)
+					if err != nil {
+						return err
+					}
+					defer os.Remove(testFile)
+
+					f, err := os.OpenFile(testFile, os.O_WRONLY, 0)
+					if err != nil {
+						t.Fatal(err)
+					}
+					f.WriteString("#!/bin/bash")
+					f.Close()
+
+					cmd := exec.Command(testFile)
+					return cmd.Run()
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					t.Errorf("shouldn't get an event: got event: %s", event)
+				})
+				if err == nil {
+					t.Fatal("shouldn't get an event")
+				}
+			} else {
+				testModule.WaitSignal(t, func() error {
+					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+				}, func(event *sprobe.Event, rule *rules.Rule) {
+					assertTriggeredRule(t, rule, test.rule.ID)
+					test.check(event, rule)
+				})
+			}
+		})
+	}
 }
