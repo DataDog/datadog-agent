@@ -31,7 +31,8 @@ const (
 )
 
 var (
-	processMonitor *ProcessMonitor
+	processMonitorLock sync.RWMutex
+	processMonitor     *ProcessMonitor
 )
 
 type ProcessMonitor struct {
@@ -155,15 +156,24 @@ func (pm *ProcessMonitor) Stop() {
 	close(pm.callbackRunnerDone)
 	close(pm.done)
 	pm.wg.Wait()
+
+	processMonitorLock.Lock()
 	processMonitor = nil
+	processMonitorLock.Unlock()
 }
 
 func GetProcessMonitor(cfg *config.Config) *ProcessMonitor {
 	// we want only one instance as
 	// netlink.ProcEventMonitor() netlink doesn't support multiple connections
+	processMonitorLock.RLock()
 	if processMonitor != nil {
+		defer processMonitorLock.RUnlock()
 		return processMonitor
 	}
+	processMonitorLock.RUnlock()
+
+	processMonitorLock.Lock()
+	defer processMonitorLock.Unlock()
 
 	p := &ProcessMonitor{}
 	p.state = STOPPED
@@ -236,7 +246,10 @@ func GetProcessMonitor(cfg *config.Config) *ProcessMonitor {
 					return
 				}
 				log.Errorf("process montior error: %s", err)
+
+				processMonitorLock.Lock()
 				processMonitor = nil
+				processMonitorLock.Unlock()
 				return
 			}
 		}
