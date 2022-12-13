@@ -27,11 +27,11 @@
 static size_t pyrawAllocSize(void *ptr)
 {
 #if __linux__
-    return malloc_usable_size(ptr);
+    return ::malloc_usable_size(ptr);
 #elif _WIN32
-    return _msize(ptr);
+    return ::_msize(ptr);
 #elif __APPLE__ || __FreeBSD__
-    return malloc_size(ptr);
+    return ::malloc_size(ptr);
 #else
     return 0;
 #endif
@@ -61,7 +61,7 @@ void *Three::pyrawMalloc(size_t size)
     if (size == 0) {
         size = 1;
     }
-    void *ptr = malloc(size);
+    void *ptr = ::malloc(size);
     pyrawTrackAlloc(ptr);
     return ptr;
 }
@@ -72,7 +72,7 @@ void *Three::pyrawCalloc(size_t nelem, size_t elsize)
         nelem = 1;
         elsize = 1;
     }
-    void *ptr = calloc(nelem, elsize);
+    void *ptr = ::calloc(nelem, elsize);
     pyrawTrackAlloc(ptr);
     return ptr;
 }
@@ -83,7 +83,7 @@ void *Three::pyrawRealloc(void *ptr, size_t size)
         size = 1;
     }
     pyrawTrackFree(ptr);
-    ptr = realloc(ptr, size);
+    ptr = ::realloc(ptr, size);
     pyrawTrackAlloc(ptr);
     return ptr;
 }
@@ -91,7 +91,7 @@ void *Three::pyrawRealloc(void *ptr, size_t size)
 void Three::pyrawFree(void *ptr)
 {
     pyrawTrackFree(ptr);
-    free(ptr);
+    ::free(ptr);
 }
 
 void *Three::pyrawMallocCb(void *ctx, size_t size)
