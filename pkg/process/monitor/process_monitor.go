@@ -15,7 +15,6 @@ import (
 
 	"github.com/vishvananda/netlink"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
@@ -163,7 +162,7 @@ func (pm *ProcessMonitor) Stop() {
 	processMonitorLock.Unlock()
 }
 
-func GetProcessMonitor(cfg *config.Config) *ProcessMonitor {
+func GetProcessMonitor() *ProcessMonitor {
 	// we want only one instance as
 	// netlink.ProcEventMonitor() netlink doesn't support multiple connections
 	processMonitorLock.RLock()
@@ -223,24 +222,23 @@ func GetProcessMonitor(cfg *config.Config) *ProcessMonitor {
 				if !ok {
 					return
 				}
+				p.m.Lock()
 				if p.state == STOPPED {
+					p.m.Unlock()
 					continue
 				}
 
 				switch ev := event.Msg.(type) {
 				case *netlink.ExecProcEvent:
-					p.m.Lock()
 					for _, c := range p.procEventCallbacks[EXEC] {
 						p.evalEXECCallback(c, ev.ProcessPid)
 					}
-					p.m.Unlock()
 				case *netlink.ExitProcEvent:
-					p.m.Lock()
 					for _, c := range p.procEventCallbacks[EXIT] {
 						p.enqueueCallback(c, ev.ProcessPid)
 					}
-					p.m.Unlock()
 				}
+				p.m.Unlock()
 
 			case err, ok := <-p.errors:
 				if !ok {

@@ -130,8 +130,6 @@ type GoTLSProgram struct {
 
 	// Process monitor channels
 	procMonitor struct {
-		mon *monitor.ProcessMonitor
-
 		cleanupExec func()
 		cleanupExit func()
 	}
@@ -182,11 +180,6 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.procMonitor.mon = monitor.GetProcessMonitor(c)
-	if p.procMonitor.mon == nil {
-		return nil
-	}
-
 	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
 
 	return p
@@ -234,12 +227,17 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	p.procMonitor.cleanupExec = p.procMonitor.mon.Subscribe(&monitor.ProcessCallback{
+	mon := monitor.GetProcessMonitor()
+	if mon == nil {
+		log.Errorf("can't register process monitor callbacks")
+		return
+	}
+	p.procMonitor.cleanupExec = mon.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXEC,
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStart,
 	})
-	p.procMonitor.cleanupExit = p.procMonitor.mon.Subscribe(&monitor.ProcessCallback{
+	p.procMonitor.cleanupExit = mon.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXIT,
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStop,
