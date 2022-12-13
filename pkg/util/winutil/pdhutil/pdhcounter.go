@@ -342,11 +342,16 @@ func CreatePdhQuery() (*PdhQuery, error) {
 // PdhCloseQuery closes all counter handles associated with the query.
 // https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
 func (query *PdhQuery) Close() {
-	pfnPdhCloseQuery(query.Handle)
-	query.Handle = PDH_HQUERY(0)
+	if query.Handle != PDH_HQUERY(0) {
+		pfnPdhCloseQuery(query.Handle)
+		query.Handle = PDH_HQUERY(0)
+	}
 }
 
 func PdhCollectQueryData(hQuery PDH_HQUERY) error {
+	if hQuery == PDH_HQUERY(0) {
+		return fmt.Errorf("Invalid query handle")
+	}
 	pdherror := pfnPdhCollectQueryData(hQuery)
 	if ERROR_SUCCESS != pdherror {
 		return fmt.Errorf("Failed to collect query data %#x", pdherror)

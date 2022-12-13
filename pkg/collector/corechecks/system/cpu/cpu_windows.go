@@ -113,14 +113,10 @@ func (counter *processorPDHCounter) addToQueryWithExtraChecks(query *pdhutil.Pdh
 
 	// Add succeeded, check if the counter is working (see above comment)
 	// Must call PdhCollectQueryData() twice before GetValue() will succeed.
-	// This call may fail for the first counter added to the query. Once at least one Processor
-	// counter is successfully added this call will succeed and we must depend on the GetValue() call.
-	for i := 0; i < 2; i++ {
-		err = pdhutil.PdhCollectQueryData(query.Handle)
-		if err != nil {
-			return err
-		}
-	}
+	// Ignoring PdhCollectQueryData() return value because its success is determined by the query
+	// and not specifically this counter, additonally if either call fails then GetValue() will too.
+	_ = pdhutil.PdhCollectQueryData(query.Handle)
+	_ = pdhutil.PdhCollectQueryData(query.Handle)
 	_, err = counter.GetValue()
 	return err
 }
