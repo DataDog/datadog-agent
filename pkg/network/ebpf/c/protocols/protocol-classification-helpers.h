@@ -144,8 +144,7 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
     } else if (is_amqp(buf, size)) {
-//        *protocol = PROTOCOL_AMQP;
-            log_debug("[protocol classification 1]\n");
+        *protocol = PROTOCOL_AMQP;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

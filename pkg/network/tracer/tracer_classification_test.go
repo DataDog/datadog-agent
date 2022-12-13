@@ -12,15 +12,17 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"io"
 	"net"
 	nethttp "net/http"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,10 +47,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 
 	tests := []struct {
-		name      string
-		clientRun func(t *testing.T, serverAddr string)
-		serverRun func(t *testing.T, serverAddr string, done chan struct{}) string
-		want      network.ProtocolType
+		name       string
+		clientRun  func(t *testing.T, serverAddr string)
+		serverRun  func(t *testing.T, serverAddr string, done chan struct{}) string
+		shouldSkip func() (bool, string)
+		want       network.ProtocolType
 	}{
 		{
 			name: "tcp client without sending data",
@@ -174,6 +177,46 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				return server.Address
 			},
 			want: network.ProtocolHTTP2,
+		},
+		{
+			name: "amqp sender",
+			want: network.ProtocolAMQP,
+			clientRun: func(t *testing.T, serverAddr string) {
+				time.Sleep(5 * time.Second)
+				amqp.Send()
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				amqp.RunAmqp(t, addr)
+				return net.JoinHostPort(addr, "5672")
+			},
+			shouldSkip: func() (bool, string) {
+				if runtime.GOOS != "linux" {
+					return true, "AMQP tests supported only on Linux"
+				}
+
+				return false, ""
+			},
+		},
+		{
+			name: "amqp consume",
+			want: network.ProtocolAMQP,
+			clientRun: func(t *testing.T, serverAddr string) {
+				time.Sleep(5 * time.Second)
+				amqp.ConsumeAmqp()
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				amqp.RunAmqp(t, addr)
+				return net.JoinHostPort(addr, "5672")
+			},
+			shouldSkip: func() (bool, string) {
+				if runtime.GOOS != "linux" {
+					return true, "AMQP tests supported only on Linux"
+				}
+
+				return false, ""
+			},
 		},
 		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection
