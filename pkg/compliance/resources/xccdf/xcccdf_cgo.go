@@ -1,5 +1,5 @@
-//go:build cgo && linux
-// +build cgo,linux
+//go:build libopenscap && cgo && linux
+// +build libopenscap,cgo,linux
 
 package xccdf
 

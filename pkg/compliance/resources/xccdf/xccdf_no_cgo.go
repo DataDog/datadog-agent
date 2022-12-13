@@ -1,5 +1,5 @@
-//go:build !cgo || !linux
-// +build !cgo !linux
+//go:build !libopenscap || !cgo || !linux
+// +build !libopenscap !cgo !linux
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
