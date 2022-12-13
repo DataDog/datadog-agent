@@ -108,6 +108,9 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if verboseLogging {
 		verboseFile := getVerboseLogFileName(logFile)
 		seelogConfig, err = buildLoggerConfig("Verbose Logger", "trace", verboseFile, "", false, false, false)
+		if err != nil {
+			return err
+		}
 		verboseLoggerInterface, err = GenerateLoggerInterface(seelogConfig)
 		if err != nil {
 			return err
