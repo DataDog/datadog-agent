@@ -36,6 +36,18 @@ static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
     return match;
 }
 
+// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+// We check that the given buffer is not empty and its size is at least 24 bytes.
+static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_PROTOOL_HEADER_SIZE)
+
+#define AMQP_PREFACE "AMQP"
+
+    bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
+
+    return match;
+}
+
 // According to the https://www.rfc-editor.org/rfc/rfc7540#section-3.5
 // an HTTP2 server must reply with a settings frame to the preface of HTTP2.
 // The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
@@ -65,13 +77,19 @@ static __always_inline int16_t read_big_endian_int16(const char* buf) {
 // The method checks if the given buffer starts is amqp message.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
-    if (buf_size < MIN_FRAME_LENGTH) {
+    if (buf_size < AMQP_MIN_FRAME_LENGTH) {
         return false;
+    }
+
+    // New connection should start with protocol header of AMQP.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    if (is_amqp_protocol_header(buf, buf_size)) {
+        return true;
     }
 
     uint8_t frame_type = buf[0];
     // Check only for method frame type.
-    if (frame_type != FRAME_METHOD_TYPE) {
+    if (frame_type != AMQP_FRAME_METHOD_TYPE) {
         return false;
     }
 
@@ -79,22 +97,22 @@ static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
     __u16 method_id = buf[9] << 8 | buf[10];
     // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
     // consider
-    if (class_id == CONNECTION_CLASS && method_id == METHOD_CONNECTION_START) {
+    if (class_id == AMQP_CONNECTION_CLASS && method_id == AMQP_METHOD_CONNECTION_START) {
         return true;
     }
-    if (class_id == CONNECTION_CLASS && method_id == METHOD_CONNECTION_START_OK) {
-        return true;
-    }
-
-    if (class_id == BASIC_CLASS && method_id == METHOD_PUBLISH) {
+    if (class_id == AMQP_CONNECTION_CLASS && method_id == AMQP_METHOD_CONNECTION_START_OK) {
         return true;
     }
 
-    if (class_id == BASIC_CLASS && method_id == METHOD_DELIVER) {
+    if (class_id == AMQP_BASIC_CLASS && method_id == AMQP_METHOD_PUBLISH) {
         return true;
     }
 
-    if (class_id == BASIC_CLASS && method_id == METHOD_CONSUME) {
+    if (class_id == AMQP_BASIC_CLASS && method_id == AMQP_METHOD_DELIVER) {
+        return true;
+    }
+
+    if (class_id == AMQP_BASIC_CLASS && method_id == AMQP_METHOD_CONSUME) {
         return true;
     }
 

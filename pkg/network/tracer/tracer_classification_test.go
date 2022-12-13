@@ -199,7 +199,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 		},
 		{
-			name: "amqp consume",
+			name: "amqp consumer",
 			want: network.ProtocolAMQP,
 			clientRun: func(t *testing.T, serverAddr string) {
 				time.Sleep(5 * time.Second)

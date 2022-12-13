@@ -16,19 +16,21 @@
 #define HTTP_MIN_SIZE 16
 
 // RabbitMQ supported classes.
-#define CONNECTION_CLASS 10
-#define BASIC_CLASS 60
+#define AMQP_CONNECTION_CLASS 10
+#define AMQP_BASIC_CLASS 60
 
 // RabbitMQ supported connections.
-#define METHOD_CONNECTION_START 10
-#define METHOD_CONNECTION_START_OK 11
+#define AMQP_METHOD_CONNECTION_START 10
+#define AMQP_METHOD_CONNECTION_START_OK 11
 
-#define METHOD_CONSUME 20
-#define METHOD_PUBLISH 40
-#define METHOD_DELIVER 60
+// RabbitMQ supported methods types.
+#define AMQP_METHOD_CONSUME 20
+#define AMQP_METHOD_PUBLISH 40
+#define AMQP_METHOD_DELIVER 60
+#define AMQP_FRAME_METHOD_TYPE 1
 
-#define FRAME_METHOD_TYPE 1
-#define MIN_FRAME_LENGTH 8
+#define AMQP_MIN_FRAME_LENGTH 8
+#define AMQP_MIN_PROTOOL_HEADER_SIZE 4
 
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
