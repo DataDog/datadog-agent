@@ -38,9 +38,10 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 
 
-@task
+@task(iterable=["build_tags"])
 def build(
     ctx,
+    build_tags,
     race=False,
     incremental_build=True,
     major_version='7',
@@ -67,7 +68,7 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags = get_default_build_tags(
+    build_tags += get_default_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
