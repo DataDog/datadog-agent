@@ -78,14 +78,14 @@ func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32)
 
 func (pm *ProcessMonitor) InitWithAllCurrentProcess() {
 	fn := func(pid int) error {
-		pm.m.Lock()
 		for _, c := range pm.procEventCallbacks[EXEC] {
 			pm.evalEXECCallback(c, uint32(pid))
 		}
-		pm.m.Unlock()
 		return nil
 	}
 
+	pm.m.Lock()
+	defer pm.m.Unlock()
 	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
 		log.Errorf("process monitor init, scanning all process failed %s", err)
 	}
