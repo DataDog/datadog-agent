@@ -56,8 +56,7 @@
 
 #define check_command(Buf, Command, Size) ( \
     (Size >= (sizeof(Command) - 1))         \
-    && Buf[0] == Command[0]                 \
-    && !bpf_memcmp((Buf + 1), &(Command) + 1, sizeof(Command) - 2))
+    && !bpf_memcmp((Buf), &(Command), sizeof(Command) - 1))
 
 static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
     return check_command(buf, SQL_ALTER, buf_size)
