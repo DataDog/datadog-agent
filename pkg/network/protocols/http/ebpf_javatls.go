@@ -9,12 +9,7 @@
 package http
 
 import (
-	"math/rand"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strconv"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/java"
@@ -24,24 +19,11 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-const (
-	AgentUSMJar = "agent-usm.jar"
-)
-
-var (
-	// path to our java USM agent TLS tracer
-	javaUSMAgentJarPath = ""
-	// authID is used here as an identifier, simple proof of authenticity
-	// between the injected java process and the ebpf ioctl that receive the payload
-	authID = int64(0)
-)
-
 type JavaTLSProgram struct {
 	processMonitor *monitor.ProcessMonitor
 	cleanupExec    func()
 }
 
-// Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
@@ -50,16 +32,9 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	}
 
 	if !c.EnableRuntimeCompiler {
-		log.Errorf("java TLS support requires runtime-compilation to be enabled")
+		log.Errorf("goTLS support requires runtime-compilation to be enabled")
 		return nil
 	}
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
-	jar, err := os.Open(javaUSMAgentJarPath)
-	if err != nil {
-		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
-		return nil
-	}
-	jar.Close()
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
@@ -68,8 +43,11 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
-	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
-	authID = rand.Int63()
+	if p == nil {
+		return
+	}
+
+	//TODO setup the random id here
 }
 
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
@@ -79,12 +57,16 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdent
 }
 
 func newJavaProcess(pid uint32) {
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(authID, 10)); err != nil {
-		log.Error(err)
+	if err := java.InjectAgent(int(pid), "/opt/datadog-agent/embedded/share/system-probe/ebpf/java.agent.jar", ""); err != nil {
+		log.Errorf("%v", err)
 	}
 }
 
 func (p *JavaTLSProgram) Start() {
+	if p == nil {
+		return
+	}
+
 	var err error
 	p.cleanupExec, err = p.processMonitor.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXEC,
@@ -99,7 +81,8 @@ func (p *JavaTLSProgram) Start() {
 }
 
 func (p *JavaTLSProgram) Stop() {
-	if p.cleanupExec != nil {
-		p.cleanupExec()
+	if p == nil {
+		return
 	}
+	p.cleanupExec()
 }
