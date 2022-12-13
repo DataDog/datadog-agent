@@ -51,15 +51,19 @@ func TestVerboseLogFileName(t *testing.T) {
 		expected string
 	}{
 		{"agent.log", "agent-verbose.log"},
+		{"agent.txt", "agent-verbose.txt"},
 		{"agent", "agent-verbose"},
 		{"/var/log/datadog/agent.log", "/var/log/datadog/agent-verbose.log"},
+		{"/var/log/datadog/agent.txt", "/var/log/datadog/agent-verbose.txt"},
+		{"/var/log/datadog/agent", "/var/log/datadog/agent-verbose"},
 		{"/opt/datadog-agent/logs/agent.log", "/opt/datadog-agent/logs/agent-verbose.log"},
+		{"/opt/datadog-agent/logs/agent", "/opt/datadog-agent/logs/agent-verbose"},
 		{"c:\\programdata\\datadog\\logs\\agent.log", "c:\\programdata\\datadog\\logs\\agent-verbose.log"},
+		{"c:\\programdata\\datadog\\logs\\agent", "c:\\programdata\\datadog\\logs\\agent-verbose"},
 	}
-	// verboseFile := getVerboseLogFile("agent.log")
-	// assert.Equal(t, verboseFile, "agent-verbose.log")
+
 	for _, e := range tests {
-		assert.Equal(t, e.expected, getVerboseLogFile(e.input))
+		assert.Equal(t, e.expected, getVerboseLogFileName(e.input))
 	}
 }
 

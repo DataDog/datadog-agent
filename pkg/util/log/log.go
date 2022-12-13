@@ -245,9 +245,8 @@ func (sw *DatadogLogger) infoStackDepth(s string, depth int) {
 // warn logs at the warn level, called with sw.l held
 func (sw *DatadogLogger) warn(s string, logger seelog.LoggerInterface) error {
 	scrubbed := sw.scrub(s)
-	err := sw.inner.Warn(scrubbed)
 
-	logger.Warn(scrubbed)
+	err := logger.Warn(scrubbed)
 
 	for _, l := range sw.extra {
 		l.Warn(scrubbed) //nolint:errcheck
@@ -273,9 +272,8 @@ func (sw *DatadogLogger) warnStackDepth(s string, depth int) error {
 // error logs at the error level, called with sw.l held
 func (sw *DatadogLogger) error(s string, logger seelog.LoggerInterface) error {
 	scrubbed := sw.scrub(s)
-	err := sw.inner.Error(scrubbed)
 
-	logger.Error(scrubbed)
+	err := logger.Error(scrubbed)
 
 	for _, l := range sw.extra {
 		l.Error(scrubbed) //nolint:errcheck
@@ -301,9 +299,8 @@ func (sw *DatadogLogger) errorStackDepth(s string, depth int) error {
 // critical logs at the critical level, called with sw.l held
 func (sw *DatadogLogger) critical(s string, logger seelog.LoggerInterface) error {
 	scrubbed := sw.scrub(s)
-	err := sw.inner.Critical(scrubbed)
 
-	logger.Critical(scrubbed)
+	err := logger.Critical(scrubbed)
 
 	for _, l := range sw.extra {
 		l.Critical(scrubbed) //nolint:errcheck
@@ -527,11 +524,11 @@ func logContext(logLevel seelog.LogLevel, bufferFunc func(), logFunc func(string
 		msg := Logger.scrub(message)
 		Logger.l.Lock()
 		defer Logger.l.Unlock()
-		Logger.inner.SetContext(context)
-		Logger.inner.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
-		logFunc(msg, Logger.inner)
-		Logger.inner.SetContext(nil)
-		Logger.inner.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
+		Logger.verbose.SetContext(context)
+		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth + depth) //nolint:errcheck
+		logFunc(msg, Logger.verbose)
+		Logger.verbose.SetContext(nil)
+		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth) //nolint:errcheck
 	} else if bufferLogsBeforeInit && (Logger == nil || Logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
 	}
@@ -556,7 +553,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fu
 		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth + depth) // nolint:errcheck
 		err := logFunc(msg, Logger.verbose)
 		Logger.verbose.SetContext(nil)
-		Logger.inner.SetAdditionalStackDepth(defaultStackDepth)
+		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth)
 		return err
 	} else if bufferLogsBeforeInit && (Logger == nil || Logger.inner == nil) {
 		addLogToBuffer(bufferFunc)

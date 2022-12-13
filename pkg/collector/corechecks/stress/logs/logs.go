@@ -12,15 +12,15 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const spinCheckName = "spin"
+const logStressCheckName = "logStress"
 
 // Use CheckBase fields only
-type SpinCheck struct {
+type LogStressCheck struct {
 	core.CheckBase
 }
 
 // Run executes the check
-func (c *SpinCheck) Run() error {
+func (c *LogStressCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
@@ -28,12 +28,12 @@ func (c *SpinCheck) Run() error {
 
 	for i := 0; i < 10.000; i++ {
 		logLevel := rand.Intn(6)
-		logLength := rand.Intn(16) + 1
+		logLength := rand.Intn(12) + 1
 
 		logAtLevel(logLevel, logLength)
 	}
 
-	sender.Count("stress.spin.executed", 1, "", nil)
+	sender.Count("stress.logStress.executed", 1, "", nil)
 	return nil
 }
 
@@ -61,11 +61,11 @@ func logAtLevel(logLevel, logLength int) {
 }
 
 func loadFactory() check.Check {
-	return &SpinCheck{
-		CheckBase: core.NewCheckBase(spinCheckName),
+	return &LogStressCheck{
+		CheckBase: core.NewCheckBase(logStressCheckName),
 	}
 }
 
 func init() {
-	core.RegisterCheck(spinCheckName, loadFactory)
+	core.RegisterCheck(logStressCheckName, loadFactory)
 }

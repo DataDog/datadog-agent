@@ -106,7 +106,7 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 
 	var verboseLoggerInterface seelog.LoggerInterface = nil
 	if verboseLogging {
-		verboseFile := getVerboseLogFile(logFile)
+		verboseFile := getVerboseLogFileName(logFile)
 		seelogConfig, err = buildLoggerConfig("Verbose Logger", "trace", verboseFile, "", false, false, false)
 		verboseLoggerInterface, err = GenerateLoggerInterface(seelogConfig)
 		if err != nil {
@@ -119,13 +119,17 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	return nil
 }
 
-func getVerboseLogFile(logFile string) string {
-	verboseFile := logFile[:len(logFile)-len(filepath.Ext(logFile))]
-	if len(filepath.Ext(logFile)) != 0 {
-		return verboseFile + "-verbose.log"
-	} else {
-		return verboseFile + "-verbose"
+func getVerboseLogFileName(logFile string) string {
+	ext := filepath.Ext(logFile)
+	verboseFile := logFile[:len(logFile)-len(ext)]
+
+	verboseFile += "-verbose"
+
+	if len(ext) != 0 {
+		return verboseFile + ext
 	}
+
+	return verboseFile
 }
 
 // SetupJMXLogger sets up a logger with JMX logger name and log level
