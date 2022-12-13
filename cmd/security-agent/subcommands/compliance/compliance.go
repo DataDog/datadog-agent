@@ -59,6 +59,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
 		checks.WithStatsd(statsdClient),
+		checks.WithConfigDir(configDir),
 	}
 
 	agent, err := agent.New(

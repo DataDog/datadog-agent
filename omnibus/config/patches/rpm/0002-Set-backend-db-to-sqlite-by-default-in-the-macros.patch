@@ -1,0 +1,25 @@
+From ca8b756c14c3652eac4a196ada1493f854b6abe8 Mon Sep 17 00:00:00 2001
+From: Isabelle Sauve <isabelle.sauve@datadoghq.com>
+Date: Thu, 19 Aug 2021 16:12:24 -0400
+Subject: [PATCH] Set backend db to sqlite by default in the macros
+
+---
+ macros.in | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/macros.in b/macros.in
+index 18c7f87..5f86e3c 100644
+--- a/macros.in
++++ b/macros.in
+@@ -624,7 +624,7 @@ package or when debugging this package.\
+ # sqlite Sqlite database
+ # dummy dummy backend (no actual functionality)
+ #
+-%_db_backend	      bdb
++%_db_backend	      sqlite
+ 
+ #
+ #	Macros used to configure Berkley db parameters.
+-- 
+2.31.1
+

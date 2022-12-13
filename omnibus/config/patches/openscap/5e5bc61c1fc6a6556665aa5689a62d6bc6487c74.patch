@@ -1,0 +1,38 @@
+From 5e5bc61c1fc6a6556665aa5689a62d6bc6487c74 Mon Sep 17 00:00:00 2001
+From: Evgeny Kolesnikov <ekolesni@redhat.com>
+Date: Thu, 25 Jul 2019 20:57:38 +0200
+Subject: [PATCH] OVAL/dpkginfo: Fix dangling '*' in dpkginfo_free_reply
+ declaration.
+
+This function is not supposed to return anything.
+---
+ src/OVAL/probes/unix/linux/dpkginfo-helper.cxx | 2 +-
+ src/OVAL/probes/unix/linux/dpkginfo-helper.h   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+index 18acc5637..48b75d02e 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -112,7 +112,7 @@ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err)
+         return reply;
+ }
+ 
+-void * dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
++void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
+ {
+         if (reply) {
+                 free(reply->name);
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.h b/src/OVAL/probes/unix/linux/dpkginfo-helper.h
+index b2f0db3de..fe2f68a23 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.h
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.h
+@@ -40,7 +40,7 @@ int dpkginfo_fini();
+ 
+ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err);
+ 
+-void * dpkginfo_free_reply(struct dpkginfo_reply_t *reply);
++void dpkginfo_free_reply(struct dpkginfo_reply_t *reply);
+ 
+ #ifdef __cplusplus
+ }

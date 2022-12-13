@@ -1,0 +1,15 @@
+diff --git a/rpmio/digest_openssl.c b/rpmio/digest_openssl.c
+index 18e52a724..ba0c90a83 100644
+--- a/rpmio/digest_openssl.c
++++ b/rpmio/digest_openssl.c
+@@ -175,8 +175,8 @@ static const EVP_MD *getEVPMD(int hashalgo)
+     case PGPHASHALGO_RIPEMD160:
+         return EVP_ripemd160();
+ 
+-    case PGPHASHALGO_MD2:
+-        return EVP_md2();
++    // case PGPHASHALGO_MD2:
++    //     return EVP_md2();
+ 
+     case PGPHASHALGO_SHA256:
+         return EVP_sha256();

@@ -1,0 +1,30 @@
+diff --git a/src/XCCDF/public/xccdf_session.h b/src/XCCDF/public/xccdf_session.h
+index f99923990..ee7de1f61 100644
+--- a/src/XCCDF/public/xccdf_session.h
++++ b/src/XCCDF/public/xccdf_session.h
+@@ -582,6 +582,9 @@ int xccdf_session_build_policy_from_testresult(struct xccdf_session *session, co
+  */
+ int xccdf_session_add_report_from_source(struct xccdf_session *session, struct oscap_source *report_source);
+ 
++struct xccdf_rule_result_iterator;
++struct xccdf_rule_result_iterator *xccdf_session_get_rule_results(const struct xccdf_session *item);
++
+ /// @}
+ /// @}
+ #endif
+diff --git a/src/XCCDF/xccdf_session.c b/src/XCCDF/xccdf_session.c
+index ccb95821a..e541f9346 100644
+--- a/src/XCCDF/xccdf_session.c
++++ b/src/XCCDF/xccdf_session.c
+@@ -1689,6 +1689,11 @@ bool xccdf_session_contains_fail_result(const struct xccdf_session *session)
+ 	return false;
+ }
+ 
++struct xccdf_rule_result_iterator *xccdf_session_get_rule_results(const struct xccdf_session *session)
++{
++	return xccdf_result_get_rule_results(session->xccdf.result);
++}
++
+ int xccdf_session_remediate(struct xccdf_session *session)
+ {
+ 	int res = 0;

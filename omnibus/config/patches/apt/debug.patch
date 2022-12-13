@@ -1,0 +1,22 @@
+diff --git a/apt-pkg/pkgcachegen.cc b/apt-pkg/pkgcachegen.cc
+index 807f3bf6c..0791fac31 100644
+--- a/apt-pkg/pkgcachegen.cc
++++ b/apt-pkg/pkgcachegen.cc
+@@ -1376,7 +1376,7 @@ static bool CheckValidity(FileFd &CacheFile, std::string const &CacheFileName,
+       return false;
+    ScopedErrorRevert ser;
+ 
+-   bool const Debug = _config->FindB("Debug::pkgCacheGen", false);
++   bool const Debug = _config->FindB("Debug::pkgCacheGen", true);
+    // No file, certainly invalid
+    if (CacheFile.Open(CacheFileName, FileFd::ReadOnly, FileFd::None) == false)
+    {
+@@ -1661,7 +1661,7 @@ bool pkgCacheGenerator::MakeStatusCache(pkgSourceList &List,OpProgress *Progress
+ 			MMap **OutMap,pkgCache **OutCache, bool)
+ {
+    // FIXME: deprecate the ignored AllowMem parameter
+-   bool const Debug = _config->FindB("Debug::pkgCacheGen", false);
++   bool const Debug = _config->FindB("Debug::pkgCacheGen", true);
+ 
+    std::vector<pkgIndexFile *> Files;
+    if (_system->AddStatusFiles(Files) == false)

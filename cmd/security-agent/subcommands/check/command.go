@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -102,6 +103,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
 
+	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	options := []checks.BuilderOption{}
 
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -119,6 +121,7 @@ func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) 
 			checks.WithHostRootMount(os.Getenv("HOST_ROOT")),
 			checks.MayFail(checks.WithDocker()),
 			checks.MayFail(checks.WithAudit()),
+			checks.WithConfigDir(configDir),
 		}...)
 	}
 

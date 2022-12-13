@@ -1,0 +1,14 @@
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+index 952f85204..bb0da9efd 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -12,6 +12,9 @@
+ #include <apt-pkg/mmap.h>
+ #include <apt-pkg/pkgcache.h>
+ #include <apt-pkg/pkgrecords.h>
++#include <apt-pkg/pkgsystem.h>
++#include <apt-pkg/fileutl.h>
++#include <apt-pkg/configuration.h>
+ 
+ #include "dpkginfo-helper.h"
+ 

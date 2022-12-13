@@ -113,6 +113,7 @@ func startCompliance(stopper startstop.Stopper, apiCl *apiserver.APIClient, isLe
 		}),
 		checks.WithKubernetesClient(apiCl.DynamicCl, ""),
 		checks.WithIsLeader(isLeader),
+		checks.WithConfigDir(configDir),
 	)
 	if err != nil {
 		return err

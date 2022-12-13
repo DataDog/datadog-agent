@@ -1,0 +1,13 @@
+diff --git a/apt-pkg/contrib/mmap.h b/apt-pkg/contrib/mmap.h
+index 76db7b542..fe023df05 100644
+--- a/apt-pkg/contrib/mmap.h
++++ b/apt-pkg/contrib/mmap.h
+@@ -37,7 +37,7 @@ class FileFd;
+    instead of this internal type */
+ typedef unsigned int map_ptrloc;
+ 
+-class MMap
++class APT_PUBLIC MMap
+ {
+    protected:
+    

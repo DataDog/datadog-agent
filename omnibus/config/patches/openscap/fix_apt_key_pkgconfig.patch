@@ -1,0 +1,55 @@
+--- a/configure	2022-12-08 16:26:57.804222093 +0000
++++ b/configure	2022-12-08 16:28:14.240075693 +0000
+@@ -25610,7 +25610,7 @@
+ 
+ 
+ SAVE_CPPFLAGS="$CPPFLAGS"
+-CPPFLAGS="$CPPFLAGS  $(pkg-config libapt-pkg --cflags) $(pkg-config blkid --cflags) $(pkg-config dbus-1 --cflags) $(pkg-config gconf-2.0 --cflags) $(pkg-config libpcre --cflags) $(pkg-config libprocps --cflags) $(pkg-config rpm --cflags) $(pkg-config libselinux --cflags) $(pkg-config libxml-2.0 --cflags) $(pkg-config libxslt --cflags) "
++CPPFLAGS="$CPPFLAGS  $(pkg-config apt-pkg --cflags) $(pkg-config blkid --cflags) $(pkg-config dbus-1 --cflags) $(pkg-config gconf-2.0 --cflags) $(pkg-config libpcre --cflags) $(pkg-config libprocps --cflags) $(pkg-config rpm --cflags) $(pkg-config libselinux --cflags) $(pkg-config libxml-2.0 --cflags) $(pkg-config libxslt --cflags) "
+ 
+ echo
+ echo ' * Checking presence of required headers for the family probe'
+@@ -26530,12 +26530,12 @@
+     pkg_cv_apt_pkg_CFLAGS="$apt_pkg_CFLAGS"
+  elif test -n "$PKG_CONFIG"; then
+     if test -n "$PKG_CONFIG" && \
+-    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"libapt-pkg >= 0.0\""; } >&5
+-  ($PKG_CONFIG --exists --print-errors "libapt-pkg >= 0.0") 2>&5
++    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"apt-pkg >= 0.0\""; } >&5
++  ($PKG_CONFIG --exists --print-errors "apt-pkg >= 0.0") 2>&5
+   ac_status=$?
+   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+   test $ac_status = 0; }; then
+-  pkg_cv_apt_pkg_CFLAGS=`$PKG_CONFIG --cflags "libapt-pkg >= 0.0" 2>/dev/null`
++  pkg_cv_apt_pkg_CFLAGS=`$PKG_CONFIG --cflags "apt-pkg >= 0.0" 2>/dev/null`
+ 		      test "x$?" != "x0" && pkg_failed=yes
+ else
+   pkg_failed=yes
+@@ -26547,12 +26547,12 @@
+     pkg_cv_apt_pkg_LIBS="$apt_pkg_LIBS"
+  elif test -n "$PKG_CONFIG"; then
+     if test -n "$PKG_CONFIG" && \
+-    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"libapt-pkg >= 0.0\""; } >&5
+-  ($PKG_CONFIG --exists --print-errors "libapt-pkg >= 0.0") 2>&5
++    { { $as_echo "$as_me:${as_lineno-$LINENO}: \$PKG_CONFIG --exists --print-errors \"apt-pkg >= 0.0\""; } >&5
++  ($PKG_CONFIG --exists --print-errors "apt-pkg >= 0.0") 2>&5
+   ac_status=$?
+   $as_echo "$as_me:${as_lineno-$LINENO}: \$? = $ac_status" >&5
+   test $ac_status = 0; }; then
+-  pkg_cv_apt_pkg_LIBS=`$PKG_CONFIG --libs "libapt-pkg >= 0.0" 2>/dev/null`
++  pkg_cv_apt_pkg_LIBS=`$PKG_CONFIG --libs "apt-pkg >= 0.0" 2>/dev/null`
+ 		      test "x$?" != "x0" && pkg_failed=yes
+ else
+   pkg_failed=yes
+@@ -26573,9 +26573,9 @@
+         _pkg_short_errors_supported=no
+ fi
+         if test $_pkg_short_errors_supported = yes; then
+-	        apt_pkg_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "libapt-pkg >= 0.0" 2>&1`
++	        apt_pkg_PKG_ERRORS=`$PKG_CONFIG --short-errors --print-errors --cflags --libs "apt-pkg >= 0.0" 2>&1`
+         else
+-	        apt_pkg_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "libapt-pkg >= 0.0" 2>&1`
++	        apt_pkg_PKG_ERRORS=`$PKG_CONFIG --print-errors --cflags --libs "apt-pkg >= 0.0" 2>&1`
+         fi
+ 	# Put the nasty error message in config.log where it belongs
+ 	echo "$apt_pkg_PKG_ERRORS" >&5

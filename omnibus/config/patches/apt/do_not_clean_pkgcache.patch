@@ -1,0 +1,15 @@
+diff --git a/apt-pkg/edsp/edspsystem.cc b/apt-pkg/edsp/edspsystem.cc
+index c86f1ed3f..36d0d49b2 100644
+--- a/apt-pkg/edsp/edspsystem.cc
++++ b/apt-pkg/edsp/edspsystem.cc
+@@ -70,8 +70,8 @@ bool edspLikeSystem::Initialize(Configuration &Cnf)
+    Cnf.Set("Dir::State::extended_states","/dev/null");
+    Cnf.Set("Dir::State::lists","/dev/null");
+    // do not store an mmap cache
+-   Cnf.Set("Dir::Cache::pkgcache", "");
+-   Cnf.Set("Dir::Cache::srcpkgcache", "");
++   // Cnf.Set("Dir::Cache::pkgcache", "");
++   // Cnf.Set("Dir::Cache::srcpkgcache", "");
+    // the protocols only propose actions, not do them
+    Cnf.Set("Debug::NoLocking", "true");
+    Cnf.Set("APT::Get::Simulate", "true");

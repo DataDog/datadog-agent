@@ -1,0 +1,48 @@
+diff --git a/apt-pkg/contrib/fileutl.cc b/apt-pkg/contrib/fileutl.cc
+index 10c656301..d8544f8e6 100644
+--- a/apt-pkg/contrib/fileutl.cc
++++ b/apt-pkg/contrib/fileutl.cc
+@@ -2561,7 +2561,7 @@ bool FileFd::Open(string FileName,unsigned int const Mode,APT::Configuration::Co
+ 	 close (iFd);
+ 	 iFd = -1;
+       }
+-      return FileFdErrno("open",_("Could not open file %s"), FileName.c_str());
++      return FileFdErrno("open",_("Could not open file 4 %s"), FileName.c_str());
+    }
+ 
+    SetCloseExec(iFd,true);
+diff --git a/apt-pkg/deb/dpkgpm.cc b/apt-pkg/deb/dpkgpm.cc
+index 93effa959..0767b195f 100644
+--- a/apt-pkg/deb/dpkgpm.cc
++++ b/apt-pkg/deb/dpkgpm.cc
+@@ -1013,7 +1013,7 @@ bool pkgDPkgPM::OpenLog()
+    {
+       d->term_out = fopen(logfile_name.c_str(),"a");
+       if (d->term_out == NULL)
+-	 return _error->WarningE("OpenLog", _("Could not open file '%s'"), logfile_name.c_str());
++	 return _error->WarningE("OpenLog", _("Could not open file 1 '%s'"), logfile_name.c_str());
+       setvbuf(d->term_out, NULL, _IONBF, 0);
+       SetCloseExec(fileno(d->term_out), true);
+       if (getuid() == 0) // if we aren't root, we can't chown a file, so don't try it
+@@ -1037,7 +1037,7 @@ bool pkgDPkgPM::OpenLog()
+    {
+       d->history_out = fopen(history_name.c_str(),"a");
+       if (d->history_out == NULL)
+-	 return _error->WarningE("OpenLog", _("Could not open file '%s'"), history_name.c_str());
++	 return _error->WarningE("OpenLog", _("Could not open file 2 '%s'"), history_name.c_str());
+       SetCloseExec(fileno(d->history_out), true);
+       chmod(history_name.c_str(), 0644);
+       fprintf(d->history_out, "\nStart-Date: %s\n", timestr);
+diff --git a/apt-pkg/edsp.cc b/apt-pkg/edsp.cc
+index 9d196eed3..b0c900978 100644
+--- a/apt-pkg/edsp.cc
++++ b/apt-pkg/edsp.cc
+@@ -758,7 +758,7 @@ static bool CreateDumpFile(char const * const id, char const * const type, FileF
+ 	for (auto && msg : downgrademsgs)
+ 	   _error->Warning("%s", msg.c_str());
+ 	if (errored_out)
+-		return _error->WarningE(id, _("Could not open file '%s'"), dumpfile.c_str());
++		return _error->WarningE(id, _("Could not open file 3 '%s'"), dumpfile.c_str());
+ 	return true;
+ }
+ 									/*}}}*/

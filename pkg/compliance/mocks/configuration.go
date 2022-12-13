@@ -12,6 +12,20 @@ type Configuration struct {
 	mock.Mock
 }
 
+// ConfigDir provides a mock function with given fields:
+func (_m *Configuration) ConfigDir() string {
+	ret := _m.Called()
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
 // EtcGroupPath provides a mock function with given fields:
 func (_m *Configuration) EtcGroupPath() string {
 	ret := _m.Called()

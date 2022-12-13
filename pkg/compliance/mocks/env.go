@@ -32,6 +32,20 @@ func (_m *Env) AuditClient() env.AuditClient {
 	return r0
 }
 
+// ConfigDir provides a mock function with given fields:
+func (_m *Env) ConfigDir() string {
+	ret := _m.Called()
+
+	var r0 string
+	if rf, ok := ret.Get(0).(func() string); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
 // DockerClient provides a mock function with given fields:
 func (_m *Env) DockerClient() env.DockerClient {
 	ret := _m.Called()

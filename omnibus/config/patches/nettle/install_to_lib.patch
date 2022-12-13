@@ -1,0 +1,13 @@
+diff --git a/configure.ac b/configure.ac
+index 92536fb0..127c011c 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -431,7 +431,7 @@ if test "x$ABI" != xstandard ; then
+ 	  # symlink names. Use -P option, and hope it's portable enough.
+ 	  test -d /usr/lib${ABI} \
+ 	    && (cd /usr/lib${ABI} && pwd -P | grep >/dev/null "/lib${ABI}"'$') \
+-	    && libdir='${exec_prefix}/'"lib${ABI}"
++	    && libdir='${exec_prefix}/'"lib"
+ 	fi
+ 	;;
+       # On freebsd, it seems 32-bit libraries are in lib32,

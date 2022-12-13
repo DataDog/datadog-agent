@@ -1,0 +1,20 @@
+diff --git a/apt-pkg/init.cc b/apt-pkg/init.cc
+index b9d9b15d2..8d36eb56e 100644
+--- a/apt-pkg/init.cc
++++ b/apt-pkg/init.cc
+@@ -139,13 +139,13 @@ bool pkgInitConfig(Configuration &Cnf)
+    Cnf.CndSet("Dir::State::cdroms","cdroms.list");
+ 
+    // Cache
+-   Cnf.CndSet("Dir::Cache", &CACHE_DIR[1]);
++   Cnf.CndSet("Dir::Cache", "/var/cache/apt");
+    Cnf.CndSet("Dir::Cache::archives","archives/");
+    Cnf.CndSet("Dir::Cache::srcpkgcache","srcpkgcache.bin");
+    Cnf.CndSet("Dir::Cache::pkgcache","pkgcache.bin");
+ 
+    // Configuration
+-   Cnf.CndSet("Dir::Etc", &CONF_DIR[1]);
++   Cnf.CndSet("Dir::Etc", "/etc/apt");
+    Cnf.CndSet("Dir::Etc::sourcelist","sources.list");
+    Cnf.CndSet("Dir::Etc::sourceparts","sources.list.d");
+    Cnf.CndSet("Dir::Etc::main","apt.conf");
