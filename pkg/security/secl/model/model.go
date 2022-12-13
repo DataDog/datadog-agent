@@ -328,6 +328,11 @@ func (p *Process) HasInterpreter() bool {
 	return p.LinuxBinprm.FileEvent.Inode != 0
 }
 
+// IsNotKworker returns true if the process isn't a kworker
+func (p *Process) IsNotKworker() bool {
+	return !p.IsKworker
+}
+
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
 type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
@@ -337,7 +342,7 @@ type LinuxBinprm struct {
 type Process struct {
 	PIDContext
 
-	FileEvent FileEvent `field:"file"`
+	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
 	ContainerID   string   `field:"container.id"` // Container ID
 	ContainerTags []string `field:"-"`
