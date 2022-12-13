@@ -6,24 +6,22 @@
 package fargate
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 )
 
 // IsFargateInstance returns whether the Agent is running in Fargate.
-func IsFargateInstance(ctx context.Context) bool {
-	return ecs.IsFargateInstance(ctx) || IsEKSFargateInstance()
+func IsFargateInstance() bool {
+	return config.IsFeaturePresent(config.ECSFargate) || IsEKSFargateInstance()
 }
 
 // GetOrchestrator returns whether the Agent is running on ECS or EKS.
-func GetOrchestrator(ctx context.Context) OrchestratorName {
+func GetOrchestrator() OrchestratorName {
 	if IsEKSFargateInstance() {
 		return EKS
 	}
-	if ecs.IsFargateInstance(ctx) {
+	if config.IsFeaturePresent(config.ECSFargate) {
 		return ECS
 	}
 	return Unknown

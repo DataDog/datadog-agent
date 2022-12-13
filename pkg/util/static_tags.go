@@ -24,7 +24,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	// fargate (ECS or EKS) does not have host tags, so we need to
 	// add static tags to each container manually
 
-	if !fargate.IsFargateInstance(ctx) {
+	if !fargate.IsFargateInstance() {
 		return nil
 	}
 

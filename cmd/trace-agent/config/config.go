@@ -76,7 +76,7 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	orch := fargate.GetOrchestrator(ctx)
+	orch := fargate.GetOrchestrator()
 	cancel()
 	if err := ctx.Err(); err != nil && err != context.Canceled {
 		log.Errorf("Failed to get Fargate orchestrator. This may cause issues if you are in a Fargate instance: %v", err)
