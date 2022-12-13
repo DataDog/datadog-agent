@@ -25,11 +25,6 @@ const (
 	processMonitorMaxEvents = 2048
 )
 
-const (
-	STOPPED = iota
-	RUNNING
-)
-
 var (
 	processMonitorLock sync.RWMutex
 	processMonitor     *ProcessMonitor
@@ -39,7 +34,7 @@ type ProcessMonitor struct {
 	m  sync.Mutex
 	wg sync.WaitGroup
 
-	state int
+	initializing bool
 
 	events chan netlink.ProcEvent
 	done   chan struct{}
@@ -77,7 +72,9 @@ func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32)
 	pm.callbackRunner <- func() { callback.Callback(pid) }
 }
 
-func (pm *ProcessMonitor) InitWithAllCurrentProcess() {
+// Initialize() will scan all running processes and execute matching callbacks
+// Once it's done all new events from netlink socket will be processed by the main async loop
+func (pm *ProcessMonitor) Initialize() {
 	fn := func(pid int) error {
 		for _, c := range pm.procEventCallbacks[EXEC] {
 			pm.evalEXECCallback(c, uint32(pid))
@@ -90,8 +87,8 @@ func (pm *ProcessMonitor) InitWithAllCurrentProcess() {
 	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
 		log.Errorf("process monitor init, scanning all process failed %s", err)
 	}
-
-	pm.state = RUNNING
+	// enable events to be processed
+	pm.initializing = false
 }
 
 func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
@@ -201,7 +198,7 @@ func GetProcessMonitor() *ProcessMonitor {
 	defer processMonitorLock.Unlock()
 
 	p := &ProcessMonitor{}
-	p.state = STOPPED
+	p.initializing = true
 	p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
 	p.done = make(chan struct{})
 	p.errors = make(chan error)
@@ -232,6 +229,8 @@ func GetProcessMonitor() *ProcessMonitor {
 		}()
 	}
 
+	// This is the main async loop, where we process processes events from netlink socket
+	// events are dropped until
 	p.wg.Add(1)
 	go func() {
 		defer func() {
@@ -248,7 +247,7 @@ func GetProcessMonitor() *ProcessMonitor {
 					return
 				}
 				p.m.Lock()
-				if p.state == STOPPED {
+				if p.initializing {
 					p.m.Unlock()
 					continue
 				}
