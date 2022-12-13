@@ -69,11 +69,6 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     return is_http2_preface(buf, buf_size) || is_http2_server_settings(buf, buf_size);
 }
 
-static __always_inline int16_t read_big_endian_int16(const char* buf) {
-    int16_t *val = (int16_t*)buf;
-    return bpf_ntohs(*val);
-}
-
 // The method checks if the given buffer starts is amqp message.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
