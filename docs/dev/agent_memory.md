@@ -136,8 +136,12 @@ available in the links below.
 Python, another runtime in the Agent process, is also garbage collected.
 Datadog offers two tools with the Agent that can help you identify memory issues:
 
+- Python memory telemetry
 - Trracemalloc
 - Pympler
+
+Python memory telemetry tracks total amount of memory allocated by
+python interpreter as a telemetry metrics (`pymem.inuse` and `pymem.alloc`).
 
 Tracemalloc is part of the CPython interpreter, and tracks allocations and
 frees. It's implemented efficiently and runs with relatively low overhead.
