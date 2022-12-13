@@ -44,7 +44,7 @@ check_serverless_size_x64:
   variables:
     BINARY_NAME: datadog-agent-x64
     # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 30562465
+    BASELINE_SIZE_IN_BYTES: 32052160
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
   needs: ["go_deps"]
@@ -56,7 +56,7 @@ check_serverless_size_arm64:
   variables:
     BINARY_NAME: datadog-agent-arm64
     # this baseline is the current binary size + 3%
-    BASELINE_SIZE_IN_BYTES: 30562465
+    BASELINE_SIZE_IN_BYTES: 31009136
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker-arm", "platform:arm64"]
   needs: ["go_deps"]
