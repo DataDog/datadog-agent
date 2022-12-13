@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 	if logLevel == "" {
 		logLevel = "warn"
 	}
-	log.SetupLogger(seelog.Default, logLevel)
+	log.SetupLogger(seelog.Default, logLevel, nil)
 
 	os.Exit(m.Run())
 }

@@ -553,7 +553,7 @@ func logContextWithError(logLevel seelog.LogLevel, bufferFunc func(), logFunc fu
 		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth + depth) // nolint:errcheck
 		err := logFunc(msg, Logger.verbose)
 		Logger.verbose.SetContext(nil)
-		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth)
+		Logger.verbose.SetAdditionalStackDepth(defaultStackDepth) // nolint:errcheck
 		return err
 	} else if bufferLogsBeforeInit && (Logger == nil || Logger.inner == nil) {
 		addLogToBuffer(bufferFunc)
