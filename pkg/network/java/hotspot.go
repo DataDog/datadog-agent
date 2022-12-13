@@ -126,10 +126,11 @@ func (h *Hotspot) connect() (cleanup func(), err error) {
 	}
 
 	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		conn.Close()
 		return func() {}, err
 	}
 	h.conn = conn
-	return func() { defer h.conn.Close() }, nil
+	return func() { h.conn.Close() }, nil
 }
 
 func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, response string) {
