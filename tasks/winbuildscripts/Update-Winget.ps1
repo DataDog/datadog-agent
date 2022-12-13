@@ -16,7 +16,7 @@ if ($m) {
 }
 if ($rc) {
     Write-Host ("Updating Winget manifest for Agent version ${agentVersion}-rc.${rc}")
-    wingetcreate.exe update --urls "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/datadog-agent-${agentVersion}-rc.${rc}-1-x86_64.msi" --version "${agentVersion}-rc.${rc}" --submit --token "${env:WINGET_GITHUB_ACCESS_TOKEN}" "Datadog.Agent"
+    wingetcreate.exe update --urls "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-${agentVersion}-rc.${rc}.msi" --version "${agentVersion}-rc.${rc}" --submit --token "${env:WINGET_GITHUB_ACCESS_TOKEN}" "Datadog.Agent"
 } else {
     Write-Host ("Updating Winget manifest for Agent version ${agentVersion}.1")
     wingetcreate.exe update --urls "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-${agentVersion}.msi" --version "${agentVersion}.1" --submit --token "${env:WINGET_GITHUB_ACCESS_TOKEN}" "Datadog.Agent"
