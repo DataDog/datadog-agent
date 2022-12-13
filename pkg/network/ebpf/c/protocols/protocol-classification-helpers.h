@@ -91,7 +91,7 @@ static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
     __u16 class_id = buf[7] << 8 | buf[8];
     __u16 method_id = buf[9] << 8 | buf[10];
     // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
-    // consider
+    // consider for the classification.
     if (class_id == AMQP_CONNECTION_CLASS && method_id == AMQP_METHOD_CONNECTION_START) {
         return true;
     }
