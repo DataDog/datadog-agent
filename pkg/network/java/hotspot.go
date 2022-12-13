@@ -188,12 +188,14 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 //  o create a file .attach_pid%d
 //  o send a SIGQUIT signal
 //  o wait for socket file created by the java process
-func (h *Hotspot) attachJVMProtocol() error {
+func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	attachPath := fmt.Sprintf("%s/.attach_pid%d", h.root+h.cwd, h.nsPid)
 	hook, err := os.OpenFile(attachPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
 	hook.Close()
+	// we don't check Chown() return error here as it can failed on some filesystem
+	_ = syscall.Chown(attachPath, uid, gid)
 	hookUID, _, ownerErr := getPathOwner(attachPath)
-	if err != nil || ownerErr != nil || hookUID != uint32(os.Geteuid()) {
+	if err != nil || ownerErr != nil || hookUID != uint32(uid) {
 		// we failed to create the .attach_pid file in the process directory
 		// let's try in /tmp
 
@@ -231,7 +233,7 @@ func (h *Hotspot) attachJVMProtocol() error {
 func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 
 	// ask JVM to create a socket to communicate
-	if err := h.attachJVMProtocol(); err != nil {
+	if err := h.attachJVMProtocol(uid, gid); err != nil {
 		return err
 	}
 
