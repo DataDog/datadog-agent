@@ -249,17 +249,22 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 	var metricConfigs []checkconfig.MetricsConfig
 	var metricTagConfigs []checkconfig.MetricTagConfig
 
-	for _, profileDef := range d.config.Profiles {
+	alreadySeenMetrics := make(map[string]bool)
+	alreadyGlobalTags := make(map[string]bool)
+	for profileName, profileDef := range d.config.Profiles {
+		fmt.Println(profileName)
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
-				if root.LeafExist(metricConfig.Symbol.OID) {
+				if !alreadySeenMetrics[metricConfig.Symbol.Name] && root.LeafExist(metricConfig.Symbol.OID) {
+					alreadySeenMetrics[metricConfig.Symbol.Name] = true
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {
 				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
 				for _, symbol := range metricConfig.Symbols {
-					if root.NonLeafNodeExist(symbol.OID) {
+					if !alreadySeenMetrics[symbol.Name] && root.NonLeafNodeExist(symbol.OID) {
+						alreadySeenMetrics[symbol.Name] = true
 						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
 					}
 				}
@@ -270,6 +275,24 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		}
 		for _, metricTag := range profileDef.MetricTags {
 			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
+				if metricTag.Tag != "" {
+					if alreadyGlobalTags[metricTag.Tag] {
+						continue
+					}
+					alreadyGlobalTags[metricTag.Tag] = true
+				} else {
+					alreadyPresent := false
+					for tagKey, _ := range metricTag.Tags {
+						if alreadyGlobalTags[tagKey] {
+							alreadyPresent = true
+							break
+						}
+						alreadyGlobalTags[tagKey] = true
+					}
+					if alreadyPresent {
+						continue
+					}
+				}
 				metricTagConfigs = append(metricTagConfigs, metricTag)
 			}
 		}

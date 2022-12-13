@@ -315,9 +315,11 @@ experimental_detect_metrics_enabled: true
 `)
 	// language=yaml
 	rawInitConfig := []byte(`
-profiles:
- f5-big-ip:
-   definition_file: f5-big-ip.yaml
+#profiles:
+# f5-big-ip:
+#   definition_file: f5-big-ip.yaml
+# another_profile:
+#   definition_file: another_profile.yaml
 `)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
@@ -590,6 +592,51 @@ profiles:
 	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
+	expectedMetrics := []checkconfig.MetricsConfig{
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{
+			ForcedType: "monotonic_count",
+			Symbols: []checkconfig.SymbolConfig{
+				{OID: "1.3.6.1.2.1.2.2.1.14", Name: "ifInErrors", ScaleFactor: 0.5},
+				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
+			},
+			MetricTags: []checkconfig.MetricTagConfig{
+				{Tag: "interface", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+			},
+			StaticTags: []string{"table_static_tag:val"},
+		},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
+	}
+
+	expectedMetricTags := []checkconfig.MetricTagConfig{
+		{Tag: "snmp_host2", Column: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{
+			OID:   "1.3.6.1.2.1.1.5.0",
+			Name:  "sysName",
+			Match: "(\\w)(\\w+)",
+			Tags: map[string]string{
+				"prefix":   "\\1",
+				"suffix":   "\\2",
+				"some_tag": "some_tag_value",
+			},
+		},
+		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+	}
+	checkconfig.ValidateEnrichMetrics(expectedMetrics)
+	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
+
+	fmt.Printf("Actual Metrics   : %+v\n", deviceCk.config.Metrics)
+	fmt.Printf("Expected Metrics : %+v\n", expectedMetrics)
+	assert.ElementsMatch(t, deviceCk.config.Metrics, expectedMetrics)
+
+	fmt.Printf("Actual MetricTags   : %+v\n", deviceCk.config.MetricTags)
+	fmt.Printf("Expected MetricTags : %+v\n", expectedMetricTags)
+	assert.ElementsMatch(t, deviceCk.config.MetricTags, expectedMetricTags)
+
+	assert.Equal(t, 3, len(deviceCk.config.Metrics))
+	assert.Equal(t, 3, len(deviceCk.config.MetricTags))
 	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
 }
@@ -1105,7 +1152,7 @@ community_string: public
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
-	assert.Equal(t, expectedMetricsConfigs, metricsConfigs)
+	assert.ElementsMatch(t, expectedMetricsConfigs, metricsConfigs)
 
 	expectedMetricsTagConfigs := []checkconfig.MetricTagConfig{
 		{
