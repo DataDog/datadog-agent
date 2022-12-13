@@ -144,7 +144,7 @@ func TestZapBasicLogging(t *testing.T) {
 			seelog.RegisterCustomFormatter("ShortFilePath", parseShortFilePath)
 			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] | %ShortFilePath | %ExtraTextContext%Msg")
 			require.Nil(t, err)
-			log.SetupLogger(l, testInstance.level)
+			log.SetupLogger(l, testInstance.level, nil)
 			require.NotNil(t, logger)
 
 			testInstance.log(logger)

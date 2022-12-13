@@ -134,6 +134,7 @@ func run(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
+		false,
 	)
 	if err != nil {
 		log.Criticalf("Unable to setup logger: %s", err)

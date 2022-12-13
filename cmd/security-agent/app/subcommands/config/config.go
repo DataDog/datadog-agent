@@ -27,7 +27,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 func setupConfig(cmd *cobra.Command) error {
-	err := config.SetupLogger(common.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err := config.SetupLogger(common.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err

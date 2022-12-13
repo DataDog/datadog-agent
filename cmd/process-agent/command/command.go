@@ -119,5 +119,6 @@ func BootstrapConfig(globalParams *GlobalParams) error {
 		false,
 		true,
 		false,
+		false,
 	)
 }

@@ -49,6 +49,7 @@ func doDiagnose(cmd *cobra.Command, args []string) error {
 		config.Datadog.GetBool("syslog_rfc"),
 		config.Datadog.GetBool("log_to_console"),
 		config.Datadog.GetBool("log_format_json"),
+		false,
 	)
 	if err != nil {
 		return fmt.Errorf("Error while setting up logging, exiting: %v", err)

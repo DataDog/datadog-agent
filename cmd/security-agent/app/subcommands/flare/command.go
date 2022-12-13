@@ -40,14 +40,6 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		Short: "Collect a flare and send it to Datadog",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// The flare command should not log anything, all errors should be reported directly to the console without the log format
-			err := config.SetupLogger(loggerName, "off", "", "", false, true, false, false)
-			if err != nil {
-				fmt.Printf("Cannot setup logger, exiting: %v\n", err)
-				return err
-			}
-
-			caseID := ""
 			if len(args) > 0 {
 				cliParams.caseID = args[0]
 			}
