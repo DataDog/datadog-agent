@@ -1363,7 +1363,7 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 			return 0, err
 		}
 	}
-	log.SetupLogger(logger, logLevel.String())
+	log.SetupLogger(logger, logLevel.String(), nil)
 
 	prevLevel, _ := seelog.LogLevelFromString(logLevelStr)
 	logLevelStr = logLevel.String()
