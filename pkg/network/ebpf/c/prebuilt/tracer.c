@@ -448,17 +448,17 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    __u64 ret = (struct sock *)PT_REGS_RC(ctx);
-    if ret != 0 {
+    int ret = PT_REGS_RC(ctx);
+    if (ret != 0) {
         return 0;
     }
     __u64 tid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid)
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     if (args == NULL) {
         return 0;
     }
-    struct sock sk* = args->sock;
+    struct sock *sk = args->sk;
     int segs = args->segs;
     log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
     return handle_retransmit(sk, segs);
