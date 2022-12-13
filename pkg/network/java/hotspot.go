@@ -59,7 +59,7 @@ func (h *Hotspot) tmpPath() string {
 	return fmt.Sprintf("%s/tmp", h.root)
 }
 
-func (h *Hotspot) socketExist() bool {
+func (h *Hotspot) socketExists() bool {
 	mode, err := os.Stat(fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid))
 	if err == nil && (mode.Mode()&fs.ModeSocket > 0) {
 		return true
@@ -220,7 +220,7 @@ func (h *Hotspot) attachJVMProtocol() error {
 	end := time.Now().Add(6 * time.Second)
 	for end.After(time.Now()) {
 		time.Sleep(200 * time.Millisecond)
-		if h.socketExist() {
+		if h.socketExists() {
 			return nil
 		}
 	}
