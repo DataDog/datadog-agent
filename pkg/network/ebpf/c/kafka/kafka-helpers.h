@@ -97,6 +97,9 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
             return false;
         }
+        if (client_id_size < 0) {
+            return false;
+        }
         kafka_transaction->current_offset_in_request_fragment += client_id_size;
         log_debug("kafka: client_id_size: %d", client_id_size);
     }
@@ -145,11 +148,27 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         }
     }
 
-    // Skipping the acks field as we have no interest in it
-    kafka_transaction->current_offset_in_request_fragment += 2;
+    int16_t acs = 0;
+    if (!kafka_read_big_endian_int16(kafka_transaction, &acs)) {
+        return false;
+    }
 
-    // Skipping the timeout_ms field as we have no interest in it
-    kafka_transaction->current_offset_in_request_fragment += 4;
+    if (acs > 1 || acs < -1) {
+        // The number of acknowledgments the producer requires the leader to have received before considering a request
+        // complete. Allowed values: 0 for no acknowledgments, 1 for only the leader and -1 for the full ISR.
+        return false;
+    }
+
+    int32_t timeout_ms = 0;
+    if (!kafka_read_big_endian_int32(kafka_transaction, &timeout_ms)) {
+        return false;
+    }
+
+    if (timeout_ms < 0) {
+        // timeout_ms cannot be negative.
+        return false;
+    }
+
 
     return extract_and_set_first_topic_name(kafka_transaction);
 }
