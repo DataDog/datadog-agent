@@ -9,6 +9,7 @@
 package monitor
 
 import (
+	"errors"
 	"regexp"
 	"runtime"
 	"sync"
@@ -132,12 +133,19 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func()) {
+func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 
+	for _, c := range pm.procEventCallbacks[callback.Event] {
+		if c == callback {
+			return func() {}, errors.New("same callback can't be registred twice")
+		}
+	}
+
 	pm.procEventCallbacks[callback.Event] = append(pm.procEventCallbacks[callback.Event], callback)
 
+	// UnSubscribe()
 	return func() {
 		pm.m.Lock()
 		defer pm.m.Unlock()
@@ -147,9 +155,10 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 				l := len(pm.procEventCallbacks[callback.Event])
 				pm.procEventCallbacks[callback.Event][i] = pm.procEventCallbacks[callback.Event][l-1]
 				pm.procEventCallbacks[callback.Event] = pm.procEventCallbacks[callback.Event][:l-1]
+				return
 			}
 		}
-	}
+	}, nil
 }
 
 func (pm *ProcessMonitor) Stop() {

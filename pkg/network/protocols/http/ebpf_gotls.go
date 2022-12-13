@@ -232,16 +232,24 @@ func (p *GoTLSProgram) Start() {
 		log.Errorf("can't register process monitor callbacks")
 		return
 	}
-	p.procMonitor.cleanupExec = mon.Subscribe(&monitor.ProcessCallback{
+	p.procMonitor.cleanupExec, err = mon.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXEC,
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStart,
 	})
-	p.procMonitor.cleanupExit = mon.Subscribe(&monitor.ProcessCallback{
+	if err != nil {
+		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
+	}
+	p.procMonitor.cleanupExit, err = mon.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXIT,
 		Metadata: monitor.ANY,
 		Callback: p.handleProcessStop,
 	})
+	if err != nil {
+		log.Errorf("process monitor Subscribe() error: %s", err)
+		return
+	}
 }
 
 func (p *GoTLSProgram) Stop() {
