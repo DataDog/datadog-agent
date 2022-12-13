@@ -42,7 +42,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 	}
 
 	if !c.EnableRuntimeCompiler {
-		log.Errorf("goTLS support requires runtime-compilation to be enabled")
+		log.Errorf("java TLS support requires runtime-compilation to be enabled")
 		return nil
 	}
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, "agent-usm-7.43.0.jar")
