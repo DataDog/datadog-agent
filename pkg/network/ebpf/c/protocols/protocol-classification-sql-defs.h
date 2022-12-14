@@ -54,9 +54,12 @@
 #define SQL_VACUUM "VACUUM"
 #define SQL_VALUES "VALUES"
 
-#define check_command(Buf, Command, Size) ( \
-    (Size >= (sizeof(Command) - 1))         \
-    && !bpf_memcmp((Buf), &(Command), sizeof(Command) - 1))
+// Check that we can read the amount of memory we want, then to the comparison.
+// Note: we use `sizeof(command) - 1` to *not* compare with the null-terminator of
+// the strings.
+#define check_command(buf, command, buf_size) ( \
+    ((sizeof(command) - 1) <= buf_size)         \
+    && !bpf_memcmp((buf), &(command), sizeof(command) - 1))
 
 static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
     return check_command(buf, SQL_ALTER, buf_size)
