@@ -56,10 +56,8 @@ pull_test_dockers_arm64:
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
 
 .retrieve_test_dockers:
-  - ls -lh kitchen-dockers
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
   - mv kitchen-dockers $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - ls -lh kitchen-dockers
   - ls -lh $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
