@@ -20,6 +20,8 @@ default_version "2.3.1"
 license "LGPLv2"
 skip_transitive_dependency_licensing true
 
+dependency 'attr'
+
 version '2.3.1' do
   source url: 'http://download.savannah.nongnu.org/releases/acl/acl-2.3.1.tar.xz',
          sha512: '7d02f05d17305f8587ab485395b00c7fdb8e44c1906d0d04b70a43a3020803e8b2b8c707abb6147f794867dfa87bd51769c2d3e11a3db55ecbd2006a6e6231dc'
