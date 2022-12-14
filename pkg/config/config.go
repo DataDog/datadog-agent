@@ -729,7 +729,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_use_windows_prefix_detection", false)
 	config.BindEnvAndSetDefault("ec2_metadata_timeout", 300)          // value in milliseconds
 	config.BindEnvAndSetDefault("ec2_metadata_token_lifetime", 21600) // value in seconds
-	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", false)
+	config.BindEnvAndSetDefault("ec2_prefer_imdsv2", true)
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)

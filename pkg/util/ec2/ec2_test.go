@@ -332,28 +332,6 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 	assert.Contains(t, err.Error(), "too many mac addresses returned")
 }
 
-func TestGetLocalIPv4(t *testing.T) {
-	ip := "10.0.0.2"
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.RequestURI {
-		case "/local-ipv4":
-			io.WriteString(w, ip)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-
-	defer ts.Close()
-	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	ips, err := GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ip}, ips)
-}
-
 func TestGetPublicIPv4(t *testing.T) {
 	ctx := context.Background()
 	ip := "10.0.0.2"
@@ -400,131 +378,114 @@ func TestGetToken(t *testing.T) {
 	assert.Equal(t, originalToken, token)
 }
 
-func TestMetedataRequestWithToken(t *testing.T) {
-	var requestWithoutToken *http.Request
-	var requestForToken *http.Request
-	var requestWithToken *http.Request
-	var seq int
-	config.Datadog.SetDefault("ec2_prefer_imdsv2", true)
+func TestGetLocalIPv4(t *testing.T) {
+	const ip = "10.0.0.2"
+	const tok = "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
+	type result struct {
+		requestMethod string
+		statusCode    int
+		body          []byte
+	}
+	tests := []struct {
+		name              string
+		handlerFunc       http.HandlerFunc
+		ec2_prefer_imdsv2 bool
+		expectResults     []result
+		runGetLocalIPv4   int
+	}{
+		{
+			name:              "get a local IPv4 with a token four times, token should be cached",
+			runGetLocalIPv4:   4,
+			ec2_prefer_imdsv2: true,
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
+					if h == "" {
+						w.WriteHeader(http.StatusUnauthorized)
+						t.Fatal("X-aws-ec2-metadata-token-ttl-seconds is expected in a http header in this test case")
+						return
+					}
+					w.Write([]byte(tok))
+				case http.MethodGet:
+					switch r.RequestURI {
+					case "/local-ipv4":
+						h := r.Header.Get("X-aws-ec2-metadata-token")
+						if h == "" || h != tok {
+							w.WriteHeader(http.StatusUnauthorized)
+							t.Fatalf("X-aws-ec2-metadata-token should be %s in this test case", tok)
+							return
+						}
+						w.Write([]byte(ip))
+					default:
+						w.WriteHeader(http.StatusNotFound)
+					}
+				default:
+					t.Fatalf("%s is not expected in this test case", r.Method)
+				}
+			},
+			expectResults: []result{
+				{http.MethodPut, http.StatusOK, []byte(tok)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+			},
+		},
+		{
+			name:              "get a local IPv4 without a token four times",
+			runGetLocalIPv4:   4,
+			ec2_prefer_imdsv2: false,
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusUnauthorized)
+				case http.MethodGet:
+					switch r.RequestURI {
+					case "/local-ipv4":
+						w.Write([]byte(ip))
+					default:
+						w.WriteHeader(http.StatusNotFound)
+					}
+				default:
+					t.Fatalf("%s is not expected in this test case", r.Method)
+				}
+			},
+			expectResults: []result{
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+				{http.MethodGet, http.StatusOK, []byte(ip)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config.Datadog.Set("ec2_prefer_imdsv2", tt.ec2_prefer_imdsv2)
+			defer resetPackageVars()
 
-	ipv4 := "198.51.100.1"
-	tok := "AQAAAFKw7LyqwVmmBMkqXHpDBuDWw2GnfGswTHi2yiIOGvzD7OMaWw=="
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		switch r.Method {
-		case http.MethodPut:
-			// Should be a token request
-			h := r.Header.Get("X-aws-ec2-metadata-token-ttl-seconds")
-			if h == "" {
-				w.WriteHeader(http.StatusUnauthorized)
+			var actualResults []result
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				rec := httptest.NewRecorder()
+				tt.handlerFunc(rec, r)
+				actualResults = append(actualResults, result{
+					requestMethod: r.Method,
+					statusCode:    rec.Code,
+					body:          rec.Body.Bytes(),
+				})
+				w.WriteHeader(rec.Code)
+				w.Write(rec.Body.Bytes())
+			}))
+			defer ts.Close()
+			metadataURL = ts.URL
+			tokenURL = ts.URL
+			for i := 0; i < tt.runGetLocalIPv4; i++ {
+				_, err := GetLocalIPv4()
+				assert.Nil(t, err)
 			}
-			r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-			seq++
-			requestForToken = r
-			io.WriteString(w, tok)
-		case http.MethodGet:
-			// Should be a metadata request
-			t := r.Header.Get("X-aws-ec2-metadata-token")
-			if t != tok {
-				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-				seq++
-				requestWithoutToken = r
-				w.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			switch r.RequestURI {
-			case "/local-ipv4":
-				r.Header.Add("X-sequence", fmt.Sprintf("%v", seq))
-				seq++
-				requestWithToken = r
-				io.WriteString(w, ipv4)
-			default:
-				w.WriteHeader(http.StatusNotFound)
-			}
-		default:
-			fmt.Println("q")
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	ips, err := GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
-
-	assert.Nil(t, requestWithoutToken)
-
-	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
-	assert.Equal(t, "1", requestWithToken.Header.Get("X-sequence"))
-	assert.Equal(t, fmt.Sprint(config.Datadog.GetInt("ec2_metadata_token_lifetime")), requestForToken.Header.Get("X-aws-ec2-metadata-token-ttl-seconds"))
-	assert.Equal(t, http.MethodPut, requestForToken.Method)
-	assert.Equal(t, "/", requestForToken.RequestURI)
-	assert.Equal(t, tok, requestWithToken.Header.Get("X-aws-ec2-metadata-token"))
-	assert.Equal(t, "/local-ipv4", requestWithToken.RequestURI)
-	assert.Equal(t, http.MethodGet, requestWithToken.Method)
-
-	// Ensure token has been cached
-	ips, err = GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
-	// Unchanged
-	assert.Equal(t, "0", requestForToken.Header.Get("X-sequence"))
-	// Incremented
-	assert.Equal(t, "2", requestWithToken.Header.Get("X-sequence"))
-
-	// Force refresh
-	token.ExpirationDate = time.Now()
-	ips, err = GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
-	// Incremented
-	assert.Equal(t, "3", requestForToken.Header.Get("X-sequence"))
-	assert.Equal(t, "4", requestWithToken.Header.Get("X-sequence"))
-}
-
-func TestMetedataRequestWithoutToken(t *testing.T) {
-	var requestWithoutToken *http.Request
-	config.Datadog.SetDefault("ec2_prefer_imdsv2", false)
-
-	ipv4 := "198.51.100.1"
-
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		// Put is only use for token
-		assert.NotEqual(t, r.Method, http.MethodPut)
-		switch r.Method {
-		case http.MethodGet:
-			// Should be a metadata request without token
-			token := r.Header.Get("X-aws-ec2-metadata-token")
-			assert.Equal(t, token, "")
-			switch r.RequestURI {
-			case "/local-ipv4":
-				requestWithoutToken = r
-				io.WriteString(w, ipv4)
-			default:
-				w.WriteHeader(http.StatusNotFound)
-			}
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer ts.Close()
-	metadataURL = ts.URL
-	tokenURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
-	defer resetPackageVars()
-
-	ips, err := GetLocalIPv4()
-	require.NoError(t, err)
-	assert.Equal(t, []string{ipv4}, ips)
-
-	assert.Equal(t, "/local-ipv4", requestWithoutToken.RequestURI)
-	assert.Equal(t, http.MethodGet, requestWithoutToken.Method)
+			assert.Equal(t, tt.expectResults, actualResults)
+		})
+	}
 }
 
 func TestGetNTPHosts(t *testing.T) {

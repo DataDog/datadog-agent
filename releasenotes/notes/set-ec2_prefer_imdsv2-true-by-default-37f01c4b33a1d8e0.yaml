@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Set ``ec2_prefer_imdsv2: true`` by default.
