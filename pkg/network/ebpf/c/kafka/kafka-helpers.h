@@ -97,6 +97,9 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
         if (!kafka_read_big_endian_int16(kafka_transaction, &client_id_size)) {
             return false;
         }
+        if (client_id_size < 0) {
+            return false;
+        }
         kafka_transaction->current_offset_in_request_fragment += client_id_size;
         log_debug("kafka: client_id_size: %d", client_id_size);
     }
@@ -145,11 +148,27 @@ static __always_inline bool try_parse_produce_request(kafka_transaction_t *kafka
         }
     }
 
-    // Skipping the acks field as we have no interest in it
-    kafka_transaction->current_offset_in_request_fragment += 2;
+    int16_t acs = 0;
+    if (!kafka_read_big_endian_int16(kafka_transaction, &acs)) {
+        return false;
+    }
 
-    // Skipping the timeout_ms field as we have no interest in it
-    kafka_transaction->current_offset_in_request_fragment += 4;
+    if (acs > 1 || acs < -1) {
+        // The number of acknowledgments the producer requires the leader to have received before considering a request
+        // complete. Allowed values: 0 for no acknowledgments, 1 for only the leader and -1 for the full ISR.
+        return false;
+    }
+
+    int32_t timeout_ms = 0;
+    if (!kafka_read_big_endian_int32(kafka_transaction, &timeout_ms)) {
+        return false;
+    }
+
+    if (timeout_ms < 0) {
+        // timeout_ms cannot be negative.
+        return false;
+    }
+
 
     return extract_and_set_first_topic_name(kafka_transaction);
 }
@@ -221,6 +240,20 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     }
 
     __builtin_memcpy(kafka_transaction->topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
+
+    // Making sure the topic name is a-z, A-Z, 0-9, dot, dash or underscore.
+#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE - 1)
+    for (int i = 0; i < TOPIC_NAME_MAX_STRING_SIZE; i++) {
+        char ch = kafka_transaction->topic_name[i];
+        if (ch == 0) {
+            break;
+        }
+        if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {
+            continue;
+        }
+        return false;
+    }
+
     return true;
 }
 
