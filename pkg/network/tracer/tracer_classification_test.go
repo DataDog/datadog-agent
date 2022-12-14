@@ -12,8 +12,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/amqp"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -23,6 +21,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -183,12 +183,15 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolAMQP,
 			clientRun: func(t *testing.T, serverAddr string) {
 				time.Sleep(5 * time.Second)
-				amqp.Send()
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				port := "5672"
+				amqp.Send(addr, port)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				addr, _, _ := net.SplitHostPort(serverAddr)
-				amqp.RunAmqp(t, addr)
-				return net.JoinHostPort(addr, "5672")
+				port := "5672"
+				amqp.RunAmqpServer(t, addr, port)
+				return net.JoinHostPort(addr, port)
 			},
 			shouldSkip: func() (bool, string) {
 				if runtime.GOOS != "linux" {
@@ -203,12 +206,14 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolAMQP,
 			clientRun: func(t *testing.T, serverAddr string) {
 				time.Sleep(5 * time.Second)
-				amqp.ConsumeAmqp()
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				amqp.ConsumeAmqp(addr, "5672")
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				addr, _, _ := net.SplitHostPort(serverAddr)
-				amqp.RunAmqp(t, addr)
-				return net.JoinHostPort(addr, "5672")
+				port := "5672"
+				amqp.RunAmqpServer(t, addr, port)
+				return net.JoinHostPort(addr, port)
 			},
 			shouldSkip: func() (bool, string) {
 				if runtime.GOOS != "linux" {

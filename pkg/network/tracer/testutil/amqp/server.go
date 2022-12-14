@@ -1,18 +1,20 @@
 package amqp
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	"github.com/stretchr/testify/require"
 	"os"
 	"os/exec"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/stretchr/testify/require"
 )
 
-func RunAmqp(t *testing.T, serverAddr string) {
+func RunAmqpServer(t *testing.T, serverAddr string, serverPort string) {
 	t.Helper()
 
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
+		"AMQP_PORT=" + serverPort,
 	}
 	dir, _ := testutil.CurDir()
 	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")
