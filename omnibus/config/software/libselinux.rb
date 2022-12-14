@@ -18,6 +18,7 @@ name "libselinux"
 default_version "3.0"
 
 dependency 'pcre2'
+dependency 'libsepol'
 
 license "LGPLv2"
 skip_transitive_dependency_licensing true
