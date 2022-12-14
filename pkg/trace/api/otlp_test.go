@@ -87,6 +87,66 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 	},
 })
 
+func TestRateKeys(t *testing.T) {
+	o := NewOTLPReceiver(nil, nil, config.New())
+	_, ok := o.rateKeys[serviceSignature{"a", "b"}]
+	require.False(t, ok)
+	o.rateKeys.Key("a", "b")
+	v, ok := o.rateKeys[serviceSignature{"a", "b"}]
+	require.True(t, ok)
+	require.Equal(t, "service:a,env:b", v)
+}
+
+func TestOTLPReceiverSamplingPriority(t *testing.T) {
+	mkspan := func(traceID uint64, service, env string) *pb.Span {
+		return &pb.Span{
+			TraceID: traceID,
+			Service: "a",
+			Meta:    map[string]string{"env": env},
+			Metrics: make(map[string]float64),
+		}
+	}
+
+	t.Run("default", func(t *testing.T) {
+		dynConf := sampler.NewDynamicConfig()
+		o := NewOTLPReceiver(nil, dynConf, config.New())
+		span := mkspan(1, "a", "b")
+		require.Equal(t, 1., o.samplingPriority(span))
+		require.Equal(t, 1., span.Metrics["_sampling_priority_v1"])
+		require.Equal(t, 1., span.Metrics[sampler.KeyAgentRate])
+		require.Equal(t, "-2", span.Meta[sampler.KeyDecisionMaker])
+	})
+
+	t.Run("change", func(t *testing.T) {
+		dynConf := sampler.NewDynamicConfig()
+		o := NewOTLPReceiver(nil, dynConf, config.New())
+		span := mkspan(123, "a", "b")
+		require.Equal(t, 1., o.samplingPriority(span))
+		delete(span.Metrics, "_sampling_priority_v1")
+		dynConf.RateByService.SetAll(map[sampler.ServiceSignature]float64{
+			{Name: "a", Env: "b"}: 0.1,
+		})
+		require.Equal(t, 0., o.samplingPriority(span))
+		delete(span.Metrics, "_sampling_priority_v1")
+		dynConf.RateByService.SetAll(map[sampler.ServiceSignature]float64{
+			{Name: "a", Env: "b"}: 1,
+		})
+		require.Equal(t, 1., o.samplingPriority(span))
+	})
+
+	t.Run("user", func(t *testing.T) {
+		dynConf := sampler.NewDynamicConfig()
+		o := NewOTLPReceiver(nil, dynConf, config.New())
+		span := mkspan(123, "a", "b")
+		span.Metrics["_sampling_priority_v1"] = 2
+		dynConf.RateByService.SetAll(map[sampler.ServiceSignature]float64{
+			{Name: "a", Env: "b"}: 0.1,
+		})
+		require.Equal(t, 2., o.samplingPriority(span))
+		require.Equal(t, "-4", span.Meta[sampler.KeyDecisionMaker])
+	})
+}
+
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.New()
@@ -94,7 +154,7 @@ func TestOTLPMetrics(t *testing.T) {
 	defer testutil.WithStatsClient(stats)()
 
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, sampler.NewDynamicConfig(), cfg)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -132,7 +192,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 	cfg := config.New()
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, sampler.NewDynamicConfig(), cfg)
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -155,7 +215,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 func TestOTLPReceiveResourceSpans(t *testing.T) {
 	cfg := config.New()
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewOTLPReceiver(out, sampler.NewDynamicConfig(), cfg)
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -451,7 +511,7 @@ func TestOTLPHostname(t *testing.T) {
 		cfg := config.New()
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg)
+		rcv := NewOTLPReceiver(out, sampler.NewDynamicConfig(), cfg)
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -483,11 +543,11 @@ func TestOTLPHostname(t *testing.T) {
 func TestOTLPReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := config.New()
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
+		assert.NotNil(t, NewOTLPReceiver(nil, sampler.NewDynamicConfig(), cfg).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, config.New())
+		o := NewOTLPReceiver(nil, sampler.NewDynamicConfig(), config.New())
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.httpsrv)
@@ -501,7 +561,7 @@ func TestOTLPReceiver(t *testing.T) {
 			BindHost: "localhost",
 			HTTPPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewOTLPReceiver(nil, sampler.NewDynamicConfig(), cfg)
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -516,7 +576,7 @@ func TestOTLPReceiver(t *testing.T) {
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewOTLPReceiver(nil, sampler.NewDynamicConfig(), cfg)
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -536,7 +596,7 @@ func TestOTLPReceiver(t *testing.T) {
 			HTTPPort: port1,
 			GRPCPort: port2,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewOTLPReceiver(nil, sampler.NewDynamicConfig(), cfg)
 		o.Start()
 		defer o.Stop()
 		assert.NotNil(t, o.grpcsrv)
@@ -545,7 +605,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, config.New())
+		o := NewOTLPReceiver(out, sampler.NewDynamicConfig(), config.New())
 		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
 			headerLang:        {"go"},
 			headerContainerID: {"containerdID"},
@@ -791,7 +851,7 @@ func TestOTLPHelpers(t *testing.T) {
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := config.New()
-	o := NewOTLPReceiver(nil, cfg)
+	o := NewOTLPReceiver(nil, sampler.NewDynamicConfig(), cfg)
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1121,7 +1181,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	NewOTLPReceiver(nil, sampler.NewDynamicConfig(), config.New()).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -1298,7 +1358,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil)
+	r := NewOTLPReceiver(out, sampler.NewDynamicConfig(), nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

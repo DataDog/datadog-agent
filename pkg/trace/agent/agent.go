@@ -36,9 +36,6 @@ const (
 
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling = "-4"
-
-	// tagDecisionMaker specifies the sampling decision maker
-	tagDecisionMaker = "_dd.p.dm"
 )
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -109,7 +106,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	agnt.OTLPReceiver = api.NewOTLPReceiver(in, dynConf, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	return agnt
 }
@@ -463,7 +460,7 @@ func isManualUserDrop(priority sampler.SamplingPriority, pt traceutil.ProcessedT
 	if priority != sampler.PriorityUserDrop {
 		return false
 	}
-	dm, hasDm := pt.Root.Meta[tagDecisionMaker]
+	dm, hasDm := pt.Root.Meta[sampler.KeyDecisionMaker]
 	if !hasDm {
 		return false
 	}

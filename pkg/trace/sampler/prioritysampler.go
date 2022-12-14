@@ -27,7 +27,6 @@ import (
 
 const (
 	deprecatedRateKey = "_sampling_priority_rate_v1"
-	agentRateKey      = "_dd.agent_psr"
 	ruleRateKey       = "_dd.rule_psr"
 )
 
@@ -129,8 +128,8 @@ func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 
 		return 1.0
 	}
 	// recent tracers annotate roots with applied priority rate
-	// agentRateKey is set when the agent computed rate is applied
-	if rate, ok := getMetric(root, agentRateKey); ok {
+	// KeyAgentRate is set when the agent computed rate is applied
+	if rate, ok := getMetric(root, KeyAgentRate); ok {
 		return rate
 	}
 	// ruleRateKey is set when a tracer rule rate is applied

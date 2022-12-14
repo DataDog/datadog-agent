@@ -52,7 +52,7 @@ func getTestTraceWithService(service string, s *PrioritySampler) (*pb.TraceChunk
 	if r <= rate {
 		priority = PriorityAutoKeep
 	}
-	spans[0].Metrics[agentRateKey] = rate
+	spans[0].Metrics[KeyAgentRate] = rate
 	return &pb.TraceChunk{
 		Priority: int32(priority),
 		Spans:    spans,
@@ -187,7 +187,7 @@ func TestPrioritySamplerTPSFeedbackLoop(t *testing.T) {
 				// skipping clientDrop as the feedback loop is different when client drops
 				// seen is actually the last rate sent
 				if !tc.clientDrop {
-					appliedRate := root.Metrics[agentRateKey]
+					appliedRate := root.Metrics[KeyAgentRate]
 					assert.InEpsilon(tc.expectedTPS/tc.generatedTPS, appliedRate, 0.0000001)
 				}
 

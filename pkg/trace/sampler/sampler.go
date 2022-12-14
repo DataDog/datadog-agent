@@ -40,6 +40,13 @@ const (
 
 	// KeySpanSamplingMechanism is the metric key holding a span sampling rule that a span was kept on.
 	KeySpanSamplingMechanism = "_dd.span_sampling.mechanism"
+
+	// KeyAgentRate specifies the metric key used to store the rate at which the sampling
+	// priority for a given span was computed.
+	KeyAgentRate = "_dd.agent_psr"
+
+	// KeyDecisionMaker specifies the sampling decision maker.
+	KeyDecisionMaker = "_dd.p.dm"
 )
 
 // SamplingPriority is the type encoding a priority sampling decision.

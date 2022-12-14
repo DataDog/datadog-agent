@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -58,12 +59,23 @@ type OTLPReceiver struct {
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
-	cidProvider IDProvider          // container ID provider
+	sampleRates *sampler.RateByService
+	rateKeys    rateKeys
+	cidProvider IDProvider // container ID provider
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
+func NewOTLPReceiver(out chan<- *Payload, dynConf *sampler.DynamicConfig, cfg *config.AgentConfig) *OTLPReceiver {
+	if dynConf == nil {
+		dynConf = sampler.NewDynamicConfig()
+	}
+	return &OTLPReceiver{
+		out:         out,
+		conf:        cfg,
+		sampleRates: &dynConf.RateByService,
+		cidProvider: NewIDProvider("/proc"),
+		rateKeys:    make(rateKeys),
+	}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -292,9 +304,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 					containerID = v
 				}
 			}
-			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
-				priorityByID[traceID] = p
-			}
+			priorityByID[traceID] = o.samplingPriority(ddspan)
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)
 		}
 	}
@@ -372,6 +382,74 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	return src
 }
+
+func (o *OTLPReceiver) samplingPriority(ddspan *pb.Span) float64 {
+	if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+		// follow the sampling priority set by the user
+		ddspan.Meta[sampler.KeyDecisionMaker] = "-4" // manual
+		return p
+	}
+	// compute a priority by rate, as provided by the PrioritySampler
+	state := o.sampleRates.GetNewState("").Rates
+	rate := 1.
+	if v, ok := state[defaultRateKey]; ok {
+		// default rate for all services
+		rate = v
+	}
+	env := ddspan.Meta["env"]
+	if env == "" {
+		env = o.conf.DefaultEnv
+	}
+	key := o.rateKeys.Key(ddspan.Service, env)
+	if v, ok := state[key]; ok {
+		// specific rate for this service
+		rate = v
+	}
+	p := float64(sampler.PriorityAutoKeep)
+	if !sampledByRate(ddspan.TraceID, rate) {
+		p = float64(sampler.PriorityAutoDrop)
+	}
+	ddspan.Metrics["_sampling_priority_v1"] = p
+	ddspan.Metrics[sampler.KeyAgentRate] = rate
+	ddspan.Meta[sampler.KeyDecisionMaker] = "-2" // agent
+	return p
+}
+
+// sampledByRate verifies if the number n should be sampled at the specified
+// rate.
+func sampledByRate(n uint64, rate float64) bool {
+	if rate < 1 {
+		return n*knuthFactor < uint64(rate*math.MaxUint64)
+	}
+	return true
+}
+
+// constants used for the Knuth hashing, same as tracers to ensure consistency.
+const knuthFactor = uint64(1111111111111111111)
+
+// rateKeys keeps a cache of service/env combinations converted into their string
+// representations as expected by sampler.DynamicConfig.
+type rateKeys map[serviceSignature]string
+
+// Key returns the service signature as a string for the given service/env combination.
+func (rk *rateKeys) Key(service, env string) string {
+	if rk == nil {
+		panic("uninitialized rateKeys structure; use make")
+	}
+	sig := serviceSignature{Name: service, Env: env}
+	if v, ok := (*rk)[sig]; ok {
+		return v
+	}
+	str := "service:" + service + ",env:" + env
+	(*rk)[sig] = str
+	return str
+}
+
+// serviceSignature specifies a unique name/env combination.
+type serviceSignature struct{ Name, Env string }
+
+// defaultRateKey specifies the key used to find the default rate within sampler.DynamicConfig rates.
+var defaultRateKey = "service:,env:"
 
 // marshalEvents marshals events into JSON.
 func marshalEvents(events ptrace.SpanEventSlice) string {
