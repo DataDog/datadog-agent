@@ -31,16 +31,24 @@ var (
 	processMonitor     *ProcessMonitor
 )
 
+// ProcessMonitor will subscribe to the netlink process events like Exec, Exit
+// and call the Subscribe() callbacks
+// Initialize() will scan the current process and will call the subscribed callbacks
+//
+// callbacks will be executed in parallel via a pool of goroutines (runtime.NumCPU())
+// callbackRunner is callbacks queue. The queue size is set by processMonitorMaxEvents
 type ProcessMonitor struct {
 	m  sync.Mutex
 	wg sync.WaitGroup
 
-	initializing bool
+	isInitialized bool
 
+	// chan push done by vishvananda/netlink library
 	events chan netlink.ProcEvent
 	done   chan struct{}
 	errors chan error
 
+	// callback registration and parallel execution management
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
 	callbackRunner     chan func()
 	callbackRunnerDone chan struct{}
@@ -89,10 +97,11 @@ func (pm *ProcessMonitor) Initialize() error {
 		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
 	}
 	// enable events to be processed
-	pm.initializing = false
+	pm.isInitialized = true
 	return nil
 }
 
+// evalEXECCallback() is a best effort and would not return errors, but report them
 func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	if c.Metadata == ANY {
 		p.enqueueCallback(c, pid)
@@ -132,6 +141,10 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
+// Subscribe() register a callback and store it pm.procEventCallbacks[callback.Event] list
+// this list is maintained out of order, and the return UnSubcribe function callback
+// will remove the previously registered callback from the list
+// By design, a callback object can be registered only once
 func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
 	pm.m.Lock()
 	defer pm.m.Unlock()
@@ -149,6 +162,8 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 		pm.m.Lock()
 		defer pm.m.Unlock()
 
+		// we scanning all callbacks remove the one we registred
+		// and remove it from the pm.procEventCallbacks[callback.Event] list
 		for i, c := range pm.procEventCallbacks[callback.Event] {
 			if c == callback {
 				l := len(pm.procEventCallbacks[callback.Event])
@@ -201,7 +216,7 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 	defer processMonitorLock.Unlock()
 
 	p := &ProcessMonitor{}
-	p.initializing = true
+	p.isInitialized = false
 	p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
 	p.done = make(chan struct{})
 	p.errors = make(chan error)
@@ -249,7 +264,7 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 					return
 				}
 				p.m.Lock()
-				if p.initializing {
+				if !p.isInitialized {
 					p.m.Unlock()
 					continue
 				}
