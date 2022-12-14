@@ -7,8 +7,6 @@ package devicecheck
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,6 +17,8 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
