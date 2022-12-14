@@ -679,7 +679,7 @@ type ProcessContext struct {
 	Process
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
-	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
 // PIDContext holds the process context of an kernel event
