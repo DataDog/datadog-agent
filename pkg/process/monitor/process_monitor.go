@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/DataDog/gopsutil/process"
 	"github.com/vishvananda/netlink"
@@ -50,6 +51,7 @@ type ProcessMonitor struct {
 
 	// callback registration and parallel execution management
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
+	runningPids        map[uint32]struct{}
 	callbackRunner     chan func()
 	callbackRunnerDone chan struct{}
 }
@@ -93,6 +95,9 @@ type ProcessCallback struct {
 //       o mon.Subscribe() will subscribe callback before or after the Initialization
 //       o mon.Initialize() will scan current processes and call subscribed callback
 //
+//       o callback{Event: EXIT, Metadata: ANY}   callback is called for all exit events, system wide
+//       o callback{Event: EXIT, Metadata: NAME}  callback is called if we seen the process Exec event
+//                                                in this case a callback{Event: EXEC, ...} must be registered
 func GetProcessMonitor() (*ProcessMonitor, error) {
 	processMonitorLock.RLock()
 	if processMonitor != nil {
@@ -110,6 +115,7 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 	p.done = make(chan struct{})
 	p.errors = make(chan error)
 	p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
+	p.runningPids = make(map[uint32]struct{})
 
 	if err := netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
 		return nil, fmt.Errorf("could not create process monitor: %s", err)
@@ -165,8 +171,16 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 					}
 				case *netlink.ExitProcEvent:
 					for _, c := range p.procEventCallbacks[EXIT] {
+						// Call only the Exit callback if we seen the process pid Exec event
+						// if the metadata is ANY we call the callback for all exit events
+						if c.Metadata != ANY {
+							if _, found := p.runningPids[ev.ProcessPid]; !found {
+								continue
+							}
+						}
 						p.enqueueCallback(c, ev.ProcessPid)
 					}
+					delete(p.runningPids, ev.ProcessPid)
 				}
 				p.m.Unlock()
 
@@ -186,6 +200,9 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 }
 
 func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
+	if callback.Event == EXEC && callback.Metadata != ANY {
+		pm.runningPids[pid] = struct{}{}
+	}
 	pm.callbackRunner <- func() { callback.Callback(pid) }
 }
 
@@ -196,11 +213,22 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 		return
 	}
 
-	proc, err := process.NewProcess(int32(pid))
+	var err error
+	var proc *process.Process
+	end := time.Now().Add(10 * time.Millisecond)
+	for end.After(time.Now()) {
+		// /proc could be slow to update
+		proc, err = process.NewProcess(int32(pid))
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
 	if err != nil {
 		log.Errorf("process %d parsing failed %s", pid, err)
 		return
 	}
+
 	switch c.Metadata {
 	case NAME:
 		pname, err := proc.Name()
