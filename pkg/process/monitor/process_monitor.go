@@ -32,7 +32,7 @@ var (
 )
 
 // ProcessMonitor will subscribe to the netlink process events like Exec, Exit
-// and call the Subscribe() callbacks
+// and call the subscribed callbacks
 // Initialize() will scan the current process and will call the subscribed callbacks
 //
 // callbacks will be executed in parallel via a pool of goroutines (runtime.NumCPU())
@@ -58,7 +58,6 @@ type ProcessEventType int
 
 const (
 	EXEC ProcessEventType = iota
-	FORK
 	EXIT
 )
 
@@ -76,23 +75,22 @@ type ProcessCallback struct {
 	Callback func(pid uint32)
 }
 
-// GetProcessMonitor() create a monitor (only once) that register to netlink process events.
+// GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
 // This monitor can monitor.Subscribe(callback, filter) callback on particual event
 // like process EXEC, EXIT. The callback will be called when the filter will match.
 // Filter can be applied on :
 //   process name (NAME)
-//   /proc/pid/smaps file (MAPFILE)
 //   by default ANY is applied
 //
 // Typical initialization:
 //   mon, _ := GetProcessMonitor()
-//   mon.Subcribe(callback)
+//   mon.Subscribe(callback)
 //   mon.Initialize()
 //
 // note: o GetProcessMonitor() will always return the same instance
-//         as we can only regiter once with netlink process event
-//       o mon.Subcribe() will subscribe callback before or after the Initialization
+//         as we can only register once with netlink process event
+//       o mon.Subscribe() will subscribe callback before or after the Initialization
 //       o mon.Initialize() will scan current processes and call subscribed callback
 //
 func GetProcessMonitor() (*ProcessMonitor, error) {
@@ -191,7 +189,7 @@ func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32)
 	pm.callbackRunner <- func() { callback.Callback(pid) }
 }
 
-// evalEXECCallback() is a best effort and would not return errors, but report them
+// evalEXECCallback is a best effort and would not return errors, but report them
 func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	if c.Metadata == ANY {
 		p.enqueueCallback(c, pid)
@@ -216,7 +214,7 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-// Initialize() will scan all running processes and execute matching callbacks
+// Initialize will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
 func (pm *ProcessMonitor) Initialize() error {
 	fn := func(pid int) error {
@@ -236,8 +234,8 @@ func (pm *ProcessMonitor) Initialize() error {
 	return nil
 }
 
-// Subscribe() register a callback and store it pm.procEventCallbacks[callback.Event] list
-// this list is maintained out of order, and the return UnSubcribe function callback
+// Subscribe register a callback and store it pm.procEventCallbacks[callback.Event] list
+// this list is maintained out of order, and the return UnSubscribe function callback
 // will remove the previously registered callback from the list
 // By design, a callback object can be registered only once
 func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
@@ -257,7 +255,7 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 		pm.m.Lock()
 		defer pm.m.Unlock()
 
-		// we scanning all callbacks remove the one we registred
+		// we are scanning all callbacks remove the one we registered
 		// and remove it from the pm.procEventCallbacks[callback.Event] list
 		for i, c := range pm.procEventCallbacks[callback.Event] {
 			if c == callback {

@@ -157,11 +157,7 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	if err := m.processMonitor.Initialize(); err != nil {
-		return err
-	}
-
-	return nil
+	return m.processMonitor.Initialize()
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
