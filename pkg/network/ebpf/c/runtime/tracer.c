@@ -398,15 +398,9 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
-    int segs = 1;
-#else
-    int segs = (int)PT_REGS_PARM3(ctx);
-#endif
     log_debug("kprobe/tcp_retransmit\n");
-    64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = NULL};
+    u64 tid = bpf_get_current_pid_tgid();
+    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = 0};
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
     return 0;
@@ -414,12 +408,12 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    __u64 tid = bpf_get_current_pid_tgid();
+    u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
     if (args == NULL) {
         return 0;
     }
-    struct sock* sk = args->sock;
+    struct sock* sk = args->sk;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     
     log_debug("kretprobe/tcp_retransmit\n");
