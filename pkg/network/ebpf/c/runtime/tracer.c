@@ -400,7 +400,9 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = 0};
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = 0;
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &tid, &args, BPF_ANY);
 
     return 0;

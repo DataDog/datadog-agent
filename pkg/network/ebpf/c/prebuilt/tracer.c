@@ -442,7 +442,9 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d\n", segs);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = segs};
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = segs;
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -471,7 +473,9 @@ int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit/pre_4_7_0\n");
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {.sk = sk, .segs = 1};
+    tcp_retransmit_skb_args_t args = {};
+    args.sk = sk;
+    args.segs = 1;
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
