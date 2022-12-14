@@ -282,7 +282,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 					alreadyGlobalTags[metricTag.Tag] = true
 				} else {
 					alreadyPresent := false
-					for tagKey, _ := range metricTag.Tags {
+					for tagKey := range metricTag.Tags {
 						if alreadyGlobalTags[tagKey] {
 							alreadyPresent = true
 							break
