@@ -28,8 +28,8 @@ const (
 )
 
 var (
-	processMonitorLock sync.RWMutex
-	processMonitor     *ProcessMonitor
+	once           sync.Once
+	processMonitor *ProcessMonitor
 )
 
 // ProcessMonitor will subscribe to the netlink process events like Exec, Exit
@@ -99,104 +99,100 @@ type ProcessCallback struct {
 //       o callback{Event: EXIT, Metadata: NAME}  callback is called if we seen the process Exec event
 //                                                in this case a callback{Event: EXEC, ...} must be registered
 func GetProcessMonitor() (*ProcessMonitor, error) {
-	processMonitorLock.RLock()
-	if processMonitor != nil {
-		defer processMonitorLock.RUnlock()
-		return processMonitor, nil
-	}
-	processMonitorLock.RUnlock()
+	var err error
+	once.Do(func() {
+		p := &ProcessMonitor{}
+		p.isInitialized = false
+		p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
+		p.done = make(chan struct{})
+		p.errors = make(chan error)
+		p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
+		p.runningPids = make(map[uint32]struct{})
 
-	processMonitorLock.Lock()
-	defer processMonitorLock.Unlock()
+		if err = netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
+			return
+		}
 
-	p := &ProcessMonitor{}
-	p.isInitialized = false
-	p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
-	p.done = make(chan struct{})
-	p.errors = make(chan error)
-	p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
-	p.runningPids = make(map[uint32]struct{})
+		p.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
+		p.callbackRunner = make(chan func(), runtime.NumCPU())
+		for i := 0; i < runtime.NumCPU(); i++ {
+			p.wg.Add(1)
+			go func() {
+				defer p.wg.Done()
+				for {
+					select {
+					case <-p.callbackRunnerDone:
+						return
+					case call, ok := <-p.callbackRunner:
+						if !ok {
+							continue
+						}
+						call()
+					}
+				}
+			}()
+		}
+		processMonitor = p
 
-	if err := netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
-		return nil, fmt.Errorf("could not create process monitor: %s", err)
-	}
-
-	p.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
-	p.callbackRunner = make(chan func(), runtime.NumCPU())
-	for i := 0; i < runtime.NumCPU(); i++ {
+		// This is the main async loop, where we process processes events from netlink socket
+		// events are dropped until
 		p.wg.Add(1)
 		go func() {
-			defer p.wg.Done()
+			defer func() {
+				log.Info("netlink process monitor ended")
+				p.wg.Done()
+			}()
 			for {
 				select {
-				case <-p.callbackRunnerDone:
+				case <-p.done:
 					return
-				case call, ok := <-p.callbackRunner:
+
+				case event, ok := <-p.events:
 					if !ok {
+						return
+					}
+					p.m.Lock()
+					if !p.isInitialized {
+						p.m.Unlock()
 						continue
 					}
-					call()
-				}
-			}
-		}()
-	}
 
-	// This is the main async loop, where we process processes events from netlink socket
-	// events are dropped until
-	p.wg.Add(1)
-	go func() {
-		defer func() {
-			log.Info("netlink process monitor ended")
-			p.wg.Done()
-		}()
-		for {
-			select {
-			case <-p.done:
-				return
-
-			case event, ok := <-p.events:
-				if !ok {
-					return
-				}
-				p.m.Lock()
-				if !p.isInitialized {
-					p.m.Unlock()
-					continue
-				}
-
-				switch ev := event.Msg.(type) {
-				case *netlink.ExecProcEvent:
-					for _, c := range p.procEventCallbacks[EXEC] {
-						p.evalEXECCallback(c, ev.ProcessPid)
-					}
-				case *netlink.ExitProcEvent:
-					for _, c := range p.procEventCallbacks[EXIT] {
-						// Call only the Exit callback if we seen the process pid Exec event
-						// if the metadata is ANY we call the callback for all exit events
-						if c.Metadata != ANY {
-							if _, found := p.runningPids[ev.ProcessPid]; !found {
-								continue
-							}
+					switch ev := event.Msg.(type) {
+					case *netlink.ExecProcEvent:
+						for _, c := range p.procEventCallbacks[EXEC] {
+							p.evalEXECCallback(c, ev.ProcessPid)
 						}
-						p.enqueueCallback(c, ev.ProcessPid)
+					case *netlink.ExitProcEvent:
+						for _, c := range p.procEventCallbacks[EXIT] {
+							// Call only the Exit callback if we seen the process pid Exec event
+							// if the metadata is ANY we call the callback for all exit events
+							if c.Metadata != ANY {
+								if _, found := p.runningPids[ev.ProcessPid]; !found {
+									continue
+								}
+							}
+							p.enqueueCallback(c, ev.ProcessPid)
+						}
+						delete(p.runningPids, ev.ProcessPid)
 					}
-					delete(p.runningPids, ev.ProcessPid)
-				}
-				p.m.Unlock()
+					p.m.Unlock()
 
-			case err, ok := <-p.errors:
-				if !ok {
+				case err, ok := <-p.errors:
+					if !ok {
+						return
+					}
+					log.Errorf("process montior error: %s", err)
+					p.Stop()
 					return
 				}
-				log.Errorf("process montior error: %s", err)
-				p.Stop()
-				return
 			}
-		}
-	}()
+		}()
+	})
 
-	processMonitor = p
-	return p, nil
+	if err != nil {
+		return nil, fmt.Errorf("could not create process monitor: %s", err)
+	}
+	return processMonitor, nil
 }
 
 func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
@@ -301,7 +297,6 @@ func (pm *ProcessMonitor) Stop() {
 	close(pm.done)
 	pm.wg.Wait()
 
-	processMonitorLock.Lock()
-	processMonitor = nil
-	processMonitorLock.Unlock()
+	// reset once here in case we would like to create a new instance of ProcessMonitor()
+	once = sync.Once{}
 }
