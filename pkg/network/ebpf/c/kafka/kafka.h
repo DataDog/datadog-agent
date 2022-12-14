@@ -71,7 +71,7 @@ static __always_inline void kafka_enqueue(kafka_transaction_t *kafka_transaction
         return;
     }
 
-    __builtin_memcpy(&batch->txs[batch->pos], kafka_transaction, sizeof(kafka_transaction_t));
+    __builtin_memcpy(&batch->txs[batch->pos], &kafka_transaction->base, sizeof(kafka_transaction_batch_entry_t));
     log_debug("kafka: kafka_enqueue: ktx=%llx path=%s\n", kafka_transaction, kafka_transaction->request_fragment);
     log_debug("kafka: kafka transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;

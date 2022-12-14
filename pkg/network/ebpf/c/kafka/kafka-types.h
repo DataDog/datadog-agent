@@ -54,14 +54,13 @@ typedef struct {
     __u32 tcp_seq;
 
     __u32 current_offset_in_request_fragment;
-    char topic_name[TOPIC_NAME_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
+    char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
 } kafka_transaction_batch_entry_t;
 
 // Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
+    char request_fragment[KAFKA_BUFFER_SIZE];
     kafka_transaction_batch_entry_t base;
-    char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
 } kafka_transaction_t;
 
 typedef struct {
