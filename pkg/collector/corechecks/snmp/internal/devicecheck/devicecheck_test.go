@@ -7,7 +7,9 @@ package devicecheck
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -301,7 +303,9 @@ profiles:
 }
 
 func TestDetectMetricsToCollect(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detect_metrics.d"))
+	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
+
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -364,6 +368,15 @@ experimental_detect_metrics_enabled: true
 					Type:  gosnmp.OctetString,
 					Value: []byte("foo_sys_name"),
 				},
+				{
+					Name:  "1.3.6.1.4.1.318.1.1.1.11.1.1.0",
+					Type:  gosnmp.OctetString,
+					Value: []byte("1010"),
+				},
+			},
+		},
+		{
+			Variables: []gosnmp.SnmpPDU{
 				{
 					Name:  "1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 					Type:  gosnmp.Integer,
@@ -534,7 +547,8 @@ experimental_detect_metrics_enabled: true
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.14"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.2.2.1.14.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.2.2.1.15"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.31.1.1.1.1.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.31.1.1.1.1.2"}).Return(session.CreateGetNextPacket("1.3.6.1.2.1.31.1.1.1.18.1", gosnmp.OctetString, []byte(`123`)), nil)
-	sess.On("GetNext", []string{"1.3.6.1.2.1.31.1.1.1.19"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", gosnmp.OctetString, []byte(`123`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.2.1.31.1.1.1.19"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.318.1.1.1.11.1.1.0", gosnmp.OctetString, []byte(`1010`)), nil)
+	sess.On("GetNext", []string{"1.3.6.1.4.1.318.1.1.1.11.1.1.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.1.2.1.44.999.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.3.3.3.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.4.1.3375.2.1.3.3.3.0"}).Return(session.CreateGetNextPacket("1.3.6.1.4.1.3375.2.1.3.3.3.0", gosnmp.OctetString, []byte(`123`)), nil)
@@ -545,14 +559,17 @@ experimental_detect_metrics_enabled: true
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
+		"1.3.6.1.4.1.318.1.1.1.11.1.1.0",
 	}).Return(&packets[0], nil)
 	sess.On("Get", []string{
-		"1.2.3.4.5.0",
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.0",
 	}).Return(&packets[1], nil)
 	sess.On("Get", []string{
-		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+		"1.2.3.4.5.0",
 	}).Return(&packets[2], nil)
+	sess.On("Get", []string{
+		"1.3.6.1.4.1.3375.2.1.1.2.1.44.999",
+	}).Return(&packets[3], nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
@@ -588,6 +605,7 @@ experimental_detect_metrics_enabled: true
 
 	expectedMetrics := []checkconfig.MetricsConfig{
 		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
 		{
 			ForcedType: "monotonic_count",
 			Symbols: []checkconfig.SymbolConfig{
@@ -629,7 +647,7 @@ experimental_detect_metrics_enabled: true
 	fmt.Printf("Expected MetricTags : %+v\n", expectedMetricTags)
 	assert.ElementsMatch(t, deviceCk.config.MetricTags, expectedMetricTags)
 
-	assert.Equal(t, 3, len(deviceCk.config.Metrics))
+	assert.Equal(t, 4, len(deviceCk.config.Metrics))
 	assert.Equal(t, 3, len(deviceCk.config.MetricTags))
 	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
