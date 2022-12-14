@@ -42,7 +42,6 @@ typedef struct {
     __u32 page_num;
 } kafka_batch_key_t;
 
-// Kafka transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
 
@@ -55,9 +54,13 @@ typedef struct {
     __u32 tcp_seq;
 
     __u32 current_offset_in_request_fragment;
-    char request_fragment[KAFKA_BUFFER_SIZE] __attribute__ ((aligned (8)));
-    char topic_name[TOPIC_NAME_MAX_STRING_SIZE] __attribute__ ((aligned (8)));
+    char topic_name[TOPIC_NAME_MAX_STRING_SIZE];
+} kafka_transaction_batch_entry_t;
 
+// Kafka transaction information associated to a certain socket (tuple_t)
+typedef struct {
+    char request_fragment[KAFKA_BUFFER_SIZE];
+    kafka_transaction_batch_entry_t base;
 } kafka_transaction_t;
 
 typedef struct {
@@ -75,7 +78,7 @@ typedef struct {
 typedef struct {
     __u64 idx;
     __u8 pos;
-    kafka_transaction_t txs[KAFKA_BATCH_SIZE];
+    kafka_transaction_batch_entry_t txs[KAFKA_BATCH_SIZE];
 } kafka_batch_t;
 
 #endif

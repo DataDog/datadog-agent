@@ -29,7 +29,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
     }
     __builtin_memset(kafka, 0, sizeof(kafka_transaction_t));
 
-    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &kafka->base.tup)) {
         return 0;
     }
 
@@ -37,7 +37,7 @@ int socket__kafka_filter(struct __sk_buff* skb) {
         return 0;
     }
 
-    normalize_tuple(&kafka->tup);
+    normalize_tuple(&kafka->base.tup);
 
     read_into_buffer_skb((char *)kafka->request_fragment, skb, &skb_info);
     kafka_process(kafka);
