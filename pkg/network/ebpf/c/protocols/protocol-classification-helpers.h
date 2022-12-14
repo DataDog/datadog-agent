@@ -27,7 +27,7 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
         return false;                                                       \
     }                                                                       \
 
-BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char[32], 1)
+BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER], 1)
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
@@ -147,7 +147,9 @@ static __always_inline void read_into_buffer_for_classification(char *buffer, st
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (offset + 14 < len) {
+    if (i * BLK_SIZE >= CLASSIFICATION_MAX_BUFFER) {
+        return;
+    } else if (offset + 14 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
     } else if (offset + 13 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
@@ -200,19 +202,20 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    u32 key = 0;
-    char (*request_fragment)[32] = bpf_map_lookup_elem(&classification_buf, &key);
+    protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
     if (request_fragment == NULL) {
         log_debug("could not get classification buffer from map");
         return;
     }
 
-    bpf_memset(*request_fragment, 0, sizeof(*request_fragment));
-    read_into_buffer_for_classification(*request_fragment, skb, &skb_info);
+    bpf_memset(request_fragment, 0, sizeof(request_fragment));
+    read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-    classify_protocol(&cur_fragment_protocol, *request_fragment, final_fragment_size);
+    classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         bpf_map_update_with_telemetry(connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
