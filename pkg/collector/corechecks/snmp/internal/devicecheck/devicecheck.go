@@ -257,8 +257,12 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
-				if !alreadySeenMetrics[metricConfig.Symbol.Name] && root.LeafExist(metricConfig.Symbol.OID) {
-					alreadySeenMetrics[metricConfig.Symbol.Name] = true
+				metricName := metricConfig.Symbol.Name
+				if metricConfig.Options.MetricSuffix != "" {
+					metricName = metricName + "." + metricConfig.Options.MetricSuffix
+				}
+				if !alreadySeenMetrics[metricName] && root.LeafExist(metricConfig.Symbol.OID) {
+					alreadySeenMetrics[metricName] = true
 					metricConfigs = append(metricConfigs, newMetricConfig)
 				}
 			} else if metricConfig.IsColumn() {

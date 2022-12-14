@@ -20,7 +20,7 @@ metrics:
       name: upsBasicStateOutputState
     forced_type: flag_stream
     options:
-      placement: 5
+      placement: 2
       metric_suffix: ReplaceBattery
 metric_tags:
   - column: # column syntax

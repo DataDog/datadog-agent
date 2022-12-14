@@ -606,6 +606,7 @@ experimental_detect_metrics_enabled: true
 	expectedMetrics := []checkconfig.MetricsConfig{
 		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.2.1.1.3.0", Name: "sysUpTimeInstance"}},
 		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 1, MetricSuffix: "OnLine"}},
+		{Symbol: checkconfig.SymbolConfig{OID: "1.3.6.1.4.1.318.1.1.1.11.1.1.0", Name: "upsBasicStateOutputState"}, ForcedType: "flag_stream", Options: checkconfig.MetricsConfigOption{Placement: 2, MetricSuffix: "ReplaceBattery"}},
 		{
 			ForcedType: "monotonic_count",
 			Symbols: []checkconfig.SymbolConfig{
@@ -647,7 +648,7 @@ experimental_detect_metrics_enabled: true
 	fmt.Printf("Expected MetricTags : %+v\n", expectedMetricTags)
 	assert.ElementsMatch(t, deviceCk.config.MetricTags, expectedMetricTags)
 
-	assert.Equal(t, 4, len(deviceCk.config.Metrics))
+	assert.Equal(t, 5, len(deviceCk.config.Metrics))
 	assert.Equal(t, 3, len(deviceCk.config.MetricTags))
 	assert.Len(t, deviceCk.config.Metrics, len(firstRunMetrics))
 	assert.Len(t, deviceCk.config.MetricTags, len(firstRunMetricsTags))
