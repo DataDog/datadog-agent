@@ -314,13 +314,7 @@ community_string: public
 experimental_detect_metrics_enabled: true
 `)
 	// language=yaml
-	rawInitConfig := []byte(`
-#profiles:
-# f5-big-ip:
-#   definition_file: f5-big-ip.yaml
-# another_profile:
-#   definition_file: another_profile.yaml
-`)
+	rawInitConfig := []byte(``)
 
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
