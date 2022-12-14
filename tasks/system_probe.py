@@ -1137,8 +1137,12 @@ def check_for_ninja(ctx):
         ctx.run("which ninja")
 
 
-def check_for_bpftool_compatability(ctx):
-    ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
+def is_bpftool_compatible(ctx):
+    try:
+        ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
+        return True
+    except Exception:
+        return False
 
 
 @contextlib.contextmanager
@@ -1172,11 +1176,8 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
                 f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}")
 
     can_minimize = True
-    try:
-        check_for_bpftool_compatability(ctx)
-    except:
-        print("Cannot minimize BTFs: preparing kitchen environment with full sized BTFs instead. " +
-              "In order to minimize BTFs, you will need to have bpftool version 6 or higher.")
+    if not is_bpftool_compatible(ctx):
+        print("Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead.")
         can_minimize = False
 
     if can_minimize:
