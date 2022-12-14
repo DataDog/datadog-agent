@@ -241,18 +241,17 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     __builtin_memcpy(kafka_transaction->base.topic_name, topic_name_beginning_offset, TOPIC_NAME_MAX_STRING_SIZE);
 
     // Making sure the topic name is a-z, A-Z, 0-9, dot, dash or underscore.
-#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE - 1)
+#pragma unroll(TOPIC_NAME_MAX_STRING_SIZE)
     for (int i = 0; i < TOPIC_NAME_MAX_STRING_SIZE; i++) {
         char ch = kafka_transaction->base.topic_name[i];
         if (ch == 0) {
-            break;
+            return i == topic_name_size;
         }
         if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {
             continue;
         }
         return false;
     }
-
     return true;
 }
 

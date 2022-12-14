@@ -11,6 +11,7 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func TestSanity(t *testing.T) {
 	// Assuming a kafka cluster is up and running
 
 	// to produce/consume messages
-	topic := "my-topic"
+	topic := strings.Repeat("t", 50)
 	partition := 0
 
 	myDialer := kafka.DefaultDialer
@@ -64,7 +65,7 @@ func TestSanity(t *testing.T) {
 
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:   []string{"127.0.0.1:9092"},
-		Topic:     "my-topic",
+		Topic:     topic,
 		Partition: 0,
 		MinBytes:  10e3, // 10KB
 		MaxBytes:  10e6, // 10MB
