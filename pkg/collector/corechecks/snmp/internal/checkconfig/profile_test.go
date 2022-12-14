@@ -24,7 +24,9 @@ import (
 )
 
 func fixtureProfileDefinitionMap() profileDefinitionMap {
-	ifMetrics := []MetricsConfig{
+	metrics := []MetricsConfig{
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
+		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
 		{
 			ForcedType: "monotonic_count",
 			Symbols: []SymbolConfig{
@@ -38,23 +40,11 @@ func fixtureProfileDefinitionMap() profileDefinitionMap {
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
+		{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
 	}
-	f5Metrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.0", Name: "sysStatMemoryTotal", ScaleFactor: 2}, ForcedType: "gauge"},
-		{Symbol: SymbolConfig{OID: "1.3.6.1.4.1.3375.2.1.1.2.1.44.999", Name: "oldSyntax"}},
-	}
-	f5Metrics = append(f5Metrics, ifMetrics...)
-	f5Metrics = append(f5Metrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}})
-
-	anotherProfileMetrics := []MetricsConfig{
-		{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
-	}
-	anotherProfileMetrics = append(anotherProfileMetrics, ifMetrics...)
-	anotherProfileMetrics = append(anotherProfileMetrics, MetricsConfig{Symbol: SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}})
-
 	return profileDefinitionMap{
 		"f5-big-ip": profileDefinition{
-			Metrics:      f5Metrics,
+			Metrics:      metrics,
 			Extends:      []string{"_base.yaml", "_generic-if.yaml"},
 			Device:       DeviceMeta{Vendor: "f5"},
 			SysObjectIds: StringArray{"1.3.6.1.4.1.3375.2.1.3.4.*"},
@@ -105,7 +95,7 @@ func fixtureProfileDefinitionMap() profileDefinitionMap {
 						},
 					},
 				},
-				"interface": MetadataResourceConfig{
+				"interface": {
 					Fields: map[string]MetadataField{
 						"admin_status": {
 							Symbol: SymbolConfig{
@@ -168,100 +158,14 @@ func fixtureProfileDefinitionMap() profileDefinitionMap {
 			},
 		},
 		"another_profile": profileDefinition{
-			Metrics:    anotherProfileMetrics,
-			Extends:    []string{"_base.yaml", "_generic-if.yaml"},
-			StaticTags: []string{"static_tag:from_base_profile"},
+			Metrics: []MetricsConfig{
+				{Symbol: SymbolConfig{OID: "1.3.6.1.2.1.1.999.0", Name: "someMetric"}, ForcedType: ""},
+			},
 			MetricTags: []MetricTagConfig{
 				{Tag: "snmp_host2", Column: SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 				{Tag: "unknown_symbol", OID: "1.3.6.1.2.1.1.999.0", Name: "unknownSymbol"},
-				{
-					OID:     "1.3.6.1.2.1.1.5.0",
-					Name:    "sysName",
-					Match:   "(\\w)(\\w+)",
-					pattern: regexp.MustCompile("(\\w)(\\w+)"),
-					Tags: map[string]string{
-						"some_tag": "some_tag_value",
-						"prefix":   "\\1",
-						"suffix":   "\\2",
-					},
-				},
-				{Tag: "snmp_host", Index: 0x0, Column: SymbolConfig{OID: "", Name: ""}, OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
 			},
-			Metadata: MetadataConfig{
-				"device": {
-					Fields: map[string]MetadataField{
-						"description": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.1.0",
-								Name: "sysDescr",
-							},
-						},
-						"name": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.5.0",
-								Name: "sysName",
-							},
-						},
-						"sys_object_id": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.1.2.0",
-								Name: "sysObjectID",
-							},
-						},
-					},
-				},
-				"interface": MetadataResourceConfig{
-					Fields: map[string]MetadataField{
-						"admin_status": {
-							Symbol: SymbolConfig{
-
-								OID:  "1.3.6.1.2.1.2.2.1.7",
-								Name: "ifAdminStatus",
-							},
-						},
-						"alias": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.18",
-								Name: "ifAlias",
-							},
-						},
-						"description": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.2.2.1.2",
-								Name: "ifDescr",
-							},
-						},
-						"mac_address": {
-							Symbol: SymbolConfig{
-								OID:    "1.3.6.1.2.1.2.2.1.6",
-								Name:   "ifPhysAddress",
-								Format: "mac_address",
-							},
-						},
-						"name": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.1",
-								Name: "ifName",
-							},
-						},
-						"oper_status": {
-							Symbol: SymbolConfig{
-								OID:  "1.3.6.1.2.1.2.2.1.8",
-								Name: "ifOperStatus",
-							},
-						},
-					},
-					IDTags: MetricTagConfigList{
-						{
-							Tag: "interface",
-							Column: SymbolConfig{
-								OID:  "1.3.6.1.2.1.31.1.1.1.1",
-								Name: "ifName",
-							},
-						},
-					},
-				},
-			},
+			Metadata: MetadataConfig{},
 		},
 	}
 }
