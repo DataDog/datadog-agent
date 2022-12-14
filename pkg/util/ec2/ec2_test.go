@@ -392,6 +392,7 @@ func TestGetLocalIPv4(t *testing.T) {
 		ec2_prefer_imdsv2 bool
 		expectResults     []result
 		runGetLocalIPv4   int
+		expectError       bool
 	}{
 		{
 			name:              "get a local IPv4 with a token four times, token should be cached",
@@ -433,6 +434,26 @@ func TestGetLocalIPv4(t *testing.T) {
 			},
 		},
 		{
+			name:              "failed to get a token and a local IPv4",
+			runGetLocalIPv4:   1,
+			ec2_prefer_imdsv2: true,
+			handlerFunc: func(w http.ResponseWriter, r *http.Request) {
+				switch r.Method {
+				case http.MethodPut:
+					w.WriteHeader(http.StatusUnauthorized)
+				case http.MethodGet:
+					w.WriteHeader(http.StatusInternalServerError)
+				default:
+					t.Fatalf("%s is not expected in this test case", r.Method)
+				}
+			},
+			expectResults: []result{
+				{http.MethodPut, http.StatusUnauthorized, nil},
+				{http.MethodGet, http.StatusInternalServerError, nil},
+			},
+			expectError: true,
+		},
+		{
 			name:              "get a local IPv4 without a token four times",
 			runGetLocalIPv4:   4,
 			ec2_prefer_imdsv2: false,
@@ -460,7 +481,7 @@ func TestGetLocalIPv4(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(fmt.Sprintf("ec2_prefer_imdsv2=%t, %s", tt.ec2_prefer_imdsv2, tt.name), func(t *testing.T) {
 			config.Datadog.Set("ec2_prefer_imdsv2", tt.ec2_prefer_imdsv2)
 			defer resetPackageVars()
 
@@ -481,7 +502,11 @@ func TestGetLocalIPv4(t *testing.T) {
 			tokenURL = ts.URL
 			for i := 0; i < tt.runGetLocalIPv4; i++ {
 				_, err := GetLocalIPv4()
-				assert.Nil(t, err)
+				if tt.expectError {
+					assert.Error(t, err)
+				} else {
+					assert.Nil(t, err)
+				}
 			}
 			assert.Equal(t, tt.expectResults, actualResults)
 		})
