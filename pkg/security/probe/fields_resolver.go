@@ -231,6 +231,9 @@ func (ev *Event) ResolveFields(forADs bool) {
 		_ = ev.ResolveFilePath(&ev.MMap.File)
 		_ = ev.ResolveFileBasename(&ev.MMap.File)
 		_ = ev.ResolveFileFilesystem(&ev.MMap.File)
+	case "mount":
+		_ = ev.ResolveMountPointPath(&ev.Mount)
+		_ = ev.ResolveMountSourcePath(&ev.Mount)
 	case "mprotect":
 	case "open":
 		_ = ev.ResolveFileFieldsUser(&ev.Open.File.FileFields)

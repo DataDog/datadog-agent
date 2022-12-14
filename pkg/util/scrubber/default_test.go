@@ -127,6 +127,12 @@ func TestConfigAppKey(t *testing.T) {
 		`   app_key:   '***********************************abbbb'   `)
 }
 
+func TestConfigRCAppKey(t *testing.T) {
+	assertClean(t,
+		`key: "DDRCM_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCDE"`,
+		`key: "***********************************ABCDE"`)
+}
+
 func TestConfigStripURLPassword(t *testing.T) {
 	assertClean(t,
 		`random_url_key: http://user:password@host:port`,

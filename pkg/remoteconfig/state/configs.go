@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/theupdateframework/go-tuf/data"
+	"github.com/DataDog/go-tuf/data"
 )
 
 /*

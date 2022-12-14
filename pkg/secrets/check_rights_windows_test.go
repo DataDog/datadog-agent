@@ -15,6 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func setCorrectRight(path string) {
@@ -24,6 +26,11 @@ func setCorrectRight(path string) {
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
+}
+
+func testCheckRightsStub() {
+	// Stub for CI since running as Administrator and no installer data
+	getDDAgentUserSID = winutil.GetSidFromUser
 }
 
 func TestWrongPath(t *testing.T) {

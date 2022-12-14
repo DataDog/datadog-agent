@@ -97,10 +97,10 @@ func factory() check.Check {
 }
 
 // Configure configures the Helm check
-func (hc *HelmCheck) Configure(config, initConfig integration.Data, source string) error {
-	hc.BuildID(config, initConfig)
+func (hc *HelmCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	hc.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := hc.CommonConfigure(initConfig, config, source)
+	err := hc.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}

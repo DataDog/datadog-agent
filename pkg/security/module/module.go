@@ -430,13 +430,14 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		return err
 	}
 
+	// set the rate limiters
+	m.rateLimiter.Apply(ruleSet, sprobe.AllCustomRuleIDs())
+
 	// full list of IDs, user rules + custom
 	var ruleIDs []rules.RuleID
 	ruleIDs = append(ruleIDs, ruleSet.ListRuleIDs()...)
 	ruleIDs = append(ruleIDs, sprobe.AllCustomRuleIDs()...)
-
 	m.apiServer.Apply(ruleIDs)
-	m.rateLimiter.Apply(ruleSet)
 
 	m.displayReport(report)
 
