@@ -428,7 +428,6 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
-	github.com/rabbitmq/amqp091-go v1.5.0
 	github.com/streadway/amqp v1.0.0
 )
 
