@@ -254,7 +254,6 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 	// If a global tag has already been encountered, we won't try to add it again.
 	alreadyGlobalTags := make(map[string]bool)
 	for profileName, profileDef := range d.config.Profiles {
-		fmt.Println(profileName)
 		for _, metricConfig := range profileDef.Metrics {
 			newMetricConfig := metricConfig
 			if metricConfig.IsScalar() {
