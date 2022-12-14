@@ -180,19 +180,20 @@ func (pm *ProcessMonitor) Stop() {
 //   by default ANY is applied
 //
 // Typical initialization:
-// mon := GetProcessMonitor()
-// mon.Subcribe(callback)
-// mon.Initialize()
+//   mon, _ := GetProcessMonitor()
+//   mon.Subcribe(callback)
+//   mon.Initialize()
 //
 // note: o GetProcessMonitor() will always return the same instance
 //         as we can only regiter once with netlink process event
-//       o mon.Subcribe() can be called at anytime, event later
+//       o mon.Subcribe() will subscribe callback before or after the Initialization
+//       o mon.Initialize() will scan current processes and call subscribed callback
 //
-func GetProcessMonitor() *ProcessMonitor {
+func GetProcessMonitor() (*ProcessMonitor, error) {
 	processMonitorLock.RLock()
 	if processMonitor != nil {
 		defer processMonitorLock.RUnlock()
-		return processMonitor
+		return processMonitor, nil
 	}
 	processMonitorLock.RUnlock()
 
@@ -207,8 +208,7 @@ func GetProcessMonitor() *ProcessMonitor {
 	p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
 
 	if err := netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
-		log.Errorf("could not create process monitor: %s", err)
-		return nil
+		return nil, fmt.Errorf("could not create process monitor: %s", err)
 	}
 
 	p.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
@@ -271,15 +271,12 @@ func GetProcessMonitor() *ProcessMonitor {
 					return
 				}
 				log.Errorf("process montior error: %s", err)
-
-				processMonitorLock.Lock()
-				processMonitor = nil
-				processMonitorLock.Unlock()
+				p.Stop()
 				return
 			}
 		}
 	}()
 
 	processMonitor = p
-	return p
+	return p, nil
 }

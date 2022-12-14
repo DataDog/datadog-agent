@@ -227,9 +227,9 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	mon := monitor.GetProcessMonitor()
-	if mon == nil {
-		log.Errorf("can't register process monitor callbacks")
+	mon, err := monitor.GetProcessMonitor()
+	if err != nil {
+		log.Errorf("couldn't get process monitor: %w", err)
 		return
 	}
 	p.procMonitor.cleanupExec, err = mon.Subscribe(&monitor.ProcessCallback{
