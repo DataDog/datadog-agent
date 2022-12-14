@@ -92,15 +92,15 @@ The results are as follows:
 | none      | false                 | 1         | os            | none          |
 | none      | true                  | 1         | os            | none          |
 | v2 only   | false                 | 1         | os            | none          |
-| v2 only   | true                  | 1         | aws (i-..)    | aws (i-..)    |
+| v2 only   | true                  | 1         | os            | none          |
 | v1+v2     | false                 | 1         | aws (i-..)    | aws (i-..)    |
 | v1+v2     | true                  | 1         | aws (i-..)    | aws (i-..)    |
 | none      | false                 | 2+        | os            | none          |
 | none      | true                  | 2+        | os            | none          |
 | v2 only   | false                 | 2+        | os            | none          |
-| v2 only   | true                  | 2+        | os            | none          |
-| v1+v2     | false                 | 2+        | os            | aws (i-..)    |
-| v1+v2     | true                  | 2+        | os            | aws (i-..)    |
+| v2 only   | true                  | 2+        | aws (i-..)    | aws (i-..)    |
+| v1+v2     | false                 | 2+        | aws (i-..)    | aws (i-..)    |
+| v1+v2     | true                  | 2+        | aws (i-..)    | aws (i-..)    |
 
  * The first column describes the EC2 IMDS configuration: "none" means IMDS is entirely disabled; "v2 only" means that IMDSv1 is disabled, and "v1+v2" is the default setting with both versions available
  * The second column is the `ec2_prefer_imdsv2` configuration value.
