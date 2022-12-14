@@ -67,7 +67,6 @@ type ProcessMetadataField int
 const (
 	ANY ProcessMetadataField = iota
 	NAME
-	MAPFILE
 )
 
 type ProcessCallback struct {
@@ -122,21 +121,6 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 		}
 		if c.Regex.MatchString(pname) {
 			p.enqueueCallback(c, pid)
-		}
-	case MAPFILE:
-		mmaps, err := proc.MemoryMaps(true)
-		if err != nil {
-			log.Errorf("process %d maps parsing failed %s", pid, err)
-			return
-		}
-		if mmaps == nil {
-			return
-		}
-		for _, mmap := range *mmaps {
-			if c.Regex.MatchString(mmap.Path) {
-				p.enqueueCallback(c, pid)
-				break
-			}
 		}
 	}
 }
