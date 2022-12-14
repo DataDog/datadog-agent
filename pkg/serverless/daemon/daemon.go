@@ -166,10 +166,10 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, initDurationChan chan<- float64) {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
-		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone)
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, initDurationChan)
 	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
 
 	d.mux.Handle(route, &server)

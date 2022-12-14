@@ -34,10 +34,10 @@ var functionName = os.Getenv(functionNameEnvVar)
 
 type ColdStartSpanCreator struct {
 	TraceAgent            *ServerlessTraceAgent
-	CreateSpan            *sync.Once
-	LambdaSpanChan        chan *pb.Span
-	InitDurationChan      chan float64
-	SyncSpanDurationMutex *sync.Mutex
+	createSpan            sync.Once
+	LambdaSpanChan        <-chan *pb.Span
+	InitDurationChan      <-chan float64
+	syncSpanDurationMutex sync.Mutex
 	ColdStartSpanId       uint64
 	lambdaSpan            *pb.Span
 	initDuration          float64
@@ -71,16 +71,16 @@ func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {
 	if traceAgentSpan.Name == spanName {
 		return
 	}
-	c.SyncSpanDurationMutex.Lock()
-	defer c.SyncSpanDurationMutex.Unlock()
+	c.syncSpanDurationMutex.Lock()
+	defer c.syncSpanDurationMutex.Unlock()
 
 	c.lambdaSpan = traceAgentSpan
 	c.createIfReady()
 }
 
 func (c *ColdStartSpanCreator) handleInitDuration(initDuration float64) {
-	c.SyncSpanDurationMutex.Lock()
-	defer c.SyncSpanDurationMutex.Unlock()
+	c.syncSpanDurationMutex.Lock()
+	defer c.syncSpanDurationMutex.Unlock()
 	c.initDuration = initDuration
 	c.createIfReady()
 }
@@ -121,7 +121,7 @@ func (c *ColdStartSpanCreator) create() {
 		Type:     "serverless",
 	}
 
-	c.CreateSpan.Do(func() { c.processSpan(coldStartSpan) })
+	c.createSpan.Do(func() { c.processSpan(coldStartSpan) })
 }
 
 func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
