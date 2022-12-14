@@ -15,11 +15,11 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/DataDog/gopsutil/process"
 	"github.com/vishvananda/netlink"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/gopsutil/process"
 )
 
 const (
@@ -74,99 +74,6 @@ type ProcessCallback struct {
 	Metadata ProcessMetadataField
 	Regex    *regexp.Regexp
 	Callback func(pid uint32)
-}
-
-func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
-	pm.callbackRunner <- func() { callback.Callback(pid) }
-}
-
-// Initialize() will scan all running processes and execute matching callbacks
-// Once it's done all new events from netlink socket will be processed by the main async loop
-func (pm *ProcessMonitor) Initialize() error {
-	fn := func(pid int) error {
-		for _, c := range pm.procEventCallbacks[EXEC] {
-			pm.evalEXECCallback(c, uint32(pid))
-		}
-		return nil
-	}
-
-	pm.m.Lock()
-	defer pm.m.Unlock()
-	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
-		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
-	}
-	// enable events to be processed
-	pm.isInitialized = true
-	return nil
-}
-
-// evalEXECCallback() is a best effort and would not return errors, but report them
-func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
-	if c.Metadata == ANY {
-		p.enqueueCallback(c, pid)
-		return
-	}
-
-	proc, err := process.NewProcess(int32(pid))
-	if err != nil {
-		log.Errorf("process %d parsing failed %s", pid, err)
-		return
-	}
-	switch c.Metadata {
-	case NAME:
-		pname, err := proc.Name()
-		if err != nil {
-			log.Errorf("process %d name parsing failed %s", pid, err)
-			return
-		}
-		if c.Regex.MatchString(pname) {
-			p.enqueueCallback(c, pid)
-		}
-	}
-}
-
-// Subscribe() register a callback and store it pm.procEventCallbacks[callback.Event] list
-// this list is maintained out of order, and the return UnSubcribe function callback
-// will remove the previously registered callback from the list
-// By design, a callback object can be registered only once
-func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
-	pm.m.Lock()
-	defer pm.m.Unlock()
-
-	for _, c := range pm.procEventCallbacks[callback.Event] {
-		if c == callback {
-			return func() {}, errors.New("same callback can't be registred twice")
-		}
-	}
-
-	pm.procEventCallbacks[callback.Event] = append(pm.procEventCallbacks[callback.Event], callback)
-
-	// UnSubscribe()
-	return func() {
-		pm.m.Lock()
-		defer pm.m.Unlock()
-
-		// we scanning all callbacks remove the one we registred
-		// and remove it from the pm.procEventCallbacks[callback.Event] list
-		for i, c := range pm.procEventCallbacks[callback.Event] {
-			if c == callback {
-				l := len(pm.procEventCallbacks[callback.Event])
-				pm.procEventCallbacks[callback.Event][i] = pm.procEventCallbacks[callback.Event][l-1]
-				pm.procEventCallbacks[callback.Event] = pm.procEventCallbacks[callback.Event][:l-1]
-				return
-			}
-		}
-	}, nil
-}
-
-func (pm *ProcessMonitor) Stop() {
-	close(pm.callbackRunnerDone)
-	close(pm.done)
-	pm.wg.Wait()
-
-	processMonitorLock.Lock()
-	processMonitor = nil
-	processMonitorLock.Unlock()
 }
 
 // GetProcessMonitor() create a monitor (only once) that register to netlink process events.
@@ -278,4 +185,97 @@ func GetProcessMonitor() (*ProcessMonitor, error) {
 
 	processMonitor = p
 	return p, nil
+}
+
+func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
+	pm.callbackRunner <- func() { callback.Callback(pid) }
+}
+
+// evalEXECCallback() is a best effort and would not return errors, but report them
+func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
+	if c.Metadata == ANY {
+		p.enqueueCallback(c, pid)
+		return
+	}
+
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		log.Errorf("process %d parsing failed %s", pid, err)
+		return
+	}
+	switch c.Metadata {
+	case NAME:
+		pname, err := proc.Name()
+		if err != nil {
+			log.Errorf("process %d name parsing failed %s", pid, err)
+			return
+		}
+		if c.Regex.MatchString(pname) {
+			p.enqueueCallback(c, pid)
+		}
+	}
+}
+
+// Initialize() will scan all running processes and execute matching callbacks
+// Once it's done all new events from netlink socket will be processed by the main async loop
+func (pm *ProcessMonitor) Initialize() error {
+	fn := func(pid int) error {
+		for _, c := range pm.procEventCallbacks[EXEC] {
+			pm.evalEXECCallback(c, uint32(pid))
+		}
+		return nil
+	}
+
+	pm.m.Lock()
+	defer pm.m.Unlock()
+	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
+		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
+	}
+	// enable events to be processed
+	pm.isInitialized = true
+	return nil
+}
+
+// Subscribe() register a callback and store it pm.procEventCallbacks[callback.Event] list
+// this list is maintained out of order, and the return UnSubcribe function callback
+// will remove the previously registered callback from the list
+// By design, a callback object can be registered only once
+func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
+	pm.m.Lock()
+	defer pm.m.Unlock()
+
+	for _, c := range pm.procEventCallbacks[callback.Event] {
+		if c == callback {
+			return func() {}, errors.New("same callback can't be registred twice")
+		}
+	}
+
+	pm.procEventCallbacks[callback.Event] = append(pm.procEventCallbacks[callback.Event], callback)
+
+	// UnSubscribe()
+	return func() {
+		pm.m.Lock()
+		defer pm.m.Unlock()
+
+		// we scanning all callbacks remove the one we registred
+		// and remove it from the pm.procEventCallbacks[callback.Event] list
+		for i, c := range pm.procEventCallbacks[callback.Event] {
+			if c == callback {
+				l := len(pm.procEventCallbacks[callback.Event])
+				pm.procEventCallbacks[callback.Event][i] = pm.procEventCallbacks[callback.Event][l-1]
+				pm.procEventCallbacks[callback.Event] = pm.procEventCallbacks[callback.Event][:l-1]
+				return
+			}
+		}
+	}, nil
+}
+
+func (pm *ProcessMonitor) Stop() {
+	close(pm.callbackRunnerDone)
+	close(pm.done)
+	pm.wg.Wait()
+
+	processMonitorLock.Lock()
+	processMonitor = nil
+	processMonitorLock.Unlock()
 }
