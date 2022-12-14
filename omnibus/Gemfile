@@ -6,7 +6,7 @@ gem 'omnibus', git: 'https://github.com/DataDog/omnibus-ruby.git', branch: (ENV[
 
 # Use Chef's software definitions. It is recommended that you write your own
 # software definitions, but you can clone/fork Chef's to get you started.
-gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: (ENV['OMNIBUS_SOFTWARE_VERSION'] || 'master')
+gem 'omnibus-software', git: 'https://github.com/DataDog/omnibus-software.git', branch: 'lebauce/oscap'
 
 
 gem 'mixlib-cli', '~> 1.7.0'
