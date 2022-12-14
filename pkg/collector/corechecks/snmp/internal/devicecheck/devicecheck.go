@@ -289,10 +289,12 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []c
 							alreadyPresent = true
 							break
 						}
-						alreadyGlobalTags[tagKey] = true
 					}
 					if alreadyPresent {
 						continue
+					}
+					for tagKey := range metricTag.Tags {
+						alreadyGlobalTags[tagKey] = true
 					}
 				}
 				metricTagConfigs = append(metricTagConfigs, metricTag)
