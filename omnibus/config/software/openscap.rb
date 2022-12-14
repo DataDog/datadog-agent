@@ -43,6 +43,8 @@ build do
   env["CC"] = "/opt/datadog-agent/embedded/bin/gcc"
   env["CXX"] = "/opt/datadog-agent/embedded/bin/g++"
 
+  command "rm -rf /usr/local/include/rpm", env: env
+
   #cmake_options = [
   #  "-D", "ENABLE_PYTHON3=FALSE",
   #  "-D", "ENABLE_PERL=FALSE",
