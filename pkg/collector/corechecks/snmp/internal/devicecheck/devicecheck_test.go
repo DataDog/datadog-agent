@@ -303,7 +303,7 @@ profiles:
 }
 
 func TestDetectMetricsToCollect(t *testing.T) {
-	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detect_metrics.d"))
+	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "detectmetr.d"))
 	config.Datadog.Set("confd_path", profilesWithInvalidExtendConfdPath)
 
 	sess := session.CreateMockSession()
