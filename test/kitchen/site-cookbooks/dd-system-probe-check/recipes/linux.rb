@@ -81,25 +81,25 @@ execute 'ensure conntrack is enabled' do
 end
 
 if Chef::SystemProbeHelpers::arm?(node) and node[:platform] == 'centos'
-    package 'cloud-utils-growpart'
-    package 'gdisk'
+  package 'cloud-utils-growpart'
+  package 'gdisk'
 
-    execute 'increase space' do
-        command <<-EOF
-            df -h /tmp
+  execute 'increase space' do
+    command <<-EOF
+      df -h /tmp
 
-            dev_name=$(df -h / | tail -n1 | awk '{print $1}')
-            dev_name=$(python3 -c "print(' '.join('$dev_name'.rsplit('p', 1)))")
-            dev_name_array=($dev_name)
+      dev_name=$(df -h / | tail -n1 | awk '{print $1}')
+      dev_name=$(python3 -c "print(' '.join('$dev_name'.rsplit('p', 1)))")
+      dev_name_array=($dev_name)
 
-            growpart ${dev_name_array[0]} ${dev_name_array[1]}
-            xfs_growfs -d /
-            df -h /tmp
-        EOF
-        user "root"
-        live_stream true
-        ignore_failure true
-    end
+      growpart ${dev_name_array[0]} ${dev_name_array[1]}
+      xfs_growfs -d /
+      df -h /tmp
+    EOF
+    user "root"
+    live_stream true
+    ignore_failure true
+  end
 end
 
 execute 'disable firewalld on redhat' do
@@ -199,14 +199,14 @@ end
 
 # Load docker images
 execute 'install docker-compose' do
-    cwd '/tmp/kitchen-dockers'
-    command <<-EOF
-        for docker_file in $(ls); do
-            echo docker load -i $docker_file
-            docker load -i $docker_file
-            rm -rf $docker_file
-        done
-    EOF
-    user "root"
-    live_stream true
+  cwd '/tmp/kitchen-dockers'
+  command <<-EOF
+    for docker_file in $(ls); do
+      echo docker load -i $docker_file
+      docker load -i $docker_file
+      rm -rf $docker_file
+    done
+  EOF
+  user "root"
+  live_stream true
 end
