@@ -44,6 +44,10 @@ func NewProcessCheck() Check {
 
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
+const (
+	ProcessDiscoveryHintPosition = 0
+)
+
 // ProcessCheck collects full state, including cmdline args and related metadata,
 // for live and running processes. The instance will store some state between
 // checks that will be used for rates, cpu calculations, etc.
@@ -80,6 +84,9 @@ type ProcessCheck struct {
 	maxBatchSize  int
 	maxBatchBytes int
 
+	checkCount uint32
+	skipAmount uint32
+
 	lastConnRates     *atomic.Pointer[ProcessConnRates]
 	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 }
@@ -101,6 +108,8 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
+
+	p.skipAmount = uint32(ddconfig.Datadog.GetInt32("process_config.checks_between_hints"))
 
 	initScrubber(p.scrubber)
 
@@ -217,9 +226,12 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
+	collectorProcHints := p.generateHints()
+	p.checkCount++
+
 	connsRates := p.getLastConnRates()
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
-	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -267,6 +279,21 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	return result, nil
 }
 
+// Sets the bit at pos in the integer n.
+func setBit(n int32, pos uint) int32 {
+	n |= (1 << pos)
+	return n
+}
+
+func (p *ProcessCheck) generateHints() int32 {
+	var hints int32 = 0
+
+	if p.checkCount%p.skipAmount == 0 {
+		hints = setBit(hints, ProcessDiscoveryHintPosition)
+	}
+	return hints
+}
+
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 	stats := map[int32]*procutil.Stats{}
 	for pid, proc := range procs {
@@ -301,6 +328,7 @@ func createProcCtrMessages(
 	maxBatchWeight int,
 	groupID int32,
 	networkID string,
+	hints int32,
 ) ([]model.MessageBody, int, int) {
 	collectorProcs, totalProcs, totalContainers := chunkProcessesAndContainers(procsByCtr, containers, maxBatchSize, maxBatchWeight)
 	// fill in GroupSize for each CollectorProc and convert them to final messages
@@ -313,6 +341,7 @@ func createProcCtrMessages(
 		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
 		m.ContainerHostType = hostInfo.ContainerHostType
+		m.HintMask = hints
 
 		messages = append(messages, m)
 	}

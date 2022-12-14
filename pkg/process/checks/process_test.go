@@ -49,6 +49,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		scrubber:          procutil.NewDefaultDataScrubber(),
 		hostInfo:          hostInfo,
 		containerProvider: mockContainerProvider(t),
+		checkCount:        0,
+		skipAmount:        2,
 	}, probe
 }
 
@@ -120,26 +122,31 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			HintMask:  0b1,
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc2)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			HintMask:  0b1,
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			HintMask:  0b1,
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc4)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			HintMask:  0b1,
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc5)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			HintMask:  0b1,
 		},
 	}
 	actual, err := processCheck.run(0, false)
@@ -327,4 +334,78 @@ func TestConnRates(t *testing.T) {
 
 	assert.Eventually(t, func() bool { return p.getLastConnRates() != nil }, 10*time.Second, time.Millisecond)
 	assert.Equal(t, rates, p.getLastConnRates())
+}
+
+func TestProcessCheckHints(t *testing.T) {
+	processCheck, probe := processCheckWithMockProbe(t)
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	processesByPid := map[int32]*procutil.Process{1: proc1}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(processesByPid, nil)
+
+	// The first run returns nothing because processes must be observed on two consecutive runs
+	first, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.Equal(t, &RunResult{}, first)
+
+	expected := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			HintMask:  0b1,
+		},
+	}
+	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
+	assert.Nil(t, actual.RealTime)
+
+	expectedUnspecified := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			HintMask:  0b0,
+		},
+	}
+
+	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedUnspecified, actual.Standard) // ordering is not guaranteed
+
+	expectedDiscovery := []model.MessageBody{
+		&model.CollectorProc{
+			Processes: []*model.Process{makeProcessModel(t, proc1)},
+			GroupSize: int32(len(processesByPid)),
+			Info:      processCheck.sysInfo,
+			HintMask:  0b1,
+		},
+	}
+
+	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, expectedDiscovery, actual.Standard) // ordering is not guaranteed
+}
+
+func BenchmarkProcessCheck(b *testing.B) {
+	processCheck, probe := processCheckWithMockProbe(&testing.T{})
+
+	now := time.Now().Unix()
+	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
+	proc2 := makeProcessWithCreateTime(2, "mine-bitcoins -all -x", now+1)
+	proc3 := makeProcessWithCreateTime(3, "foo --version", now+2)
+	proc4 := makeProcessWithCreateTime(4, "foo -bar -bim", now+3)
+	proc5 := makeProcessWithCreateTime(5, "datadog-process-agent --cfgpath datadog.conf", now+2)
+	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3, 4: proc4, 5: proc5}
+
+	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
+
+	for n := 0; n < b.N; n++ {
+		_, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+		require.NoError(b, err)
+	}
 }

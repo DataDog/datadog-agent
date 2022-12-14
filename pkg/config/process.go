@@ -176,6 +176,8 @@ func setupProcesses(config Config) {
 	)
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.interval", 4*time.Hour)
 
+	procBindEnvAndSetDefault(config, "process_config.checks_between_hints", 60)
+
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
 
 	// Process Lifecycle Events
