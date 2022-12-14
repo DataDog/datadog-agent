@@ -34,7 +34,7 @@ func GetStaticTagsSlice(ctx context.Context) []string {
 	tags = append(tags, config.GetConfiguredTags(false)...)
 
 	// EKS Fargate specific tags
-	if fargate.IsEKSFargateInstance() {
+	if config.IsFeaturePresent(config.EKSFargate) {
 		// eks_fargate_node
 		node, err := fargate.GetEKSFargateNodename()
 		if err != nil {

@@ -13,23 +13,18 @@ import (
 
 // IsFargateInstance returns whether the Agent is running in Fargate.
 func IsFargateInstance() bool {
-	return config.IsFeaturePresent(config.ECSFargate) || IsEKSFargateInstance()
+	return config.IsFeaturePresent(config.ECSFargate) || config.IsFeaturePresent(config.EKSFargate)
 }
 
 // GetOrchestrator returns whether the Agent is running on ECS or EKS.
 func GetOrchestrator() OrchestratorName {
-	if IsEKSFargateInstance() {
+	if config.IsFeaturePresent(config.EKSFargate) {
 		return EKS
 	}
 	if config.IsFeaturePresent(config.ECSFargate) {
 		return ECS
 	}
 	return Unknown
-}
-
-// IsEKSFargateInstance returns whether the Agent is running in EKS Fargate.
-func IsEKSFargateInstance() bool {
-	return config.Datadog.GetBool("eks_fargate")
 }
 
 // GetEKSFargateNodename returns the node name in EKS Fargate
