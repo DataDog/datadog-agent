@@ -101,7 +101,7 @@ func TestOTLPReceiverSamplingPriority(t *testing.T) {
 	mkspan := func(traceID uint64, service, env string) *pb.Span {
 		return &pb.Span{
 			TraceID: traceID,
-			Service: "a",
+			Service: service,
 			Meta:    map[string]string{"env": env},
 			Metrics: make(map[string]float64),
 		}
