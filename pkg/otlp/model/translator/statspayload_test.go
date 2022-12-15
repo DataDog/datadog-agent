@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/sketches-go/ddsketch"
 	"github.com/DataDog/sketches-go/ddsketch/store"
 	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -473,6 +474,44 @@ func TestConversion(t *testing.T) {
 			}
 			got.Stats = append(got.Stats, out)
 		}
-		require.ElementsMatch(t, want.Stats, got.Stats)
+		var found int
+	outer:
+		for _, wants := range want.Stats {
+			for _, gots := range got.Stats {
+				if equalStats(wants, gots) {
+					found++
+					continue outer
+				}
+			}
+		}
+		if found != len(want.Stats) {
+			t.Fatalf("Found %d/%d", found, len(want.Stats))
+		}
 	})
 }
+
+func equalStats(want, got pb.ClientStatsPayload) bool {
+	cpwant, cpgot := want, got
+	cpwant.Stats = nil
+	cpgot.Stats = nil
+	if !assert.ObjectsAreEqual(cpwant, cpgot) {
+		return false
+	}
+	var found int
+outer:
+	for _, wantb := range want.Stats {
+		for _, gotb := range got.Stats {
+			props := wantb.Start == gotb.Start && wantb.Duration == gotb.Duration && wantb.AgentTimeShift == gotb.AgentTimeShift
+			if props && assert.ElementsMatch(&fakeT{}, wantb.Stats, gotb.Stats) {
+				found++
+				continue outer
+			}
+		}
+	}
+	return found == len(want.Stats)
+}
+
+// fakeT implements testing.T
+type fakeT struct{}
+
+func (*fakeT) Errorf(_ string, _ ...interface{}) {}

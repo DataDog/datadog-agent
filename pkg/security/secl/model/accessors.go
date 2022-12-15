@@ -747,6 +747,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -755,6 +758,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -763,6 +769,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -771,6 +780,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -779,6 +791,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -787,6 +802,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -795,6 +813,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -803,6 +824,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -811,6 +835,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -820,6 +847,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -838,6 +868,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -855,6 +888,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -863,6 +899,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -871,6 +910,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exec.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exec.Process.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -1333,6 +1375,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -1341,6 +1386,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -1349,6 +1397,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -1357,6 +1408,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -1365,6 +1419,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -1373,6 +1430,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -1381,6 +1441,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1389,6 +1452,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -1397,6 +1463,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -1406,6 +1475,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -1424,6 +1496,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -1441,6 +1516,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1449,6 +1527,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -1457,6 +1538,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Exit.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Exit.Process.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -2775,6 +2859,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2791,6 +2878,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2807,6 +2897,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2823,6 +2916,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2839,6 +2935,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2855,6 +2954,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2871,6 +2973,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2887,6 +2992,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2903,6 +3011,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2919,6 +3030,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2935,6 +3049,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2951,6 +3068,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2967,6 +3087,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2983,6 +3106,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -2999,6 +3125,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3015,6 +3144,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3031,6 +3163,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3047,6 +3182,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3063,6 +3201,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3079,6 +3220,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3095,6 +3242,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3111,6 +3264,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3127,6 +3286,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3143,6 +3308,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3159,6 +3330,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3175,6 +3352,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3191,6 +3374,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3207,6 +3396,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3224,6 +3419,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3258,6 +3459,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3291,6 +3498,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3307,6 +3520,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3323,6 +3542,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3339,6 +3564,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3355,6 +3583,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3371,6 +3602,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3387,6 +3621,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3403,6 +3640,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3419,6 +3659,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3435,6 +3678,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3454,6 +3700,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -3473,6 +3722,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3492,6 +3744,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -3511,6 +3766,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []bool{}
 				}
@@ -3530,6 +3788,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3549,6 +3810,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3568,6 +3832,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3587,6 +3854,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3607,6 +3877,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -3644,6 +3917,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -3680,6 +3956,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3699,6 +3978,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -3718,6 +4000,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -3737,6 +4022,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3753,6 +4041,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3769,6 +4060,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3785,6 +4079,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3801,6 +4098,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3817,6 +4117,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3833,6 +4136,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3849,6 +4155,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).ProcessContext.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -4017,6 +4326,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -4025,6 +4337,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -4033,6 +4348,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -4041,6 +4359,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -4049,6 +4370,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -4057,6 +4381,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -4065,6 +4392,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4073,6 +4403,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -4081,6 +4414,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -4090,6 +4426,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -4108,6 +4447,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -4125,6 +4467,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4133,6 +4478,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -4141,6 +4489,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Process.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -4599,6 +4950,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -4608,6 +4962,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.Filesystem
@@ -4621,6 +4978,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -4630,6 +4990,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Group
@@ -4643,6 +5006,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return false
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -4652,6 +5018,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Inode)
@@ -4665,6 +5034,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4674,6 +5046,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.MTime)
@@ -4687,6 +5062,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -4697,6 +5075,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.BasenameStr
@@ -4720,6 +5101,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return ""
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -4740,6 +5124,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4751,6 +5138,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -4760,6 +5150,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).ProcessContext.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.User
@@ -5204,6 +5597,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5220,6 +5616,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5236,6 +5635,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5252,6 +5654,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5268,6 +5673,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5284,6 +5692,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5300,6 +5711,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5316,6 +5730,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5332,6 +5749,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5348,6 +5768,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5364,6 +5787,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5380,6 +5806,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5396,6 +5825,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5412,6 +5844,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5428,6 +5863,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5444,6 +5882,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5460,6 +5901,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5476,6 +5920,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5492,6 +5939,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5508,6 +5958,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5524,6 +5980,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5540,6 +6002,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5556,6 +6024,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5572,6 +6046,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5588,6 +6068,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5604,6 +6090,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5620,6 +6112,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5636,6 +6134,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5653,6 +6157,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5687,6 +6197,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5720,6 +6236,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5736,6 +6258,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5752,6 +6280,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5768,6 +6302,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5784,6 +6321,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5800,6 +6340,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5816,6 +6359,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5832,6 +6378,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5848,6 +6397,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5864,6 +6416,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -5883,6 +6438,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -5902,6 +6460,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -5921,6 +6482,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -5940,6 +6504,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []bool{}
 				}
@@ -5959,6 +6526,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -5978,6 +6548,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -5997,6 +6570,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -6016,6 +6592,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -6036,6 +6615,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -6073,6 +6655,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -6109,6 +6694,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -6128,6 +6716,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -6147,6 +6738,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -6166,6 +6760,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6182,6 +6779,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6198,6 +6798,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6214,6 +6817,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6230,6 +6836,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6246,6 +6855,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6262,6 +6874,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6278,6 +6893,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6446,6 +7064,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -6454,6 +7075,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -6462,6 +7086,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -6470,6 +7097,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -6478,6 +7108,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -6486,6 +7119,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -6494,6 +7130,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -6502,6 +7141,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -6510,6 +7152,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -6519,6 +7164,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -6537,6 +7185,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -6554,6 +7205,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -6562,6 +7216,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -6570,6 +7227,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -7028,6 +7688,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -7037,6 +7700,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.Filesystem
@@ -7050,6 +7716,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -7059,6 +7728,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Group
@@ -7072,6 +7744,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return false
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -7081,6 +7756,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Inode)
@@ -7094,6 +7772,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -7103,6 +7784,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.MTime)
@@ -7116,6 +7800,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -7126,6 +7813,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.BasenameStr
@@ -7149,6 +7839,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return ""
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -7169,6 +7862,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -7180,6 +7876,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -7189,6 +7888,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.User
@@ -8485,6 +9187,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.args":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8501,6 +9206,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8517,6 +9225,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.args_options":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8533,6 +9244,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.args_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8549,6 +9263,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8565,6 +9282,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8581,6 +9301,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cap_effective":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8597,6 +9320,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cap_permitted":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8613,6 +9339,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.comm":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8629,6 +9358,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8645,6 +9377,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.cookie":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8661,6 +9396,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.created_at":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8677,6 +9415,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.egid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8693,6 +9434,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.egroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8709,6 +9453,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.envp":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8725,6 +9472,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8741,6 +9491,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8757,6 +9510,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.euid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8773,6 +9529,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.euser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8789,6 +9548,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8805,6 +9570,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8821,6 +9592,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8837,6 +9614,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8853,6 +9636,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8869,6 +9658,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8885,6 +9680,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8901,6 +9702,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8917,6 +9724,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8934,6 +9747,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -8968,6 +9787,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9001,6 +9826,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9017,6 +9848,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9033,6 +9870,12 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9049,6 +9892,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsgid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9065,6 +9911,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsgroup":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9081,6 +9930,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsuid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9097,6 +9949,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.fsuser":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9113,6 +9968,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9129,6 +9987,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9145,6 +10006,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9164,6 +10028,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -9183,6 +10050,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9202,6 +10072,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -9221,6 +10094,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []bool{}
 				}
@@ -9240,6 +10116,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9259,6 +10138,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9278,6 +10160,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9297,6 +10182,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9317,6 +10205,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -9354,6 +10245,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -9390,6 +10284,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9409,6 +10306,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []int{}
 				}
@@ -9428,6 +10328,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
 					return []string{}
 				}
@@ -9447,6 +10350,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.is_kworker":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9463,6 +10369,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.is_thread":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []bool{}
+				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9479,6 +10388,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9495,6 +10407,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.ppid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9511,6 +10426,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.tid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9527,6 +10445,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.tty_name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9543,6 +10464,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []int{}
+				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9559,6 +10483,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				if !(*Event)(ctx.Object).Signal.Target.IsNotKworker() {
+					return []string{}
+				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9727,6 +10654,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -9735,6 +10665,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -9743,6 +10676,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -9751,6 +10687,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -9759,6 +10698,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -9767,6 +10709,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -9775,6 +10720,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -9783,6 +10731,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -9791,6 +10742,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -9800,6 +10754,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -9818,6 +10775,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -9835,6 +10795,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -9843,6 +10806,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -9851,6 +10817,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
+				if !(*Event)(ctx.Object).Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Process.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -10309,6 +11278,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -10318,6 +11290,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.Filesystem
@@ -10331,6 +11306,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -10340,6 +11318,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Group
@@ -10353,6 +11334,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return false
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return false
+				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -10362,6 +11346,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Inode)
@@ -10375,6 +11362,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -10384,6 +11374,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return 0
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return 0
 				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.MTime)
@@ -10397,6 +11390,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -10407,6 +11403,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.BasenameStr
@@ -10430,6 +11429,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return ""
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -10450,6 +11452,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -10461,6 +11466,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
 					return 0
 				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
 				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -10470,6 +11478,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
+					return ""
+				}
+				if !(*Event)(ctx.Object).Signal.Target.Parent.IsNotKworker() {
 					return ""
 				}
 				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.User
