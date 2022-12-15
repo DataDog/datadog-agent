@@ -448,153 +448,39 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 		return nil, err
 	}
 
-	// skip host match check if rego input is overridden
+	// skip the scope checks if rego inputs were provided via CLI
 	if b.regoInputOverride == nil {
-		eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
-		if err != nil {
-			return nil, err
-		}
-
-		if !eligible {
-			log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-			return nil, ErrRuleDoesNotApply
-		}
-	}
-
-	return b.newRegoCheck(meta, ruleScope, rule, fallthroughReporter)
-}
-
-func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
-	return report.Resource
-}
-
-func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {
-	switch {
-	case scopeList.Includes(compliance.DockerScope):
-		return compliance.DockerScope, nil
-	case scopeList.Includes(compliance.KubernetesNodeScope):
-		return compliance.KubernetesNodeScope, nil
-	case scopeList.Includes(compliance.KubernetesClusterScope):
-		return compliance.KubernetesClusterScope, nil
-	case scopeList.Includes(compliance.Unscoped):
-		return compliance.Unscoped, nil
-	default:
-		return "", ErrRuleScopeNotSupported
-	}
-}
-
-func (b *builder) hostMatcher(scope compliance.RuleScope, ruleID string, hostSelector string, skipOnK8s bool) (bool, error) {
-	switch scope {
-	case compliance.DockerScope:
-		if skipOnK8s && config.IsKubernetes() {
-			log.Infof("rule %s skipped - running on a Kubernetes environment", ruleID)
-			return false, nil
-		}
-
-		if b.dockerClient == nil {
-			log.Infof("rule %s skipped - not running in a docker environment", ruleID)
-			return false, nil
-		}
-	case compliance.KubernetesClusterScope:
-		if b.kubeClient == nil {
-			log.Infof("rule %s skipped - not running as Cluster Agent", ruleID)
-			return false, nil
-		}
-	case compliance.KubernetesNodeScope:
-		if config.IsKubernetes() {
-			ignoreHostSelectors := config.Datadog.GetBool("compliance_config.ignore_host_selectors")
-			if ignoreHostSelectors {
-				return true, nil
+		switch ruleScope {
+		case compliance.DockerScope:
+			if rule.SkipOnK8s && config.IsKubernetes() {
+				log.Infof("rule %s skipped - running on a Kubernetes environment", rule.ID)
+				return nil, ErrRuleDoesNotApply
 			}
-			return b.isKubernetesNodeEligible(hostSelector)
+
+			if b.dockerClient == nil {
+				log.Infof("rule %s skipped - not running in a docker environment", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
+		case compliance.KubernetesClusterScope:
+			if b.kubeClient == nil {
+				log.Infof("rule %s skipped - not running as Cluster Agent", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
+		case compliance.KubernetesNodeScope:
+			if !config.IsKubernetes() {
+				log.Infof("rule %s skipped - not running on a Kubernetes node", rule.ID)
+				return nil, ErrRuleDoesNotApply
+			}
 		}
-		log.Infof("rule %s skipped - not running on a Kubernetes node", ruleID)
-		return false, nil
 	}
 
-	return true, nil
-}
-
-func (b *builder) isKubernetesNodeEligible(hostSelector string) (bool, error) {
-	if hostSelector == "" {
-		return true, nil
-	}
-
-	expr, err := eval.ParseExpression(hostSelector)
-	if err != nil {
-		return false, err
-	}
-
-	labelKeys := b.nodeLabelKeys()
-	nodeInstance := eval.NewInstance(
-		eval.VarMap{
-			"node.labels": labelKeys,
-		},
-		eval.FunctionMap{
-			"node.hasLabel": b.nodeHasLabel,
-			"node.label":    b.nodeLabel,
-		},
-		eval.RegoInputMap{
-			"labels": labelKeys,
-		},
-	)
-
-	result, err := expr.Evaluate(nodeInstance)
-	if err != nil {
-		return false, err
-	}
-
-	eligible, ok := result.(bool)
-	if !ok {
-		return false, fmt.Errorf("hostSelector %q does not evaluate to a boolean value", hostSelector)
-	}
-
-	return eligible, nil
-}
-
-func (b *builder) getNodeLabel(args ...interface{}) (string, bool, error) {
-	if len(args) == 0 {
-		return "", false, errors.New(`expecting one argument for label`)
-	}
-	label, ok := args[0].(string)
-	if !ok {
-		return "", false, fmt.Errorf(`expecting string value for label argument`)
-	}
-	if b.nodeLabels == nil {
-		return "", false, nil
-	}
-	v, ok := b.nodeLabels[label]
-	return v, ok, nil
-}
-
-func (b *builder) nodeHasLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	_, ok, err := b.getNodeLabel(args...)
-	return ok, err
-}
-
-func (b *builder) nodeLabel(_ eval.Instance, args ...interface{}) (interface{}, error) {
-	v, _, err := b.getNodeLabel(args...)
-	return v, err
-}
-
-func (b *builder) nodeLabelKeys() []string {
-	var keys []string
-	for k := range b.nodeLabels {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
 	var m metrics.Metrics
-
 	m = newRegoTelemetry()
 	if config.Datadog.GetBool("compliance_config.opa.metrics.enabled") {
 		m = newRegoMetrics(m, b.statsdClient)
 	}
 
 	regoCheck := rego.NewCheck(rule)
-
 	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
 		return nil, err
 	}
@@ -614,12 +500,31 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 
 		suiteMeta: meta,
 
-		resourceHandler: handler,
+		resourceHandler: fallthroughReporter,
 		scope:           ruleScope,
 		checkable:       regoCheck,
 
 		eventNotify: notify,
 	}, nil
+}
+
+func fallthroughReporter(report *compliance.Report) compliance.ReportResource {
+	return report.Resource
+}
+
+func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList) (compliance.RuleScope, error) {
+	switch {
+	case scopeList.Includes(compliance.DockerScope):
+		return compliance.DockerScope, nil
+	case scopeList.Includes(compliance.KubernetesNodeScope):
+		return compliance.KubernetesNodeScope, nil
+	case scopeList.Includes(compliance.KubernetesClusterScope):
+		return compliance.KubernetesClusterScope, nil
+	case scopeList.Includes(compliance.Unscoped):
+		return compliance.Unscoped, nil
+	default:
+		return "", ErrRuleScopeNotSupported
+	}
 }
 
 func (b *builder) Reporter() event.Reporter {

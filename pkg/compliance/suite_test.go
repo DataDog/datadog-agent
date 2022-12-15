@@ -34,9 +34,8 @@ func TestParseSuite(t *testing.T) {
 				RegoRules: []RegoRule{
 					{
 						RuleCommon: RuleCommon{
-							ID:           "cis-docker-1",
-							Scope:        RuleScopeList{DockerScope},
-							HostSelector: `"foo" in node.labels`,
+							ID:    "cis-docker-1",
+							Scope: RuleScopeList{DockerScope},
 						},
 						Inputs: []RegoInput{
 							{
