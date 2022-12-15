@@ -8,3 +8,8 @@ services:
     volumes:
       - ${DATA_DIR}:/usr/snmpsim/data/
     container_name: dd-snmp
+  agent:
+    volumes:
+      - ${CONFIG_DIR}/snmp.yaml:/etc/datadog-agent/conf.d/snmp.d/snmp.yaml
+    container_name: dd-agent
+
