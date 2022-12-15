@@ -31,18 +31,15 @@ def normalize_logs(stage):
             require(r'BEGINLOG.*ENDLOG'),
             exclude(r'BEGINLOG'),
             exclude(r'ENDLOG'),
-            #exclude(r'\n'),
-            #replace(r'("timestamp":\s*)\d{13}', r'\1"XXX"'),
             replace(r'("timestamp":\s*?)\d{13}', r'\1"XXX"'),
             replace(r'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}:\d{3}', 'TIMESTAMP'),
             replace(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z', 'TIMESTAMP'),
             replace(r'\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}', 'TIMESTAMP'),
             replace(r'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}', 'TIMESTAMP'),
-            #replace(r'"timestamp":\d{13},', '\1'),
-            #replace(r'"timestamp":\d{13},', ''),
             replace(r'([a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12})', r'XXX'),
             replace(stage, 'XXXXXX'),
             replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
+            sort_by(lambda log: log["message"]["message"]),
             # ignore a Lambda error that occurs sporadically for log-csharp see here for more info:
             # https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
             # TODO
@@ -72,6 +69,10 @@ def normalize_traces(stage):
             exclude(r'[ ]$'),
     ]
 
+#####################
+# BEGIN NORMALIZERS #
+#####################
+
 def replace(pattern, repl):
     comp = re.compile(pattern, flags=re.DOTALL)
     def _replace(log):
@@ -90,6 +91,17 @@ def require(pattern):
             return ''
         return match.group(0)
     return _require
+
+def sort_by(key):
+    def _sort(log):
+        log_json = json.loads(log, strict=False)
+        log_sorted = sorted(log_json, key=key)
+        return json.dumps(log_sorted)
+    return _sort
+
+###################
+# END NORMALIZERS #
+###################
 
 def normalize(log, typ, stage):
     for normalizer in get_normalizers(typ, stage):
