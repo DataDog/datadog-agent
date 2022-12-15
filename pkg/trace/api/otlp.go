@@ -359,7 +359,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	select {
 	case o.out <- &p:
-		// Do nothing
+		// success
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}
