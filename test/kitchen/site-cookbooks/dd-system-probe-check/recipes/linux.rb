@@ -189,7 +189,7 @@ end
 include_recipe "::docker_installation"
 
 remote_directory "/tmp/kitchen-dockers" do
-  source 'dockers/kitchen-dockers'
+  source 'dockers'
   files_owner 'root'
   files_group 'root'
   files_mode '0750'
