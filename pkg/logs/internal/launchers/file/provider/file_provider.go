@@ -226,7 +226,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 	}
 
 	if len(filesToTail) == p.filesLimit {
-		log.Warn("Reached the limit on the maximum number of files in use: ", p.filesLimit)
+		log.Debug("Reached the limit on the maximum number of files in use: ", p.filesLimit)
 	}
 
 	return filesToTail
