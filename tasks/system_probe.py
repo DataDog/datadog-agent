@@ -1190,7 +1190,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         )
 
         ctx.run(f"cd {btf_dir}/minimized-btfs && " +
-                f"tar -cJf minimized-btfs.tar.xz * && " +
+                "tar -cJf minimized-btfs.tar.xz * && " +
                 f"mv minimized-btfs.tar.xz {files_dir}")
     else:
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
