@@ -181,6 +181,10 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+	} else {
+		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+			Type: ebpf.Array,
+		}
 	}
 
 	currKernelVersion, err := kernel.HostVersion()
