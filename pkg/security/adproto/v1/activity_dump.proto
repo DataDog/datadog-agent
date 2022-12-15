@@ -154,6 +154,7 @@ message SocketNode {
 message BindNode {
     uint32 port = 1;
     string ip = 2;
+    string protocol = 3;
 }
 
 enum GenerationType {

@@ -268,8 +268,9 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 
 	for _, bindNode := range sn.GetBind() {
 		socketNode.Bind = append(socketNode.Bind, &BindNode{
-			Port: uint16(bindNode.Port),
-			IP:   bindNode.Ip,
+			Port:     uint16(bindNode.Port),
+			IP:       bindNode.Ip,
+			Protocol: bindNode.Protocol,
 		})
 	}
 

@@ -94,7 +94,7 @@ func TestActivityDumps(t *testing.T) {
 				for _, s := range node.Sockets {
 					if s.Family == "AF_INET" {
 						for _, bindNode := range s.Bind {
-							if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" {
+							if bindNode.Port == 4242 && bindNode.IP == "0.0.0.0" && bindNode.Protocol == "IP_PROTO_TCP" {
 								return true
 							}
 						}

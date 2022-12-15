@@ -273,8 +273,9 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 
 	for _, bn := range sn.Bind {
 		psn.Bind = append(psn.Bind, &adproto.BindNode{
-			Port: uint32(bn.Port),
-			Ip:   bn.IP,
+			Port:     uint32(bn.Port),
+			Ip:       bn.IP,
+			Protocol: bn.Protocol,
 		})
 	}
 
