@@ -86,7 +86,7 @@ type ProcessCallback struct {
 //   by default ANY is applied
 //
 // Typical initialization:
-//   mon, _ := GetProcessMonitor()
+//   mon := GetProcessMonitor()
 //   mon.Subscribe(callback)
 //   mon.Initialize()
 //
@@ -98,101 +98,16 @@ type ProcessCallback struct {
 //       o callback{Event: EXIT, Metadata: ANY}   callback is called for all exit events, system wide
 //       o callback{Event: EXIT, Metadata: NAME}  callback is called if we seen the process Exec event
 //                                                in this case a callback{Event: EXEC, ...} must be registered
-func GetProcessMonitor() (*ProcessMonitor, error) {
-	var err error
+func GetProcessMonitor() *ProcessMonitor {
 	once.Do(func() {
-		p := &ProcessMonitor{}
-		p.isInitialized = false
-		p.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
-		p.done = make(chan struct{})
-		p.errors = make(chan error)
-		p.procEventCallbacks = make(map[ProcessEventType][]*ProcessCallback)
-		p.runningPids = make(map[uint32]struct{})
-
-		if err = netlink.ProcEventMonitor(p.events, p.done, p.errors); err != nil {
-			return
+		processMonitor = &ProcessMonitor{
+			isInitialized:      false,
+			procEventCallbacks: make(map[ProcessEventType][]*ProcessCallback),
+			runningPids:        make(map[uint32]struct{}),
 		}
-
-		p.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
-		p.callbackRunner = make(chan func(), runtime.NumCPU())
-		for i := 0; i < runtime.NumCPU(); i++ {
-			p.wg.Add(1)
-			go func() {
-				defer p.wg.Done()
-				for {
-					select {
-					case <-p.callbackRunnerDone:
-						return
-					case call, ok := <-p.callbackRunner:
-						if !ok {
-							continue
-						}
-						call()
-					}
-				}
-			}()
-		}
-		processMonitor = p
-
-		// This is the main async loop, where we process processes events from netlink socket
-		// events are dropped until
-		p.wg.Add(1)
-		go func() {
-			defer func() {
-				log.Info("netlink process monitor ended")
-				p.wg.Done()
-			}()
-			for {
-				select {
-				case <-p.done:
-					return
-
-				case event, ok := <-p.events:
-					if !ok {
-						return
-					}
-					p.m.Lock()
-					if !p.isInitialized {
-						p.m.Unlock()
-						continue
-					}
-
-					switch ev := event.Msg.(type) {
-					case *netlink.ExecProcEvent:
-						for _, c := range p.procEventCallbacks[EXEC] {
-							p.evalEXECCallback(c, ev.ProcessPid)
-						}
-					case *netlink.ExitProcEvent:
-						for _, c := range p.procEventCallbacks[EXIT] {
-							// Call only the Exit callback if we seen the process pid Exec event
-							// if the metadata is ANY we call the callback for all exit events
-							if c.Metadata != ANY {
-								if _, found := p.runningPids[ev.ProcessPid]; !found {
-									continue
-								}
-							}
-							p.enqueueCallback(c, ev.ProcessPid)
-						}
-						delete(p.runningPids, ev.ProcessPid)
-					}
-					p.m.Unlock()
-
-				case err, ok := <-p.errors:
-					if !ok {
-						return
-					}
-					log.Errorf("process montior error: %s", err)
-					p.Stop()
-					return
-				}
-			}
-		}()
 	})
 
-	if err != nil {
-		return nil, fmt.Errorf("could not create process monitor: %s", err)
-	}
-	return processMonitor, nil
+	return processMonitor
 }
 
 func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
@@ -241,6 +156,95 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 // Initialize will scan all running processes and execute matching callbacks
 // Once it's done all new events from netlink socket will be processed by the main async loop
 func (pm *ProcessMonitor) Initialize() error {
+	pm.m.Lock()
+	defer pm.m.Unlock()
+
+	if pm.isInitialized {
+		return fmt.Errorf("Process monitor already initialized")
+	}
+
+	pm.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
+	pm.done = make(chan struct{})
+	pm.errors = make(chan error)
+
+	if err := netlink.ProcEventMonitor(pm.events, pm.done, pm.errors); err != nil {
+		return fmt.Errorf("could not create process monitor: %s", err)
+	}
+
+	pm.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
+	pm.callbackRunner = make(chan func(), runtime.NumCPU())
+	for i := 0; i < runtime.NumCPU(); i++ {
+		pm.wg.Add(1)
+		go func() {
+			defer pm.wg.Done()
+			for {
+				select {
+				case <-pm.callbackRunnerDone:
+					return
+				case call, ok := <-pm.callbackRunner:
+					if !ok {
+						continue
+					}
+					call()
+				}
+			}
+		}()
+	}
+
+	// This is the main async loop, where we process processes events from netlink socket
+	// events are dropped until
+	pm.wg.Add(1)
+	go func() {
+		defer func() {
+			log.Info("netlink process monitor ended")
+			pm.wg.Done()
+		}()
+		for {
+			select {
+			case <-pm.done:
+				return
+
+			case event, ok := <-pm.events:
+				if !ok {
+					return
+				}
+				pm.m.Lock()
+				if !pm.isInitialized {
+					pm.m.Unlock()
+					continue
+				}
+
+				switch ev := event.Msg.(type) {
+				case *netlink.ExecProcEvent:
+					for _, c := range pm.procEventCallbacks[EXEC] {
+						pm.evalEXECCallback(c, ev.ProcessPid)
+					}
+				case *netlink.ExitProcEvent:
+					for _, c := range pm.procEventCallbacks[EXIT] {
+						// Call only the Exit callback if we seen the process pid Exec event
+						// if the metadata is ANY we call the callback for all exit events
+						if c.Metadata != ANY {
+							if _, found := pm.runningPids[ev.ProcessPid]; !found {
+								continue
+							}
+						}
+						pm.enqueueCallback(c, ev.ProcessPid)
+					}
+					delete(pm.runningPids, ev.ProcessPid)
+				}
+				pm.m.Unlock()
+
+			case err, ok := <-pm.errors:
+				if !ok {
+					return
+				}
+				log.Errorf("process montior error: %s", err)
+				pm.Stop()
+				return
+			}
+		}
+	}()
+
 	fn := func(pid int) error {
 		for _, c := range pm.procEventCallbacks[EXEC] {
 			pm.evalEXECCallback(c, uint32(pid))
@@ -248,8 +252,6 @@ func (pm *ProcessMonitor) Initialize() error {
 		return nil
 	}
 
-	pm.m.Lock()
-	defer pm.m.Unlock()
 	if err := util.WithAllProcs(util.HostProc(), fn); err != nil {
 		return fmt.Errorf("process monitor init, scanning all process failed %s", err)
 	}
@@ -297,6 +299,7 @@ func (pm *ProcessMonitor) Stop() {
 	close(pm.done)
 	pm.wg.Wait()
 
-	// reset once here in case we would like to create a new instance of ProcessMonitor()
-	once = sync.Once{}
+	pm.m.Lock()
+	pm.isInitialized = false
+	pm.m.Unlock()
 }

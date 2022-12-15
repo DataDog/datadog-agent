@@ -96,10 +96,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, fmt.Errorf("couldn't instantiate batch manager: %w", err)
 	}
 
-	processMonitor, err := monitor.GetProcessMonitor()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't instantiate process monitor: %w", err)
-	}
+	processMonitor := monitor.GetProcessMonitor()
 
 	return &Monitor{
 		handler:                handler,

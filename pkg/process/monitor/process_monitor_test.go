@@ -29,11 +29,8 @@ func TestProcessMonitorBasics(t *testing.T) {
 	}
 
 	// Making sure we get the same process monitor if we call it twice.
-	pm, err := GetProcessMonitor()
-	require.NoError(t, err)
-
-	pm2, err := GetProcessMonitor()
-	require.NoError(t, err)
+	pm := GetProcessMonitor()
+	pm2 := GetProcessMonitor()
 
 	require.Equal(t, pm, pm2)
 
@@ -71,8 +68,7 @@ func TestProcessMonitorCallbacks(t *testing.T) {
 		t.Skip("require CAP_NET_ADMIN capabilities")
 	}
 
-	pm, err := GetProcessMonitor()
-	require.NoError(t, err)
+	pm := GetProcessMonitor()
 
 	numberOfExecs := 0
 	numberOfExits := 0
