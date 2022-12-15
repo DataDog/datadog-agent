@@ -161,7 +161,7 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
 	}
-	if kv < kernel.VersionCode(4, 9, 0) {
+	if kv < kernel.VersionCode(4, 8, 0) {
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 
