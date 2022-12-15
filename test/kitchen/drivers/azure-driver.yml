@@ -15,6 +15,7 @@
   vm_tags = {
     'dd_agent_testing': 'dd_agent_testing'
   }
+  vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
   if ENV['DD_PIPELINE_ID']
     vm_tags['pipeline_id'] = ENV['DD_PIPELINE_ID']
   else
@@ -62,7 +63,7 @@ driver_config:
       - ln -s <%= mount_dir %> <%= target_mount_dir %>
       <% if change_mount_dir %>
       - mkdir <%= mount_dir %>/kitchen
-      - chown -R <%= ENV['VM_USERNAME'] ||= "datadog" %>:<%= ENV['VM_USERNAME'] ||= "datadog" %> <%= target_mount_dir %>/kitchen
+      - chown -R <%=  vm_username %>:<%= vm_username %> <%= target_mount_dir %>/kitchen
       <% end %>
 
 platforms:
@@ -135,7 +136,6 @@ platforms:
       ed25519_platforms = []
       use_ed25519 = ed25519_platforms.any? { |p| platform_name.include?(p) }
 
-      vm_username = ENV['VM_USERNAME'] ? ENV['VM_USERNAME'] : "datadog"
       vm_password = ENV['SERVER_PASSWORD']
 
 %>
