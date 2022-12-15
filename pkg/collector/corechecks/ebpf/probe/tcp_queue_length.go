@@ -23,8 +23,10 @@ import (
 	bpflib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,12 +46,22 @@ type TCPQueueLengthTracer struct {
 }
 
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
-	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
-	if err != nil {
-		return nil, err
-	}
-	defer compiledOutput.Close()
+	if cfg.EnableCORE {
+		probe, err := loadTCPQueueLengthCOREProbe(cfg)
+		if err == nil {
+			return probe, nil
+		}
 
+		if !cfg.AllowRuntimeCompiledFallback {
+			return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
+		}
+		log.Warnf("error loading CO-RE tcp-queue-length probe: %s. falling back to runtime compiled probe", err)
+	}
+
+	return loadTCPQueueLengthRuntimeCompiledProbe(cfg)
+}
+
+func startTCPQueueLengthProbe(buf bytecode.AssetReader, managerOptions manager.Options) (*TCPQueueLengthTracer, error) {
 	probes := []*manager.Probe{
 		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kprobe/tcp_recvmsg", EBPFFuncName: "kprobe__tcp_recvmsg", UID: "tcpq"}},
 		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: "kretprobe/tcp_recvmsg", EBPFFuncName: "kretprobe__tcp_recvmsg", UID: "tcpq"}},
@@ -68,14 +80,12 @@ func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 		Maps:   maps,
 	}
 
-	managerOptions := manager.Options{
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
+	managerOptions.RLimit = &unix.Rlimit{
+		Cur: math.MaxUint64,
+		Max: math.MaxUint64,
 	}
 
-	if err := m.InitWithOptions(compiledOutput, managerOptions); err != nil {
+	if err := m.InitWithOptions(buf, managerOptions); err != nil {
 		return nil, fmt.Errorf("failed to init manager: %w", err)
 	}
 
@@ -144,4 +154,36 @@ func (t *TCPQueueLengthTracer) GetAndFlush() TCPQueueLengthStats {
 	}
 
 	return result
+}
+
+func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("error detecting kernel version: %s", err)
+	}
+	if kv < kernel.VersionCode(4, 9, 0) {
+		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
+	}
+
+	var probe *TCPQueueLengthTracer
+	err = ebpf.LoadCOREAsset(cfg, "tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		probe, err = startTCPQueueLengthProbe(buf, opts)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("successfully loaded CO-RE version of tcp-queue-length probe")
+	return probe, nil
+}
+
+func loadTCPQueueLengthRuntimeCompiledProbe(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
+	compiledOutput, err := runtime.TcpQueueLength.Compile(cfg, []string{"-g"}, statsd.Client)
+	if err != nil {
+		return nil, err
+	}
+	defer compiledOutput.Close()
+
+	return startTCPQueueLengthProbe(compiledOutput, manager.Options{})
 }
