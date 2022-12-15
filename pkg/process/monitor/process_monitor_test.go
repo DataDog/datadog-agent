@@ -76,7 +76,7 @@ func TestProcessMonitorCallbacks(t *testing.T) {
 	tmpFile, err := ioutil.TempFile("", "echo")
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
-	err = util.CopyFile("/usr/bin/echo", tmpFile.Name())
+	err = util.CopyFile("/bin/echo", tmpFile.Name())
 	require.NoError(t, err)
 
 	require.NoError(t, os.Chmod(tmpFile.Name(), 0500))
