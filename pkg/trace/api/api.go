@@ -98,7 +98,7 @@ func NewHTTPReceiver(conf *config.AgentConfig, dynConf *sampler.DynamicConfig, o
 		statsProcessor:      statsProcessor,
 		conf:                conf,
 		dynConf:             dynConf,
-		containerIDProvider: NewIDProvider("/proc"),
+		containerIDProvider: NewIDProvider(conf.ContainerProcRoot),
 
 		rateLimiterResponse: rateLimiterResponse,
 

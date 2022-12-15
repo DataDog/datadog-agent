@@ -42,7 +42,7 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
-	cidProvider := api.NewIDProvider("/proc")
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header).AsTags()

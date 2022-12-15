@@ -100,7 +100,7 @@ func errorHandler(err error) http.Handler {
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider("/proc")
+	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
