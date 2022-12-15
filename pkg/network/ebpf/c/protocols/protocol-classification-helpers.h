@@ -27,7 +27,12 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
         return false;                                                       \
     }                                                                       \
 
+// Kernels before 4.7 do not know about per-cpu array maps.
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER], 1)
+#else
+BPF_ARRAY_MAP(classification_buf, __u32, 0)
+#endif
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
