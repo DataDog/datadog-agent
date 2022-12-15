@@ -15,9 +15,12 @@
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
     - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
-    - mkdir /tmp/dockers
-    - inv -e system-probe.save-test-dockers --output-dir /tmp/dockers --arch $ARCH
-    - $S3_CP_CMD --recursive --exclude "*" --include "*.tar" /tmp/dockers $S3_ARTIFACTS_URI/kitchen-dockers/$ARCH
+    - mkdir kitchen-dockers
+    - inv -e system-probe.save-test-dockers --output-dir kitchen-dockers --arch $ARCH
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - kitchen-dockers
 
 pull_test_dockers_x64:
   extends: .pull_test_dockers
@@ -54,9 +57,8 @@ pull_test_dockers_arm64:
 
 .retrieve_test_dockers:
   - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - mkdir -p /tmp/kitchen-dockers
-  - $S3_CP_CMD --recursive --exclude "*" --include "*.tar" $S3_ARTIFACTS_URI/kitchen-dockers/$ARCH /tmp/kitchen-dockers
-  - cp -r /tmp/kitchen-dockers $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - mv kitchen-dockers/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
+  - ls -lh $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
 
 .retrieve_minimized_btfs:
   - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
