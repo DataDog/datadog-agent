@@ -21,7 +21,8 @@ func (s *awsStore) get(key string) (string, error) {
 		return "", err
 	}
 
-	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &key, WithDecryption: true})
+	withDecription := true
+	output, err := ssmClient.GetParameter(context.Background(), &ssm.GetParameterInput{Name: &key, WithDecryption: &withDecription})
 	if err != nil {
 		return "", fmt.Errorf("failed to get SSM parameter '%s', err: %w", key, err)
 	}
