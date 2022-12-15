@@ -513,6 +513,7 @@ func initializePortBindingMaps(config *config.Config, m *manager.Manager) error 
 }
 
 func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
+	log.Debug("adamk_updateTCPStats: ", tcpStats.Retransmits)
 	if conn.Type != network.TCP {
 		return
 	}

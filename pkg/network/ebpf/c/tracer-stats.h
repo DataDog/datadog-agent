@@ -197,10 +197,10 @@ static __always_inline int handle_retransmit_retrans_out(struct sock *sk) {
         return 0;
     }
 
-    u32* retrans_out;
+    u32 retrans_out;
     bpf_probe_read(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
 
-    tcp_stats_t stats = { .retransmits = *retrans_out, .rtt = 0, .rtt_var = 0 };
+    tcp_stats_t stats = { .retransmits = retrans_out, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats);
 
     return 0;

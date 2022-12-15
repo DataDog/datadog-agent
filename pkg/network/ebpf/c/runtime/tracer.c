@@ -397,6 +397,7 @@ int kprobe__skb_consume_udp(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    log.Debugf("Successfully guessed  with offset of ");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     log_debug("kprobe/tcp_retransmit\n");
     u64 tid = bpf_get_current_pid_tgid();
@@ -410,6 +411,11 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 
 SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    if (PT_REGS_RC(ctx) < 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        return 0;
+    }
+    log_debug("adam_k");
     u64 tid = bpf_get_current_pid_tgid();
     tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
     if (args == NULL) {
