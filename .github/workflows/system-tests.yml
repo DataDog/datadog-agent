@@ -20,76 +20,22 @@ jobs:
           - library: cpp
             variant: nginx
           - library: golang
-            variant: net-http
-          - library: golang
-            variant: gorilla
-          - library: golang
             variant: echo
-          - library: golang
-            variant: chi
-          - library: golang
-            variant: gin
           - library: nodejs
             variant: express4
-          - library: nodejs
-            variant: express4-typescript
           - library: dotnet
             variant: poc
-
           - library: java
             variant: spring-boot
-          - library: java
-            variant: spring-boot-jetty
-          - library: java
-            variant: jersey-grizzly2
-          - library: java
-            variant: resteasy-netty3
-          - library: java
-            variant: ratpack
-          - library: java
-            variant: vertx3
-
           - library: php
             variant: apache-mod-8.0
-          - library: php
-            variant: php-fpm-8.0
-          - library: python
-            variant: django-poc
           - library: python
             variant: flask-poc
-          - library: python
-            variant: uwsgi-poc
-          - library: ruby
-            variant: rack
-          - library: ruby
-            variant: sinatra14
-          - library: ruby
-            variant: sinatra20
           - library: ruby
             variant: sinatra21
-          - library: ruby
-            variant: rails32
-          - library: ruby
-            variant: rails40
-          - library: ruby
-            variant: rails41
-          - library: ruby
-            variant: rails42
-          - library: ruby
-            variant: rails50
-          - library: ruby
-            variant: rails51
-          - library: ruby
-            variant: rails52
-          - library: ruby
-            variant: rails60
-          - library: ruby
-            variant: rails61
-          - library: ruby
-            variant: rails70
 
     env:
-      DD_API_KEY: XXXX # ${{ secrets.DD_API_KEY }}
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -120,26 +66,3 @@ jobs:
         with:
           name: logs_${{ matrix.weblog.library }}_${{ matrix.weblog.variant }}
           path: artifact.tar.gz
-
-      - name: Upload results CI Visibility
-        if: ${{ always() }}
-        run: ./utils/scripts/upload_results_CI_visibility.sh dev nightly-agent ${{ github.run_id }}-${{ github.run_attempt }}
-        env:
-          DD_API_KEY: ${{ secrets.DD_CI_API_KEY }}
-
-  post_system-tests:
-    runs-on: ubuntu-latest
-    if: always() && github.ref == 'refs/heads/main'
-    needs: [system-tests]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          repository: 'DataDog/system-tests'
-          token: ${{ secrets.GH_TOKEN }}
-
-      - name: Update CI Dashboard..
-        run: ./utils/scripts/update_dashboard_CI_visibility.sh nightly-agent ${{ github.run_id }}-${{ github.run_attempt }}
-        env:
-          DD_API_KEY: ${{ secrets.DD_CI_API_KEY }}
-          DD_APP_KEY: ${{ secrets.DD_CI_APP_KEY }}
