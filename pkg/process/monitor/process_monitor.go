@@ -38,9 +38,14 @@ var (
 //
 // callbacks will be executed in parallel via a pool of goroutines (runtime.NumCPU())
 // callbackRunner is callbacks queue. The queue size is set by processMonitorMaxEvents
+//
+// Multiple team can use the same ProcessMonitor,
+// the callers need to guarantee calling each Initialize() Stop() one single time
+// this maintain an internal reference counter
 type ProcessMonitor struct {
-	m  sync.Mutex
-	wg sync.WaitGroup
+	m        sync.Mutex
+	wg       sync.WaitGroup
+	refcount int
 
 	isInitialized bool
 
@@ -187,8 +192,9 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.m.Lock()
 	defer pm.m.Unlock()
 
+	pm.refcount++
 	if pm.isInitialized {
-		return fmt.Errorf("Process monitor already initialized")
+		return nil
 	}
 
 	pm.events = make(chan netlink.ProcEvent, processMonitorMaxEvents)
@@ -316,11 +322,16 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 }
 
 func (pm *ProcessMonitor) Stop() {
+	pm.m.Lock()
+	defer pm.m.Unlock()
+	pm.refcount--
+	if pm.refcount > 0 {
+		return
+	}
+
 	close(pm.callbackRunnerDone)
 	close(pm.done)
 	pm.wg.Wait()
 
-	pm.m.Lock()
 	pm.isInitialized = false
-	pm.m.Unlock()
 }

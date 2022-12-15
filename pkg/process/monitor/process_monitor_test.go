@@ -82,6 +82,7 @@ func TestProcessMonitorCallbacks(t *testing.T) {
 	require.NoError(t, os.Chmod(tmpFile.Name(), 0500))
 
 	require.NoError(t, pm.Initialize())
+	defer pm.Stop()
 	callbackExec := &ProcessCallback{
 		Event:    EXEC,
 		Metadata: NAME,
@@ -121,4 +122,67 @@ func TestProcessMonitorCallbacks(t *testing.T) {
 		return numberOfExecs == 2 && numberOfExits == 1
 	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture exec %d and exit %d", numberOfExecs, numberOfExits))
 
+}
+
+func TestProcessMonitorRefcount(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("require CAP_NET_ADMIN capabilities")
+	}
+
+	pm := GetProcessMonitor()
+	require.Equal(t, pm.refcount, 0)
+	err := pm.Initialize()
+	require.Equal(t, pm.refcount, 1)
+	require.NoError(t, err)
+	pm.Stop()
+	require.Equal(t, pm.refcount, 0)
+
+	pm2 := GetProcessMonitor()
+
+	numberOfExecs := 0
+	callbackExec := &ProcessCallback{
+		Event:    EXEC,
+		Metadata: ANY,
+		Callback: func(pid uint32) {
+			numberOfExecs++
+		},
+	}
+	_, err = pm.Subscribe(callbackExec)
+	require.NoError(t, err)
+	require.NoError(t, pm2.Initialize())
+	require.Equal(t, pm.refcount, 1)
+
+	oldNumberOfExecs := numberOfExecs
+	require.NoError(t, exec.Command("/bin/echo").Run())
+	require.Eventuallyf(t, func() bool {
+		return numberOfExecs > oldNumberOfExecs
+	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture a new exec %d old %d", numberOfExecs, oldNumberOfExecs))
+
+	require.NoError(t, pm2.Initialize())
+	require.Equal(t, pm.refcount, 2)
+
+	oldNumberOfExecs = numberOfExecs
+	require.NoError(t, exec.Command("/bin/echo").Run())
+	require.Eventuallyf(t, func() bool {
+		return numberOfExecs > oldNumberOfExecs
+	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture a new exec %d old %d", numberOfExecs, oldNumberOfExecs))
+
+	require.Equal(t, pm.refcount, 2)
+	pm2.Stop()
+	require.Equal(t, pm.refcount, 1)
+
+	oldNumberOfExecs = numberOfExecs
+	require.NoError(t, exec.Command("/bin/echo").Run())
+	require.Eventuallyf(t, func() bool {
+		return numberOfExecs > oldNumberOfExecs
+	}, time.Second, time.Millisecond*200, fmt.Sprintf("didn't capture a new exec %d old %d", numberOfExecs, oldNumberOfExecs))
+
+	pm2.Stop()
+	require.Equal(t, pm.refcount, 0)
+
+	oldNumberOfExecs = numberOfExecs
+	require.NoError(t, exec.Command("/bin/echo").Run())
+	require.Eventuallyf(t, func() bool {
+		return numberOfExecs == oldNumberOfExecs
+	}, time.Second, time.Millisecond*200, fmt.Sprintf("capture a new exec %d old %d", numberOfExecs, oldNumberOfExecs))
 }
