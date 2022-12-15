@@ -53,7 +53,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.8.3
+	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
@@ -431,7 +431,7 @@ require (
 	github.com/streadway/amqp v1.0.0
 )
 
-require github.com/go-openapi/spec v0.20.3 // indirect
+require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
