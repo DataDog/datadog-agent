@@ -24,6 +24,10 @@ import (
 )
 
 func TestProcessMonitorBasics(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("require CAP_NET_ADMIN capabilities")
+	}
+
 	// Making sure we get the same process monitor if we call it twice.
 	pm, err := GetProcessMonitor()
 	require.NoError(t, err)
@@ -63,6 +67,10 @@ func TestProcessMonitorBasics(t *testing.T) {
 }
 
 func TestProcessMonitorCallbacks(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("require CAP_NET_ADMIN capabilities")
+	}
+
 	pm, err := GetProcessMonitor()
 	require.NoError(t, err)
 
