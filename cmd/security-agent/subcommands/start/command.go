@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 	"net/http"
@@ -71,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	startCmd.Flags().StringVarP(&params.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	startCmd.Flags().StringVarP(&params.pidfilePath, flags.PidFile, "p", "", "path to the pidfile")
 
 	return []*cobra.Command{startCmd}
 }

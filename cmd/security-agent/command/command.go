@@ -6,12 +6,12 @@
 package command
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"path"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"path"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,6 +22,11 @@ type GlobalParams struct {
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
 const LoggerName = "SECURITY"
+
+var defaultSecurityAgentConfigFilePaths = []string{
+	path.Join(common.DefaultConfPath, "datadog.yaml"),
+	path.Join(common.DefaultConfPath, "security-agent.yaml"),
+}
 
 // MakeCommand makes the top-level Cobra command for this command.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
@@ -44,12 +49,8 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	defaultSecurityAgentConfigFilepaths := []string{
-		path.Join(common.DefaultConfPath, "datadog.yaml"),
-		path.Join(common.DefaultConfPath, "security-agent.yaml"),
-	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilepaths, "cfgpath", "c", defaultSecurityAgentConfigFilepaths, "path to a yaml configuration file")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultSecurityAgentConfigFilePaths, "paths to yaml configuration files")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {
