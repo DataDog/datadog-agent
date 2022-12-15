@@ -447,9 +447,10 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{}
 		entry.EnvsEntry.SetValues(envs)
+		entry.EnvsTruncated = truncated
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
