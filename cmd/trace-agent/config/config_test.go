@@ -990,3 +990,41 @@ func TestLoadEnv(t *testing.T) {
 		}
 	})
 }
+
+func TestFargateConfig(t *testing.T) {
+	assert := assert.New(t)
+	type testData struct {
+		name         string
+		envKey       string
+		envValue     string
+		orchestrator config.FargateOrchestratorName
+	}
+	for _, data := range []testData{
+		{
+			name:         "ecs_fargate",
+			envKey:       "ECS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorECS,
+		},
+		{
+			name:         "eks_fargate",
+			envKey:       "DD_EKS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorEKS,
+		},
+		{
+			name:         "unknown",
+			envKey:       "ECS_FARGATE",
+			envValue:     "",
+			orchestrator: config.OrchestratorUnknown,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			t.Setenv(data.envKey, data.envValue)
+			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+			assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
+		})
+	}
+}
