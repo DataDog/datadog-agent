@@ -169,7 +169,7 @@
   },
   {
     "message": {
-      "message": "TIMESTAMP http: proxy error: context canceled\n",
+      "message": "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled\n",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-STAGE-log-proxy",
         "request_id": "XXX"
@@ -183,7 +183,7 @@
   },
   {
     "message": {
-      "message": "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled\n",
+      "message": "TIMESTAMP http: proxy error: context canceled\n",
       "lambda": {
         "arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-STAGE-log-proxy",
         "request_id": "XXX"
