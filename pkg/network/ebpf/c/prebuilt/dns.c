@@ -1,6 +1,14 @@
-#include "tracer.h"
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
+
+#include <linux/kconfig.h>
+#include <net/sock.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
+
+#include "tracer.h"
 #include "ip.h"
 #include "defs.h"
 

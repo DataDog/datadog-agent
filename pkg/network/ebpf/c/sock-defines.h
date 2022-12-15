@@ -1,9 +1,7 @@
 #ifndef __SOCK_DEFINES_H__
 #define __SOCK_DEFINES_H__
 
-#include "bpf_helpers.h"
-
-#include <net/sock.h>
+#include "ktypes.h"
 
 static __always_inline void* sock_rtt(struct sock *sk);
 static __always_inline void* sock_rtt_var(struct sock *sk);

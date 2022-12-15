@@ -271,12 +271,4 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
     *packets_out = 0;
 }
 
-static __always_inline void* sock_rtt(struct sock *sk) {
-    return (char*)sk + offset_rtt();
-}
-
-static __always_inline void* sock_rtt_var(struct sock *sk) {
-    return (char*)sk + offset_rtt_var();
-}
-
 #endif // __SOCK_IMPL_H

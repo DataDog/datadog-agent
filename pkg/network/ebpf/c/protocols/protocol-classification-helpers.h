@@ -1,8 +1,9 @@
 #ifndef __PROTOCOL_CLASSIFICATION_HELPERS_H
 #define __PROTOCOL_CLASSIFICATION_HELPERS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
+#include "defs.h"
 #include "protocol-classification-defs.h"
 #include "protocol-classification-maps.h"
 #include "bpf_builtins.h"

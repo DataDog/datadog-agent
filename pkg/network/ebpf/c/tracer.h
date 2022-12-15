@@ -1,7 +1,7 @@
 #ifndef __TRACER_BPF_H
 #define __TRACER_BPF_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #include "protocols/protocol-classification-defs.h"
 

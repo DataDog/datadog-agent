@@ -2,8 +2,9 @@
 #define __SOCKFD_H
 
 #include "bpf_builtins.h"
+#include "ktypes.h"
+
 #include "tracer.h"
-#include <linux/types.h>
 
 // This map is used to to temporarily store function arguments (sockfd) for
 // sockfd_lookup_light function calls, so they can be accessed by the corresponding kretprobe.
@@ -12,10 +13,10 @@
 BPF_HASH_MAP(sockfd_lookup_args, __u64, __u32, 1024)
 
 BPF_HASH_MAP(sock_by_pid_fd, pid_fd_t, struct sock *, 1024)
-    
+
 BPF_HASH_MAP(pid_fd_by_sock, struct sock *, pid_fd_t, 1024)
-    
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void clear_sockfd_maps(struct sock* sock) {
     if (sock == NULL) {

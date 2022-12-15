@@ -2,8 +2,22 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 #include "bpf_tracing.h"
-#include "tracer.h"
+#include "bpf_endian.h"
 
+#include <linux/err.h>
+#include <linux/socket.h>
+#include <net/inet_sock.h>
+#include <net/net_namespace.h>
+#include <net/sock.h>
+#include <net/tcp_states.h>
+#include <uapi/linux/if_ether.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/ptrace.h>
+#include <uapi/linux/tcp.h>
+#include <uapi/linux/udp.h>
+
+#include "tracer.h"
 #include "protocols/protocol-classification-helpers.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
@@ -11,22 +25,9 @@
 #include "tracer-telemetry.h"
 #include "sockfd.h"
 #include "tcp-recv.h"
-
-#include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "port.h"
-
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/tcp_states.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
-#include <linux/err.h>
-
 #include "sock.h"
 #include "skb.h"
 

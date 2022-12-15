@@ -2,11 +2,20 @@
 #define __TRACER_STATS_H
 
 #include "bpf_builtins.h"
+#include "bpf_core_read.h"
+#include "defs.h"
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
 #include "sock-defines.h"
 #include "cookie.h"
+
+#ifdef COMPILE_PREBUILT
+static __u64 offset_rtt();
+static __u64 offset_rtt_var();
+#elif defined(COMPILE_CORE)
+static __always_inline struct tcp_sock * tcp_sk(const struct sock *sk);
+#endif
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {
     // initialize-if-no-exist the connection stat, and load it
@@ -189,10 +198,14 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
-    u32 rtt = 0;
-    u32 rtt_var = 0;
-    bpf_probe_read_kernel(&rtt, sizeof(rtt), sock_rtt(sk));
-    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), sock_rtt_var(sk));
+    u32 rtt, rtt_var;
+#ifdef COMPILE_PREBUILT
+    bpf_probe_read_kernel(&rtt, sizeof(rtt), (char*)sk + offset_rtt());
+    bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), (char*)sk + offset_rtt_var());
+#else
+    rtt = BPF_CORE_READ(tcp_sk(sk), srtt_us);
+    rtt_var = BPF_CORE_READ(tcp_sk(sk), mdev_us);
+#endif
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
     if (state > 0) {

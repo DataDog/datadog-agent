@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_CLASSIFICATION_DEFS_H
 #define __PROTOCOL_CLASSIFICATION_DEFS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 // Represents the max buffer size required to classify protocols .
 // We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
