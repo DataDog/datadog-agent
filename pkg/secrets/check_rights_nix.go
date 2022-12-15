@@ -119,19 +119,13 @@ var checkConfigFilePermissions = func(path string) error {
 		return fmt.Errorf("invalid config file permissions for '%s': not owned by %s", path, usr.Uid)
 	}
 
-	ownedByUserGroup := false
-
 	for _, g := range groups {
 		if strconv.FormatInt(int64(stat.Gid), 10) == g {
-			ownedByUserGroup = true
+			return nil
 		}
 	}
 
-	if !ownedByUserGroup {
-		return fmt.Errorf("invalid config file permissions for '%s': not owned by any groups for user %s", path, usr.Uid)
-	}
-
-	return nil
+	return fmt.Errorf("invalid config file permissions for '%s': not owned by any groups for user %s", path, usr.Uid)
 }
 
 // lockOpenFile opens the file and prevents overwrite and delete by another process
