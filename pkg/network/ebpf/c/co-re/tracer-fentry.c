@@ -1,45 +1,23 @@
-#include "kconfig.h"
+#include "ktypes.h"
 #include "bpf_telemetry.h"
-#include "tracer.h"
+#include "bpf_endian.h"
+#include "bpf_tracing.h"
 
+#include "tracer.h"
 #include "tracer-events.h"
 #include "tracer-maps.h"
 #include "tracer-stats.h"
 #include "tracer-telemetry.h"
 #include "sockfd.h"
-
-#include "bpf_endian.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "port.h"
-
-#include <net/inet_sock.h>
-#include <net/net_namespace.h>
-#include <net/tcp_states.h>
-#include <net/ip.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/ipv6.h>
-#include <uapi/linux/ptrace.h>
-#include <uapi/linux/tcp.h>
-#include <uapi/linux/udp.h>
-#include <linux/err.h>
-#include <linux/tcp.h>
-
 #include "sock.h"
+
+#define MSG_PEEK 2
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
-
-static __always_inline void handle_tcp_stats(conn_tuple_t *t, struct sock *sk, u8 state) {
-    u32 rtt = BPF_CORE_READ(tcp_sk(sk), srtt_us);
-    u32 rtt_var = BPF_CORE_READ(tcp_sk(sk), mdev_us);
-
-    tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };
-    if (state > 0) {
-        stats.state_transitions = (1 << state);
-    }
-    update_tcp_stats(t, stats);
-}
 
 static __always_inline void get_tcp_segment_counts(struct sock *skp, __u32 *packets_in, __u32 *packets_out) {
     *packets_in = BPF_CORE_READ(tcp_sk(skp), segs_in);
@@ -104,7 +82,7 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     }
     log_debug("fentry/tcp_close: netns: %u, sport: %u, dport: %u\n", t.netns, t.sport, t.dport);
 
-    cleanup_conn(&t);
+    cleanup_conn(&t, sk);
     return 0;
 }
 
@@ -343,7 +321,7 @@ int BPF_PROG(udp_destroy_sock, struct sock *sk) {
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(&tup);
+        cleanup_conn(&tup, sk);
         lport = tup.sport;
     } else {
         // get the port for the current sock
@@ -400,7 +378,7 @@ static __always_inline int sys_exit_bind(struct socket *sock, struct sockaddr *a
         sin_port = ((struct sockaddr_in6 *)addr)->sin6_port;
     }
 
-    sin_port = ntohs(sin_port);
+    sin_port = bpf_ntohs(sin_port);
     if (sin_port == 0) {
         sin_port = read_sport(BPF_CORE_READ(sock, sk));
     }

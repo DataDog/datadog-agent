@@ -70,14 +70,6 @@ def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None
     nw.variable("ebpfflags", get_ebpf_build_flags())
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
 
-    # see https://github.com/torvalds/linux/commit/9618bde489b2d23779b1e2d04c10983da21f3818
-    # for explanation
-    nw.rule(
-        name="coreclang",
-        command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o - | opt -O2 -mtriple=bpf-pc-linux | llvm-dis -o $out",
-        depfile="$out.d",
-    )
-
     nw.rule(
         name="ebpfclang",
         command="clang -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
@@ -108,17 +100,14 @@ def ninja_define_exe_compiler(nw):
     )
 
 
-def ninja_ebpf_program(nw, infile, outfile, variables=None, is_core=False):
+def ninja_ebpf_program(nw, infile, outfile, variables=None):
     outdir, basefile = os.path.split(outfile)
     basename = os.path.basename(os.path.splitext(basefile)[0])
     out_base = f"{outdir}/{basename}"
-    rule = "ebpfclang"
-    if is_core:
-        rule = "coreclang"
     nw.build(
         inputs=[infile],
         outputs=[f"{out_base}.bc"],
-        rule=rule,
+        rule="ebpfclang",
         variables=variables,
     )
     nw.build(
@@ -202,10 +191,10 @@ def ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release):
     nw.build(rule="phony", inputs=outfiles, outputs=["cws"])
 
 
-def ninja_network_ebpf_program(nw, infile, outfile, flags, is_core=False):
-    ninja_ebpf_program(nw, infile, outfile, {"flags": flags}, is_core)
+def ninja_network_ebpf_program(nw, infile, outfile, flags):
+    ninja_ebpf_program(nw, infile, outfile, {"flags": flags})
     root, ext = os.path.splitext(outfile)
-    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"}, is_core)
+    ninja_ebpf_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
 def ninja_network_ebpf_co_re_program(nw, infile, outfile, flags):
@@ -221,9 +210,9 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_co_re_dir = os.path.join(network_c_dir, "co-re")
 
     network_flags = "-Ipkg/network/ebpf/c -g"
-    network_co_re_flags = f"-I{network_co_re_dir}"
+    network_co_re_flags = f"-I{network_co_re_dir} -Ipkg/network/ebpf/c"
     network_programs = ["dns", "offset-guess", "tracer", "http"]
-    network_co_re_programs = []
+    network_co_re_programs = ["tracer-fentry"]
 
     for prog in network_programs:
         infile = os.path.join(network_prebuilt_dir, f"{prog}.c")
@@ -245,19 +234,6 @@ def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
-
-
-def ninja_network_core_ebpf_programs(nw, build_dir):
-    network_bpf_dir = os.path.join("pkg", "network", "ebpf")
-    network_c_dir = os.path.join(network_bpf_dir, "c")
-    network_co_re_dir = os.path.join(network_c_dir, "co-re")
-
-    network_flags = "-Ipkg/network/ebpf/c -g"
-    network_programs = ["tracer-fentry"]
-    for prog in network_programs:
-        infile = os.path.join(network_co_re_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{prog}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, network_flags, True)
 
 
 def ninja_runtime_compilation_files(nw):
@@ -349,7 +325,7 @@ def ninja_cgo_type_files(nw, windows):
         in_dir, in_file = os.path.split(f)
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
-        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)}"
+        rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
         nw.build(
             inputs=[f],
             outputs=[os.path.join(in_dir, out_file)],

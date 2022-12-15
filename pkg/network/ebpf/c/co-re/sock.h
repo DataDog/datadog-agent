@@ -1,9 +1,7 @@
 #ifndef __SOCK_H
 #define __SOCK_H
 
-#include "kconfig.h"
-#include "net/sock.h"
-#include "net/inet_sock.h"
+#include "ktypes.h"
 
 #include "defs.h"
 #include "bpf_core_read.h"
@@ -11,6 +9,37 @@
 // source include/linux/socket.h
 #define __AF_INET   2
 #define __AF_INET6 10
+
+// source include/net/inet_sock.h
+#define inet_daddr sk.__sk_common.skc_daddr
+#define inet_rcv_saddr sk.__sk_common.skc_rcv_saddr
+#define inet_dport sk.__sk_common.skc_dport
+#define inet_num sk.__sk_common.skc_num
+// source include/net/sock.h
+#define sk_net __sk_common.skc_net
+#define sk_num __sk_common.skc_num
+#define sk_dport __sk_common.skc_dport
+#define sk_v6_rcv_saddr __sk_common.skc_v6_rcv_saddr
+#define sk_v6_daddr __sk_common.skc_v6_daddr
+#define s6_addr32 in6_u.u6_addr32
+#define sk_daddr __sk_common.skc_daddr
+#define sk_rcv_saddr __sk_common.skc_rcv_saddr
+#define sk_family __sk_common.skc_family
+// source include/net/flow.h
+#define fl4_sport uli.ports.sport
+#define fl4_dport uli.ports.dport
+#define fl6_sport uli.ports.sport
+#define fl6_dport uli.ports.dport
+
+static __always_inline struct tcp_sock *tcp_sk(const struct sock *sk)
+{
+    return (struct tcp_sock *)sk;
+}
+
+static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
+{
+    return (struct inet_sock *)sk;
+}
 
 static __always_inline bool dns_stats_enabled() {
     __u64 val = 0;
@@ -158,10 +187,6 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-static __always_inline u32 get_sk_cookie(struct sock *sk) {
-    return bpf_get_prandom_u32();
-}
-
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
     t->metadata = type;
@@ -180,11 +205,11 @@ static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, 
 
     if (t->sport == 0) {
         t->sport = BPF_CORE_READ(fl4, fl4_sport);
-        t->sport = ntohs(t->sport);
+        t->sport = bpf_ntohs(t->sport);
     }
     if (t->dport == 0) {
         t->dport = BPF_CORE_READ(fl4, fl4_dport);
-        t->dport = ntohs(t->dport);
+        t->dport = bpf_ntohs(t->dport);
     }
 
     if (t->sport == 0 || t->dport == 0) {
@@ -230,11 +255,11 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
 
     if (t->sport == 0) {
         t->sport = BPF_CORE_READ(fl6, fl6_sport);
-        t->sport = ntohs(t->sport);
+        t->sport = bpf_ntohs(t->sport);
     }
     if (t->dport == 0) {
         t->dport = BPF_CORE_READ(fl6, fl6_dport);
-        t->dport = ntohs(t->dport);
+        t->dport = bpf_ntohs(t->dport);
     }
 
     if (t->sport == 0 || t->dport == 0) {

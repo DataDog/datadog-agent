@@ -21,6 +21,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -71,121 +72,131 @@ func newTelemetry() telemetry {
 
 // New creates a new tracer
 func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry *errtelemetry.EBPFTelemetry) (connection.Tracer, error) {
-	mgrOptions := manager.Options{
+	var tr *tracer
+	filename := "tracer-fentry.o"
+	if config.BPFDebug {
+		filename = "tracer-fentry-debug.o"
+	}
+
+	err := ddebpf.LoadCOREAsset(&config.Config, filename, func(ar bytecode.AssetReader, o manager.Options) error {
+
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
 		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
 		// using bpf(2) with BPF_MAP_CREATE.
 		//
 		// We are setting the limit to infinity until we have a better handle on the true requirements.
-		RLimit: &unix.Rlimit{
+		o.RLimit = &unix.Rlimit{
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
-		},
-		MapSpecEditors: map[string]manager.MapSpecEditor{
+		}
+		o.MapSpecEditors = map[string]manager.MapSpecEditor{
 			string(probes.ConnMap):            {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.TCPStatsMap):        {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PortBindingsMap):    {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.UDPPortBindingsMap): {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.SockByPidFDMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
 			string(probes.PidFDBySockMap):     {Type: ebpf.Hash, MaxEntries: uint32(config.MaxTrackedConnections), EditorFlag: manager.EditMaxEntries},
-		},
-		ConstantEditors: constants,
-	}
-
-	buf, err := netebpf.ReadFentryTracerModule(config.BPFDir, config.BPFDebug)
-	if err != nil {
-		return nil, fmt.Errorf("could not read tracer module: %s", err)
-	}
-	defer buf.Close()
-
-	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config)
-	if err != nil {
-		return nil, fmt.Errorf("invalid probe configuration: %v", err)
-	}
-
-	closedChannelSize := defaultClosedChannelSize
-	if config.ClosedChannelSize > 0 {
-		closedChannelSize = config.ClosedChannelSize
-	}
-	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
-	m := newManager(config, perfHandlerTCP)
-	//m.DumpHandler = dumpMapsHandler
-
-	currKernelVersion, err := kernel.HostVersion()
-	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
-	}
-	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
-	m.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
-	}
-
-	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
-	for _, p := range m.Probes {
-		if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
-			mgrOptions.ExcludedFunctions = append(mgrOptions.ExcludedFunctions, p.EBPFFuncName)
 		}
-	}
-	for probeName, funcName := range enabledProbes {
-		mgrOptions.ActivatedProbes = append(
-			mgrOptions.ActivatedProbes,
-			&manager.ProbeSelector{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFSection:  string(probeName),
-					EBPFFuncName: funcName,
-					UID:          probeUID,
-				},
-			})
-	}
+		o.ConstantEditors = constants
 
-	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+		// Use the config to determine what kernel probes should be enabled
+		enabledProbes, err := enabledPrograms(config)
+		if err != nil {
+			return fmt.Errorf("invalid probe configuration: %v", err)
+		}
 
-	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
-	err = m.InitWithOptions(buf, mgrOptions)
+		closedChannelSize := defaultClosedChannelSize
+		if config.ClosedChannelSize > 0 {
+			closedChannelSize = config.ClosedChannelSize
+		}
+		perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
+		m := newManager(config, perfHandlerTCP)
+
+		currKernelVersion, err := kernel.HostVersion()
+		if err != nil {
+			return errors.New("failed to detect kernel version")
+		}
+		activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
+		m.InstructionPatcher = func(m *manager.Manager) error {
+			return errtelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		}
+
+		// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types
+		for _, p := range m.Probes {
+			if _, enabled := enabledProbes[p.EBPFSection]; !enabled {
+				o.ExcludedFunctions = append(o.ExcludedFunctions, p.EBPFFuncName)
+			}
+		}
+		for probeName, funcName := range enabledProbes {
+			o.ActivatedProbes = append(
+				o.ActivatedProbes,
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						EBPFSection:  string(probeName),
+						EBPFFuncName: funcName,
+						UID:          probeUID,
+					},
+				})
+		}
+
+		telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
+
+		o.ConstantEditors = append(o.ConstantEditors, telemetryMapKeys...)
+		err = m.InitWithOptions(ar, o)
+		if err != nil {
+			return fmt.Errorf("failed to init ebpf manager: %v", err)
+		}
+
+		batchMgr, err := connection.NewConnBatchManager(m)
+		if err != nil {
+			return fmt.Errorf("could not create batch manager: %w", err)
+		}
+
+		closeConsumer, err := connection.NewTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
+		if err != nil {
+			return fmt.Errorf("could not create tcpCloseConsumer: %w", err)
+		}
+
+		tr = &tracer{
+			m:             m,
+			config:        config,
+			closeConsumer: closeConsumer,
+			pidCollisions: atomic.NewInt64(0),
+			removeTuple:   &netebpf.ConnTuple{},
+			telemetry:     newTelemetry(),
+		}
+
+		defer func() {
+			if err != nil {
+				tr.Stop()
+			}
+		}()
+
+		tr.conns, _, err = m.GetMap(string(probes.ConnMap))
+		if err != nil {
+			return fmt.Errorf("error retrieving the bpf %s map: %w", probes.ConnMap, err)
+		}
+
+		tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
+		if err != nil {
+			return fmt.Errorf("error retrieving the bpf %s map: %w", probes.TCPStatsMap, err)
+		}
+
+		if bpfTelemetry != nil {
+			bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
+			bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
+		}
+
+		if err = bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+			return fmt.Errorf("error registering ebpf telemetry: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
-	}
-
-	batchMgr, err := connection.NewConnBatchManager(m)
-	if err != nil {
-		return nil, fmt.Errorf("could not create batch manager: %w", err)
-	}
-
-	closeConsumer, err := connection.NewTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
-	if err != nil {
-		return nil, fmt.Errorf("could not create tcpCloseConsumer: %w", err)
-	}
-
-	tr := &tracer{
-		m:             m,
-		config:        config,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
-	}
-
-	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.ConnMap, err)
-	}
-
-	tr.tcpStats, _, err = m.GetMap(string(probes.TCPStatsMap))
-	if err != nil {
-		tr.Stop()
-		return nil, fmt.Errorf("error retrieving the bpf %s map: %s", probes.TCPStatsMap, err)
-	}
-
-	if bpfTelemetry != nil {
-		bpfTelemetry.MapErrMap = tr.GetMap(string(probes.MapErrTelemetryMap))
-		bpfTelemetry.HelperErrMap = tr.GetMap(string(probes.HelperErrTelemetryMap))
-	}
-
-	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
-		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
+		return nil, err
 	}
 
 	return tr, nil
