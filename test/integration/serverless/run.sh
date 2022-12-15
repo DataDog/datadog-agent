@@ -216,25 +216,23 @@ for function_name in "${all_functions[@]}"; do
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize metrics
-        logs=$(python3 log_normalize.py --type metric --logs "$raw_logs" | node parse-json.js)
+        logs=$(python3 log_normalize.py --type metrics --logs "$raw_logs" --stage $stage)
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         # Normalize logs
-        logs=$(python3 log_normalize.py --type log --logs "$raw_logs" | node parse-json.js)
+        logs=$(python3 log_normalize.py --type logs --logs "$raw_logs" --stage $stage)
     else
         # Normalize traces
-        logs=$(python3 log_normalize.py --type trace --logs "$raw_logs" | node parse-json.js)
+        logs=$(python3 log_normalize.py --type traces --logs "$raw_logs" --stage $stage)
     fi
 
     function_snapshot_path="./snapshots/${function_name}"
 
-    jsonLogs="$(echo $logs | node parse-json.js)"
-
     if [ ! -f "$function_snapshot_path" ]; then
         printf "${MAGENTA} CREATE ${END_COLOR} $function_name\n"
-        echo "$jsonLogs" >"$function_snapshot_path"
+        echo "$logs" >"$function_snapshot_path"
     elif [ "$UPDATE_SNAPSHOTS" == "true" ]; then
         printf "${MAGENTA} UPDATE ${END_COLOR} $function_name\n"
-        echo "$jsonLogs" > "$function_snapshot_path"
+        echo "$logs" > "$function_snapshot_path"
     else
         if [[ " ${functions_to_skip[*]} " =~ " ${function_name} " ]]; then
             printf "${YELLOW} SKIP ${END_COLOR} $function_name\n"
@@ -245,7 +243,7 @@ for function_name in "${all_functions[@]}"; do
             printf "${YELLOW} SKIP ${END_COLOR} $function_name, no .NET support on arm64\n"
             continue
         fi
-        diff_output=$(echo "$jsonLogs" | diff - "$function_snapshot_path")
+        diff_output=$(echo "$logs" | diff - "$function_snapshot_path")
         if [ $? -eq 1 ]; then
             failed_functions+=("$function_name")
 
