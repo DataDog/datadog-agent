@@ -133,9 +133,9 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 
 	var err error
 	var proc *process.Process
+	// We receive the Exec event first and /proc could be slow to update
 	end := time.Now().Add(10 * time.Millisecond)
 	for end.After(time.Now()) {
-		// /proc could be slow to update
 		proc, err = process.NewProcess(int32(pid))
 		if err == nil {
 			break
@@ -143,7 +143,9 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 		time.Sleep(time.Millisecond)
 	}
 	if err != nil {
-		log.Errorf("process %d parsing failed %s", pid, err)
+		// short living process can hit here (or later proc.Name() parsing)
+		// as they already exited when we try to find them in /proc
+		// so let's be quiet on the logs as there not much to do here
 		return
 	}
 
