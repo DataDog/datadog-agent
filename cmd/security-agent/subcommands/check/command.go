@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-type checkCliParams struct {
+type cliParams struct {
 	args []string
 
 	framework         string
@@ -46,7 +46,7 @@ type checkCliParams struct {
 
 // Commands returns a cobra command to run security agent checks
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	checkArgs := &checkCliParams{}
+	checkArgs := &cliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -54,13 +54,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
+			bundleParams := core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "info", true)
 			if checkArgs.verbose {
 				bundleParams = bundleParams.LogForOneShot(bundleParams.LoggerName, "trace", true)
 			}
 
 			return fxutil.OneShot(runCheck,
 				fx.Supply(checkArgs),
-				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilepaths).LogForOneShot(command.LoggerName, "info", true)),
+				fx.Supply(bundleParams),
 				core.Bundle,
 			)
 		},
@@ -78,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func runCheck(log log.Component, config config.Component, checkArgs *checkCliParams) error {
+func runCheck(log log.Component, config config.Component, checkArgs *cliParams) error {
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
