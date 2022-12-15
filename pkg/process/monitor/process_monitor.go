@@ -51,7 +51,7 @@ type ProcessMonitor struct {
 
 	// callback registration and parallel execution management
 	procEventCallbacks map[ProcessEventType][]*ProcessCallback
-	runningPids        map[uint32]struct{}
+	runningPids        map[uint32]interface{}
 	callbackRunner     chan func()
 	callbackRunnerDone chan struct{}
 }
@@ -69,6 +69,10 @@ const (
 	ANY ProcessMetadataField = iota
 	NAME
 )
+
+type metadataName struct {
+	Name string
+}
 
 type ProcessCallback struct {
 	Event    ProcessEventType
@@ -103,16 +107,19 @@ func GetProcessMonitor() *ProcessMonitor {
 		processMonitor = &ProcessMonitor{
 			isInitialized:      false,
 			procEventCallbacks: make(map[ProcessEventType][]*ProcessCallback),
-			runningPids:        make(map[uint32]struct{}),
+			runningPids:        make(map[uint32]interface{}),
 		}
 	})
 
 	return processMonitor
 }
 
-func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32) {
+func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32, metadata interface{}) {
 	if callback.Event == EXEC && callback.Metadata != ANY {
-		pm.runningPids[pid] = struct{}{}
+		switch callback.Metadata {
+		case NAME:
+			pm.runningPids[pid] = metadata
+		}
 	}
 	pm.callbackRunner <- func() { callback.Callback(pid) }
 }
@@ -120,7 +127,7 @@ func (pm *ProcessMonitor) enqueueCallback(callback *ProcessCallback, pid uint32)
 // evalEXECCallback is a best effort and would not return errors, but report them
 func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	if c.Metadata == ANY {
-		p.enqueueCallback(c, pid)
+		p.enqueueCallback(c, pid, nil)
 		return
 	}
 
@@ -148,8 +155,27 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 			return
 		}
 		if c.Regex.MatchString(pname) {
-			p.enqueueCallback(c, pid)
+			p.enqueueCallback(c, pid, metadataName{Name: pname})
 		}
+	}
+}
+
+// evalEXECCallback is a best effort and would not return errors, but report them
+func (p *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
+	switch c.Metadata {
+	case NAME:
+		metadata, found := p.runningPids[pid]
+		if !found {
+			// we can hit here if a process started before the Exec callback has been registred
+			// and the process Exit, so we don't find his metadata
+			return
+		}
+		pname := metadata.(metadataName).Name
+		if c.Regex.MatchString(pname) {
+			p.enqueueCallback(c, pid, metadata)
+		}
+	case ANY:
+		p.enqueueCallback(c, pid, nil)
 	}
 }
 
@@ -221,14 +247,7 @@ func (pm *ProcessMonitor) Initialize() error {
 					}
 				case *netlink.ExitProcEvent:
 					for _, c := range pm.procEventCallbacks[EXIT] {
-						// Call only the Exit callback if we seen the process pid Exec event
-						// if the metadata is ANY we call the callback for all exit events
-						if c.Metadata != ANY {
-							if _, found := pm.runningPids[ev.ProcessPid]; !found {
-								continue
-							}
-						}
-						pm.enqueueCallback(c, ev.ProcessPid)
+						pm.evalEXITCallback(c, ev.ProcessPid)
 					}
 					delete(pm.runningPids, ev.ProcessPid)
 				}
