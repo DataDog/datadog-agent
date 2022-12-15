@@ -144,7 +144,7 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	case NAME:
 		pname, err := proc.Name()
 		if err != nil {
-			log.Errorf("process %d name parsing failed %s", pid, err)
+			log.Warnf("process %d name parsing failed %s", pid, err)
 			return
 		}
 		if c.Regex.MatchString(pname) {
@@ -168,7 +168,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	pm.errors = make(chan error)
 
 	if err := netlink.ProcEventMonitor(pm.events, pm.done, pm.errors); err != nil {
-		return fmt.Errorf("could not create process monitor: %s", err)
+		return fmt.Errorf("couldn't initialize process monitor: %s", err)
 	}
 
 	pm.callbackRunnerDone = make(chan struct{}, runtime.NumCPU())
