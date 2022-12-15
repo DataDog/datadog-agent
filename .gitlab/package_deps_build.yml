@@ -12,7 +12,7 @@
     - tar -xf btfs-$ARCH.tar.gz
     - $S3_CP_CMD $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH oom-kill.o
     - $S3_CP_CMD $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH tcp-queue-length.o
-    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --input-bpf-programs "$CI_PROJECT_DIR/oom-kill.o" "$CI_PROJECT_DIR/tcp-queue-length.o"
+    - inv -e system-probe.generate-minimized-btfs --source-dir "$CI_PROJECT_DIR/btfs-$ARCH" --output-dir "$CI_PROJECT_DIR/minimized-btfs" --input-bpf-programs "$CI_PROJECT_DIR/oom-kill.o $CI_PROJECT_DIR/tcp-queue-length.o"
     - cd minimized-btfs
     - tar -cJf minimized-btfs.tar.xz *
     - $S3_CP_CMD minimized-btfs.tar.xz $S3_ARTIFACTS_URI/minimized-btfs-$ARCH.tar.xz
