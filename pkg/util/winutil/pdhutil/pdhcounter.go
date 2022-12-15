@@ -147,7 +147,7 @@ func (counter *pdhCounter) SetInitError(err error) error {
 
 func (counter *pdhCounter) Remove() error {
 	if counter.handle == PDH_HCOUNTER(0) {
-		return fmt.Errorf("Counter is not initialized")
+		return fmt.Errorf("counter is not initialized")
 	}
 
 	pdherror := pfnPdhRemoveCounter(counter.handle)
@@ -285,7 +285,7 @@ func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string
 		if counter.initError != nil {
 			return nil, counter.initError
 		}
-		return nil, fmt.Errorf("Counter is not initialized")
+		return nil, fmt.Errorf("counter is not initialized")
 	}
 	// fetch data
 	items, err := pfnPdhGetFormattedCounterArray(counter.handle, PDH_FMT_DOUBLE)
@@ -319,7 +319,7 @@ func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
 		if counter.initError != nil {
 			return 0, counter.initError
 		}
-		return 0, fmt.Errorf("Counter is not initialized")
+		return 0, fmt.Errorf("counter is not initialized")
 	}
 	// fetch data
 	return pfnPdhGetFormattedCounterValueFloat(counter.handle)
@@ -331,7 +331,7 @@ func CreatePdhQuery() (*PdhQuery, error) {
 
 	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.Handle)
 	if ERROR_SUCCESS != pdherror {
-		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
+		err := fmt.Errorf("failed to open PDH query handle %#x", pdherror)
 		return nil, err
 	}
 	return &q, nil
@@ -350,11 +350,11 @@ func (query *PdhQuery) Close() {
 
 func PdhCollectQueryData(hQuery PDH_HQUERY) error {
 	if hQuery == PDH_HQUERY(0) {
-		return fmt.Errorf("Invalid query handle")
+		return fmt.Errorf("invalid query handle")
 	}
 	pdherror := pfnPdhCollectQueryData(hQuery)
 	if ERROR_SUCCESS != pdherror {
-		return fmt.Errorf("Failed to collect query data %#x", pdherror)
+		return fmt.Errorf("failed to collect query data %#x", pdherror)
 	}
 	return nil
 }
