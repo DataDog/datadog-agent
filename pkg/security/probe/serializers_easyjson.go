@@ -687,7 +687,15 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe9(in *jle
 		case "pid":
 			out.Pid = uint32(in.Uint32())
 		case "ppid":
-			out.PPid = uint32(in.Uint32())
+			if in.IsNull() {
+				in.Skip()
+				out.PPid = nil
+			} else {
+				if out.PPid == nil {
+					out.PPid = new(uint32)
+				}
+				*out.PPid = uint32(in.Uint32())
+			}
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -856,7 +864,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		out.RawString(prefix[1:])
 		out.Uint32(uint32(in.Pid))
 	}
-	if in.PPid != 0 {
+	if in.PPid != nil {
 		const prefix string = ",\"ppid\":"
 		if first {
 			first = false
@@ -864,7 +872,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe9(out *jw
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.PPid))
+		out.Uint32(uint32(*in.PPid))
 	}
 	if in.Tid != 0 {
 		const prefix string = ",\"tid\":"
@@ -1313,7 +1321,15 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe11(in *jl
 		case "pid":
 			out.Pid = uint32(in.Uint32())
 		case "ppid":
-			out.PPid = uint32(in.Uint32())
+			if in.IsNull() {
+				in.Skip()
+				out.PPid = nil
+			} else {
+				if out.PPid == nil {
+					out.PPid = new(uint32)
+				}
+				*out.PPid = uint32(in.Uint32())
+			}
 		case "tid":
 			out.Tid = uint32(in.Uint32())
 		case "uid":
@@ -1515,7 +1531,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		}
 		out.Uint32(uint32(in.Pid))
 	}
-	if in.PPid != 0 {
+	if in.PPid != nil {
 		const prefix string = ",\"ppid\":"
 		if first {
 			first = false
@@ -1523,7 +1539,7 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe11(out *j
 		} else {
 			out.RawString(prefix)
 		}
-		out.Uint32(uint32(in.PPid))
+		out.Uint32(uint32(*in.PPid))
 	}
 	if in.Tid != 0 {
 		const prefix string = ",\"tid\":"
