@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -77,24 +78,61 @@ type processorPDHCounter struct {
 	pdhutil.PdhEnglishSingleInstanceCounter
 }
 
+func (counter *processorPDHCounter) addToQueryWithExtraChecks(query *pdhutil.PdhQuery, objectName string) (err error) {
+	// addToQueryWithExtraChecks wraps the base counter's AddToQuery to add additional error checks
+	// to work around a possible Microsoft PDH issue.
+	//
+	// The "Processor Information" counterset does not work in Windows containers.
+	// The counterset exists but has no instances and always returns "PDH_NO_DATA" error.
+	// So we have to fallback to the old "Processor" counterset.
+	// see https://github.com/DataDog/datadog-agent/pull/8881
+	// Unfortunately, since the counterset exists checking the PdhAddEnglishCounter result
+	// alone is insufficient. We must perform additional checks to ensure the counterset
+	// is functioning properly.
+
+	// Add counter to the Query
+	var origObjectName = counter.ObjectName
+	counter.ObjectName = objectName
+	err = counter.PdhEnglishSingleInstanceCounter.AddToQuery(query)
+	if err != nil {
+		// PdhAddEnglishCounter failed, restore original object name and return
+		counter.ObjectName = origObjectName
+		return err
+	}
+	defer func() {
+		if err != nil {
+			// failed, restore original object name
+			counter.ObjectName = origObjectName
+			// Remove the counter from the query
+			tmpErr := counter.Remove()
+			if tmpErr != nil {
+				log.Warnf("cpu.Check: Failed to remove counter \\%s(%s)\\%s from query. %v", objectName, counter.InstanceName, counter.CounterName, tmpErr)
+			}
+		}
+	}()
+
+	// Add succeeded, check if the counter is working (see above comment)
+	// Must call PdhCollectQueryData() twice before GetValue() will succeed.
+	// Ignoring PdhCollectQueryData() return value because its success is determined by the query
+	// and not specifically this counter, additionally if either call fails then GetValue() will too.
+	_ = pdhutil.PdhCollectQueryData(query.Handle)
+	_ = pdhutil.PdhCollectQueryData(query.Handle)
+	_, err = counter.GetValue()
+	return err
+}
+
 func (counter *processorPDHCounter) AddToQuery(query *pdhutil.PdhQuery) error {
 	// Configure the PDH counter according to the running environment.
-	// We had a support ticket where a container did not have the "Processor Information" counterset
-	// see https://github.com/DataDog/datadog-agent/pull/8881
-	// On machines with more than 1 NUMA node, it uses "Processor Information",
-	// otherwise it uses "Processor" (e.g. in containers).
-	// Note we use "processor information" instead of "processor" because on multi-processor machines the later only gives
-	// you visibility about other applications running on the same processor as you
-	err := counter.PdhEnglishSingleInstanceCounter.AddToQuery(query)
+	// This check defaults to using the "Processor Information" counterset when it is available,
+	// as it is the newer version of the "Processor" counterset and has support for more features.
+	// https://techcommunity.microsoft.com/t5/running-sap-applications-on-the/windows-2008-r2-performance-monitor-8211-processor-information/ba-p/367007
+	// See addToQueryWithExtraChecks for more details.
+	err := counter.addToQueryWithExtraChecks(query, "Processor Information")
 	if err != nil {
-		counter.ObjectName = "Processor"
-		err = counter.PdhEnglishSingleInstanceCounter.AddToQuery(query)
-		if err != nil {
-			// Processor failed, too. Restore default objectName so we can try it again next time.
-			counter.ObjectName = "Processor Information"
-
-		}
+		log.Warnf("cpu.Check: Error initializing counter \\%s(%s)\\%s: %v. This error is expected in Windows containers. Trying Processor counterset as a fallback.", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
+		err = counter.addToQueryWithExtraChecks(query, "Processor")
 	}
+
 	return err
 }
 
