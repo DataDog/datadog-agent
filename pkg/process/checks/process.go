@@ -45,7 +45,7 @@ func NewProcessCheck() Check {
 var errEmptyCPUTime = errors.New("empty CPU time information returned")
 
 const (
-	ProcessDiscoveryHintPosition = 0
+	ProcessDiscoveryHint int32 = 1 << iota // 1
 )
 
 // ProcessCheck collects full state, including cmdline args and related metadata,
@@ -279,17 +279,11 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	return result, nil
 }
 
-// Sets the bit at pos in the integer n.
-func setBit(n int32, pos uint) int32 {
-	n |= (1 << pos)
-	return n
-}
-
 func (p *ProcessCheck) generateHints() int32 {
-	var hints int32 = 0
+	var hints int32
 
 	if p.checkCount%p.skipAmount == 0 {
-		hints = setBit(hints, ProcessDiscoveryHintPosition)
+		hints |= ProcessDiscoveryHint
 	}
 	return hints
 }
@@ -341,7 +335,7 @@ func createProcCtrMessages(
 		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
 		m.ContainerHostType = hostInfo.ContainerHostType
-		m.HintMask = hints
+		m.Hints = &model.CollectorProc_HintMask{HintMask: hints}
 
 		messages = append(messages, m)
 	}

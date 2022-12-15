@@ -122,31 +122,31 @@ func TestProcessCheckSecondRun(t *testing.T) {
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
-			HintMask:  0b1,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc2)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
-			HintMask:  0b1,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
-			HintMask:  0b1,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc4)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
-			HintMask:  0b1,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc5)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
-			HintMask:  0b1,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 	}
 	actual, err := processCheck.run(0, false)
@@ -178,26 +178,31 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc2)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc3)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc4)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc5)},
 			GroupSize: int32(len(processesByPid)),
 			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 	}
 
@@ -347,7 +352,7 @@ func TestProcessCheckHints(t *testing.T) {
 		Return(processesByPid, nil)
 
 	// The first run returns nothing because processes must be observed on two consecutive runs
-	first, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	first, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.Equal(t, &RunResult{}, first)
 
@@ -355,11 +360,11 @@ func TestProcessCheckHints(t *testing.T) {
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.sysInfo,
-			HintMask:  0b1,
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 	}
-	actual, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	actual, err := processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expected, actual.Standard) // ordering is not guaranteed
 	assert.Nil(t, actual.RealTime)
@@ -368,12 +373,12 @@ func TestProcessCheckHints(t *testing.T) {
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.sysInfo,
-			HintMask:  0b0,
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0},
 		},
 	}
 
-	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	actual, err = processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expectedUnspecified, actual.Standard) // ordering is not guaranteed
 
@@ -381,12 +386,12 @@ func TestProcessCheckHints(t *testing.T) {
 		&model.CollectorProc{
 			Processes: []*model.Process{makeProcessModel(t, proc1)},
 			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.sysInfo,
-			HintMask:  0b1,
+			Info:      processCheck.hostInfo.SystemInfo,
+			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
 		},
 	}
 
-	actual, err = processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+	actual, err = processCheck.run(0, false)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, expectedDiscovery, actual.Standard) // ordering is not guaranteed
 }
@@ -405,7 +410,7 @@ func BenchmarkProcessCheck(b *testing.B) {
 	probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(processesByPid, nil)
 
 	for n := 0; n < b.N; n++ {
-		_, err := processCheck.run(config.NewDefaultAgentConfig(), 0, false)
+		_, err := processCheck.run(0, false)
 		require.NoError(b, err)
 	}
 }
