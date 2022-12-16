@@ -8,12 +8,13 @@ import (
 )
 
 func main() {
-
 	envNamePtr := flag.String("name", "snmp", "environment name")
 	destroyPtr := flag.Bool("destroy", false, "[optional] should destroy the environment")
 	keyPairNamePtr := flag.String("keyPairName", "", "ssh key pair name. Should be uploaded on the cloud provider")
 	apiKeyPtr := flag.String("apiKey", "", "Datadog API key")
 	appKeyPtr := flag.String("appKey", "", "Datadog APP key")
+
+	flag.Parse()
 
 	snmpEnv, err := snmp.NewTestEnv(*envNamePtr, *keyPairNamePtr, *apiKeyPtr, *appKeyPtr, *destroyPtr)
 	if err != nil {
