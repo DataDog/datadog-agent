@@ -87,7 +87,6 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			{Name: string(probes.PortBindingsMap)},
 			{Name: string(probes.UDPPortBindingsMap)},
 			{Name: "pending_bind"},
-			{Name: "pending_tcp_retransmit_skb"},
 			{Name: string(probes.TelemetryMap)},
 			{Name: string(probes.SockByPidFDMap)},
 			{Name: string(probes.PidFDBySockMap)},

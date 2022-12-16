@@ -161,15 +161,6 @@ func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case "pending_tcp_retransmit_skb": // maps/pending_tcp_retransmit_skb (BPF_MAP_TYPE_HASH), key C.__u64, value C.tcp_retransmit_skb_args_t
-		output.WriteString("Map: '" + mapName + "', key: 'C.__u64', value: 'C.tcp_retransmit_skb_args_t'\n")
-		iter := currentMap.Iterate()
-		var key uint64
-		var value ddebpf.BindSyscallArgs
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			output.WriteString(spew.Sdump(key, value))
-		}
-
 	case string(probes.TelemetryMap): // maps/telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value kernelTelemetry
 		output.WriteString("Map: '" + mapName + "', key: 'C.u32', value: 'kernelTelemetry'\n")
 		var zero uint64

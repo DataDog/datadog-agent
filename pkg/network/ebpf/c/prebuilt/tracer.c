@@ -438,7 +438,6 @@ int kretprobe__udpv6_recvmsg(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_retransmit_skb")
 int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    log_debug("adam_k kprobe prebuilt start\n");
     struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
     int segs = (int)PT_REGS_PARM3(ctx);
     log_debug("kprobe/tcp_retransmit: segs: %d\n", segs);
@@ -447,32 +446,7 @@ int kprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     args.sk = sk;
     args.segs = segs;
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
-    log_debug("adam_k kprobe prebuilt end\n");
     return 0;
-}
-
-SEC("kretprobe/tcp_retransmit_skb")
-int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
-    log_debug("adam_k kretprobe_prebuilt start 1\n");
-    int ret = PT_REGS_RC(ctx);
-    log_debug("adam_k kretprobe_prebuilt start 2\n");
-    __u64 tid = bpf_get_current_pid_tgid();
-    log_debug("adam_k kretprobe_prebuilt start 3\n");
-    if (ret != 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-        return 0;
-    }
-    log_debug("adam_k kretprobe_prebuilt start 4\n");
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
-    if (args == NULL) {
-        return 0;
-    }
-    struct sock *sk = args->sk;
-    int segs = args->segs;
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-    log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
-    log_debug("adam_k kretprobe_prebuilt end\n");
-    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_retransmit_skb/pre_4_7_0")
@@ -485,6 +459,25 @@ int kprobe__tcp_retransmit_skb_pre_4_7_0(struct pt_regs *ctx) {
     args.segs = 1;
     bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
     return 0;
+}
+
+SEC("kretprobe/tcp_retransmit_skb")
+int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
+    int ret = PT_REGS_RC(ctx);
+    __u64 tid = bpf_get_current_pid_tgid();
+    if (ret != 0) {
+        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+        return 0;
+    }
+    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &tid);
+    if (args == NULL) {
+        return 0;
+    }
+    struct sock *sk = args->sk;
+    int segs = args->segs;
+    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
+    log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
+    return handle_retransmit(sk, segs);
 }
 
 SEC("kprobe/tcp_set_state")

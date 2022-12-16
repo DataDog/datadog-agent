@@ -178,7 +178,6 @@ func TestTCPRetransmit(t *testing.T) {
 }
 
 func TestTCPRetransmitSharedSocket(t *testing.T) {
-	t.Log("adam_k_test")
 	// Enable BPF-based system probe
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
