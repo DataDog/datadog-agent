@@ -137,10 +137,6 @@ func TestRunK8s(t *testing.T) {
 	kubeClient := &mocks.KubeClient{}
 	kubeClient.On("Resource", mock.Anything).Return(nil)
 
-	nodeLabels := map[string]string{
-		"node-role.kubernetes.io/worker": "",
-	}
-
 	agent, err := New(
 		reporter,
 		scheduler,
@@ -148,7 +144,6 @@ func TestRunK8s(t *testing.T) {
 		&config.Endpoints{},
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
-		checks.WithNodeLabels(nodeLabels),
 		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)
@@ -345,17 +340,12 @@ func TestRunChecksFromFile(t *testing.T) {
 
 	kubeClient := &mocks.KubeClient{}
 
-	nodeLabels := map[string]string{
-		"node-role.kubernetes.io/worker": "",
-	}
-
 	err := RunChecksFromFile(
 		reporter,
 		filepath.Join(e.dir, "cis-kubernetes.yaml"),
 		checks.WithHostname("the-host"),
 		checks.WithHostRootMount(e.dir),
 		checks.WithDockerClient(dockerClient),
-		checks.WithNodeLabels(nodeLabels),
 		checks.WithKubernetesClient(kubeClient, "kube_system_uuid"),
 	)
 	assert.NoError(err)

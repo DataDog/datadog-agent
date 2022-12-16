@@ -62,15 +62,6 @@ func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		checks.WithStatsd(statsdClient),
 	}
 
-	if coreconfig.IsKubernetes() {
-		nodeLabels, err := agent.WaitGetNodeLabels()
-		if err != nil {
-			log.Error(err)
-		} else {
-			options = append(options, checks.WithNodeLabels(nodeLabels))
-		}
-	}
-
 	agent, err := agent.New(
 		reporter,
 		scheduler,

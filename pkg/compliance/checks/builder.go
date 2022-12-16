@@ -35,7 +35,6 @@ import (
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -229,18 +228,6 @@ func MayFail(o BuilderOption) BuilderOption {
 	}
 }
 
-// WithNodeLabels configures a builder to use specified Kubernetes node labels
-func WithNodeLabels(nodeLabels map[string]string) BuilderOption {
-	return func(b *builder) error {
-		b.nodeLabels = map[string]string{}
-		for k, v := range nodeLabels {
-			k, v := hostinfo.LabelPreprocessor(k, v)
-			b.nodeLabels[k] = v
-		}
-		return nil
-	}
-}
-
 // WithRegoInput configures a builder to provide rego input based on the content
 // of a file instead of the current environment
 func WithRegoInput(regoInputPath string) BuilderOption {
@@ -318,7 +305,6 @@ type builder struct {
 	hostname     string
 	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
-	nodeLabels   map[string]string
 
 	suiteMatcher SuiteMatcher
 	ruleMatcher  RuleMatcher
@@ -586,10 +572,6 @@ func (b *builder) IsLeader() bool {
 		return b.isLeaderFunc()
 	}
 	return true
-}
-
-func (b *builder) NodeLabels() map[string]string {
-	return b.nodeLabels
 }
 
 func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
