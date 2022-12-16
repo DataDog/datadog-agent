@@ -40,6 +40,8 @@ type Daemon struct {
 
 	TraceAgent *trace.ServerlessTraceAgent
 
+	ColdStartCreator *trace.ColdStartSpanCreator
+
 	// lastInvocations stores last invocation times to be able to compute the
 	// interval of invocation of the function.
 	lastInvocations []time.Time
@@ -164,10 +166,10 @@ func (d *Daemon) GetFlushStrategy() string {
 }
 
 // SetupLogCollectionHandler configures the log collection route handler
-func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool) {
+func (d *Daemon) SetupLogCollectionHandler(route string, logsChan chan *logConfig.ChannelMessage, logsEnabled bool, enhancedMetricsEnabled bool, initDurationChan chan<- float64) {
 
 	d.logCollector = serverlessLog.NewLambdaLogCollector(logsChan,
-		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone)
+		d.MetricAgent.Demux, d.ExtraTags, logsEnabled, enhancedMetricsEnabled, d.ExecutionContext, d.HandleRuntimeDone, initDurationChan)
 	server := serverlessLog.NewLambdaLogsAPIServer(d.logCollector.In)
 
 	d.mux.Handle(route, &server)
@@ -182,6 +184,10 @@ func (d *Daemon) SetStatsdServer(metricAgent *metrics.ServerlessMetricAgent) {
 // SetTraceAgent sets the Agent instance for submitting traces
 func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
+}
+
+func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
+	d.ColdStartCreator = creator
 }
 
 // SetFlushStrategy sets the flush strategy to use.
@@ -304,6 +310,10 @@ func (d *Daemon) Stop() {
 
 	if d.MetricAgent != nil {
 		d.MetricAgent.Stop()
+	}
+
+	if d.ColdStartCreator != nil {
+		d.ColdStartCreator.Stop()
 	}
 	logs.Stop()
 	log.Debug("Serverless agent shutdown complete")
