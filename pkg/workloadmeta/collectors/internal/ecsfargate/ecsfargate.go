@@ -168,6 +168,7 @@ func (c *collector) parseTaskContainers(
 		if err != nil {
 			log.Debugf("cannot split image name %q: %s", container.Image, err)
 		}
+		image.ID = container.ImageID
 
 		ips := make(map[string]string)
 

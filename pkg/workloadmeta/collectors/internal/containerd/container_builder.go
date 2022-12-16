@@ -36,6 +36,11 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		return workloadmeta.Container{}, err
 	}
 
+	containerImage, err := containerdClient.Image(namespace, container)
+	if err != nil {
+		return workloadmeta.Container{}, err
+	}
+
 	envs, err := cutil.EnvVarsFromSpec(spec)
 	if err != nil {
 		return workloadmeta.Container{}, err
@@ -45,6 +50,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	if err != nil {
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
+	image.ID = containerImage.Target().Digest.String()
 
 	status, err := containerdClient.Status(namespace, container)
 	if err != nil {
