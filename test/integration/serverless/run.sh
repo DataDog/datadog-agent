@@ -154,16 +154,7 @@ all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=(
-    # Tagging behavior after a timeout is currently known to be flaky
-    "timeout-node"
-    "timeout-python"
-    "timeout-java"
-    "timeout-go"
-    "timeout-csharp"
-    "timeout-proxy"
-    "trace-proxy" # Will be reactivated when sampling with proxy will be implemented
-)
+functions_to_skip=()
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff

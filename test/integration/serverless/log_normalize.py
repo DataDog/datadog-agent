@@ -120,8 +120,14 @@ def get_normalizers(typ, stage):
 
 def format_json(log):
     if not log:
-        return '{"error":"normalization returned empty payload"}'
-    return json.dumps(json.loads(log, strict=False), indent=2)
+        log = '{"error":"normalization returned empty payload"}'
+    try:
+        return json.dumps(json.loads(log, strict=False), indent=2)
+    except Exception as e:
+        print(json.dumps({
+            "error": "normalization raised exception: [{e.__class__.__name__}] {e}",
+            "normalized-logs": log,
+        }, indent=2))
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -133,8 +139,10 @@ def parse_args():
 if __name__ == '__main__':
     try:
         args = parse_args()
-        log = normalize(args.logs, args.type, args.stage)
-        print(json.dumps(json.loads(log), indent=2))
+        print(normalize(args.logs, args.type, args.stage))
     except Exception as e:
-        print(f'Error normalizing logs: [{e.__class__.__name__}] {e}')
+        print(json.dumps({
+            "error": "normalization raised exception: [{e.__class__.__name__}] {e}",
+            "original-logs": args.logs,
+        }, indent=2))
         exit(1)
