@@ -363,7 +363,7 @@ require (
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/skydive-project/go-debouncer v1.0.0 // indirect
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect

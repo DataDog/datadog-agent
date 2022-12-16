@@ -16,6 +16,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
+	"github.com/skydive-project/go-debouncer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -24,7 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const securityAgentRCPollInterval = time.Second * 1
+const (
+	securityAgentRCPollInterval = time.Second * 1
+	debounceDelay               = 5 * time.Second
+)
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
@@ -34,6 +38,7 @@ type RCPolicyProvider struct {
 	onNewPoliciesReadyCb func()
 	lastDefaults         map[string]state.ConfigCWSDD
 	lastCustoms          map[string]state.ConfigCWSCustom
+	debouncer            *debouncer.Debouncer
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
@@ -45,14 +50,19 @@ func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyPr
 		return nil, err
 	}
 
-	return &RCPolicyProvider{
+	r := &RCPolicyProvider{
 		client: c,
-	}, nil
+	}
+	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
+
+	return r, nil
 }
 
 // Start starts the Remote Config policy provider and subscribes to updates
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
+
+	r.debouncer.Start()
 
 	r.client.RegisterCWSDDUpdate(r.rcDefaultsUpdateCallback)
 	r.client.RegisterCWSCustomUpdate(r.rcCustomsUpdateCallback)
@@ -67,7 +77,7 @@ func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.Con
 
 	log.Info("new policies from remote-config policy provider")
 
-	r.onNewPoliciesReadyCb()
+	r.debouncer.Call()
 }
 
 func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.ConfigCWSCustom) {
@@ -77,7 +87,7 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.Conf
 
 	log.Info("new policies from remote-config policy provider")
 
-	r.onNewPoliciesReadyCb()
+	r.debouncer.Call()
 }
 
 func normalize(policy *rules.Policy) {
@@ -122,8 +132,18 @@ func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
 
+func (r *RCPolicyProvider) onNewPoliciesReady() {
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.onNewPoliciesReadyCb != nil {
+		r.onNewPoliciesReadyCb()
+	}
+}
+
 // Close stops the client
 func (r *RCPolicyProvider) Close() error {
+	r.debouncer.Stop()
 	r.client.Close()
 	return nil
 }
