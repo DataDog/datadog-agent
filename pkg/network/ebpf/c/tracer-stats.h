@@ -179,11 +179,14 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
+    log_debug("adam_k_handle_retrans");
+
     if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
         return 0;
     }
 
     tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
+    log_debug("adam_k_segs: segs: %d\n", segs);
     update_tcp_stats(&t, stats);
 
     return 0;
