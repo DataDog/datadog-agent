@@ -119,6 +119,8 @@ def get_normalizers(typ, stage):
         raise ValueError(f'invalid type "{typ}"')
 
 def format_json(log):
+    if not log:
+        return '{"error":"normalization returned empty payload"}'
     return json.dumps(json.loads(log, strict=False), indent=2)
 
 def parse_args():
