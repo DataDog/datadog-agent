@@ -129,6 +129,10 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    args = parse_args()
-    log = normalize(args.logs, args.type, args.stage)
-    print(json.dumps(json.loads(log), indent=2))
+    try:
+        args = parse_args()
+        log = normalize(args.logs, args.type, args.stage)
+        print(json.dumps(json.loads(log), indent=2))
+    except Exception as e:
+        print(f'Error normalizing logs: [{e.__class__.__name__}] {e}')
+        exit(1)

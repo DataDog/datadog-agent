@@ -215,15 +215,13 @@ for function_name in "${all_functions[@]}"; do
 
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
-        # Normalize metrics
-        logs=$(python3 log_normalize.py --type metrics --logs "$raw_logs" --stage $stage)
+        norm_type=metrics
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
-        # Normalize logs
-        logs=$(python3 log_normalize.py --type logs --logs "$raw_logs" --stage $stage)
+        norm_type=logs
     else
-        # Normalize traces
-        logs=$(python3 log_normalize.py --type traces --logs "$raw_logs" --stage $stage)
+        norm_type=traces
     fi
+    logs=$(python3 log_normalize.py --type $norm_type --logs "$raw_logs" --stage $stage)
 
     function_snapshot_path="./snapshots/${function_name}"
 
