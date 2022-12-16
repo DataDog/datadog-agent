@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1024,7 +1025,12 @@ func TestFargateConfig(t *testing.T) {
 			t.Setenv(data.envKey, data.envValue)
 			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
 			assert.NoError(err)
-			assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
+
+			if runtime.GOOS == "darwin" {
+				assert.Equal(config.OrchestratorUnknown, cfg.FargateOrchestrator)
+			} else {
+				assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
+			}
 		})
 	}
 }
