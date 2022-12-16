@@ -10,17 +10,20 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 )
 
 // ExtractVerticalPodAutoscaler returns the protobuf model corresponding to a Kubernetes Vertical Pod Autoscaler resource.
 func ExtractVerticalPodAutoscaler(v *v1.VerticalPodAutoscaler) *model.VerticalPodAutoscaler {
-	return &model.VerticalPodAutoscaler{
+	m := &model.VerticalPodAutoscaler{
 		Metadata: extractMetadata(&v.ObjectMeta),
 		Spec:     extractVerticalPodAutoscalerSpec(&v.Spec),
 		Status:   extractVerticalPodAutoscalerStatus(&v.Status),
 	}
+	m.Tags = append(m.Tags, transformers.RetrieveUnifiedServiceTags(v.ObjectMeta.Labels)...)
+	return m
 }
 
 // extractVerticalPodAutoscalerSpec converts the Kubernetes spec to our custom one
