@@ -1582,11 +1582,11 @@ func TestProcessExit(t *testing.T) {
 		},
 		{
 			ID:         "test_exit_time_1",
-			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 4s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 		{
 			ID:         "test_exit_time_2",
-			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 4s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 	}
 
@@ -1639,7 +1639,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-coredumped", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGQUIT", "0.1", sleepExec, "1"}
+			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1660,7 +1660,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "0.1", sleepExec, "1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1681,7 +1681,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-time-1", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "1", sleepExec, "0.1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "2"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1701,7 +1701,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-time-2", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "3", sleepExec, "2.1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "5"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
