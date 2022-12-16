@@ -6,7 +6,7 @@
 //go:build windows
 // +build windows
 
-package main
+package systray
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/controlsvc"

@@ -5,7 +5,7 @@
 //go:build windows
 // +build windows
 
-package main
+package systray
 
 import (
 	"bytes"

@@ -5,69 +5,9 @@
 //go:build windows
 // +build windows
 
-package main
+package systray
 
-//#include <windows.h>
-//
-//BOOL LaunchUnelevated(LPCWSTR CommandLine)
-//{
-//    BOOL result = FALSE;
-//    HWND hwnd = GetShellWindow();
-//
-//    if (hwnd != NULL)
-//    {
-//        DWORD pid;
-//        if (GetWindowThreadProcessId(hwnd, &pid) != 0)
-//        {
-//            HANDLE process = OpenProcess(PROCESS_CREATE_PROCESS, FALSE, pid);
-//
-//            if (process != NULL)
-//            {
-//                SIZE_T size;
-//                if ((!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) && (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
-//                {
-//                    LPPROC_THREAD_ATTRIBUTE_LIST p = (LPPROC_THREAD_ATTRIBUTE_LIST)malloc(size);
-//                    if (p != NULL)
-//                    {
-//                        if (InitializeProcThreadAttributeList(p, 1, 0, &size))
-//                        {
-//                            if (UpdateProcThreadAttribute(p, 0,
-//                                                          PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
-//                                                          &process, sizeof(process),
-//                                                          NULL, NULL))
-//                            {
-//                                STARTUPINFOEXW siex = {0};
-//                                siex.lpAttributeList = p;
-//                                siex.StartupInfo.cb = sizeof(siex);
-//                                PROCESS_INFORMATION pi = {0};
-//
-//                                size_t cmdlen = wcslen(CommandLine);
-//                                size_t rawcmdlen = (cmdlen + 1) * sizeof(WCHAR);
-//                                PWSTR cmdstr = (PWSTR)malloc(rawcmdlen);
-//                                if (cmdstr != NULL)
-//                                {
-//                                    memcpy(cmdstr, CommandLine, rawcmdlen);
-//                                    if (CreateProcessW(NULL, cmdstr, NULL, NULL, FALSE,
-//                                                       CREATE_NEW_CONSOLE | EXTENDED_STARTUPINFO_PRESENT,
-//                                                       NULL, NULL, &siex.StartupInfo, &pi))
-//                                    {
-//                                        result = TRUE;
-//                                        CloseHandle(pi.hProcess);
-//                                        CloseHandle(pi.hThread);
-//                                    }
-//                                    free(cmdstr);
-//                                }
-//                            }
-//                        }
-//                        free(p);
-//                    }
-//                }
-//                CloseHandle(process);
-//            }
-//        }
-//    }
-//    return result;
-//}
+//#include "uac.h"
 import "C"
 
 import (
@@ -321,7 +261,7 @@ func open(url string) error {
 	cmdptr := windows.StringToUTF16Ptr("rundll32.exe url.dll,FileProtocolHandler " + url)
 	if C.LaunchUnelevated(C.LPCWSTR(unsafe.Pointer(cmdptr))) == 0 {
 		// Failed to run process non-elevated, retry with normal launch.
-		log.Warnf("Failed to launch configuration page as non-elevated, will launch as current process.")
+		pkglog.Warnf("Failed to launch configuration page as non-elevated, will launch as current process.")
 		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
 	}
 
