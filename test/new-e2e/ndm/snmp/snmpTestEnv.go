@@ -98,11 +98,7 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string, shouldDestroy bool
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}
 		composeDependencies = append(composeDependencies, fileCommands...)
 		_, err = agent.NewDockerAgentInstallation(vm.CommonEnvironment, vm.DockerManager, snmpCompose, envVars, pulumi.DependsOn(composeDependencies))
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 
 	if err != nil {
