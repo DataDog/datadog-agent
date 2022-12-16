@@ -11,19 +11,15 @@ package tracer
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"net"
 	nethttp "net/http"
-	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -214,24 +210,10 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolHTTP,
 		},
 		{
-			name: "postgres",
+			name: "postgres - short query",
 			want: network.ProtocolPostgres,
 			clientRun: func(t *testing.T, serverAddr string) {
-				time.Sleep(5 * time.Second)
-				ctx := context.Background()
-
-				pg := sql.OpenDB(pgdriver.NewConnector(
-					pgdriver.WithNetwork("tcp"),
-					pgdriver.WithAddr(serverAddr),
-					pgdriver.WithInsecure(true),
-					pgdriver.WithUser("admin"),
-					pgdriver.WithPassword("password"),
-					pgdriver.WithDatabase("testdb"),
-				))
-				require.NoError(t, pg.Ping())
-
-				db := bun.NewDB(pg, pgdialect.New())
-				defer db.NewDropTable().Model((*postgres.DummyTable)(nil)).Exec(ctx)
+				db, ctx := postgres.ConnectAndGetDB(t, serverAddr)
 
 				_, err := db.NewCreateTable().Model((*postgres.DummyTable)(nil)).Exec(ctx)
 				require.NoError(t, err)
@@ -245,13 +227,26 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				postgres.RunPostgres(t, addr, port)
 				return net.JoinHostPort(addr, port)
 			},
-			shouldSkip: func() (bool, string) {
-				if runtime.GOOS != "linux" {
-					return true, "Postgres tests supported only on Linux"
-				}
+			shouldSkip: postgres.PostgresTestsSupported,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long query",
+			want: network.ProtocolPostgres,
+			clientRun: func(t *testing.T, serverAddr string) {
+				db, ctx := postgres.ConnectAndGetDB(t, serverAddr)
 
-				return false, ""
+				// This will fail but it should make a query and be classified
+				_, _ = db.NewInsert().Model(&postgres.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(ctx)
 			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				port := "5432"
+				postgres.RunPostgres(t, addr, port)
+				return net.JoinHostPort(addr, port)
+			},
+			shouldSkip: postgres.PostgresTestsSupported,
 		},
 	}
 	for _, tt := range tests {
