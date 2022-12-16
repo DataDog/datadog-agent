@@ -117,10 +117,6 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string, shouldDestroy bool
 	return snmpTestEnv, nil
 }
 
-// Close performs cleanup and destroys the infra
-func (e *TestEnv) Close() {
-}
-
 //go:embed compose/data
 var dataFolder embed.FS
 
