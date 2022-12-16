@@ -175,7 +175,7 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock *sk, int segs) {
+__maybe_unused static __always_inline int handle_retransmit(struct sock *sk, int segs) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
