@@ -211,7 +211,7 @@ func TestProcessMessageValid(t *testing.T) {
 	tags := Tags{
 		Tags: metricTags,
 	}
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {})
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
 
 	lc.processMessage(&message)
 
@@ -255,7 +255,7 @@ func TestProcessMessageStartValid(t *testing.T) {
 	tags := Tags{
 		Tags: metricTags,
 	}
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone, make(chan<- float64))
 	lc.lastRequestID = lastRequestID
 	lc.processMessage(message)
 	assert.Equal(t, runtimeDoneCallbackWasCalled, false)
@@ -287,7 +287,7 @@ func TestProcessMessagePlatformRuntimeDoneValid(t *testing.T) {
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone, make(chan<- float64))
 	lc.lastRequestID = lastRequestID
 	lc.processMessage(&message)
 	ecs := mockExecutionContext.GetCurrentState()
@@ -323,7 +323,7 @@ func TestProcessMessagePlatformRuntimeDonePreviousInvocation(t *testing.T) {
 	mockRuntimeDone := func() {
 		runtimeDoneCallbackWasCalled = true
 	}
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone)
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, mockRuntimeDone, make(chan<- float64))
 
 	lc.processMessage(message)
 	// Runtime done callback should NOT be called if the log message was for a previous invocation
@@ -355,7 +355,7 @@ func TestProcessMessageShouldNotProcessArnNotSet(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 
 	computeEnhancedMetrics := true
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {})
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
 
 	go lc.processMessage(message)
 
@@ -383,7 +383,7 @@ func TestProcessMessageShouldNotProcessLogsDropped(t *testing.T) {
 
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {})
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
 
 	go lc.processMessage(message)
 
@@ -412,7 +412,7 @@ func TestProcessMessageShouldProcessLogTypeFunction(t *testing.T) {
 	mockExecutionContext := &executioncontext.ExecutionContext{}
 	mockExecutionContext.SetFromInvocation(arn, lastRequestID)
 
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {})
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
 
 	go lc.processMessage(message)
 
@@ -860,7 +860,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 			},
 		},
 	}
-	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {})
+	lc := NewLambdaLogCollector(make(chan<- *config.ChannelMessage), demux, &tags, true, computeEnhancedMetrics, mockExecutionContext, func() {}, make(chan<- float64))
 	lc.invocationStartTime = startTime
 
 	lc.processMessage(doneMessage)
