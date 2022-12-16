@@ -36,9 +36,14 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "fix_apt_key_pkgconfig.patch", env: env
-  patch source: "add_missing_apt_includes.patch", env: env
+  # patch source: "add_missing_apt_includes.patch", env: env
   patch source: "get_results_from_session.patch", env: env
   patch source: "5e5bc61c1fc6a6556665aa5689a62d6bc6487c74.patch", env: env
+  patch source: "apt-1.9.0.patch", env: env
+  patch source: "apt-1.9.11.patch", env: env
+  patch source: "dpkg-version-comparison-1.patch", env: env
+  patch source: "dpkg-version-comparison-2.patch", env: env
+  patch source: "dpkg-version-comparison-3.patch", env: env
 
   env["CC"] = "/opt/datadog-agent/embedded/bin/gcc"
   env["CXX"] = "/opt/datadog-agent/embedded/bin/g++"

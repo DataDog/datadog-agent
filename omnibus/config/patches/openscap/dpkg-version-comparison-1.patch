@@ -1,0 +1,247 @@
+From 1a9c6876139871ccc55f4d5896ccf34ec06c358a Mon Sep 17 00:00:00 2001
+From: Eduardo Barretto <eduardo.barretto@canonical.com>
+Date: Mon, 7 Dec 2020 11:05:44 -0300
+Subject: [PATCH] Add dpkg version comparison algorithm
+
+This commit move away from using rpm version comparison algorithm for
+debian based distros and at the same time fixes false positives that
+happen when the revision of a package contains a '~'.
+---
+ src/OVAL/probes/probe/entcmp.c              |  13 +-
+ src/OVAL/results/oval_cmp.c                 |   2 +-
+ src/OVAL/results/oval_cmp_evr_string.c      | 159 ++++++++++++++++++++
+ src/OVAL/results/oval_cmp_evr_string_impl.h |  13 ++
+ 4 files changed, 182 insertions(+), 5 deletions(-)
+
+diff --git a/src/OVAL/probes/probe/entcmp.c b/src/OVAL/probes/probe/entcmp.c
+index 6b50add27..3cd0888da 100644
+--- a/src/OVAL/probes/probe/entcmp.c
++++ b/src/OVAL/probes/probe/entcmp.c
+@@ -91,10 +91,15 @@ oval_result_t probe_ent_cmp_evr(SEXP_t * val1, SEXP_t * val2, oval_operation_t o
+ 
+ oval_result_t probe_ent_cmp_debian_evr(SEXP_t * val1, SEXP_t * val2, oval_operation_t op)
+ {
+-	//TODO: implement Debian's epoch-version-release comparing algorithm
+-	// it is different algorithm than RPM algorithm
+-	dW("Using RPM algorithm to compare epoch, version and release.");
+-	return probe_ent_cmp_evr(val1, val2, op);
++	oval_result_t result = OVAL_RESULT_ERROR;
++	char *s1 = SEXP_string_cstr(val1);
++	char *s2 = SEXP_string_cstr(val2);
++
++	result = oval_debian_evr_string_cmp(s1, s2, op);
++
++	free(s1);
++	free(s2);
++	return result;
+ }
+ 
+ oval_result_t probe_ent_cmp_filesetrev(SEXP_t * val1, SEXP_t * val2, oval_operation_t op)
+diff --git a/src/OVAL/results/oval_cmp.c b/src/OVAL/results/oval_cmp.c
+index 585332223..8a7ba9d8f 100644
+--- a/src/OVAL/results/oval_cmp.c
++++ b/src/OVAL/results/oval_cmp.c
+@@ -145,7 +145,7 @@ oval_result_t oval_str_cmp_str(char *state_data, oval_datatype_t state_data_type
+ 	} else if (state_data_type == OVAL_DATATYPE_EVR_STRING) {
+ 		return oval_evr_string_cmp(state_data, sys_data, operation);
+ 	} else if (state_data_type == OVAL_DATATYPE_DEBIAN_EVR_STRING) {
+-		return oval_evr_string_cmp(state_data, sys_data, operation);
++		return oval_debian_evr_string_cmp(state_data, sys_data, operation);
+ 	} else if (state_data_type == OVAL_DATATYPE_VERSION) {
+ 		return oval_versiontype_cmp(state_data, sys_data, operation);
+ 	} else if (state_data_type == OVAL_DATATYPE_IPV4ADDR) {
+diff --git a/src/OVAL/results/oval_cmp_evr_string.c b/src/OVAL/results/oval_cmp_evr_string.c
+index 3f6ed3c85..1ddfb2846 100644
+--- a/src/OVAL/results/oval_cmp_evr_string.c
++++ b/src/OVAL/results/oval_cmp_evr_string.c
+@@ -281,6 +281,165 @@ static int rpmvercmp(const char *a, const char *b)
+ }
+ #endif
+ 
++/*
++ * based on code from dpkg: lib/dpkg/version.c
++ * Mino changes to use isdigit() and isalpha()
++ */
++/**
++ * Give a weight to the character to order in the version comparison.
++ *
++ * @param c An ASCII character.
++ */
++static int order(int c)
++{
++	if (isdigit(c))
++		return 0;
++	else if (isalpha(c))
++		return c;
++	else if (c == '~')
++		return -1;
++	else if (c)
++		return c + 256;
++	else
++		return 0;
++}
++
++/*
++ * based on code from dpkg: lib/dpkg/version.c
++ * Minor changes to use isdigit()
++ */
++static int verrevcmp(const char *a, const char *b)
++{
++	if (a == NULL)
++		a = "";
++	if (b == NULL)
++		b = "";
++
++	while (*a || *b) {
++		int first_diff = 0;
++
++		while ((*a && !isdigit(*a)) || (*b && !isdigit(*b))) {
++			int ac = order(*a);
++			int bc = order(*b);
++
++			if (ac != bc)
++				return ac - bc;
++
++			a++;
++			b++;
++		}
++		while (*a == '0')
++			a++;
++		while (*b == '0')
++			b++;
++		while (isdigit(*a) && isdigit(*b)) {
++			if (!first_diff)
++				first_diff = *a - *b;
++			a++;
++			b++;
++		}
++
++		if (isdigit(*a))
++			return 1;
++		if (isdigit(*b))
++			return -1;
++		if (first_diff)
++			return first_diff;
++	}
++
++	return 0;
++}
++
++/*
++ * Code copied from lib/dpkg/version.c
++ */
++/**
++ * Compares two Debian versions.
++ *
++ * This function follows the convention of the comparator functions used by
++ * qsort().
++ *
++ * @see deb-version(5)
++ *
++ * @param a The first version.
++ * @param b The second version.
++ *
++ * @retval 0 If a and b are equal.
++ * @retval <0 If a is smaller than b.
++ * @retval >0 If a is greater than b.
++ */
++int dpkg_version_compare(struct dpkg_version *a,
++                     struct dpkg_version *b)
++{
++	int rc;
++
++	if (a->epoch > b->epoch)
++		return 1;
++	if (a->epoch < b->epoch)
++		return -1;
++
++	rc = verrevcmp(a->version, b->version);
++	if (rc)
++		return rc;
++
++	return verrevcmp(a->revision, b->revision);
++}
++
++oval_result_t oval_debian_evr_string_cmp(const char *state, const char *sys, oval_operation_t operation)
++{
++	struct dpkg_version a, b;
++	const char *a_epoch, *a_version, *a_release;
++	const char *b_epoch, *b_version, *b_release;
++	char *a_copy, *b_copy;
++	long aux;
++
++	a_copy = oscap_strdup(sys);
++	b_copy = oscap_strdup(state);
++	parseEVR(a_copy, &a_epoch, &a_version, &a_release);
++	parseEVR(b_copy, &b_epoch, &b_version, &b_release);
++
++	if (!a_epoch || !b_epoch) {
++		oscap_seterr(OSCAP_EFAMILY_OVAL, "Invalid epoch: %d.", operation);
++		return OVAL_RESULT_ERROR;
++	}
++
++	aux = strtol(a_epoch, NULL, 10);
++	if (aux < INT_MIN || aux > INT_MAX) {
++		return OVAL_RESULT_ERROR; // Outside int range
++	}
++	a.epoch = (int) aux;
++
++	aux = strtol(b_epoch, NULL, 10);
++	if (aux < INT_MIN || aux > INT_MAX) {
++		return OVAL_RESULT_ERROR; // Outside int range
++	}
++	b.epoch = (int) aux;
++
++	a.version = a_version;
++	a.revision = a_release;
++	b.version = b_version;
++	b.revision = b_release;
++	int result = dpkg_version_compare(&a, &b);
++
++	free(a_copy);
++	free(b_copy);
++	if (operation == OVAL_OPERATION_EQUALS) {
++		return ((result == 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	} else if (operation == OVAL_OPERATION_NOT_EQUAL) {
++		return ((result != 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	} else if (operation == OVAL_OPERATION_GREATER_THAN) {
++		return ((result == 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	} else if (operation == OVAL_OPERATION_GREATER_THAN_OR_EQUAL) {
++		return ((result != -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	} else if (operation == OVAL_OPERATION_LESS_THAN) {
++		return ((result == -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	} else if (operation == OVAL_OPERATION_LESS_THAN_OR_EQUAL) {
++		return ((result != 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++	}
++
++	oscap_seterr(OSCAP_EFAMILY_OVAL, "Invalid type of operation in rpm version comparison: %d.", operation);
++	return OVAL_RESULT_ERROR;
++}
+ 
+ oval_result_t oval_versiontype_cmp(const char *state, const char *syschar, oval_operation_t operation)
+ {
+diff --git a/src/OVAL/results/oval_cmp_evr_string_impl.h b/src/OVAL/results/oval_cmp_evr_string_impl.h
+index 7b1cc5f02..b0f77835e 100644
+--- a/src/OVAL/results/oval_cmp_evr_string_impl.h
++++ b/src/OVAL/results/oval_cmp_evr_string_impl.h
+@@ -49,6 +49,20 @@ oval_result_t oval_evr_string_cmp(const char *state, const char *sys, oval_opera
+ 
+ oval_result_t oval_versiontype_cmp(const char *state, const char *syschar, oval_operation_t operation);
+ 
++oval_result_t oval_debian_evr_string_cmp(const char *state, const char *sys, oval_operation_t operation);
++
++/*
++ * Code copied from lib/dpkg/version.h
++ */
++struct dpkg_version {
++	/** The epoch. It will be zero if no epoch is present. */
++	unsigned int epoch;
++	/** The upstream part of the version. */
++	const char *version;
++	/** The Debian revision part of the version. */
++	const char *revision;
++};
++
+ OSCAP_HIDDEN_END;
+ 
+ #endif

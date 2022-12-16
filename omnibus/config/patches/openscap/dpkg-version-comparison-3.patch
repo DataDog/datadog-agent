@@ -1,0 +1,32 @@
+From 0c16bce515a85524d6aa084af0a0e50283929523 Mon Sep 17 00:00:00 2001
+From: omer672 <ocheri672@gmail.com>
+Date: Tue, 15 Dec 2020 15:30:53 +0200
+Subject: [PATCH] Fix oval_debian_evr_string_cmp
+
+The function verrevcmp can return any positive or negative number as a comparison result, not just 1 or -1.
+---
+ src/OVAL/results/oval_cmp_evr_string.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/OVAL/results/oval_cmp_evr_string.c b/src/OVAL/results/oval_cmp_evr_string.c
+index ea8e40c2f..5c182ea6a 100644
+--- a/src/OVAL/results/oval_cmp_evr_string.c
++++ b/src/OVAL/results/oval_cmp_evr_string.c
+@@ -434,13 +434,13 @@ oval_result_t oval_debian_evr_string_cmp(const char *state, const char *sys, ova
+ 	case OVAL_OPERATION_NOT_EQUAL:
+ 		return ((result != 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	case OVAL_OPERATION_GREATER_THAN:
+-		return ((result == 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++		return ((result > 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	case OVAL_OPERATION_GREATER_THAN_OR_EQUAL:
+-		return ((result != -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++		return ((result >= 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	case OVAL_OPERATION_LESS_THAN:
+-		return ((result == -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++		return ((result < 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	case OVAL_OPERATION_LESS_THAN_OR_EQUAL:
+-		return ((result != 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
++		return ((result <= 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	}
+ 
+ 	oscap_seterr(OSCAP_EFAMILY_OVAL, "Invalid type of operation in rpm version comparison: %d.", operation);

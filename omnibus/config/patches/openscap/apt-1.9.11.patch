@@ -1,0 +1,59 @@
+Description: Use apt's pkgCacheFile instead of hacking around with MMap
+ Opening the cache by opening the file, mmaping it and creating a
+ cache out of it is not the way it's supposed to work, and APT 1.9.11
+ hid the MMap symbols, so this no longer links.
+ .
+ Use APT's pkgCacheFile class instead which does all the horrible
+ stuff itself and just gives you a nice cache.
+Author: Julian Andres Klode <juliank@ubuntu.com>
+Last-Update: 2020-02-27
+
+--- openscap-1.2.16.orig/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ openscap-1.2.16/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -9,6 +9,7 @@
+ 
+ #include <apt-pkg/init.h>
+ #include <apt-pkg/error.h>
++#include <apt-pkg/cachefile.h>
+ #include <apt-pkg/configuration.h>
+ #include <apt-pkg/fileutl.h>
+ #include <apt-pkg/mmap.h>
+@@ -21,25 +22,14 @@
+ using namespace std;
+ 
+ static int _init_done = 0;
+-static pkgCache *cgCache = NULL;
+-static MMap *dpkg_mmap = NULL;
++static pkgCacheFile *cgCache;
+ 
+ static int opencache (void) {
+         if (pkgInitConfig (*_config) == false) return 0;
+         if (pkgInitSystem (*_config, _system) == false) return 0;
+ 
+-        FileFd *fd = new FileFd (_config->FindFile ("Dir::Cache::pkgcache"),
+-                        FileFd::ReadOnly);
+-
+-        dpkg_mmap = new MMap (*fd, MMap::Public|MMap::ReadOnly);
+-        if (_error->PendingError () == true) {
+-                _error->DumpErrors ();
+-                return 0;
+-        }
+-
+-        cgCache = new pkgCache (dpkg_mmap);
+-        if (0 == cgCache) return 0;
+-        if (_error->PendingError () == true) {
++        cgCache = new pkgCacheFile;
++        if (!cgCache->BuildCaches(NULL, false)) {
+                 _error->DumpErrors ();
+                 return 0;
+         }
+@@ -135,9 +125,6 @@ int dpkginfo_fini()
+         delete cgCache;
+         cgCache = NULL;
+ 
+-        delete dpkg_mmap;
+-        dpkg_mmap = NULL;
+-
+         return 0;
+ }
+ 

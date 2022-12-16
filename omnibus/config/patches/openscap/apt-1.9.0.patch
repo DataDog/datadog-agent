@@ -1,0 +1,33 @@
+From d328d01ba632a49a57c44fb8075a0753a07c5cac Mon Sep 17 00:00:00 2001
+From: Julian Andres Klode <julian.klode@canonical.com>
+Date: Tue, 18 Jun 2019 11:57:58 +0200
+Subject: [PATCH] Include additional headers in dkpginfo-helper for apt 1.9
+
+apt 1.9 cleans up the header includes a bit, causing the build
+to fail, so add the additional headers we are missing.
+
+Origin: https://github.com/OpenSCAP/openscap/pull/1363
+---
+ src/OVAL/probes/unix/linux/dpkginfo-helper.cxx | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+index 952f85204..18acc5637 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.cxx
+@@ -9,9 +9,12 @@
+ 
+ #include <apt-pkg/init.h>
+ #include <apt-pkg/error.h>
++#include <apt-pkg/configuration.h>
++#include <apt-pkg/fileutl.h>
+ #include <apt-pkg/mmap.h>
+ #include <apt-pkg/pkgcache.h>
+ #include <apt-pkg/pkgrecords.h>
++#include <apt-pkg/pkgsystem.h>
+ 
+ #include "dpkginfo-helper.h"
+ 
+-- 
+2.20.1
+

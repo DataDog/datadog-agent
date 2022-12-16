@@ -1,0 +1,75 @@
+From 7a8c2a2cae5aed67753bf4d4e50356f14c21ae9e Mon Sep 17 00:00:00 2001
+From: Eduardo Barretto <eduardo.barretto@canonical.com>
+Date: Thu, 10 Dec 2020 10:47:27 -0300
+Subject: [PATCH] Free a_copy and b_copy in case of failure and code format
+
+Move from if to switch case.
+---
+ src/OVAL/results/oval_cmp_evr_string.c | 24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/src/OVAL/results/oval_cmp_evr_string.c b/src/OVAL/results/oval_cmp_evr_string.c
+index 1ddfb2846..ea8e40c2f 100644
+--- a/src/OVAL/results/oval_cmp_evr_string.c
++++ b/src/OVAL/results/oval_cmp_evr_string.c
+@@ -368,8 +368,7 @@ static int verrevcmp(const char *a, const char *b)
+  * @retval <0 If a is smaller than b.
+  * @retval >0 If a is greater than b.
+  */
+-int dpkg_version_compare(struct dpkg_version *a,
+-                     struct dpkg_version *b)
++int dpkg_version_compare(struct dpkg_version *a, struct dpkg_version *b)
+ {
+ 	int rc;
+ 
+@@ -399,18 +398,24 @@ oval_result_t oval_debian_evr_string_cmp(const char *state, const char *sys, ova
+ 	parseEVR(b_copy, &b_epoch, &b_version, &b_release);
+ 
+ 	if (!a_epoch || !b_epoch) {
+-		oscap_seterr(OSCAP_EFAMILY_OVAL, "Invalid epoch: %d.", operation);
++		oscap_seterr(OSCAP_EFAMILY_OVAL, "Invalid epoch.");
++		free(a_copy);
++		free(b_copy);
+ 		return OVAL_RESULT_ERROR;
+ 	}
+ 
+ 	aux = strtol(a_epoch, NULL, 10);
+ 	if (aux < INT_MIN || aux > INT_MAX) {
++		free(a_copy);
++		free(b_copy);
+ 		return OVAL_RESULT_ERROR; // Outside int range
+ 	}
+ 	a.epoch = (int) aux;
+ 
+ 	aux = strtol(b_epoch, NULL, 10);
+ 	if (aux < INT_MIN || aux > INT_MAX) {
++		free(a_copy);
++		free(b_copy);
+ 		return OVAL_RESULT_ERROR; // Outside int range
+ 	}
+ 	b.epoch = (int) aux;
+@@ -423,17 +428,18 @@ oval_result_t oval_debian_evr_string_cmp(const char *state, const char *sys, ova
+ 
+ 	free(a_copy);
+ 	free(b_copy);
+-	if (operation == OVAL_OPERATION_EQUALS) {
++	switch (operation) {
++	case OVAL_OPERATION_EQUALS:
+ 		return ((result == 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+-	} else if (operation == OVAL_OPERATION_NOT_EQUAL) {
++	case OVAL_OPERATION_NOT_EQUAL:
+ 		return ((result != 0) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+-	} else if (operation == OVAL_OPERATION_GREATER_THAN) {
++	case OVAL_OPERATION_GREATER_THAN:
+ 		return ((result == 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+-	} else if (operation == OVAL_OPERATION_GREATER_THAN_OR_EQUAL) {
++	case OVAL_OPERATION_GREATER_THAN_OR_EQUAL:
+ 		return ((result != -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+-	} else if (operation == OVAL_OPERATION_LESS_THAN) {
++	case OVAL_OPERATION_LESS_THAN:
+ 		return ((result == -1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+-	} else if (operation == OVAL_OPERATION_LESS_THAN_OR_EQUAL) {
++	case OVAL_OPERATION_LESS_THAN_OR_EQUAL:
+ 		return ((result != 1) ? OVAL_RESULT_TRUE : OVAL_RESULT_FALSE);
+ 	}
+ 
