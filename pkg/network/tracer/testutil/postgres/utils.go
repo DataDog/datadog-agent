@@ -7,6 +7,7 @@ package postgres
 
 import "github.com/uptrace/bun"
 
+// Define a table schema, so that Bun can generates queries for it.
 type DummyTable struct {
 	bun.BaseModel `bun:"table:dummy,alias:d"`
 
