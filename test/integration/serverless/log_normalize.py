@@ -24,6 +24,7 @@ def normalize_metrics(stage):
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
+        sort_by(lambda log: (log["metric"], "cold_start:true" in log["tags"]))
     ]
 
 
