@@ -1,7 +1,6 @@
 import argparse
 import json
 import re
-import sys
 
 def normalize_metrics(stage):
     return [
@@ -80,7 +79,6 @@ def replace(pattern, repl):
     return _replace
 
 def exclude(pattern):
-    comp = re.compile(pattern, flags=re.DOTALL)
     return replace(pattern, '')
 
 def require(pattern):
@@ -125,7 +123,7 @@ def format_json(log):
         return json.dumps(json.loads(log, strict=False), indent=2)
     except Exception as e:
         print(json.dumps({
-            "error": "normalization raised exception: [{e.__class__.__name__}] {e}",
+            "error": f"normalization raised exception: [{e.__class__.__name__}] {e}",
             "normalized-logs": log,
         }, indent=2))
 
@@ -142,7 +140,7 @@ if __name__ == '__main__':
         print(normalize(args.logs, args.type, args.stage))
     except Exception as e:
         print(json.dumps({
-            "error": "normalization raised exception: [{e.__class__.__name__}] {e}",
+            "error": f"normalization raised exception: [{e.__class__.__name__}] {e}",
             "original-logs": args.logs,
         }, indent=2))
         exit(1)
