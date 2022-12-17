@@ -24,7 +24,7 @@ def normalize_metrics(stage):
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
-        sort_by(lambda log: (log["metric"], "cold_start:true" in log["tags"]))
+        sort_by(lambda log: (log["metric"], "cold_start:true" in log["tags"])),
     ]
 
 
@@ -135,16 +135,7 @@ def get_normalizers(typ, stage):
 
 
 def format_json(log):
-    if not log:
-        log = '{"error":"normalization returned empty payload"}'
-    try:
-        return json.dumps(json.loads(log, strict=False), indent=2)
-    except Exception as e:
-        err = {
-            "error": f"normalization raised exception: [{e.__class__.__name__}] {e}",
-            "normalized-logs": log,
-        }
-        return json.dumps(err, indent=2)
+    return json.dumps(json.loads(log, strict=False), indent=2)
 
 
 def parse_args():
@@ -160,10 +151,7 @@ if __name__ == '__main__':
         args = parse_args()
         print(normalize(args.logs, args.type, args.stage))
     except Exception as e:
-        err = {
-            "error": f"normalization raised exception: [{e.__class__.__name__}] {e}",
-            "original-logs": args.logs,
-        }
+        err = '{"error":"normalization raised exception"}'
         err_json = json.dumps(err, indent=2)
         print(err_json)
         exit(1)
