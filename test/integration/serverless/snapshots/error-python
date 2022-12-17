@@ -6,7 +6,7 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:true",
+      "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
@@ -31,31 +31,6 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:false",
-      "dd_extension_version:123",
-      "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
-      "functionname:integration-tests-extension-XXXXXX-error-python",
-      "memorysize:1024",
-      "region:eu-west-1",
-      "resource:integration-tests-extension-XXXXXX-error-python",
-      "runtime:python3.8",
-      "service:integration-tests-service",
-      "taga:valuea",
-      "tagb:valueb",
-      "tagc:valuec",
-      "tagd:valued",
-      "version:integration-tests-version"
-    ],
-    "dogsketches": []
-  },
-  {
-    "metric": "aws.lambda.enhanced.duration",
-    "distributions": null,
-    "tags": [
-      "account_id:425362996713",
-      "architecture:XXX",
-      "aws_account:425362996713",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
@@ -100,16 +75,14 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.errors",
+    "metric": "aws.lambda.enhanced.duration",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
       "cold_start:true",
-      "datadog_lambda:vX.X.X",
       "dd_extension_version:123",
-      "dd_lambda_layer:datadog-pythonX.X.X",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
       "functionname:integration-tests-extension-XXXXXX-error-python",
@@ -154,14 +127,16 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.estimated_cost",
+    "metric": "aws.lambda.enhanced.errors",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
       "cold_start:true",
+      "datadog_lambda:vX.X.X",
       "dd_extension_version:123",
+      "dd_lambda_layer:datadog-pythonX.X.X",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
       "functionname:integration-tests-extension-XXXXXX-error-python",
@@ -186,6 +161,31 @@
       "architecture:XXX",
       "aws_account:425362996713",
       "cold_start:false",
+      "dd_extension_version:123",
+      "env:integration-tests-env",
+      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
+      "functionname:integration-tests-extension-XXXXXX-error-python",
+      "memorysize:1024",
+      "region:eu-west-1",
+      "resource:integration-tests-extension-XXXXXX-error-python",
+      "runtime:python3.8",
+      "service:integration-tests-service",
+      "taga:valuea",
+      "tagb:valueb",
+      "tagc:valuec",
+      "tagd:valued",
+      "version:integration-tests-version"
+    ],
+    "dogsketches": []
+  },
+  {
+    "metric": "aws.lambda.enhanced.estimated_cost",
+    "distributions": null,
+    "tags": [
+      "account_id:425362996713",
+      "architecture:XXX",
+      "aws_account:425362996713",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
@@ -235,7 +235,7 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:true",
+      "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
@@ -261,7 +261,7 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:false",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
@@ -287,7 +287,7 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:true",
+      "cold_start:false",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
@@ -312,31 +312,6 @@
       "account_id:425362996713",
       "architecture:XXX",
       "aws_account:425362996713",
-      "cold_start:false",
-      "dd_extension_version:123",
-      "env:integration-tests-env",
-      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
-      "functionname:integration-tests-extension-XXXXXX-error-python",
-      "memorysize:1024",
-      "region:eu-west-1",
-      "resource:integration-tests-extension-XXXXXX-error-python",
-      "runtime:python3.8",
-      "service:integration-tests-service",
-      "taga:valuea",
-      "tagb:valueb",
-      "tagc:valuec",
-      "tagd:valued",
-      "version:integration-tests-version"
-    ],
-    "dogsketches": []
-  },
-  {
-    "metric": "aws.lambda.enhanced.memorysize",
-    "distributions": null,
-    "tags": [
-      "account_id:425362996713",
-      "architecture:XXX",
-      "aws_account:425362996713",
       "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
@@ -381,7 +356,7 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.post_runtime_duration",
+    "metric": "aws.lambda.enhanced.memorysize",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
@@ -431,7 +406,7 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.produced_bytes",
+    "metric": "aws.lambda.enhanced.post_runtime_duration",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
@@ -481,7 +456,7 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.response_duration",
+    "metric": "aws.lambda.enhanced.produced_bytes",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
@@ -531,7 +506,7 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.response_latency",
+    "metric": "aws.lambda.enhanced.response_duration",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
@@ -581,7 +556,7 @@
     "dogsketches": []
   },
   {
-    "metric": "aws.lambda.enhanced.runtime_duration",
+    "metric": "aws.lambda.enhanced.response_latency",
     "distributions": null,
     "tags": [
       "account_id:425362996713",
@@ -613,6 +588,31 @@
       "architecture:XXX",
       "aws_account:425362996713",
       "cold_start:false",
+      "dd_extension_version:123",
+      "env:integration-tests-env",
+      "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
+      "functionname:integration-tests-extension-XXXXXX-error-python",
+      "memorysize:1024",
+      "region:eu-west-1",
+      "resource:integration-tests-extension-XXXXXX-error-python",
+      "runtime:python3.8",
+      "service:integration-tests-service",
+      "taga:valuea",
+      "tagb:valueb",
+      "tagc:valuec",
+      "tagd:valued",
+      "version:integration-tests-version"
+    ],
+    "dogsketches": []
+  },
+  {
+    "metric": "aws.lambda.enhanced.runtime_duration",
+    "distributions": null,
+    "tags": [
+      "account_id:425362996713",
+      "architecture:XXX",
+      "aws_account:425362996713",
+      "cold_start:true",
       "dd_extension_version:123",
       "env:integration-tests-env",
       "function_arn:arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-error-python",
