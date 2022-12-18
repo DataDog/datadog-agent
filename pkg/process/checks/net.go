@@ -304,8 +304,8 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			serviceTag := serviceExtractor.GetServiceTag(c.Pid)
-			tagsStr := convertAndEnrichWithServiceTags(tags, c.Tags, serviceTag)
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -413,15 +413,15 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-// converts the tags based on the tagOffsets for encoding. It also enriches it with service tags if any
-func convertAndEnrichWithServiceTags(tags []string, tagOffsets []uint32, serviceTag string) []string {
-	tagCount := len(tagOffsets) + len(serviceTag)
+// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtx)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-	if serviceTag != "" {
-		tagsStr = append(tagsStr, serviceTag)
+	if serviceCtx != "" {
+		tagsStr = append(tagsStr, serviceCtx)
 	}
 
 	return tagsStr
