@@ -6,7 +6,6 @@
 package amqp
 
 import (
-	"os"
 	"os/exec"
 	"testing"
 
@@ -28,8 +27,6 @@ func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 
 	t.Cleanup(func() {
 		c := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "down", "--remove-orphans")
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
 		c.Env = append(c.Env, env...)
 		_ = c.Run()
 	})
