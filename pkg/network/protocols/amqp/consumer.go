@@ -19,7 +19,7 @@ func failOnError(err error, msg string) {
 	}
 }
 
-func ConsumeAmqp(serverAddr string, serverPort string) {
+func ConsumeAmqp(serverAddr, serverPort string) {
 	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", serverAddr, serverPort))
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()

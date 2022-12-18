@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func RunAmqpServer(t *testing.T, serverAddr string, serverPort string) {
+func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 	t.Helper()
 
 	env := []string{
@@ -23,8 +23,6 @@ func RunAmqpServer(t *testing.T, serverAddr string, serverPort string) {
 	}
 	dir, _ := testutil.CurDir()
 	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")
-	cmd.Stderr = os.Stdout
-	cmd.Stdout = os.Stdout
 	cmd.Env = append(cmd.Env, env...)
 	require.NoErrorf(t, cmd.Run(), "could not start amqp with docker-compose")
 

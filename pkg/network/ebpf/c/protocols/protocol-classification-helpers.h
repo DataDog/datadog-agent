@@ -36,18 +36,6 @@ static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
     return match;
 }
 
-// The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
-// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
-static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
-
-#define AMQP_PREFACE "AMQP"
-
-    bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
-
-    return match;
-}
-
 // According to the https://www.rfc-editor.org/rfc/rfc7540#section-3.5
 // an HTTP2 server must reply with a settings frame to the preface of HTTP2.
 // The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
@@ -69,40 +57,6 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     return is_http2_preface(buf, buf_size) || is_http2_server_settings(buf, buf_size);
 }
 
-// The method checks if the given buffer starts is amqp message.
-// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
-static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
-
-    // New connection should start with protocol header of AMQP.
-    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
-    if (is_amqp_protocol_header(buf, buf_size)) {
-        return true;
-    }
-
-    uint8_t frame_type = buf[0];
-    // Check only for method frame type.
-    if (frame_type != AMQP_FRAME_METHOD_TYPE) {
-        return false;
-    }
-
-    // We extract the class id and method id by big indian from the buffer.
-    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
-    __u16 class_id = buf[7] << 8 | buf[8];
-    __u16 method_id = buf[9] << 8 | buf[10];
-
-    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
-    // consider for the classification.
-    if (class_id == AMQP_CONNECTION_CLASS) {
-        return  method_id == AMQP_METHOD_CONNECTION_START || method_id == AMQP_METHOD_CONNECTION_START_OK;
-    }
-
-    if (class_id == AMQP_BASIC_CLASS) {
-        return method_id == AMQP_METHOD_PUBLISH || method_id == AMQP_METHOD_DELIVER || method_id == AMQP_METHOD_CONSUME;
-    }
-
-    return false;
-}
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.
@@ -133,6 +87,56 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
         && bpf_memcmp(buf, PATCH, sizeof(PATCH)-1));
 
     return http;
+}
+
+// The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
+
+#define AMQP_PREFACE "AMQP"
+
+    bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
+
+    return match;
+}
+
+// The method checks if the given buffer is an AMQP message.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
+    // New connection should start with protocol header of AMQP.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    if (is_amqp_protocol_header(buf, buf_size)) {
+        return true;
+    }
+
+    // Validate that we will be able to get from the buffer the class and method ids.
+    if (buf_size < AMQP_MIN_PAYLOAD_LENGTH) {
+       return false;
+    }
+
+    uint8_t frame_type = buf[0];
+    // Check only for method frame type.
+    if (frame_type != AMQP_FRAME_METHOD_TYPE) {
+        return false;
+    }
+
+    // We extract the class id and method id by big indian from the buffer.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    __u16 class_id = buf[7] << 8 | buf[8];
+    __u16 method_id = buf[9] << 8 | buf[10];
+
+    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
+    // consider for the classification.
+    if (class_id == AMQP_CONNECTION_CLASS) {
+        return  method_id == AMQP_METHOD_CONNECTION_START || method_id == AMQP_METHOD_CONNECTION_START_OK;
+    }
+
+    if (class_id == AMQP_BASIC_CLASS) {
+        return method_id == AMQP_METHOD_PUBLISH || method_id == AMQP_METHOD_DELIVER || method_id == AMQP_METHOD_CONSUME;
+    }
+
+    return false;
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param

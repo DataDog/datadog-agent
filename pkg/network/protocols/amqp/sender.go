@@ -7,8 +7,9 @@ package amqp
 
 import (
 	"fmt"
-	"github.com/streadway/amqp"
 	"log"
+
+	"github.com/streadway/amqp"
 )
 
 // Here we set the way error messages are displayed in the terminal.
@@ -18,7 +19,7 @@ func logError(err error, msg string) {
 	}
 }
 
-func Send(serverAddr string, serverPort string) {
+func Send(serverAddr, serverPort string) {
 	// Here we connect to RabbitMQ or send a message if there are any errors connecting.
 	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", serverAddr, serverPort))
 	logError(err, "Failed to connect to RabbitMQ")

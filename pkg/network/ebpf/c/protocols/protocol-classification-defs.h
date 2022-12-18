@@ -31,6 +31,7 @@
 #define AMQP_FRAME_METHOD_TYPE 1
 
 #define AMQP_MIN_FRAME_LENGTH 8
+#define AMQP_MIN_PAYLOAD_LENGTH 11
 
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
@@ -42,7 +43,7 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
-    PROTOCOL_AMQP,
+    PROTOCOL_AMQP = 8,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,
