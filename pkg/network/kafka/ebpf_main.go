@@ -79,7 +79,7 @@ func newEBPFProgram(c *config.Config) (*ebpfProgram, error) {
 			{
 				Map: manager.Map{Name: kafkaBatchEvents},
 				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 256 * os.Getpagesize(),
+					PerfRingBufferSize: 8 * os.Getpagesize(),
 					Watermark:          1,
 					RecordHandler:      batchCompletionHandler.RecordHandler,
 					LostHandler:        batchCompletionHandler.LostHandler,
