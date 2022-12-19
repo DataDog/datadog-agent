@@ -94,7 +94,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(snmpwalk,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, true),
+					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 					LogParams:    log.LogForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)

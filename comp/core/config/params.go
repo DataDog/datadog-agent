@@ -60,8 +60,17 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 	return params
 }
 
-// NewAgentParams creates a new instance of Params for the Agent.
-func NewAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
+// NewAgentParamsWithSecrets creates a new instance of Params using secrets for the Agent.
+func NewAgentParamsWithSecrets(confFilePath string, options ...func(*Params)) Params {
+	return newAgentParams(confFilePath, true, options...)
+}
+
+// NewAgentParamsWithoutSecrets creates a new instance of Params without using secrets for the Agent.
+func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params)) Params {
+	return newAgentParams(confFilePath, false, options...)
+}
+
+func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
 	params := NewParams(common.DefaultConfPath, options...)
 	params.confFilePath = confFilePath
 	params.configLoadSecrets = configLoadSecrets

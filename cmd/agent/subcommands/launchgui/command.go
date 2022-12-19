@@ -40,7 +40,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(launchGui,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, false)}),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath)}),
 				core.Bundle,
 			)
 		},

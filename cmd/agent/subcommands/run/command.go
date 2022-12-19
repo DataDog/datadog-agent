@@ -115,7 +115,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, true),
+				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 			core.Bundle,
 		)
@@ -201,7 +201,7 @@ func StartAgentWithDefaults() error {
 	},
 		// no config file path specification in this situation
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParams("", true),
+			ConfigParams: config.NewAgentParamsWithSecrets(""),
 			LogParams:    log.LogForDaemon("CORE", "log_file", common.DefaultLogFile)}),
 		core.Bundle,
 	)
