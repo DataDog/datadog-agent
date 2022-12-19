@@ -52,12 +52,6 @@ var (
 	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
 	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
 
-	// while we try to add the origin tag in the tlmProcessed metric, we want to
-	// avoid having it growing indefinitely, hence this safeguard to limit the
-	// size of this cache for long-running agent or environment with a lot of
-	// different container IDs.
-	maxOriginCounters = 200
-
 	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
@@ -71,16 +65,6 @@ func init() {
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
-}
-
-// When the internal telemetry is enabled, used to tag the origin
-// on the processed metric.
-type cachedOriginCounter struct {
-	origin string
-	ok     map[string]string
-	err    map[string]string
-	okCnt  telemetry.SimpleCounter
-	errCnt telemetry.SimpleCounter
 }
 
 func initLatencyTelemetry() {
@@ -156,19 +140,13 @@ type Server struct {
 	// package (pkg/trace/log/throttled.go) for a possible throttler implementation.
 	disableVerboseLogs bool
 
-	// cachedTlmLock must be held when accessing cachedOriginCounters and cachedOrder
-	cachedTlmLock sync.Mutex
-	// cachedOriginCounters caches telemetry counter per origin
-	// (when dogstatsd origin telemetry is enabled)
-	cachedOriginCounters map[string]cachedOriginCounter
-	cachedOrder          []cachedOriginCounter // for cache eviction
-
 	// ServerlessMode is set to true if we're running in a serverless environment.
 	ServerlessMode     bool
 	UdsListenerRunning bool
 
 	// originTelemetry is true if we want to report telemetry per origin.
 	originTelemetry bool
+	metricCounters  telemetry.CounterWithOriginCache
 
 	enrichConfig enrichConfig
 }
@@ -363,10 +341,9 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 		Debug:                   newDSDServerDebug(),
 		originTelemetry: config.Datadog.GetBool("telemetry.enabled") &&
 			config.Datadog.GetBool("telemetry.dogstatsd_origin"),
-		TCapture:             capture,
-		UdsListenerRunning:   udsListenerRunning,
-		cachedOriginCounters: make(map[string]cachedOriginCounter),
-		ServerlessMode:       serverless,
+		TCapture:           capture,
+		UdsListenerRunning: udsListenerRunning,
+		ServerlessMode:     serverless,
 		enrichConfig: enrichConfig{
 			metricPrefix:              metricPrefix,
 			metricPrefixBlacklist:     metricPrefixBlacklist,
@@ -376,6 +353,13 @@ func NewServer(demultiplexer aggregator.Demultiplexer, serverless bool) (*Server
 			serverlessMode:            serverless,
 			originOptOutEnabled:       config.Datadog.GetBool("dogstatsd_origin_optout_enabled"),
 		},
+	}
+
+	// telemetry per origin, behind a feature flag
+	// ----------------------
+
+	if s.originTelemetry {
+		s.metricCounters = telemetry.NewMetricCounterWithOriginCache(tlmProcessed)
 	}
 
 	// packets forwarding
@@ -625,46 +609,6 @@ func (s *Server) errLog(format string, params ...interface{}) {
 	}
 }
 
-// getOriginCounter returns a telemetry counter for processed metrics using the given origin as a tag.
-// They are stored in cache to avoid heap escape.
-// Only `maxOriginCounters` are stored to avoid an infinite expansion.
-// Counters returned by `getOriginCounter` are thread safe.
-func (s *Server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
-	s.cachedTlmLock.Lock()
-	defer s.cachedTlmLock.Unlock()
-
-	if maps, ok := s.cachedOriginCounters[origin]; ok {
-		return maps.okCnt, maps.errCnt
-	}
-
-	okMap := map[string]string{"message_type": "metrics", "state": "ok"}
-	errorMap := map[string]string{"message_type": "metrics", "state": "error"}
-	okMap["origin"] = origin
-	errorMap["origin"] = origin
-	maps := cachedOriginCounter{
-		origin: origin,
-		ok:     okMap,
-		err:    errorMap,
-		okCnt:  tlmProcessed.WithTags(okMap),
-		errCnt: tlmProcessed.WithTags(errorMap),
-	}
-
-	s.cachedOriginCounters[origin] = maps
-	s.cachedOrder = append(s.cachedOrder, maps)
-
-	if len(s.cachedOrder) > maxOriginCounters {
-		// remove the oldest one from the cache
-		pop := s.cachedOrder[0]
-		delete(s.cachedOriginCounters, pop.origin)
-		s.cachedOrder = s.cachedOrder[1:]
-		// remove it from the telemetry metrics as well
-		tlmProcessed.DeleteWithTags(pop.ok)
-		tlmProcessed.DeleteWithTags(pop.err)
-	}
-
-	return maps.okCnt, maps.errCnt
-}
-
 // NOTE(remy): for performance purpose, we may need to revisit this method to deal with both a metricSamples slice and a lateMetricSamples
 // slice, in order to not having to test multiple times if a metric sample is a late one using the Timestamp attribute,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
@@ -674,7 +618,7 @@ func (s *Server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && originTelemetry {
-		okCnt, errorCnt = s.getOriginCounter(origin)
+		okCnt, errorCnt = s.metricCounters.Get(origin)
 	}
 
 	sample, err := parser.parseMetricSample(message)
