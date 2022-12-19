@@ -32,10 +32,11 @@ import (
 )
 
 const (
-	snmpLoaderTag        = "loader:core"
-	serviceCheckName     = "snmp.can_check"
-	deviceUpMetric       = "snmp.device_up"
-	deviceHostnamePrefix = "device:"
+	snmpLoaderTag           = "loader:core"
+	serviceCheckName        = "snmp.can_check"
+	deviceReachableMetric   = "snmp.device.reachable"
+	deviceUnreachableMetric = "snmp.device.unreachable"
+	deviceHostnamePrefix    = "device:"
 )
 
 // define timeNow as variable to make it possible to mock it during test
@@ -110,13 +111,18 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckCritical, tags, checkErr.Error())
-		d.sender.Gauge(deviceUpMetric, 0., tags)
 	} else {
 		d.savedDynamicTags = dynamicTags
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
-		d.sender.Gauge(deviceUpMetric, 1., tags)
 	}
+	deviceReachableFloat := 0.
+	if deviceReachable {
+		deviceReachableFloat = 1
+	}
+	d.sender.Gauge(deviceReachableMetric, deviceReachableFloat, tags)
+	d.sender.Gauge(deviceUnreachableMetric, 1-deviceReachableFloat, tags)
+
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
 	}
