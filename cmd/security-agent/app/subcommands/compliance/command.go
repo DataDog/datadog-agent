@@ -58,7 +58,7 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfPathArray, true),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfPathArray),
 					LogParams:    log.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)

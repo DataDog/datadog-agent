@@ -69,10 +69,10 @@ func NewAgentParams(confFilePath string, configLoadSecrets bool, options ...func
 }
 
 // NewSecurityAgentParams creates a new instance of Params for the Security Agent.
-func NewSecurityAgentParams(securityAgentConfigFilePaths []string, configLoadSecurityAgent bool, options ...func(*Params)) Params {
+func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...func(*Params)) Params {
 	params := NewParams("", options...)
 	params.securityAgentConfigFilePaths = securityAgentConfigFilePaths
-	params.configLoadSecurityAgent = configLoadSecurityAgent
+	params.configLoadSecurityAgent = true
 	return params
 }
 
