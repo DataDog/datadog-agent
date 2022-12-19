@@ -90,7 +90,7 @@ type ProcessCallback struct {
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
 //
-// This monitor can monitor.Subscribe(callback, filter) callback on particual event
+// This monitor can monitor.Subscribe(callback, filter) callback on particular event
 // like process EXEC, EXIT. The callback will be called when the filter will match.
 // Filter can be applied on :
 //   process name (NAME)
@@ -107,8 +107,10 @@ type ProcessCallback struct {
 //       o mon.Initialize() will scan current processes and call subscribed callback
 //
 //       o callback{Event: EXIT, Metadata: ANY}   callback is called for all exit events, system wide
-//       o callback{Event: EXIT, Metadata: NAME}  callback is called if we seen the process Exec event
-//                                                in this case a callback{Event: EXEC, ...} must be registered
+//       o callback{Event: EXIT, Metadata: NAME}  callback will be called if we seen the process Exec event,
+//                                                the metadata will be saved between Exec and Exit event per pid
+//                                                then the Exit callback will evaluate the same metadata on Exit.
+//                                                We need to save the metadata here as /proc/pid doesn't exist anymore.
 func GetProcessMonitor() *ProcessMonitor {
 	once.Do(func() {
 		processMonitor = &ProcessMonitor{
@@ -169,7 +171,8 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	}
 }
 
-// evalEXECCallback is a best effort and would not return errors, but report them
+// evalEXITCallback will evaluate the metadata saved by the Exec callback and the callback accordingly
+// please refer to GetProcessMonitor documentation
 func (p *ProcessMonitor) evalEXITCallback(c *ProcessCallback, pid uint32) {
 	switch c.Metadata {
 	case NAME:
@@ -292,7 +295,11 @@ func (pm *ProcessMonitor) Initialize() error {
 // Subscribe register a callback and store it pm.procEventCallbacks[callback.Event] list
 // this list is maintained out of order, and the return UnSubscribe function callback
 // will remove the previously registered callback from the list
-// By design, a callback object can be registered only once
+//
+// By design : 1/ a callback object can be registered only once
+//             2/ Exec callback with a Metadata (!=ANY) must be registred before the sibling Exit metadata,
+//                otherwise the Subscribe() will return an error as no metadata will be saved between Exec and Exit,
+//                please refer to GetProcessMonitor()
 func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func(), err error) {
 	pm.m.Lock()
 	defer pm.m.Unlock()
@@ -300,6 +307,20 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 	for _, c := range pm.procEventCallbacks[callback.Event] {
 		if c == callback {
 			return func() {}, errors.New("same callback can't be registred twice")
+		}
+	}
+
+	// check if the sibling Exec callback exist
+	if callback.Event == EXIT && callback.Metadata != ANY {
+		foundSibling := false
+		for _, c := range pm.procEventCallbacks[EXEC] {
+			if c.Metadata == callback.Metadata && c.Regex.String() == callback.Regex.String() {
+				foundSibling = true
+				break
+			}
+		}
+		if !foundSibling {
+			return func() {}, errors.New("no Exec callback has been found with the same Metadata and Regex, please Subscribe(Exec callback, Metadata) first")
 		}
 	}
 

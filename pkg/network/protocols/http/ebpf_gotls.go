@@ -244,8 +244,12 @@ func (p *GoTLSProgram) Start() {
 	})
 	if err != nil {
 		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
-		return
+		goto failed
 	}
+	return
+failed:
+	p.procMonitor.cleanupExec()
+	return
 }
 
 func (p *GoTLSProgram) Stop() {
