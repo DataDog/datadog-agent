@@ -20,6 +20,7 @@ var (
 
 	initEphemeralIntPair sync.Once
 	ephemeralIntPair     *sysctl.IntPair
+	mu sync.Mutex
 )
 
 // IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
@@ -34,12 +35,14 @@ func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 
 	low, hi, err := ephemeralIntPair.Get()
 	if err == nil {
+		mu.Lock()
 		if low > 0 && low <= math.MaxUint16 {
 			ephemeralLow = uint16(low)
 		}
 		if hi > 0 && hi <= math.MaxUint16 {
 			ephemeralHigh = uint16(hi)
 		}
+		mu.Unlock()
 	}
 	if err != nil || ephemeralLow == 0 || ephemeralHigh == 0 {
 		return EphemeralUnknown
