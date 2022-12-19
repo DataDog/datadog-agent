@@ -62,14 +62,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "runtime Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+
+	// Deprecated
+	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }
@@ -80,6 +82,7 @@ type checkPoliciesCliParams struct {
 	dir string
 }
 
+// checkPoliciesCommands is deprecated
 func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
@@ -103,12 +106,22 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
+type reloadPoliciesCliParams struct {
+	*command.GlobalParams
+}
+
+// reloadPoliciesCommands is deprecated
 func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &reloadPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
+				fx.Supply(cliParams),
 				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
@@ -191,11 +204,16 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 }
 
 func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &reloadPoliciesCliParams{
+		GlobalParams: globalParams,
+	}
+
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
+				fx.Supply(cliParams),
 				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
@@ -204,12 +222,21 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
+type selfTestCliParams struct {
+	*command.GlobalParams
+}
+
 func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
+	cliParams := &selfTestCliParams{
+		GlobalParams: globalParams,
+	}
+
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
+				fx.Supply(cliParams),
 				fx.Supply(core.CreateSecurityAgentBundleParams(globalParams.ConfigFilePaths).LogForOneShot(command.LoggerName, "info", true)),
 				core.Bundle,
 			)
