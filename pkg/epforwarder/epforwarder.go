@@ -28,6 +28,9 @@ const (
 	eventTypeDBMMetrics  = "dbm-metrics"
 	eventTypeDBMActivity = "dbm-activity"
 
+	// EventTypeInstrumentatiomTelemetry is the event type for instruemntation telemetry messages
+	EventTypeInstrumentatiomTelemetry = "instrumentation-telemetry"
+
 	// EventTypeNetworkDevicesMetadata is the event type for network devices metadata
 	EventTypeNetworkDevicesMetadata = "network-devices-metadata"
 
@@ -112,6 +115,19 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		//   aggregator loop, making SendEventPlatformEvent blocking might slow down other type of data handled
 		//   by aggregator.
 		defaultInputChanSize: 10000,
+	},
+}
+
+var traceAgentPassthroughPipelineDescs = []passthroughPipelineDesc{
+	{
+		eventType:                     EventTypeInstrumentatiomTelemetry,
+		endpointsConfigPrefix:         "apm_config.telemetry.",
+		hostnameEndpointPrefix:        "instrumentation-telemetry.",
+		intakeTrackType:               "apmtelemtry",
+		defaultBatchMaxConcurrentSend: pkgconfig.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
 }
 
@@ -290,11 +306,11 @@ func joinHosts(endpoints []config.Endpoint) string {
 	return strings.Join(additionalHosts, ",")
 }
 
-func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
+func newEventPlatformForwarder(passthroughPipelines []passthroughPipelineDesc) *defaultEventPlatformForwarder {
 	destinationsCtx := client.NewDestinationsContext()
 	destinationsCtx.Start()
 	pipelines := make(map[string]*passthroughPipeline)
-	for i, desc := range passthroughPipelineDescs {
+	for i, desc := range passthroughPipelines {
 		p, err := newHTTPPassthroughPipeline(desc, destinationsCtx, i)
 		if err != nil {
 			log.Errorf("Failed to initialize event platform forwarder pipeline. eventType=%s, error=%s", desc.eventType, err.Error())
@@ -310,13 +326,18 @@ func newDefaultEventPlatformForwarder() *defaultEventPlatformForwarder {
 
 // NewEventPlatformForwarder creates a new EventPlatformForwarder
 func NewEventPlatformForwarder() EventPlatformForwarder {
-	return newDefaultEventPlatformForwarder()
+	return newEventPlatformForwarder(passthroughPipelineDescs)
+}
+
+// NewEventPlatformForwarder creates a new EventPlatformForwarder
+func NewTraceAgentEventPlatformForwarder() EventPlatformForwarder {
+	return newEventPlatformForwarder(traceAgentPassthroughPipelineDescs)
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
 func NewNoopEventPlatformForwarder() EventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder()
+	f := newEventPlatformForwarder(nil)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil
