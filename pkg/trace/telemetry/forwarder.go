@@ -2,11 +2,12 @@ package telemetry
 
 import (
 	"encoding/json"
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+
+	"go.uber.org/atomic"
 )
 
 const (
