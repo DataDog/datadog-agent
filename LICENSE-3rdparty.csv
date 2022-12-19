@@ -765,7 +765,9 @@ core,github.com/ulikunitz/xz/lzma,BSD-3-Clause,Copyright (c) 2014-2021  Ulrich K
 core,github.com/uptrace/bun,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/dialect,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/dialect/feature,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/dialect/pgdialect,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/dialect/sqltype,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
+core,github.com/uptrace/bun/driver/pgdriver,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/extra/bunjson,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
 core,github.com/uptrace/bun/internal/parser,BSD-2-Clause,Copyright (c) 2021 Vladimir Mihailenco. All rights reserved
