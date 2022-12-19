@@ -23,7 +23,7 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
 from .go import golangci_lint
 from .libs.copyright import CopyrightLinter
-from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
+from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
@@ -731,3 +731,12 @@ def junit_upload(_, tgz_path):
     """
 
     junit_upload_from_tgz(tgz_path)
+
+
+@task
+def junit_macos_repack(_, infile, outfile):
+    """
+    Repacks JUnit tgz file from macOS Github Action run, so it would
+    containt correct job name and job URL.
+    """
+    repack_macos_junit_tar(infile, outfile)
