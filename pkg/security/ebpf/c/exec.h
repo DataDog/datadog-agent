@@ -11,9 +11,9 @@
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT_PER_TAIL 23
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARGS_ELEMENTS 140
+#define MAX_ARRAY_ELEMENT_PER_TAIL 23
+#define MAX_ARGS_ENVS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit in half
 
 struct args_envs_event_t {
     struct kevent_t event;
@@ -30,7 +30,7 @@ struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 10,
+    .max_entries = 1,
 };
 
 struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
@@ -151,9 +151,6 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 coo
 void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct str_array_ref_t *array_ref, u64 event_type) {
     const char **array = array_ref->array;
     int index = array_ref->index;
-    if (index == 255) {
-        return;
-    }
 
     array_ref->truncated = 0;
 
@@ -206,7 +203,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
             bpf_probe_read(&str, sizeof(str), (void *)&array[index]);
         } else {
-            index = 255; // stop here
+            array_ref->array = NULL; // array->array == NULL indicates that we reached the end of the string array
             break;
         }
     }
@@ -229,15 +226,16 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     }
 
     struct str_array_ref_t *array = &syscall->exec.args;
-    if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
+    if (array->array == NULL || array->index > MAX_ARGS_ENVS_ELEMENTS) { // args are parsed
         array = &syscall->exec.envs;
+        if (array->array == NULL || array->index > MAX_ARGS_ENVS_ELEMENTS) { // envs are parsed
+            return 0;
+        }
     }
 
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);
 
-    syscall->exec.next_tail++;
-
-    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
+    bpf_tail_call_compat(ctx, &args_envs_progs, 0);
 
     return 0;
 }
@@ -678,7 +676,11 @@ int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
     // call it here before the memory get replaced
     fill_span_context(&syscall->exec.span_context);
 
-    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
+    // avoid tail call if we have nothing to parse (or already did)
+    if (syscall->exec.args.array != NULL || syscall->exec.envs.array != NULL) {
+        bpf_tail_call_compat(ctx, &args_envs_progs, 0);
+    }
+
     return 0;
 }
 

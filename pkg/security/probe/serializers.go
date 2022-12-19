@@ -611,7 +611,7 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 
 func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
 	if ps.IsNotKworker() {
-		argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
+		argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessArgv(ps)
 		envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(ps)
 		argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(ps)
 

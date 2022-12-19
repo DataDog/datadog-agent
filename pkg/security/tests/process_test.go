@@ -102,7 +102,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_args_envs",
-			Expression: `exec.file.name == "ls" && exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
+			Expression: `exec.file.name == "ls" && exec.args =~ "-al*" && exec.envs =~ "LD_*"`,
 		},
 		{
 			ID:         "test_rule_argv",
@@ -421,9 +421,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 132, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 379, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 132; i++ {
+			for i := 0; i != 379; i++ {
 				assert.Equal(t, args[i], argv[i], "expected arg not found")
 			}
 
@@ -462,9 +462,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 389, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 159; i++ {
+			for i := 0; i != 389; i++ {
 				expected := args[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -564,9 +564,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 57, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 380, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 57; i++ {
+			for i := 0; i != 380; i++ {
 				assert.Equal(t, envs[i], envp[i], "expected env not found")
 			}
 
@@ -615,9 +615,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 68, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 390, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 68; i++ {
+			for i := 0; i != 390; i++ {
 				expected := envs[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
