@@ -200,14 +200,6 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 	return e.FSGroup
 }
 
-// ResolvePCEContainerTags resolves the container tags of a ProcessCacheEntry
-func (r *Resolvers) ResolvePCEContainerTags(e *model.ProcessCacheEntry) []string {
-	if len(e.ContainerTags) == 0 && len(e.ContainerID) > 0 {
-		e.ContainerTags = r.TagsResolver.Resolve(e.ContainerID)
-	}
-	return e.ContainerTags
-}
-
 // Start the resolvers
 func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
