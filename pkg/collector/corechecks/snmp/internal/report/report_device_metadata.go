@@ -7,11 +7,13 @@ package report
 
 import (
 	json "encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -46,6 +48,41 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		}
 		ms.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 	}
+
+	// Telemetry
+	for _, interfaceStatus := range interfaces {
+		status := ComputeStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
+		interfaceTags := append(tags, fmt.Sprintf("status:%s", status))
+		ms.sender.Gauge("snmp.interface_status", 1, "", interfaceTags)
+	}
+}
+
+func ComputeStatus(adminStatus int32, operStatus int32) string {
+	if adminStatus == 1 {
+		switch {
+		case operStatus == 1:
+			return "up"
+		case operStatus == 2:
+			return "down"
+		}
+		return "warning"
+	}
+	if adminStatus == 2 {
+		switch {
+		case operStatus == 1:
+			return "down"
+		case operStatus == 2:
+			return "off"
+		}
+		return "warning"
+	}
+	if adminStatus == 3 {
+		switch {
+		case operStatus != 2:
+			return "warning"
+		}
+	}
+	return "down"
 }
 
 func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
