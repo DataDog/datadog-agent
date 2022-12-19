@@ -52,7 +52,7 @@ type TelemetryCollector interface {
 type telemetryCollector struct {
 	forwarder             epforwarder.EventPlatformForwarder
 	config                *config.AgentConfig
-	collectedStartupError atomic.Bool
+	collectedStartupError *atomic.Bool
 }
 
 // NewCollector returns either forwarder, or a noop implementation if instrumentation telemetry is disabled
@@ -61,8 +61,9 @@ func NewCollector(config *config.AgentConfig) TelemetryCollector {
 		return &noopTelemetryCollector{}
 	}
 	return &telemetryCollector{
-		forwarder: epforwarder.NewTraceAgentEventPlatformForwarder(),
-		config:    config,
+		forwarder:             epforwarder.NewTraceAgentEventPlatformForwarder(),
+		config:                config,
+		collectedStartupError: &atomic.Bool{},
 	}
 }
 
