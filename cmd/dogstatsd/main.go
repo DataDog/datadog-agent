@@ -59,7 +59,7 @@ const (
 	loggerName pkgconfig.LoggerName = "DSD"
 )
 
-func MakeRootCommand() *cobra.Command {
+func MakeRootCommand(defaultLogFile string) *cobra.Command {
 	// dogstatsdCmd is the root command
 	dogstatsdCmd := &cobra.Command{
 		Use:   "dogstatsd [command]",
@@ -71,21 +71,21 @@ on dashboards. DogStatsD implements the StatsD protocol, along with a few
 extensions for special Datadog features.`,
 	}
 
-	for _, cmd := range makeCommands() {
+	for _, cmd := range makeCommands(defaultLogFile) {
 		dogstatsdCmd.AddCommand(cmd)
 	}
 
 	return dogstatsdCmd
 }
 
-func makeCommands() []*cobra.Command {
+func makeCommands(defaultLogFile string) []*cobra.Command {
 	cliParams := &cliParams{}
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return runDogstatsdFct(cliParams, "", start)
+			return runDogstatsdFct(cliParams, "", defaultLogFile, start)
 		},
 	}
 
@@ -110,9 +110,13 @@ func makeCommands() []*cobra.Command {
 	return []*cobra.Command{startCmd, versionCmd}
 }
 
-func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
+func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
+	params := &Params{
+		defaultLogFile: defaultLogFile,
+	}
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
+		fx.Supply(params),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewParams(
 				defaultConfPath,
@@ -125,7 +129,11 @@ func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface
 	)
 }
 
-func start(cliParams *cliParams, config config.Component) error {
+type Params struct {
+	defaultLogFile string
+}
+
+func start(cliParams *cliParams, config config.Component, params *Params) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 	defer stopAgent(cancel)
@@ -133,7 +141,7 @@ func start(cliParams *cliParams, config config.Component) error {
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, cliParams, config)
+	err := runAgent(ctx, cliParams, config, params)
 	if err != nil {
 		return err
 	}
@@ -144,7 +152,7 @@ func start(cliParams *cliParams, config config.Component) error {
 	return nil
 }
 
-func runAgent(ctx context.Context, cliParams *cliParams, config config.Component) (err error) {
+func runAgent(ctx context.Context, cliParams *cliParams, config config.Component, params *Params) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -165,7 +173,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	syslogURI := pkgconfig.GetSyslogURI()
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultLogFile
+		logFile = params.defaultLogFile
 	}
 
 	if config.GetBool("disable_file_logging") {

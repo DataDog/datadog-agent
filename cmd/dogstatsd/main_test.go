@@ -15,7 +15,7 @@ import (
 
 func TestStartCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		makeCommands(),
+		makeCommands("defaultLogFile"),
 		[]string{"start", "--cfgpath", "PATH"},
 		start,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
