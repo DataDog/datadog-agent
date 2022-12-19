@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Lower incoming trace payload limit to 25MB. This more closely aligns with the backend limit. Some users may see traces rejected by the Agent that the agent would have previously accepted, but would have subsequently been rejected by the trace intake.
+    APM: Lower incoming trace payload limit to 25MB. This more closely aligns with the backend limit. Some users may see traces rejected by the Agent that the Agent would have previously accepted, but would have subsequently been rejected by the trace intake.
