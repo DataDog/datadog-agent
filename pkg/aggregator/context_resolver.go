@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -22,6 +23,7 @@ type Context struct {
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
 	noIndex    bool
+	origin     string // TODO(remy): consider a string interner here
 }
 
 // Tags returns tags for the context.
@@ -36,12 +38,13 @@ func (c *Context) release() {
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
-	contextsByKey map[ckey.ContextKey]*Context
-	countsByMtype []uint64
-	tagsCache     *tags.Store
-	keyGenerator  *ckey.KeyGenerator
-	taggerBuffer  *tagset.HashingTagsAccumulator
-	metricBuffer  *tagset.HashingTagsAccumulator
+	contextsByKey   map[ckey.ContextKey]*Context
+	countsByMtype   []uint64
+	tagsCache       *tags.Store
+	keyGenerator    *ckey.KeyGenerator
+	taggerBuffer    *tagset.HashingTagsAccumulator
+	metricBuffer    *tagset.HashingTagsAccumulator
+	originTelemetry bool
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -51,12 +54,13 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 
 func newContextResolver(cache *tags.Store) *contextResolver {
 	return &contextResolver{
-		contextsByKey: make(map[ckey.ContextKey]*Context),
-		countsByMtype: make([]uint64, metrics.NumMetricTypes),
-		tagsCache:     cache,
-		keyGenerator:  ckey.NewKeyGenerator(),
-		taggerBuffer:  tagset.NewHashingTagsAccumulator(),
-		metricBuffer:  tagset.NewHashingTagsAccumulator(),
+		contextsByKey:   make(map[ckey.ContextKey]*Context),
+		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
+		tagsCache:       cache,
+		keyGenerator:    ckey.NewKeyGenerator(),
+		taggerBuffer:    tagset.NewHashingTagsAccumulator(),
+		metricBuffer:    tagset.NewHashingTagsAccumulator(),
+		originTelemetry: config.Datadog.GetBool("telemetry.dogstatsd_origin"),
 	}
 }
 
@@ -67,7 +71,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
-		cr.contextsByKey[contextKey] = &Context{
+		context := Context{
 			Name:       metricSampleContext.GetName(),
 			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
 			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
@@ -75,6 +79,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			mtype:      mtype,
 			noIndex:    metricSampleContext.IsNoIndex(),
 		}
+
+		if cr.originTelemetry {
+			context.origin = metricSampleContext.GetOrigin()
+		}
+
+		cr.contextsByKey[contextKey] = &context
 		cr.countsByMtype[mtype]++
 	}
 
@@ -113,14 +123,16 @@ func (cr *contextResolver) release() {
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
 type timestampContextResolver struct {
-	resolver      *contextResolver
-	lastSeenByKey map[ckey.ContextKey]float64
+	resolver        *contextResolver
+	lastSeenByKey   map[ckey.ContextKey]float64
+	originTelemetry bool
 }
 
 func newTimestampContextResolver(cache *tags.Store) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(cache),
-		lastSeenByKey: make(map[ckey.ContextKey]float64),
+		resolver:        newContextResolver(cache),
+		lastSeenByKey:   make(map[ckey.ContextKey]float64),
+		originTelemetry: config.Datadog.GetBool("telemetry.dogstatsd_origin"),
 	}
 }
 

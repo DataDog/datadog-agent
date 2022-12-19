@@ -49,3 +49,9 @@ func (m *HistogramBucket) GetMetricType() MetricType {
 func (m *HistogramBucket) IsNoIndex() bool {
 	return false
 }
+
+// GetOrigin implements MetricSampleContext#GetOrigin but doesn't have any value to return
+// for this implementation.
+func (m *HistogramBucket) GetOrigin() string {
+	return ""
+}

@@ -129,6 +129,8 @@ var (
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
 		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
+	tlmDogstatsdContextsWithOrigin = telemetry.NewCounter("aggregator", "dogstatsd_contexts_with_origin",
+		[]string{"origin"}, "Count the contexts processed by the time samplers, per origin")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
 		nil, "How many contexts are processed in the time samplers")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",

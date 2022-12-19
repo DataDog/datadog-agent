@@ -47,10 +47,16 @@ func TestCounterWithOriginCache(t *testing.T) {
 	okCnt3, errCnt3 := cache.Get("hello-10")
 	require.NotEqual(okCnt1, okCnt3)
 	require.NotEqual(errCnt1, errCnt3)
+}
 
+func TestMetricsCounterWithOriginCache(t *testing.T) {
 	// reset the cache
+	counter := NewCounter("counter_with_origin", "second_test", []string{"message_type", "state", "origin"}, "test metric")
+	cache := NewMetricCounterWithOriginCache(counter)
 
-	cache = NewMetricCounterWithOriginCache(counter)
+	require := require.New(t)
+	require.Len(cache.cachedOrder, 0)
+	require.Len(cache.cachedCountersWithOrigin, 0)
 
 	cache.Get("container_id://abcdef")
 	require.Len(cache.cachedOrder, 1)
@@ -72,6 +78,37 @@ func TestCounterWithOriginCache(t *testing.T) {
 	require.Equal(cache.cachedOrder[1].origin, "container_id://xyz")
 	require.Equal(cache.cachedOrder[1].ok, map[string]string{"message_type": "metrics", "state": "ok", "origin": "container_id://xyz"})
 	require.Equal(cache.cachedOrder[1].err, map[string]string{"message_type": "metrics", "state": "error", "origin": "container_id://xyz"})
+}
+
+func TestContextsCounterWithOriginCache(t *testing.T) {
+	// reset the cache
+	counter := NewCounter("counter_with_origin", "third_test", []string{"origin"}, "test metric")
+	cache := NewContextCounterWithOriginCache(counter)
+
+	require := require.New(t)
+	require.Len(cache.cachedOrder, 0)
+	require.Len(cache.cachedCountersWithOrigin, 0)
+
+	cache.Get("container_id://abcdef")
+	require.Len(cache.cachedOrder, 1)
+	require.Equal(cache.cachedOrder[0].origin, "container_id://abcdef")
+	require.Equal(cache.cachedOrder[0].ok, map[string]string{"origin": "container_id://abcdef"})
+	require.Equal(cache.cachedOrder[0].err, map[string]string{"origin": "container_id://abcdef"})
+
+	cache.Get("container_id://abcdef")
+	require.Len(cache.cachedOrder, 1)
+	require.Equal(cache.cachedOrder[0].origin, "container_id://abcdef")
+	require.Equal(cache.cachedOrder[0].ok, map[string]string{"origin": "container_id://abcdef"})
+	require.Equal(cache.cachedOrder[0].err, map[string]string{"origin": "container_id://abcdef"})
+
+	cache.Get("container_id://xyz")
+	require.Len(cache.cachedOrder, 2)
+	require.Equal(cache.cachedOrder[0].origin, "container_id://abcdef")
+	require.Equal(cache.cachedOrder[0].ok, map[string]string{"origin": "container_id://abcdef"})
+	require.Equal(cache.cachedOrder[0].err, map[string]string{"origin": "container_id://abcdef"})
+	require.Equal(cache.cachedOrder[1].origin, "container_id://xyz")
+	require.Equal(cache.cachedOrder[1].ok, map[string]string{"origin": "container_id://xyz"})
+	require.Equal(cache.cachedOrder[1].err, map[string]string{"origin": "container_id://xyz"})
 }
 
 // This test is proving that no data race occurred on the cache map.

@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,13 +33,16 @@ type TimeSampler struct {
 	lastCutOffTime              int64
 	sketchMap                   sketchMap
 
+	originTelemetry bool
+	contextCounters *telemetry.CounterWithOriginCache
+
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
 	id TimeSamplerID
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, contextCounters *telemetry.CounterWithOriginCache) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -52,6 +56,11 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSa
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
+	}
+
+	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
+		s.originTelemetry = true
+		s.contextCounters = contextCounters
 	}
 
 	return s
@@ -223,11 +232,28 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
 	tlmDogstatsdContexts.Set(float64(totalContexts))
 
+	if s.originTelemetry {
+		s.reportContextsPerOrigin()
+	}
+
 	byMtype := s.contextResolver.countsByMtype()
 	for i, count := range byMtype {
 		mtype := metrics.MetricType(i).String()
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
+	}
+}
+
+func (s *TimeSampler) reportContextsPerOrigin() {
+	counts := map[string]uint64{}
+
+	for _, c := range s.contextResolver.resolver.contextsByKey {
+		counts[c.origin] = counts[c.origin] + 1
+	}
+
+	for k, v := range counts {
+		cnt, _ := s.contextCounters.Get(k)
+		cnt.Add(float64(v))
 	}
 }
 

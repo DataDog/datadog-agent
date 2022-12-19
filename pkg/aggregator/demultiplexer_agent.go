@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -191,9 +192,14 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
 
 	for i := 0; i < statsdPipelinesCount; i++ {
+		var contextCounters telemetry.CounterWithOriginCache
+		if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
+			contextCounters = telemetry.NewContextCounterWithOriginCache(tlmDogstatsdContextsWithOrigin)
+		}
+
 		// the sampler
 		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
-		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore)
+		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, &contextCounters)
 
 		// its worker (process loop + flush/serialization mechanism)
 

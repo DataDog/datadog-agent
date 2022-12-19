@@ -79,6 +79,9 @@ type MetricSampleContext interface {
 
 	// IsNoIndex returns true if the metric must not be indexed.
 	IsNoIndex() bool
+
+	// GetOrigin returns an origin if available in the underlying sample.
+	GetOrigin() string
 }
 
 // MetricSample represents a raw metric sample
@@ -133,4 +136,18 @@ func (m *MetricSample) Copy() *MetricSample {
 // IsNoIndex returns true if the metric must not be indexed.
 func (m *MetricSample) IsNoIndex() bool {
 	return m.NoIndex
+}
+
+// GetOrigin returns the origin set by the client or available
+// in the ancillary data of the UDS packet, in that order.
+func (m *MetricSample) GetOrigin() string {
+	if len(m.OriginFromClient) > 0 {
+		return m.OriginFromClient
+	}
+
+	if len(m.OriginFromUDS) > 0 {
+		return m.OriginFromUDS
+	}
+
+	return ""
 }
