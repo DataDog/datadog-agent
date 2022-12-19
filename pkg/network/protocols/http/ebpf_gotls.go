@@ -248,7 +248,12 @@ func (p *GoTLSProgram) Start() {
 	}
 	return
 failed:
-	p.procMonitor.cleanupExec()
+	if p.procMonitor.cleanupExec != nil {
+		p.procMonitor.cleanupExec()
+	}
+	if p.procMonitor.cleanupExit != nil {
+		p.procMonitor.cleanupExit()
+	}
 	return
 }
 

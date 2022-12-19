@@ -306,7 +306,7 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 
 	for _, c := range pm.procEventCallbacks[callback.Event] {
 		if c == callback {
-			return func() {}, errors.New("same callback can't be registred twice")
+			return nil, errors.New("same callback can't be registred twice")
 		}
 	}
 
@@ -320,7 +320,7 @@ func (pm *ProcessMonitor) Subscribe(callback *ProcessCallback) (UnSubscribe func
 			}
 		}
 		if !foundSibling {
-			return func() {}, errors.New("no Exec callback has been found with the same Metadata and Regex, please Subscribe(Exec callback, Metadata) first")
+			return nil, errors.New("no Exec callback has been found with the same Metadata and Regex, please Subscribe(Exec callback, Metadata) first")
 		}
 	}
 
