@@ -42,6 +42,8 @@ var (
 // Multiple team can use the same ProcessMonitor,
 // the callers need to guarantee calling each Initialize() Stop() one single time
 // this maintain an internal reference counter
+//
+// ProcessMonitor require root or CAP_NET_ADMIN capabilities
 type ProcessMonitor struct {
 	m        sync.Mutex
 	wg       sync.WaitGroup
