@@ -151,7 +151,7 @@ if __name__ == '__main__':
         args = parse_args()
         print(normalize(args.logs, args.type, args.stage))
     except Exception:
-        err = {"error":"normalization raised exception"}
+        err = {"error": "normalization raised exception"}
         err_json = json.dumps(err, indent=2)
         print(err_json)
         exit(1)
