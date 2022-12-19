@@ -160,7 +160,7 @@ func (p *ProcessMonitor) evalEXECCallback(c *ProcessCallback, pid uint32) {
 	case NAME:
 		pname, err := proc.Name()
 		if err != nil {
-			log.Warnf("process %d name parsing failed %s", pid, err)
+			log.Debugf("process %d name parsing failed %s", pid, err)
 			return
 		}
 		if c.Regex.MatchString(pname) {
