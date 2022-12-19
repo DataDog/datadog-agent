@@ -430,10 +430,16 @@ require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/streadway/amqp v1.0.0
+	go.mongodb.org/mongo-driver v1.11.1
 )
 
 require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
+	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
+	github.com/xdg-go/scram v1.1.1 // indirect
+	github.com/xdg-go/stringprep v1.0.3 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 )
 

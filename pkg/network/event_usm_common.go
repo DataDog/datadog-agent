@@ -13,6 +13,7 @@ const (
 	ProtocolHTTP
 	ProtocolHTTP2
 	ProtocolTLS
+	ProtocolMongo = 6
 	ProtocolAMQP  = 8
 	ProtocolRedis = 9
 	MaxProtocols  = 10
