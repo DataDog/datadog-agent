@@ -193,7 +193,8 @@ def repack_macos_junit_tar(infile, outfile):
             fp.write(os.environ.get("CI_JOB_URL", ""))
         with open(os.path.join(tempd, TAGS_FILE_NAME)) as fp:
             tags = fp.read()
-        tags = tags.replace("ci.job.name:", "ci.job.name:{}".format(os.environ.get("CI_JOB_NAME", "")))
+        job_name = os.environ.get("CI_JOB_NAME", "")
+        tags = tags.replace("ci.job.name:", f"ci.job.name:{job_name}")
         with open(os.path.join(tempd, TAGS_FILE_NAME), "w") as fp:
             fp.write(tags)
 
