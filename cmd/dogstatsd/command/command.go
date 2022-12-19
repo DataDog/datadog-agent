@@ -5,7 +5,7 @@
 
 //go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
-package main
+package command
 
 import (
 	"context"
