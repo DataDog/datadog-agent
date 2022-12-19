@@ -27,13 +27,6 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
         return false;                                                       \
     }                                                                       \
 
-// Kernels before 4.7 do not know about per-cpu array maps.
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
-BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER], 1)
-#else
-BPF_ARRAY_MAP(classification_buf, __u8, 1)
-#endif
-
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
@@ -152,6 +145,10 @@ static __always_inline void read_into_buffer_for_classification(char *buffer, st
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
+
+    // Check that we have enough room in the request fragment buffer. Even
+    // though that's not strictly needed here, the verifier does not know that,
+    // so this check makes it happy.
     if (i * BLK_SIZE >= CLASSIFICATION_MAX_BUFFER) {
         return;
     } else if (offset + 14 < len) {
@@ -208,6 +205,10 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     }
 
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
+
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
     const u32 key = 0;
     char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
     if (request_fragment == NULL) {
