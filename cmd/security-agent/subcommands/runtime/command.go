@@ -726,7 +726,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 
 	agent.Start(reporter, endpoints)
 
-	// TODO: Use log component instead
+	// TODO: Use log component insteadg
 	pkglog.Info("Datadog runtime security agent is now running")
 
 	return agent, nil
