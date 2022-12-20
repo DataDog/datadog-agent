@@ -6,7 +6,6 @@
 package providers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -381,7 +380,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		// at this point the Yaml was already parsed, no need to check the error
 		rawConf, _ := yaml.Marshal(instance)
 		dataConf := (integration.Data)(rawConf)
-		if fargate.IsFargateInstance(context.TODO()) {
+		if fargate.IsFargateInstance() {
 			// In Fargate, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
 			tags := config.GetConfiguredTags(false)

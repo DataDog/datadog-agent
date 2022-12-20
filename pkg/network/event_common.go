@@ -18,18 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
-type ProtocolType uint16
-
-const (
-	ProtocolUnclassified ProtocolType = iota
-	ProtocolUnknown
-	ProtocolHTTP
-	ProtocolHTTP2
-	ProtocolTLS
-	ProtocolAMQP = 8
-	MaxProtocols
-)
-
 // ConnectionType will be either TCP or UDP
 type ConnectionType uint8
 
@@ -286,9 +274,8 @@ func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 // ByteKey returns a unique key for this connection represented as a byte slice
 // It's as following:
 //
-//	 4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
-//	32b     16b     16b      4b      4b     32/128b      32/128b
-//
+//     4B      2B      2B     .5B     .5B      4/16B        4/16B   = 17/41B
+//    32b     16b     16b      4b      4b     32/128b      32/128b
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
 func (c ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
