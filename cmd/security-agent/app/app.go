@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -259,7 +260,9 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		}
 	}
 
-	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
+	var log complog.Component
+	var config compconfig.Component
+	complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
