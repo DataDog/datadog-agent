@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -695,7 +694,7 @@ func newRuntimeReporter(log log.Component, config config.Component, stopper star
 
 func newLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
 	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
-	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+	return command.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
@@ -713,7 +712,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(agent)
 
-	endpoints, context, err := newLogContextRuntime()
+	endpoints, context, err := command.NewLogContextRuntime()
 	if err != nil {
 		log.Error(err)
 	}
@@ -726,7 +725,7 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 
 	agent.Start(reporter, endpoints)
 
-	// TODO: Use log component insteadg
+	// TODO: Use log component instead
 	pkglog.Info("Datadog runtime security agent is now running")
 
 	return agent, nil

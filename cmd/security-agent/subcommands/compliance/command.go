@@ -7,14 +7,12 @@ package compliance
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
-	"strings"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -81,7 +79,7 @@ func eventRun(log log.Component, config config.Component, eventArgs *cliParams) 
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
-	endpoints, dstContext, err := common.NewLogContextCompliance()
+	endpoints, dstContext, err := command.NewLogContextCompliance()
 	if err != nil {
 		return err
 	}

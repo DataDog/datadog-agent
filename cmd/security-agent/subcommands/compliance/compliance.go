@@ -7,10 +7,10 @@ package compliance
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
@@ -29,7 +29,7 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		return nil, nil
 	}
 
-	endpoints, context, err := common.NewLogContextCompliance()
+	endpoints, context, err := command.NewLogContextCompliance()
 	if err != nil {
 		log.Error(err)
 	}
