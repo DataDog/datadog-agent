@@ -9,10 +9,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -23,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type statusCliParams struct {
+type cliParams struct {
 	*command.GlobalParams
 
 	json            bool
@@ -32,7 +31,7 @@ type statusCliParams struct {
 }
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &statusCliParams{
+	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -56,7 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(log log.Component, config config.Component, params *statusCliParams) error {
+func runStatus(log log.Component, config config.Component, params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string

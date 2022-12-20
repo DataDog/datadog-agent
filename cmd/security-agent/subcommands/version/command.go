@@ -7,17 +7,17 @@ package version
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/core"
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -36,7 +36,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{versionCmd}
 }
 
-func displayVersion(log complog.Component, config compconfig.Component) {
+func displayVersion(log log.Component, config config.Component) {
 	av, _ := version.Agent()
 	meta := ""
 	if av.Meta != "" {
