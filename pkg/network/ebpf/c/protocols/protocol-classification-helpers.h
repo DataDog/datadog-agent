@@ -95,6 +95,11 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return http;
 }
 
+struct pg_startup_header {
+    __u32 message_len; // Big-endian: use bpf_ntohl to read this field
+    __u32 version; // Big-endian: use bpf_ntohl to read this field
+} __attribute__((packed));
+
 // Regular format of postgres message: | byte tag | int32_t len | string payload |
 // From https://www.postgresql.org/docs/current/protocol-overview.html:
 // The first byte of a message identifies the message type, and the next four bytes specify the length of the rest
@@ -105,7 +110,19 @@ struct pg_message_header {
     __u32 message_len; // Big-endian: use bpf_ntohl to read this field
 } __attribute__((packed));
 
-static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
+static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, POSTGRES_STARTUP_MIN_LEN);
+
+    struct pg_startup_header *hdr = (struct pg_startup_header *)buf;
+
+    if (bpf_ntohl(hdr->version) != PG_STARTUP_VERSION) {
+        return false;
+    }
+
+    return !bpf_memcmp(buf + sizeof(*hdr), PG_STARTUP_USER_PARAM, sizeof(PG_STARTUP_USER_PARAM));
+}
+
+static __always_inline bool is_postgres_query(const char *buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, sizeof(struct pg_message_header));
 
     struct pg_message_header hdr;
@@ -123,6 +140,10 @@ static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
     }
 
     return is_sql_command(buf + sizeof(hdr), buf_size - sizeof(hdr));
+}
+
+static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
+    return is_postgres_query(buf, buf_size) || is_postgres_connect(buf, buf_size);
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param

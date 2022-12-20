@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -34,13 +33,12 @@ func PostgresTestsSupported() (bool, string) {
 	return false, ""
 }
 
-func ConnectAndGetDB(t *testing.T, serverAddr string) (*bun.DB, context.Context) {
+// GetPGHandle returns a handle on the test Postgres DB. This does not initiate
+// a connection
+func GetPGHandle(t *testing.T, serverAddr string) *sql.DB {
 	t.Helper()
 
 	time.Sleep(5 * time.Second)
-
-	ctx := context.Background()
-
 	pg := sql.OpenDB(pgdriver.NewConnector(
 		pgdriver.WithNetwork("tcp"),
 		pgdriver.WithAddr(serverAddr),
@@ -49,8 +47,18 @@ func ConnectAndGetDB(t *testing.T, serverAddr string) (*bun.DB, context.Context)
 		pgdriver.WithPassword("password"),
 		pgdriver.WithDatabase("testdb"),
 	))
-	require.NoError(t, pg.Ping())
 
+	return pg
+}
+
+// ConnectAndGetDB initiates a connection to the database, get a handle on the
+// test db, and register cleanup handlers for the test.
+func ConnectAndGetDB(t *testing.T, serverAddr string) (*bun.DB, context.Context) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	pg := GetPGHandle(t, serverAddr)
 	db := bun.NewDB(pg, pgdialect.New())
 
 	// Cleanup test tables

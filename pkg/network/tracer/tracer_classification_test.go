@@ -210,6 +210,23 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			want: network.ProtocolHTTP,
 		},
 		{
+			name: "postgres - connection",
+			want: network.ProtocolPostgres,
+			clientRun: func(t *testing.T, serverAddr string) {
+				pg := pgutils.GetPGHandle(t, serverAddr)
+				conn, err := pg.Conn(context.Background())
+				require.NoError(t, err)
+				defer conn.Close()
+			},
+			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
+				addr, _, _ := net.SplitHostPort(serverAddr)
+				port := "5432"
+				pgutils.RunPostgres(t, addr, port)
+				return net.JoinHostPort(addr, port)
+			},
+			shouldSkip: pgutils.PostgresTestsSupported,
+		},
+		{
 			name: "postgres - short query",
 			want: network.ProtocolPostgres,
 			clientRun: func(t *testing.T, serverAddr string) {
