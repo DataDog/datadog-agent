@@ -88,6 +88,7 @@ type OpenmetricsInstance struct {
 	MinCollectInterval            int                         `mapstructure:"min_collection_interval" yaml:"min_collection_interval,omitempty" json:"min_collection_interval,omitempty"`
 	EmptyDefaultHost              bool                        `mapstructure:"empty_default_hostname" yaml:"empty_default_hostname,omitempty" json:"empty_default_hostname,omitempty"`
 	MaxReturnedMetrics            int                         `mapstructure:"max_returned_metrics" yaml:"max_returned_metrics,omitempty" json:"max_returned_metrics,omitempty"`
+	TagByEndpoint                 *bool                       `mapstructure:"tag_by_endpoint" yaml:"tag_by_endpoint,omitempty" json:"tag_by_endpoint,omitempty"`
 
 	// openmetrics v2 specific fields
 	OpenMetricsEndpoint             string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                                           // Supersedes `prometheus_url`
