@@ -61,17 +61,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
-			bundleParams := core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", false))
-			bundleParams.SecurityAgentConfigFilePaths = []string{
-				path.Join(common.DefaultConfPath, "security-agent.yaml"),
-			}
-			bundleParams.ConfigLoadSecurityAgent = true
-			bundleParams.SysProbeConfFilePath = globalParams.SysProbeConfFilePath
-			bundleParams.ConfigLoadSysProbe = true
+			config := config.NewAgentParamsWithSecrets(globalParams.ConfFilePath,
+				config.WithSecurityAgentConfigFilePaths([]string{
+					path.Join(common.DefaultConfPath, "security-agent.yaml"),
+				}),
+				config.WithConfigLoadSecurityAgent(true),
+				config.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				config.WithConfigLoadSysProbe(true))
 
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
-				fx.Supply(bundleParams),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config,
+					LogParams:    log.LogForOneShot("CORE", "off", false),
+				}),
 				core.Bundle,
 			)
 		},

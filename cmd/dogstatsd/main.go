@@ -113,13 +113,14 @@ func makeCommands() []*cobra.Command {
 func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		fx.Supply(core.CreateBundleParams(
-			defaultConfPath,
-			core.WithConfFilePath(cliParams.confPath),
-			core.WithConfigLoadSecrets(true),
-			core.WithConfigMissingOK(true),
-			core.WithConfigName("dogstatsd"),
-		)),
+		fx.Supply(core.BundleParams{
+			ConfigParams: config.NewParams(
+				defaultConfPath,
+				config.WithConfFilePath(cliParams.confPath),
+				config.WithConfigLoadSecrets(true),
+				config.WithConfigMissingOK(true),
+				config.WithConfigName("dogstatsd")),
+		}),
 		core.Bundle,
 	)
 }

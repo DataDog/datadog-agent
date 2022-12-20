@@ -22,6 +22,6 @@ func TestCommand(t *testing.T) {
 		workloadList,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, true, cliParams.verboseList)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }
