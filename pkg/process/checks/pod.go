@@ -72,7 +72,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		Cfg:                cfg.Orchestrator,
 		HostName:           cfg.HostName,
 		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
+		NodeType:           model.K8SResources_POD,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 

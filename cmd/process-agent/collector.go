@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -275,9 +274,9 @@ const (
 )
 
 // getRequestID generates a unique identifier (string representation of 64 bits integer) that is composed as follows:
-//	1. 22 bits of the seconds in the current month.
-//	2. 28 bits of hash of the hostname and process agent pid.
-// 	3. 14 bits of the current message in the batch being sent to the server.
+//  1. 22 bits of the seconds in the current month.
+//  2. 28 bits of hash of the hostname and process agent pid.
+//  3. 14 bits of the current message in the batch being sent to the server.
 func (l *Collector) getRequestID(start time.Time, chunkIndex int) string {
 	// The epoch is the beginning of the month of the `start` variable.
 	epoch := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
@@ -673,7 +672,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			// Pod check metadata
 			case checks.Pod.Name():
 				updateRTStatus = false
-				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
+				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(model.K8SResources_POD))
 			// Pod check manifest data
 			case config.PodCheckManifestName:
 				updateRTStatus = false
