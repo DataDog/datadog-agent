@@ -140,6 +140,19 @@ func TestListenTCP(t *testing.T) {
 	})
 }
 
+func TestTracesDecodeMakingHugeAllocation(t *testing.T) {
+	r := newTestReceiverFromConfig(config.New())
+	r.Start()
+	defer r.Stop()
+	data := []byte{0x96, 0x97, 0xa4, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0xa6, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x96, 0x94, 0x9c, 0x00, 0x00, 0x00, 0x30, 0x30, 0xd1, 0x30, 0x30, 0x30, 0x30, 0x30, 0xdf, 0x30, 0x30, 0x30, 0x30}
+
+	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
+	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestStateHeaders(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.New()
@@ -431,6 +444,24 @@ func TestReceiverDecodingError(t *testing.T) {
 		assert.Equal(400, resp.StatusCode)
 		assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v0.4"}).TracesDropped.DecodingError.Load())
 	})
+}
+
+func TestHandleWithVersionRejectCrossSite(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(v04, r.handleTraces))
+
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, nil)
+	assert.NoError(err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(http.StatusForbidden, resp.StatusCode)
 }
 
 func TestReceiverUnexpectedEOF(t *testing.T) {

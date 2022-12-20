@@ -311,6 +311,11 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 			return
 		}
 
+		if req.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			http.Error(w, "cross-site request rejected", http.StatusForbidden)
+			return
+		}
+
 		// TODO(x): replace with http.MaxBytesReader?
 		req.Body = apiutil.NewLimitedReader(req.Body, r.conf.MaxRequestBytes)
 
