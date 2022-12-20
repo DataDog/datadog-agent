@@ -237,10 +237,15 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 				"1": valuestore.ResultValue{Value: float64(21)},
 				"2": valuestore.ResultValue{Value: float64(22)},
 			},
+			"1.3.6.1.2.1.31.1.1.1.18": {
+				"1": valuestore.ResultValue{Value: "ifAlias1"},
+				"2": valuestore.ResultValue{Value: "ifAlias2"},
+			},
 		},
 	}
 	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
+	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
 	}
@@ -258,6 +263,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 						Symbol: checkconfig.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
+						},
+					},
+					"alias": {
+						Symbol: checkconfig.SymbolConfig{
+							OID:  "1.3.6.1.2.1.31.1.1.1.18",
+							Name: "ifAlias",
 						},
 					},
 				},
@@ -280,6 +291,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	assert.NoError(t, err)
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
+	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1"}
+	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_alias:ifAlias2"}
+
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
+	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
 	// language=json
 	event := []byte(`
 {
@@ -307,7 +323,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:21"
             ],
             "index": 1,
-            "name": "21"
+			"name": "21",
+			"alias": "ifAlias1"
         },
         {
             "device_id": "1234",
@@ -315,7 +332,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
                 "interface:22"
             ],
             "index": 2,
-            "name": "22"
+            "name": "22",
+			"alias": "ifAlias2"
         }
     ],
     "collect_timestamp":1415792726

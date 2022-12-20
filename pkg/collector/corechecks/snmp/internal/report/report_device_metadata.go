@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+const interfaceStatusMetric = "snmp.interface_status"
+
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
 	tags := common.CopyStrings(origTags)
@@ -51,13 +53,13 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
-		status := ComputeStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
-		interfaceTags := append(tags, fmt.Sprintf("status:%s", status))
-		ms.sender.Gauge("snmp.interface_status", 1, "", interfaceTags)
+		status := ComputeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
+		interfaceTags := append(tags, fmt.Sprintf("status:%s", status), fmt.Sprintf("interface:%s", interfaceStatus.Name), fmt.Sprintf("interface_alias:%s", interfaceStatus.Alias))
+		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
 }
 
-func ComputeStatus(adminStatus int32, operStatus int32) string {
+func ComputeInterfaceStatus(adminStatus int32, operStatus int32) string {
 	if adminStatus == 1 {
 		switch {
 		case operStatus == 1:
