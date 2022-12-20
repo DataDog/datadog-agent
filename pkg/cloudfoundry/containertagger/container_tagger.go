@@ -90,7 +90,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 	entity := evt.Entity
 	containerID := entity.GetID().ID
 	if evt.Type == workloadmeta.EventTypeSet {
-		log.Tracef("Processing Event %s", entity.String(true))
+		log.Debugf("Processing Event %s", entity.String(true))
 
 		storeContainer := entity.(*workloadmeta.Container)
 
