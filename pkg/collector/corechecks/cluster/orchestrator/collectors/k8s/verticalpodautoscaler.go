@@ -28,7 +28,7 @@ func NewVerticalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
 	)
 }
 
-// VerticalPodAutoscalerCollector is a collector for Kubernetes Namespaces.
+// VerticalPodAutoscalerCollector is a collector for Kubernetes VPAs.
 type VerticalPodAutoscalerCollector struct {
 	informer  v1Informers.VerticalPodAutoscalerInformer
 	lister    v1Listers.VerticalPodAutoscalerLister
@@ -42,8 +42,8 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "namespaces",
+			IsStable:         false,
+			Name:             "vertical pod autoscalers",
 			NodeType:         orchestrator.K8sVerticalPodAutoscaler,
 			Version:          "v1",
 		},
