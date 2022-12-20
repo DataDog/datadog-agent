@@ -1,28 +1,28 @@
 {
     "base_branch": "main",
     "last_stable": {
-        "6": "6.40.0",
-        "7": "7.40.0"
+        "6": "6.41.0",
+        "7": "7.41.0"
     },
     "nightly": {
-        "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "INTEGRATIONS_CORE_VERSION": "7.42.x",
+        "OMNIBUS_SOFTWARE_VERSION": "7.42.x",
+        "OMNIBUS_RUBY_VERSION": "7.42.x",
         "JMXFETCH_VERSION": "0.47.2",
         "JMXFETCH_HASH": "92f9c744fe00c13c6401829b9eb50f44c5843ae9d1a14f7618531bdf0187e44f",
-        "MACOS_BUILD_VERSION": "master",
+        "MACOS_BUILD_VERSION": "7.42.x",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.1.1",
         "WINDOWS_DDNPM_SHASUM": "f52d4db27715e32008c5903393d0bc990ceb134f269fa10e76d08b3659587731",
         "SECURITY_AGENT_POLICIES_VERSION": "master"
     },
     "nightly-a7": {
-        "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
-        "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
+        "INTEGRATIONS_CORE_VERSION": "7.42.x",
+        "OMNIBUS_SOFTWARE_VERSION": "7.42.x",
+        "OMNIBUS_RUBY_VERSION": "7.42.x",
         "JMXFETCH_VERSION": "0.47.2",
         "JMXFETCH_HASH": "92f9c744fe00c13c6401829b9eb50f44c5843ae9d1a14f7618531bdf0187e44f",
-        "MACOS_BUILD_VERSION": "master",
+        "MACOS_BUILD_VERSION": "7.42.x",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.1.1",
         "WINDOWS_DDNPM_SHASUM": "f52d4db27715e32008c5903393d0bc990ceb134f269fa10e76d08b3659587731",
