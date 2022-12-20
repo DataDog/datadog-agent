@@ -20,7 +20,7 @@ var (
 
 	initEphemeralIntPair sync.Once
 	ephemeralIntPair     *sysctl.IntPair
-	mu sync.Mutex
+	mu                   sync.Mutex
 )
 
 // IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
