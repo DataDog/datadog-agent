@@ -331,12 +331,6 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
-	c.VPAInformerFactory, err = getVPAInformerFactory(c.VPAClient)
-	if err != nil {
-		log.Infof("Could not get a vpa informer factory: %v", err)
-		return err
-	}
-
 	if config.Datadog.GetBool("admission_controller.enabled") ||
 		config.Datadog.GetBool("compliance_config.enabled") ||
 		config.Datadog.GetBool("orchestrator_explorer.enabled") ||
@@ -373,6 +367,13 @@ func (c *APIClient) connect() error {
 			_ = log.Errorf("Error getting datadoghq informer Client: %s", err.Error())
 			return err
 		}
+
+		c.VPAInformerFactory, err = getVPAInformerFactory(c.VPAClient)
+		if err != nil {
+			log.Infof("Could not get a vpa informer factory: %v", err)
+			return err
+		}
+
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
