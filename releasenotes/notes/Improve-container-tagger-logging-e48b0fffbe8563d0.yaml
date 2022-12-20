@@ -1,5 +1,0 @@
----
-enhancements:
-  - |
-    Improve debug logging in the Cloud Foundry container tagger.
-
