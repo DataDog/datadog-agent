@@ -119,6 +119,11 @@ build do
     python = "#{install_dir}/embedded/bin/python2"
   end
 
+  pip_config_file = env['PIP_CONFIG_FILE']
+  pre_build_env = {
+    "PIP_CONFIG_FILE" => "#{pip_config_file}"
+  }
+
   # Install the checks along with their dependencies
   block do
     if windows?
@@ -133,14 +138,15 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
-    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools2.rb
-    command "#{pip} install wheel==0.34.1"
-    command "#{pip} install setuptools-scm==5.0.2" # Pin to the last version that supports Python 2
-    command "#{pip} install pip-tools==5.4.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools2.rb
+    command "#{pip} install wheel==0.34.1", :env => pre_build_env
+    command "#{pip} install setuptools-scm==5.0.2", :env => pre_build_env # Pin to the last version that supports Python 2
+    command "#{pip} install pip-tools==5.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib -L/opt/mqm/lib64 -L/opt/mqm/lib",
@@ -149,6 +155,7 @@ build do
     }
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
     specific_build_env = {
