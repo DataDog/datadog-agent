@@ -363,8 +363,6 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 		}).Traces().ResourceSpans().At(0)
-		_, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
-		require.False(ok)
 		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
 		timeout := time.After(500 * time.Millisecond)
 		select {
@@ -373,19 +371,6 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		case p := <-out:
 			// stats are computed this time
 			require.False(p.ClientComputedStats)
-		}
-		// after the first receive, the keyStatsComputed attribute has to be applied,
-		// so that on the second run stats are skipped
-		v, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
-		require.True(ok)
-		require.Equal("true", v.AsString())
-		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
-		select {
-		case <-timeout:
-			t.Fatal("timed out")
-		case p := <-out:
-			// stats are not computed the second time
-			require.True(p.ClientComputedStats)
 		}
 	})
 }

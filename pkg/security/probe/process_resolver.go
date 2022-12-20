@@ -447,9 +447,10 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
-	if envs, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, truncated, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{}
 		entry.EnvsEntry.SetValues(envs)
+		entry.EnvsTruncated = truncated
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
@@ -856,7 +857,7 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	entry, inserted := p.syncCache(proc, filledProc)
 	if entry != nil {
 		// consider kworker processes with 0 as ppid
-		entry.IsKworker = filledProc.Ppid == 0
+		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 	}
 
 	ppid = uint32(filledProc.Ppid)

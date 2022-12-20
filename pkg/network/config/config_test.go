@@ -122,32 +122,6 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		defer restoreGlobalConfig()
 
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
-		_, err := sysconfig.New("")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableHTTPMonitoring)
-	})
-}
-
-func TestEnableHTTPMonitoringViaHTTP(t *testing.T) {
-	t.Run("via YAML", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		_, err := sysconfig.New("./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-EnableHTTP.yaml")
-		require.NoError(t, err)
-		cfg := New()
-
-		assert.True(t, cfg.EnableHTTPMonitoring)
-	})
-
-	t.Run("via ENV variable", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "true")
-		defer os.Unsetenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
