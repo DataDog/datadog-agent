@@ -116,12 +116,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, metrics.ServiceCheckOK, tags, "")
 	}
-	deviceReachableFloat := 0.
-	if deviceReachable {
-		deviceReachableFloat = 1
-	}
-	d.sender.Gauge(deviceReachableMetric, deviceReachableFloat, tags)
-	d.sender.Gauge(deviceUnreachableMetric, 1-deviceReachableFloat, tags)
+	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
