@@ -131,6 +131,11 @@ func (params *Params) LogToFile(logFile string) {
 	params.logFileFn = func(configGetter) string { return logFile }
 }
 
+// LoggerName is the name that appears in the logfile
+func (params Params) LoggerName() string {
+	return params.loggerName
+}
+
 // These functions are used in unit tests.
 
 // LogLevelFn returns the log level
@@ -141,9 +146,4 @@ func (params Params) LogLevelFn(c configGetter) string {
 // LogFileFn returns the log file
 func (params Params) LogFileFn(c configGetter) string {
 	return params.logFileFn(c)
-}
-
-// LoggerName is the name that appears in the logfile
-func (params Params) LoggerName() string {
-	return params.loggerName
 }

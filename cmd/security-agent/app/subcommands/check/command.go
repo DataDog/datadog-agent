@@ -62,7 +62,7 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
 			if checkArgs.verbose {
-				bundleParams = bundleParams.LogForOneShot(bundleParams.LoggerName, "trace", true)
+				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(runCheck,
