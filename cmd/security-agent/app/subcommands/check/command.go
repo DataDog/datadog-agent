@@ -45,10 +45,11 @@ type checkCliParams struct {
 }
 
 func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
-	bp := core.BundleParams{
-		SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-		ConfigLoadSecurityAgent:      true,
-	}.LogForOneShot(common.LoggerName, "info", true)
+	bp := core.CreateBundleParams(
+		"",
+		core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
+		core.WithConfigLoadSecurityAgent(true),
+	).LogForOneShot(common.LoggerName, "info", true)
 
 	return Commands(bp)
 }
@@ -63,6 +64,10 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
+			if checkArgs.verbose {
+				bundleParams = bundleParams.LogForOneShot(bundleParams.LoggerName, "trace", true)
+			}
+
 			return fxutil.OneShot(runCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),

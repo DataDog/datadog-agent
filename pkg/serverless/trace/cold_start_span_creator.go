@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -61,7 +61,7 @@ func (c *ColdStartSpanCreator) create(lambdaSpan *pb.Span) {
 		Service:  service,
 		Name:     spanName,
 		Resource: functionName,
-		SpanID:   random.Random.Uint64(),
+		SpanID:   inferredspan.GenerateSpanId(),
 		TraceID:  lambdaSpan.TraceID,
 		ParentID: lambdaSpan.ParentID,
 		Start:    lambdaSpan.Start - int64(durationNs),

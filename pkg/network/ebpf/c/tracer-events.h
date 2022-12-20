@@ -25,12 +25,12 @@ static __always_inline void clean_protocol_classification(conn_tuple_t *tup) {
     conn_tuple_t *skb_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);
     if (skb_tup_ptr != NULL) {
         conn_tuple_t skb_tup = *skb_tup_ptr;
-        conn_tuple_t inverse_skb_conn_tup = {0};
-        invert_conn_tuple(skb_tup_ptr, &inverse_skb_conn_tup);
+        conn_tuple_t inverse_skb_conn_tup = *skb_tup_ptr;
+        flip_tuple(&inverse_skb_conn_tup);
         inverse_skb_conn_tup.pid = 0;
         inverse_skb_conn_tup.netns = 0;
         bpf_map_delete_elem(&connection_protocol, &inverse_skb_conn_tup);
-        bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &skb_tup);
+        bpf_map_delete_elem(&connection_protocol, &skb_tup);
     }
 
     bpf_map_delete_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple);

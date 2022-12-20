@@ -21,6 +21,10 @@ func setCorrectRight(path string) {
 	os.Chmod(path, 0700)
 }
 
+// testCheckRightsStub is a dummy checkRights stub for *nix
+func testCheckRightsStub() {
+}
+
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }
@@ -139,4 +143,23 @@ func Test_checkGroupPermission(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCheckConfigFilePermissionsOtherRights(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "agent-config-file")
+	require.Nil(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	// file exists
+	require.Error(t, checkConfigFilePermissions("/does not exists"))
+
+	require.NoError(t, os.Chmod(tmpfile.Name(), 0660))
+	require.NoError(t, checkConfigFilePermissions(tmpfile.Name()))
+
+	// other should have no write right
+	require.NoError(t, os.Chmod(tmpfile.Name(), 0664))
+	require.NoError(t, checkConfigFilePermissions(tmpfile.Name()))
+
+	require.NoError(t, os.Chmod(tmpfile.Name(), 0666))
+	require.Error(t, checkConfigFilePermissions(tmpfile.Name()))
 }

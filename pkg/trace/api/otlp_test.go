@@ -340,7 +340,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -350,6 +351,28 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ClientComputedStats", func(t *testing.T) {
+		rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{},
+				Spans: []*testutil.OTLPSpan{
+					{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}},
+				},
+			},
+		}).Traces().ResourceSpans().At(0)
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		timeout := time.After(500 * time.Millisecond)
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are computed this time
+			require.False(p.ClientComputedStats)
+		}
+	})
 }
 
 func TestOTLPSetAttributes(t *testing.T) {
@@ -852,7 +875,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				StatusCode: ptrace.StatusCodeError,
 			}),
 			out: &pb.Span{
-				Service:  "myservice",
+				Service:  "userbase",
 				Name:     "ddtracer.server",
 				Resource: "GET /path",
 				TraceID:  2594128270069917171,
@@ -1028,50 +1051,52 @@ func TestOTLPConvertSpan(t *testing.T) {
 			},
 		},
 	} {
-		lib := pcommon.NewInstrumentationScope()
-		lib.SetName(tt.libname)
-		lib.SetVersion(tt.libver)
-		assert := assert.New(t)
-		want := tt.out
-		got := o.convertSpan(tt.rattr, lib, tt.in)
-		if len(want.Meta) != len(got.Meta) {
-			t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
-		}
-		for k, v := range want.Meta {
-			switch k {
-			case "events":
-				// events contain maps with no guaranteed order of
-				// traversal; best to unpack to compare
-				var gote, wante []testutil.OTLPSpanEvent
-				if err := json.Unmarshal([]byte(v), &wante); err != nil {
-					t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-				}
-				if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
-					t.Fatalf("(%d) Error unmarshalling: %v", i, err)
-				}
-				assert.Equal(wante, gote)
-			case "_dd.container_tags":
-				// order not guaranteed, so we need to unpack and sort to compare
-				gott := strings.Split(got.Meta[tagContainersTags], ",")
-				wantt := strings.Split(want.Meta[tagContainersTags], ",")
-				sort.Strings(gott)
-				sort.Strings(wantt)
-				assert.Equal(wantt, gott)
-			default:
-				assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+		t.Run("", func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName(tt.libname)
+			lib.SetVersion(tt.libver)
+			assert := assert.New(t)
+			want := tt.out
+			got := o.convertSpan(tt.rattr, lib, tt.in)
+			if len(want.Meta) != len(got.Meta) {
+				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
 			}
-		}
-		if len(want.Metrics) != len(got.Metrics) {
-			t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
-		}
-		for k, v := range want.Metrics {
-			assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
-		}
-		want.Meta = nil
-		want.Metrics = nil
-		got.Meta = nil
-		got.Metrics = nil
-		assert.Equal(want, got, i)
+			for k, v := range want.Meta {
+				switch k {
+				case "events":
+					// events contain maps with no guaranteed order of
+					// traversal; best to unpack to compare
+					var gote, wante []testutil.OTLPSpanEvent
+					if err := json.Unmarshal([]byte(v), &wante); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					assert.Equal(wante, gote)
+				case "_dd.container_tags":
+					// order not guaranteed, so we need to unpack and sort to compare
+					gott := strings.Split(got.Meta[tagContainersTags], ",")
+					wantt := strings.Split(want.Meta[tagContainersTags], ",")
+					sort.Strings(gott)
+					sort.Strings(wantt)
+					assert.Equal(wantt, gott)
+				default:
+					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+				}
+			}
+			if len(want.Metrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
+			}
+			for k, v := range want.Metrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			want.Meta = nil
+			want.Metrics = nil
+			got.Meta = nil
+			got.Metrics = nil
+			assert.Equal(want, got, i)
+		})
 	}
 }
 

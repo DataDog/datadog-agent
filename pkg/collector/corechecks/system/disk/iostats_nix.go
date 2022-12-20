@@ -41,8 +41,8 @@ type IOCheck struct {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.commonConfigure(data, initConfig, source)
+func (c *IOCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.commonConfigure(integrationConfigDigest, data, initConfig, source)
 	return err
 }
 
@@ -130,11 +130,11 @@ func (c *IOCheck) nixIO() error {
 		diffNRIO := float64(incrementWithOverflow(ioStats.ReadCount, lastIOStats.ReadCount))
 		diffNWIO := float64(incrementWithOverflow(ioStats.WriteCount, lastIOStats.WriteCount))
 		if diffNRIO != 0 {
-			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
+			// Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			rAwait = float64(incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)) / diffNRIO
 		}
 		if diffNWIO != 0 {
-			//Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
+			// Note we use math.MaxUint32 because this value is always 32-bit, even on 64 bit machines
 			wAwait = float64(incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNWIO
 		}
 
@@ -144,7 +144,7 @@ func (c *IOCheck) nixIO() error {
 		if diffNIO != 0 {
 			avgrqsz = float64((incrementWithOverflow(ioStats.ReadBytes, lastIOStats.ReadBytes)+
 				incrementWithOverflow(ioStats.WriteBytes, lastIOStats.WriteBytes))/SectorSize) / diffNIO
-			//Note we use math.MaxUint32 because these values are always 32-bit, even on 64 bit machines
+			// Note we use math.MaxUint32 because these values are always 32-bit, even on 64 bit machines
 			aWait = float64(
 				incrementWithOverflow(ioStats.ReadTime, lastIOStats.ReadTime)+
 					incrementWithOverflow(ioStats.WriteTime, lastIOStats.WriteTime)) / diffNIO

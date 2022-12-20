@@ -114,12 +114,11 @@ func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(core.CreateBundleParams(
+			defaultConfPath,
 			core.WithConfFilePath(cliParams.confPath),
 			core.WithConfigLoadSecrets(true),
 			core.WithConfigMissingOK(true),
 			core.WithConfigName("dogstatsd"),
-			core.WithExcludeDefaultConfPath(true),
-			core.WithDefaultConfPath(defaultConfPath),
 		)),
 		core.Bundle,
 	)
@@ -241,7 +240,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.GetGlobalStore()
+		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))

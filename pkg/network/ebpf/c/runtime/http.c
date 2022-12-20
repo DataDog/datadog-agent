@@ -1,5 +1,6 @@
 #include <linux/kconfig.h>
 
+#include "bpf_tracing.h"
 #include "tracer.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
@@ -16,14 +17,14 @@
 #include "protocols/go-tls-location.h"
 #include "protocols/go-tls-conn.h"
 #include "protocols/tags-types.h"
+#include "protocols/protocol-dispatcher-helpers.h"
 
 #define SO_SUFFIX_SIZE 3
 
-// This entry point is needed to bypass a memory limit on socket filters
-// See: https://datadoghq.atlassian.net/wiki/spaces/NET/pages/2326855913/HTTP#Known-issues
-SEC("socket/http_filter_entry")
-int socket__http_filter_entry(struct __sk_buff *skb) {
-    bpf_tail_call_compat(skb, &http_progs, HTTP_PROG);
+// The entrypoint for all packets classification & decoding in universal service monitoring.
+SEC("socket/protocol_dispatcher")
+int socket__protocol_dispatcher(struct __sk_buff *skb) {
+    protocol_dispatcher_entrypoint(skb);
     return 0;
 }
 

@@ -70,7 +70,7 @@ func (h *CronJobV1Beta1Handlers) ResourceList(ctx *processors.ProcessorContext, 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *CronJobV1Beta1Handlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*batchv1beta1.CronJob).UID
 }
 

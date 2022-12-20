@@ -11,9 +11,7 @@ package resolvers
 import (
 	"fmt"
 	"testing"
-	"time"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -38,24 +36,88 @@ func TestMountResolver(t *testing.T) {
 		name string
 		args args
 	}{
+
+		{
+			"insert_root",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       27,
+								GroupID:       0,
+								Device:        1,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 1,
+								FSType:        "ext4",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						27,
+						"/",
+						nil,
+					},
+				},
+			},
+		},
+		{
+			"insert_root",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       27,
+								GroupID:       0,
+								Device:        1,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 1,
+								FSType:        "ext4",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						27,
+						"/",
+						nil,
+					},
+				},
+			},
+		},
 		{
 			"insert_overlay",
 			args{
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       127,
-							GroupID:       71,
-							Device:        52,
-							ParentMountID: 0,
-							ParentInode:   0,
-							FSType:        "overlay",
-							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       127,
+								GroupID:       71,
+								Device:        52,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 27,
+								FSType:        "overlay",
+								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+								RootStr:       "",
+							},
 						},
 					},
 				},
@@ -68,10 +130,10 @@ func TestMountResolver(t *testing.T) {
 					{
 						0,
 						"",
-						ErrMountNotFound,
+						ErrMountUndefined,
 					},
 					{
-						27,
+						22,
 						"",
 						ErrMountNotFound,
 					},
@@ -104,50 +166,53 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       27,
-							GroupID:       0,
-							Device:        1,
-							ParentMountID: 1,
-							ParentInode:   0,
-							FSType:        "ext4",
-							MountPointStr: "/",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       27,
+								GroupID:       0,
+								Device:        1,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 1,
+								FSType:        "ext4",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
 						},
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       22,
-							GroupID:       0,
-							Device:        21,
-							ParentMountID: 27,
-							ParentInode:   0,
-							FSType:        "sysfs",
-							MountPointStr: "/sys",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       22,
+								GroupID:       0,
+								Device:        21,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 27,
+								FSType:        "sysfs",
+								MountPointStr: "/sys",
+								RootStr:       "",
+							},
 						},
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       31,
-							GroupID:       0,
-							Device:        26,
-							ParentMountID: 22,
-							ParentInode:   0,
-							FSType:        "tmpfs",
-							MountPointStr: "/sys/fs/cgroup",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       31,
+								GroupID:       0,
+								Device:        26,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 22,
+								FSType:        "tmpfs",
+								MountPointStr: "/fs/cgroup",
+								RootStr:       "",
+							},
 						},
 					},
 				},
@@ -206,73 +271,77 @@ func TestMountResolver(t *testing.T) {
 				[]event{
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       27,
-							GroupID:       0,
-							Device:        1,
-							ParentMountID: 1,
-							ParentInode:   0,
-							FSType:        "ext4",
-							MountPointStr: "/",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       27,
+								GroupID:       0,
+								Device:        1,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 1,
+								FSType:        "ext4",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
 						},
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       176,
-							GroupID:       71,
-							Device:        52,
-							ParentMountID: 27,
-							ParentInode:   0,
-							FSType:        "overlay",
-							MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       176,
+								GroupID:       71,
+								Device:        52,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 27,
+								FSType:        "overlay",
+								MountPointStr: "/var/lib/docker/overlay2/f44b5a1fe134f57a31da79fa2e76ea09f8659a34edfa0fa2c3b4f52adbd91963/merged",
+								RootStr:       "",
+							},
 						},
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       638,
-							GroupID:       71,
-							Device:        52,
-							ParentMountID: 635,
-							ParentInode:   0,
-							FSType:        "bind",
-							MountPointStr: "/",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       638,
+								GroupID:       71,
+								Device:        52,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 635,
+								FSType:        "bind",
+								MountPointStr: "/",
+								RootStr:       "",
+							},
 						},
 					},
 					{
 						mount: &model.MountEvent{
-							SyscallEvent:  model.SyscallEvent{},
-							MountID:       639,
-							GroupID:       0,
-							Device:        54,
-							ParentMountID: 638,
-							ParentInode:   0,
-							FSType:        "proc",
-							MountPointStr: "proc",
-							RootMountID:   0,
-							RootInode:     0,
-							RootStr:       "",
-							FSTypeRaw:     [16]byte{},
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       639,
+								GroupID:       0,
+								Device:        54,
+								ParentInode:   0,
+								RootMountID:   0,
+								RootInode:     0,
+								ParentMountID: 638,
+								FSType:        "proc",
+								MountPointStr: "proc",
+								RootStr:       "",
+							},
 						},
 					},
 				},
 				[]testCase{
 					{
 						639,
-						"proc",
+						"/proc",
 						nil,
 					},
 				},
@@ -308,27 +377,86 @@ func TestMountResolver(t *testing.T) {
 				},
 			},
 		},
+		{
+			"identical_mountpoints",
+			args{
+				[]event{
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       32,
+								ParentMountID: 638,
+								MountPointStr: "/",
+							},
+						},
+					},
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       41,
+								ParentMountID: 32,
+								MountPointStr: "/tmp",
+							},
+						},
+					},
+					{
+						mount: &model.MountEvent{
+							SyscallEvent: model.SyscallEvent{},
+							Mount: model.Mount{
+								MountID:       42,
+								ParentMountID: 41,
+								MountPointStr: "/tmp",
+							},
+						},
+					},
+				},
+				[]testCase{
+					{
+						32,
+						"/",
+						nil,
+					},
+					{
+						41,
+						"/tmp",
+						nil,
+					},
+					{
+						42,
+						"/tmp/tmp",
+						nil,
+					},
+				},
+			},
+		},
 	}
 
+	// use pid 1 for the tests
+	var pid uint32 = 1
+
+	cr, _ := NewCgroupsResolver()
+
 	// Create mount resolver
-	mr, _ := NewMountResolver(nil)
+	mr, _ := NewMountResolver(nil, cr, MountResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(*evt.mount)
+					mr.insert(&evt.mount.Mount)
 				}
 				if evt.umount != nil {
-					if err := mr.Delete(evt.umount.MountID); err != nil {
+					mount, err := mr.ResolveMount(evt.umount.MountID, pid, "")
+					if err != nil {
 						t.Fatal(err)
 					}
+					mr.finalize(mount)
 				}
 			}
 
-			mr.dequeue(time.Now().Add(1 * time.Minute))
-
 			for _, testC := range tt.args.cases {
-				p, _, err := mr.ResolveMountPaths(testC.mountID, 0)
+				p, err := mr.ResolveMountPath(testC.mountID, pid, "")
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -344,90 +472,85 @@ func TestMountResolver(t *testing.T) {
 }
 
 func TestMountGetParentPath(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mr := &MountResolver{
-		mounts: map[uint32]*model.MountEvent{
+		mounts: map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
-				MountPointStr: "/a",
+				MountPointStr: "/",
 			},
 			2: {
 				MountID:       2,
 				ParentMountID: 1,
-				MountPointStr: "/b",
+				MountPointStr: "/a",
 			},
 			3: {
 				MountID:       3,
 				ParentMountID: 2,
+				MountPointStr: "/b",
+			},
+			4: {
+				MountID:       4,
+				ParentMountID: 3,
 				MountPointStr: "/c",
 			},
 		},
-		parentPathCache: parentPathCache,
 	}
 
-	parentPath, _ := mr.getParentPath(3)
+	parentPath, err := mr.getMountPath(4)
+	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
 
 func TestMountLoop(t *testing.T) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	mr := &MountResolver{
-		mounts: map[uint32]*model.MountEvent{
+		mounts: map[uint32]*model.Mount{
 			1: {
 				MountID:       1,
-				ParentMountID: 3,
-				MountPointStr: "/a",
+				MountPointStr: "/",
 			},
 			2: {
 				MountID:       2,
-				ParentMountID: 1,
-				MountPointStr: "/b",
+				ParentMountID: 4,
+				MountPointStr: "/a",
 			},
 			3: {
 				MountID:       3,
 				ParentMountID: 2,
+				MountPointStr: "/b",
+			},
+			4: {
+				MountID:       4,
+				ParentMountID: 3,
 				MountPointStr: "/c",
 			},
 		},
-		parentPathCache: parentPathCache,
 	}
 
-	parentPath, err := mr.getParentPath(3)
+	parentPath, err := mr.getMountPath(3)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	mr := &MountResolver{
-		mounts:          make(map[uint32]*model.MountEvent),
-		parentPathCache: parentPathCache,
+		mounts: make(map[uint32]*model.Mount),
 	}
 
-	var parentID uint32
-	for i := uint32(0); i != 100; i++ {
-		mr.mounts[i+1] = &model.MountEvent{
+	mr.mounts[1] = &model.Mount{
+		MountID:       1,
+		MountPointStr: "/",
+	}
+
+	for i := uint32(1); i != 100; i++ {
+		mr.mounts[i+1] = &model.Mount{
 			MountID:       i + 1,
-			ParentMountID: parentID,
+			ParentMountID: i,
 			MountPointStr: fmt.Sprintf("/%d", i+1),
 		}
-		parentID = i
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getParentPath(0)
+		_, _ = mr.getMountPath(100)
 	}
 }

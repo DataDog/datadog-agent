@@ -41,11 +41,14 @@ type UnassignedPodCollector struct {
 func NewUnassignedPodCollector() *UnassignedPodCollector {
 	return &UnassignedPodCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "pods",
-			NodeType:         orchestrator.K8sPod,
-			Version:          "v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "pods",
+			NodeType:                  orchestrator.K8sPod,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PodHandlers)),
 	}

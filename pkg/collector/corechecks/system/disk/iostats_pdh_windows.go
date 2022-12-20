@@ -43,8 +43,10 @@ type IOCheck struct {
 	core.CheckBase
 	blacklist          *regexp.Regexp
 	lowercaseDeviceTag bool
-	counters           map[string]*pdhutil.PdhMultiInstanceCounterSet
-	counternames       map[string]string
+	pdhQuery           *pdhutil.PdhQuery
+	// maps metric to counter object
+	counters     map[string]pdhutil.PdhMultiInstanceCounter
+	counternames map[string]string
 }
 
 var pfnGetDriveType = getDriveType
@@ -70,8 +72,14 @@ func isDrive(instance string) bool {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
-	err := c.commonConfigure(data, initConfig, source)
+func (c *IOCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.commonConfigure(integrationConfigDigest, data, initConfig, source)
+	if err != nil {
+		return err
+	}
+
+	// Create PDH query
+	c.pdhQuery, err = pdhutil.CreatePdhQuery()
 	if err != nil {
 		return err
 	}
@@ -86,9 +94,9 @@ func (c *IOCheck) Configure(data integration.Data, initConfig integration.Data, 
 		"Avg. Disk sec/Write":       "system.io.w_await",
 	}
 
-	c.counters = make(map[string]*pdhutil.PdhMultiInstanceCounterSet)
+	c.counters = make(map[string]pdhutil.PdhMultiInstanceCounter)
 	for name := range c.counternames {
-		c.counters[name] = nil
+		c.counters[name] = c.pdhQuery.AddEnglishMultiInstanceCounter("LogicalDisk", name, isDrive)
 	}
 
 	return nil
@@ -100,56 +108,55 @@ func (c *IOCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	// Try to initialize any nil counters
-	for name := range c.counternames {
-		if c.counters[name] == nil {
-			c.counters[name], err = pdhutil.GetEnglishMultiInstanceCounter("LogicalDisk", name, isDrive)
-			if err != nil {
-				c.Warnf("io.Check: could not establish LogicalDisk '%v' counter: %v", name, err)
-			}
-		}
-	}
-	var tagbuff bytes.Buffer
-	for cname, cset := range c.counters {
-		if cset == nil {
-			// counter is not yet initialized
-			continue
-		}
-		// get counter values
-		vals, err := cset.GetAllValues()
-		if err != nil {
-			c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
-			continue
-		}
-		for inst, val := range vals {
-			if c.blacklist != nil && c.blacklist.MatchString(inst) {
-				log.Debugf("matched drive %s against blacklist; skipping", inst)
+
+	// Fetch PDH query values
+	err = c.pdhQuery.CollectQueryData()
+	if err == nil {
+		// Get values for PDH counters
+		var tagbuff bytes.Buffer
+		for cname, counter := range c.counters {
+			if counter == nil {
+				// counter is not yet initialized
 				continue
 			}
-			tagbuff.Reset()
-			tagbuff.WriteString("device:")
-			if c.lowercaseDeviceTag {
-				inst = strings.ToLower(inst)
+			// get counter values
+			vals, err := counter.GetAllValues()
+			if err != nil {
+				c.Warnf("io.Check: Error getting values for %v: %v", cname, err)
+				continue
 			}
-			tagbuff.WriteString(inst)
-			tags := []string{tagbuff.String()}
+			for inst, val := range vals {
+				if c.blacklist != nil && c.blacklist.MatchString(inst) {
+					log.Debugf("matched drive %s against blacklist; skipping", inst)
+					continue
+				}
+				tagbuff.Reset()
+				tagbuff.WriteString("device:")
+				if c.lowercaseDeviceTag {
+					inst = strings.ToLower(inst)
+				}
+				tagbuff.WriteString(inst)
+				tags := []string{tagbuff.String()}
 
-			if !driveLetterPattern.MatchString(inst) {
-				// if this is not a drive letter, add device_name to tags
-				tags = append(tags, "device_name:"+inst)
-			}
+				if !driveLetterPattern.MatchString(inst) {
+					// if this is not a drive letter, add device_name to tags
+					tags = append(tags, "device_name:"+inst)
+				}
 
-			if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
-				val /= kB
-			}
-			if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
-				// r_await/w_await are in milliseconds, but the performance counter
-				// is (obviously) in seconds.  Normalize:
-				val *= 1000
-			}
+				if cname == "Disk Write Bytes/sec" || cname == "Disk Read Bytes/sec" {
+					val /= kB
+				}
+				if cname == "Avg. Disk sec/Read" || cname == "Avg. Disk sec/Write" {
+					// r_await/w_await are in milliseconds, but the performance counter
+					// is (obviously) in seconds.  Normalize:
+					val *= 1000
+				}
 
-			sender.Gauge(c.counternames[cname], val, "", tags)
+				sender.Gauge(c.counternames[cname], val, "", tags)
+			}
 		}
+	} else {
+		c.Warnf("file_handle.Check: Could not collect performance counter data: %v", err)
 	}
 
 	sender.Commit()

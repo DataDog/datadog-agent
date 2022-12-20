@@ -96,6 +96,16 @@ api_key:
 #
 # hostname_fqdn: false
 
+## @param hostname_trust_uts_namespace - boolean - optional - default: false
+## @env DD_HOSTNAME_TRUST_UTS_NAMESPACE - boolean - optional - default: false
+## By default the Agent does not trust the hostname value retrieved from non-root UTS namespace,
+## as it's usually a generated name, unrelated to the host (e.g. when running in a container).
+## When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
+## hostname resolution.
+## (Linux only)
+#
+# hostname_trust_uts_namespace: false
+
 ## @param host_aliases - list of strings - optional
 ## @env DD_HOST_ALIASES - space separated list of strings - optional
 ## List of host aliases to report in addition to any aliases collected
@@ -701,6 +711,17 @@ api_key:
 #
 # secret_backend_skip_checks: false
 
+## @param secret_backend_command_sha256 - string - optional
+## @env DD_SECRET_BACKEND_COMMAND_SHA256 - string - optional
+## `secret_backend_command_sha256` is the expected SHA256 of the backend command executable.
+## If `secret_backend_command_sha256` is used, the following restrictions are in place:
+## - Value specified in the `secret_backend_command` setting must be an absolute path.
+## - Permissions for the datadog.yaml config file must disallow write access by unprivileged accounts.
+## The agent will refuse to start if the actual SHA256 of 'secret_backend_command' executable is different
+## from the one specified by `secret_backend_command_sha256`.
+#
+# secret_backend_command_sha256: <SHA256>
+
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
@@ -885,17 +906,6 @@ api_key:
     #
     # oid_batch_size: 5
 
-{{- if (eq .OS "windows")}}
-  ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
-  ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
-  ## iis and windows_performance_counters.
-  ## Refresh can be disabled by setting the interval to 0.
-  #
-  # windows_counter_refresh_interval: 60
-{{ end }}
-
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1014,8 +1024,8 @@ api_key:
   ## @param open_files_limit - integer - optional - default: 500
   ## @env DD_LOGS_CONFIG_OPEN_FILES_LIMIT - integer - optional - default: 500
   ## The maximum number of files that can be tailed in parallel.
-  # Note: the default for windows and Mac OS is 200. The default for
-  # all other systems is 500.
+  ## Note: the default for windows and Mac OS is 200. The default for
+  ## all other systems is 500.
   #
   # open_files_limit: 500
 
@@ -1173,7 +1183,7 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## @env DD_APM_IGNORE_RESOURCES - space separated list of strings - optional
+  ## @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
   ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #

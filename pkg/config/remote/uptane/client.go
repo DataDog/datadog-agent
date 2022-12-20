@@ -8,12 +8,13 @@ package uptane
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/go-tuf/client"
+	"github.com/DataDog/go-tuf/data"
 	"github.com/pkg/errors"
-	"github.com/theupdateframework/go-tuf/client"
-	"github.com/theupdateframework/go-tuf/data"
 	"go.etcd.io/bbolt"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -213,7 +214,8 @@ func (c *Client) updateRepos(response *pbgo.LatestConfigsResponse) error {
 	}
 	_, err = c.configTUFClient.Update()
 	if err != nil {
-		return errors.Wrap(err, "could not update config repository")
+		e := fmt.Sprintf("could not update config repository [%s]", configMetasUpdateSummary(response.ConfigMetas))
+		return errors.Wrap(err, e)
 	}
 	return nil
 }
@@ -359,4 +361,34 @@ func (c *Client) verifyUptane() error {
 		}
 	}
 	return nil
+}
+
+func configMetasUpdateSummary(metas *pbgo.ConfigMetas) string {
+	if metas == nil {
+		return "no metas in update"
+	}
+
+	var b strings.Builder
+
+	if len(metas.Roots) != 0 {
+		b.WriteString("roots=")
+		for i := 0; i < len(metas.Roots)-2; i++ {
+			b.WriteString(fmt.Sprintf("%d,", metas.Roots[i].Version))
+		}
+		b.WriteString(fmt.Sprintf("%d ", metas.Roots[len(metas.Roots)-1].Version))
+	}
+
+	if metas.TopTargets != nil {
+		b.WriteString(fmt.Sprintf("targets=%d ", metas.TopTargets.Version))
+	}
+
+	if metas.Snapshot != nil {
+		b.WriteString(fmt.Sprintf("snapshot=%d ", metas.Snapshot.Version))
+	}
+
+	if metas.Timestamp != nil {
+		b.WriteString(fmt.Sprintf("timestamp=%d", metas.Timestamp.Version))
+	}
+
+	return b.String()
 }

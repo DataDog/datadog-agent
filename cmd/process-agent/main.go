@@ -9,35 +9,14 @@
 package main
 
 import (
-	"os"
-
-	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 )
 
-func rootCmdRun(cmd *cobra.Command, args []string) {
+const useWinParams = false
+
+func rootCmdRun(globalParams *command.GlobalParams) {
 	exit := make(chan struct{})
 
 	// Invoke the Agent
-	runAgent(exit)
-}
-
-func main() {
-	rootCmd.PersistentFlags().StringVar(&opts.configPath, flags.CfgPath, flags.DefaultConfPath, "Path to datadog.yaml config")
-
-	if flags.DefaultSysProbeConfPath != "" {
-		rootCmd.PersistentFlags().StringVar(&opts.sysProbeConfigPath, flags.SysProbeConfig, flags.DefaultSysProbeConfPath, "Path to system-probe.yaml config")
-	}
-
-	rootCmd.PersistentFlags().StringVarP(&opts.pidfilePath, "pid", "p", "", "Path to set pidfile for process")
-	rootCmd.PersistentFlags().BoolVarP(&opts.info, "info", "i", false, "Show info about running process agent and exit")
-	rootCmd.PersistentFlags().BoolP("version", "v", false, "[deprecated] Print the version and exit")
-	rootCmd.PersistentFlags().String("check", "",
-		"[deprecated] Run a specific check and print the results. Choose from: process, rtprocess, container, rtcontainer, connections, process_discovery")
-
-	os.Args = fixDeprecatedFlags(os.Args, os.Stdout)
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(-1)
-	}
+	runAgent(globalParams, exit)
 }
