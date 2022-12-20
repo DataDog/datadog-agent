@@ -8,6 +8,7 @@ package flare
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -56,8 +57,8 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().StringVarP(&cliParams.customerEmail, flags.Email, "e", "", "Your email")
+	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, flags.Send, "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
