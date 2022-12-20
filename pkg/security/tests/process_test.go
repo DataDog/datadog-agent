@@ -102,7 +102,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_rule_args_envs",
-			Expression: `exec.file.name == "ls" && exec.args =~ "-al*" && exec.envs =~ "LD_*"`,
+			Expression: `exec.file.name == "ls" && exec.args in [~"*-al*"] && exec.envs in [~"LD_*"]`,
 		},
 		{
 			ID:         "test_rule_argv",
@@ -409,12 +409,12 @@ func TestProcessContext(t *testing.T) {
 			args = append(args, eval.RandString(50))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
@@ -435,7 +435,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -450,12 +450,12 @@ func TestProcessContext(t *testing.T) {
 			args = append(args, eval.RandString(500))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
@@ -480,7 +480,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -550,14 +550,14 @@ func TestProcessContext(t *testing.T) {
 			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			bin := "ls"
 			if kind == dockerWrapperType {
 				bin = "env"
 			}
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
@@ -578,7 +578,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("envs not truncated: %s", execEnvp.([]string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -601,14 +601,14 @@ func TestProcessContext(t *testing.T) {
 			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			bin := "ls"
 			if kind == dockerWrapperType {
 				bin = "env"
 			}
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
@@ -633,7 +633,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("envs not truncated: %s", execEnvp.([]string))
 			}
-		}))
+		})
 	})
 
 	t.Run("tty", func(t *testing.T) {
