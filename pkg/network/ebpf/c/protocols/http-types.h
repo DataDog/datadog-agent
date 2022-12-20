@@ -68,6 +68,29 @@ typedef struct {
     __u64 tags;
 } http_transaction_t;
 
+// HTTP2 transaction information associated to a certain socket (tuple_t)
+typedef struct {
+    conn_tuple_t tup;
+    __u64 request_started;
+    __u8  request_method;
+    __u16 response_status_code;
+    __u64 response_last_seen;
+    __u32 current_offset_in_request_fragment;
+    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
+
+    // this field is used exclusively in the kernel side to prevent a TCP segment
+    // to be processed twice in the context of localhost traffic. The field will
+    // be populated with the "original" (pre-normalization) source port number of
+    // the TCP segment containing the beginning of a given HTTP request
+    __u16 owned_by_src_port;
+
+    // this field is used to disambiguate segments in the context of keep-alives
+    // we populate it with the TCP seq number of the request and then the response segments
+    __u32 tcp_seq;
+
+    __u64 tags;
+} http2_transaction_t;
+
 typedef struct {
     // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
     // this is useful for detecting race conditions that result in a batch being overrriden

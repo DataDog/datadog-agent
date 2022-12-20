@@ -12,6 +12,8 @@
 #include "protocols/http.h"
 #include "protocols/http-buffer.h"
 #include "protocols/https.h"
+#include "protocols/http2.h"
+#include "protocols/http2-defs.h"
 #include "protocols/go-tls-types.h"
 #include "protocols/go-tls-goid.h"
 #include "protocols/go-tls-location.h"
@@ -49,6 +51,54 @@ int socket__http_filter(struct __sk_buff *skb) {
 
     read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
     http_process(&http, &skb_info, NO_TAGS);
+    return 0;
+}
+
+// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+// We check that the given buffer is not empty and its size is at least 24 bytes.
+static __always_inline bool http2_marker_prefix(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, 9)
+
+#define HTTP2_PREFIX "PRI * HTT"
+
+    bool match = !bpf_memcmp(buf, HTTP2_PREFIX, sizeof(HTTP2_PREFIX)-1);
+
+    return match;
+}
+
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    skb_info_t skb_info;
+    http2_transaction_t http;
+    bpf_memset(&http, 0, sizeof(http));
+
+    if (!read_conn_tuple_skb(skb, &skb_info, &http.tup)) {
+        return 0;
+    }
+
+    // src_port represents the source port number *before* normalization
+    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+    http.owned_by_src_port = http.tup.sport;
+    normalize_tuple(&http.tup);
+
+    read_into_buffer_skb((char *)http.request_fragment, skb, &skb_info);
+
+    // Check if the current buf is the http2 magic (* HTTP/2.0\r\n\r\nSM\r\n\r\n) prefix
+    if (http2_marker_prefix(http.request_fragment, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE)) {
+        // Validate that the extra 15 bytes after the prefix is the suffix of the magic.
+        if (is_http2_preface(http.request_fragment,  skb->len)) {
+            log_debug("[http2] http2 magic was found");
+        }
+        // Validate that there are more frames after the magic.
+        if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+          return 0;
+        }
+
+        // Update the position to be after the magic.
+        http.current_offset_in_request_fragment += HTTP2_MARKER_SIZE;
+    }
+
+    process_http2_frames(&http, skb);
     return 0;
 }
 

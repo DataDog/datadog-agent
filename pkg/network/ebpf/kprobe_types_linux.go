@@ -77,6 +77,43 @@ type _Ctype_struct_msghdr uint64
 
 type TCPState uint8
 
+type StaticTableEnumKey = uint8
+
+const (
+	AuthorityKey StaticTableEnumKey = 0x1
+	MethodKey    StaticTableEnumKey = 0x2
+	PathKey      StaticTableEnumKey = 0x4
+	SchemeKey    StaticTableEnumKey = 0x6
+	StatusKey    StaticTableEnumKey = 0x9
+)
+
+type StaticTableEnumValue = uint8
+
+const (
+	GetValue       StaticTableEnumValue = 0x2
+	PostValue      StaticTableEnumValue = 0x3
+	EmptyPathValue StaticTableEnumValue = 0x4
+	IndexPathValue StaticTableEnumValue = 0x5
+	HttpValue      StaticTableEnumValue = 0x6
+	HttpsValue     StaticTableEnumValue = 0x7
+	K200Value      StaticTableEnumValue = 0x8
+	K204Value      StaticTableEnumValue = 0x9
+	K206Value      StaticTableEnumValue = 0xa
+	K304Value      StaticTableEnumValue = 0xb
+	K400Value      StaticTableEnumValue = 0xc
+	K404Value      StaticTableEnumValue = 0xd
+	K500Value      StaticTableEnumValue = 0xe
+)
+
+type StaticTableValue struct {
+	Name  uint8
+	Value uint8
+}
+
+type DynamicTableEnumKey = uint8
+
+type DynamicTableEnumValue = uint8
+
 const (
 	Established TCPState = 0x1
 	Close       TCPState = 0x7

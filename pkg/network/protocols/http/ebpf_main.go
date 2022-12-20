@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/iovisor/gobpf/pkg/cpupossible"
@@ -40,7 +41,8 @@ const (
 	protocolDispatcherSocketFilterFunction = "socket__protocol_dispatcher"
 	protocolDispatcherProgramsMap          = "protocols_progs"
 
-	httpSocketFilter = "socket/http_filter"
+	httpSocketFilter  = "socket/http_filter"
+	http2SocketFilter = "socket/http2_filter"
 
 	// maxActive configures the maximum number of instances of the
 	// kretprobe-probed functions handled simultaneously.  This value should be
@@ -104,6 +106,14 @@ var tailCalls = []manager.TailCallRoute{
 			EBPFFuncName: "socket__http_filter",
 		},
 	},
+	{
+		ProgArrayName: protocolDispatcherProgramsMap,
+		Key:           uint32(ProtocolHTTP2),
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFSection:  http2SocketFilter,
+			EBPFFuncName: "socket__http2_filter",
+		},
+	},
 }
 
 func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -124,6 +134,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
+			{Name: "http2_static_table"},
+			{Name: "http2_dynamic_table"},
 		},
 		PerfMaps: []*manager.PerfMap{
 			{
@@ -265,6 +277,144 @@ func (e *ebpfProgram) Init() error {
 	err = e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
+	}
+
+	staticTable, _, err := e.Manager.GetMap(string(probes.StaticTableMap))
+	if err == nil {
+		type staticTableEntry struct {
+			Index uint64
+			Value netebpf.StaticTableValue
+		}
+
+		staticTableEntries := []staticTableEntry{
+			{
+				Index: 1,
+				Value: netebpf.StaticTableValue{
+					Name: netebpf.AuthorityKey,
+				},
+			},
+			{
+				Index: 2,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.MethodKey,
+					Value: netebpf.GetValue,
+				},
+			},
+			{
+				Index: 3,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.MethodKey,
+					Value: netebpf.PostValue,
+				},
+			},
+			{
+				Index: 4,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.PathKey,
+					Value: netebpf.EmptyPathValue,
+				},
+			},
+			{
+				Index: 5,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.PathKey,
+					Value: netebpf.IndexPathValue,
+				},
+			},
+			{
+				Index: 6,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.SchemeKey,
+					Value: netebpf.HttpValue,
+				},
+			},
+			{
+				Index: 7,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.SchemeKey,
+					Value: netebpf.HttpsValue,
+				},
+			},
+			{
+				Index: 8,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K200Value,
+				},
+			},
+			{
+				Index: 9,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K204Value,
+				},
+			},
+			{
+				Index: 10,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K206Value,
+				},
+			},
+			{
+				Index: 11,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K304Value,
+				},
+			},
+			{
+				Index: 12,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K400Value,
+				},
+			},
+			{
+				Index: 13,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K404Value,
+				},
+			},
+			{
+				Index: 14,
+				Value: netebpf.StaticTableValue{
+					Name:  netebpf.StatusKey,
+					Value: netebpf.K500Value,
+				},
+			},
+		}
+
+		for _, entry := range staticTableEntries {
+			err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+
+	dnymicTable, _, err := e.Manager.GetMap(string(probes.DynamicTableMap))
+	if err == nil {
+		type dynamicTableEntry struct {
+			Index uint64
+			Value netebpf.DynamicTableEnumValue
+		}
+
+		dynamicTableEntries := []dynamicTableEntry{
+			{
+				Index: 1,
+			},
+		}
+
+		for _, entry := range dynamicTableEntries {
+			err := dnymicTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
 	}
 
 	return nil
