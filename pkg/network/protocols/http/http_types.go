@@ -30,11 +30,14 @@ type libPath C.lib_path_t
 type ProtocolType C.protocol_t
 
 const (
-	ProtocolUnknown ProtocolType = C.PROTOCOL_UNKNOWN
-	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
-	ProtocolHTTP2   ProtocolType = C.PROTOCOL_HTTP2
-	ProtocolTLS     ProtocolType = C.PROTOCOL_TLS
-	ProtocolMax     ProtocolType = C.MAX_PROTOCOLS
+	ProtocolUnknown  ProtocolType = C.PROTOCOL_UNKNOWN
+	ProtocolHTTP     ProtocolType = C.PROTOCOL_HTTP
+	ProtocolHTTP2    ProtocolType = C.PROTOCOL_HTTP2
+	ProtocolTLS      ProtocolType = C.PROTOCOL_TLS
+	ProtocolKafka    ProtocolType = C.PROTOCOL_KAFKA
+	ProtocolMongo    ProtocolType = C.PROTOCOL_MONGO
+	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
+	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 
 const (

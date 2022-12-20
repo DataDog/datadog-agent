@@ -58,11 +58,14 @@ type libPath struct {
 type ProtocolType uint8
 
 const (
-	ProtocolUnknown ProtocolType = 0x1
-	ProtocolHTTP    ProtocolType = 0x2
-	ProtocolHTTP2   ProtocolType = 0x3
-	ProtocolTLS     ProtocolType = 0x4
-	ProtocolMax     ProtocolType = 0x8
+	ProtocolUnknown  ProtocolType = 0x1
+	ProtocolHTTP     ProtocolType = 0x2
+	ProtocolHTTP2    ProtocolType = 0x3
+	ProtocolTLS      ProtocolType = 0x4
+	ProtocolKafka    ProtocolType = 0x5
+	ProtocolMongo    ProtocolType = 0x6
+	ProtocolPostgres ProtocolType = 0x7
+	ProtocolMax      ProtocolType = 0x8
 )
 
 const (

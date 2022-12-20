@@ -32,7 +32,7 @@ BPF_HASH_MAP(connection_states, conn_tuple_t, u32, 1024)
 // are allowed on map elements, hence the need for this map.
 BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER], 1)
 #else
-BPF_ARRAY_MAP(classification_buf, __u8, 1)
+BPF_ARRAY_MAP(classification_buf, __u32, 1)
 #endif
 
 #endif
