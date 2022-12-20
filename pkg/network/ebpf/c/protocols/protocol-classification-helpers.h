@@ -103,11 +103,10 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 struct pg_message_header {
     __u8 message_tag;
     __u32 message_len; // Big-endian: use bpf_ntohl to read this field
-} __attribute__((aligned(8)));
-#define PG_HDR_SIZE 5
+} __attribute__((packed));
 
 static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, POSTGRES_MIN_MSG_SIZE);
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, sizeof(struct pg_message_header));
 
     struct pg_message_header hdr;
     hdr.message_tag = *buf;
@@ -123,7 +122,7 @@ static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
         return false;
     }
 
-    return is_sql_command(buf+5, buf_size - 5);
+    return is_sql_command(buf + sizeof(hdr), buf_size - sizeof(hdr));
 }
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param

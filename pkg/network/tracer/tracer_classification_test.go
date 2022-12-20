@@ -23,8 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/postgres"
 )
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
@@ -213,21 +213,21 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			name: "postgres - short query",
 			want: network.ProtocolPostgres,
 			clientRun: func(t *testing.T, serverAddr string) {
-				db, ctx := postgres.ConnectAndGetDB(t, serverAddr)
+				db, ctx := pgutils.ConnectAndGetDB(t, serverAddr)
 
-				_, err := db.NewCreateTable().Model((*postgres.DummyTable)(nil)).Exec(ctx)
+				_, err := db.NewCreateTable().Model((*pgutils.DummyTable)(nil)).Exec(ctx)
 				require.NoError(t, err)
 
-				_, err = db.NewInsert().Model(&postgres.DummyTable{Foo: "bar"}).Exec(ctx)
+				_, err = db.NewInsert().Model(&pgutils.DummyTable{Foo: "bar"}).Exec(ctx)
 				require.NoError(t, err)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				addr, _, _ := net.SplitHostPort(serverAddr)
 				port := "5432"
-				postgres.RunPostgres(t, addr, port)
+				pgutils.RunPostgres(t, addr, port)
 				return net.JoinHostPort(addr, port)
 			},
-			shouldSkip: postgres.PostgresTestsSupported,
+			shouldSkip: pgutils.PostgresTestsSupported,
 		},
 		{
 			// Test that we classify long queries that would be
@@ -235,18 +235,18 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			name: "postgres - long query",
 			want: network.ProtocolPostgres,
 			clientRun: func(t *testing.T, serverAddr string) {
-				db, ctx := postgres.ConnectAndGetDB(t, serverAddr)
+				db, ctx := pgutils.ConnectAndGetDB(t, serverAddr)
 
 				// This will fail but it should make a query and be classified
-				_, _ = db.NewInsert().Model(&postgres.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(ctx)
+				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(ctx)
 			},
 			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
 				addr, _, _ := net.SplitHostPort(serverAddr)
 				port := "5432"
-				postgres.RunPostgres(t, addr, port)
+				pgutils.RunPostgres(t, addr, port)
 				return net.JoinHostPort(addr, port)
 			},
-			shouldSkip: postgres.PostgresTestsSupported,
+			shouldSkip: pgutils.PostgresTestsSupported,
 		},
 	}
 	for _, tt := range tests {
