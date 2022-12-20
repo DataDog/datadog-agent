@@ -182,3 +182,22 @@ def produce_junit_tar(files, result_path):
         job_url_info.size = job_url_file.getbuffer().nbytes
         job_url_file.seek(0)
         tgz.addfile(job_url_info, job_url_file)
+
+
+def repack_macos_junit_tar(infile, outfile):
+    with tarfile.open(infile) as infp, tarfile.open(outfile, "w:gz") as outfp, tempfile.TemporaryDirectory() as tempd:
+        infp.extractall(tempd)
+
+        # write the proper job url and job name
+        with open(os.path.join(tempd, JOB_URL_FILE_NAME), "w") as fp:
+            fp.write(os.environ.get("CI_JOB_URL", ""))
+        with open(os.path.join(tempd, TAGS_FILE_NAME)) as fp:
+            tags = fp.read()
+        job_name = os.environ.get("CI_JOB_NAME", "")
+        tags = tags.replace("ci.job.name:", f"ci.job.name:{job_name}")
+        with open(os.path.join(tempd, TAGS_FILE_NAME), "w") as fp:
+            fp.write(tags)
+
+        # pack all files to a new tarball
+        for f in os.listdir(tempd):
+            outfp.add(os.path.join(tempd, f), arcname=f)
