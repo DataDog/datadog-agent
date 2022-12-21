@@ -215,25 +215,46 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
                     log_debug("[http2] wow");
                 }
 
-                __u64 index = 1;
+//                __u64 index = 1;
 //                __u32 test = 2;
+                char* beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
 
 
-                // todo: need to come back to copy the buffers and check if it is working
-                char buffer[30];
-                bpf_memcpy(&http2_transaction->request_fragment, buffer, 2);
+//                if ((beginning > http2_transaction->request_fragment + HTTP2_MAX_PATH_LEN ) || (beginning + HTTP2_MAX_PATH_LEN > http2_transaction->request_fragment + HTTP_BUFFER_SIZE)) {
+//                    return;
+//                }
+                bpf_memcpy(http2_transaction->request_fragment_bla, beginning, HTTP2_MAX_PATH_LEN);
 
-                log_debug("[http2] test buffer is %s", buffer[0]);
-                log_debug("[http2] test buffer is %s", buffer[1]);
+//                 __u8 test = http2_transaction->request_fragment_bla[0];
+//                 log_debug("[http2] ------------ first char bla in 0 spot is %d", test);
+//                 if (test > 0){
+//                     log_debug("[http2] wow33333");
+//                 }
 
+//                __u8 wow = *(http2_transaction->request_fragment_bla);
+//                if (wow > 0){
+//                    log_debug("[http2] wow");
+//                }
+//                log_debug("[http2] ------------ first char %d", wow);
+//                log_debug("[http2] ----------------------------------------");
+//                log_debug("[http2] test buffer is 0 %d", http2_transaction->request_fragment_bla);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 1 %d", http2_transaction->request_fragment_bla[1]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 2 %d", http2_transaction->request_fragment_bla[2]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 3 %d", http2_transaction->request_fragment_bla[3]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 4 %d", http2_transaction->request_fragment_bla[4]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 5 %d", http2_transaction->request_fragment_bla[5]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 6 %d", http2_transaction->request_fragment_bla[6]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is  7 %d", http2_transaction->request_fragment_bla[7]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 8 %d", http2_transaction->request_fragment_bla[8]);
+//                log_debug("[http2] test http2_transaction->request_fragment_bla is 9 %d", http2_transaction->request_fragment_bla[9]);
 
-                bpf_map_update_elem(&http2_dynamic_table, &index, &buffer, BPF_ANY);
-                log_debug("[http2] blblalbla");
-                dynamic_table_value *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &index);
-                if (dynamic_value != NULL) {
-                    log_debug("[http2] blblalbla  value  is %d", dynamic_value->value);
-                    log_debug("[http2] blblalbla  name is  %d", dynamic_value->name);
-                }
+//                bpf_map_update_elem(&http2_dynamic_table, &index, &buffer, BPF_ANY);
+//                log_debug("[http2] blblalbla");
+//                dynamic_table_value *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, &index);
+//                if (dynamic_value != NULL) {
+//                    log_debug("[http2] blblalbla  value  is %d", dynamic_value->value);
+//                    log_debug("[http2] blblalbla  name is  %d", dynamic_value->name);
+//                }
 
         } else {
             log_debug("[http2] value is null");

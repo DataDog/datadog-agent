@@ -112,7 +112,9 @@ type StaticTableValue struct {
 
 type DynamicTableEnumKey = uint8
 
-type DynamicTableEnumValue = uint8
+type DynamicTableEnumValue = struct {
+	Fragment [40]int8
+}
 
 const (
 	Established TCPState = 0x1

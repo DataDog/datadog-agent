@@ -266,6 +266,14 @@ func (e *ebpfProgram) Init() error {
 				},
 			},
 		},
+		VerifierOptions: ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				// LogSize is the size of the log buffer given to the verifier. Give it a big enough (2 * 1024 * 1024)
+				// value so that all our programs fit. If the verifier ever outputs a `no space left on device` error,
+				// we'll need to increase this value.
+				LogSize: 2 * 2097152,
+			},
+		},
 		ConstantEditors:           e.offsets,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
 	}

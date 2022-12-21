@@ -65,7 +65,7 @@ type StaticTableValue C.static_table_value
 
 type DynamicTableEnumKey = C.header_key
 
-type DynamicTableEnumValue = C.header_value
+type DynamicTableEnumValue = C.dynamic_string_value
 
 const (
 	Established TCPState = C.TCP_ESTABLISHED

@@ -77,6 +77,7 @@ typedef struct {
     __u64 response_last_seen;
     __u32 current_offset_in_request_fragment;
     char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
+    char request_fragment_bla[32] __attribute__ ((aligned (8)));
 
     // this field is used exclusively in the kernel side to prevent a TCP segment
     // to be processed twice in the context of localhost traffic. The field will

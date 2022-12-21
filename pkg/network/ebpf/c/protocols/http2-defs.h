@@ -11,6 +11,10 @@
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_FRAME_LEN 100
 
+// A limit of max frame size in order to be able to load a max size and pass the varifier.
+// NOTE: we may need to change the max size.
+#define HTTP2_MAX_PATH_LEN 32
+
 typedef enum {
     kAuthority = 1,
     kMethod = 2,
