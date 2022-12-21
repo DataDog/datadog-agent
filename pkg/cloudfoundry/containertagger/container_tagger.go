@@ -92,8 +92,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 	if evt.Type == workloadmeta.EventTypeSet {
 		eventTimestamp := time.Now().UnixNano()
 		storeContainer := entity.(*workloadmeta.Container)
-
-		log.Debugf("Processing Event (id %d): %s", eventTimestamp, storeContainer.String(true))
+		log.Debugf("Processing Event (id %d): %+v", eventTimestamp, storeContainer)
 
 		// extract tags
 		hostTags := host.GetHostTags(ctx, true)
