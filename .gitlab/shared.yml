@@ -20,7 +20,6 @@
   - set +x
   - *get_artifactory_token_linux
   - if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://${ARTIFACTORY_USERNAME}:${ARTIFACTORY_TOKEN}@${ARTIFACTORY_URL}/${ARTIFACTORY_PYPI_PATH}; fi
-  - if [ "${USE_CACHING_PROXY_PYTHON}" = "true" ]; then export PIP_INDEX_URL=https://datadog-agent:baguette@datadog.jfrog.io/artifactory/api/pypi/agent-pypi/simple; fi
   - set -x
 
 .setup_python_mirror_win:
