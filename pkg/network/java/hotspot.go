@@ -282,9 +282,5 @@ func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 			loadCommand += " " + args
 		}
 	}
-	if err := h.command(loadCommand, !isJar); err != nil {
-		return err
-	}
-
-	return nil
+	return h.command(loadCommand, !isJar)
 }
