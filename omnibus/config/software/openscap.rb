@@ -56,7 +56,10 @@ build do
   #]
   #cmake(*cmake_options, env: env)
 
-  configure_options = []
+  configure_options = [
+    "--disable-python",
+    "--disable-python3",
+  ]
   configure(*configure_options, env: env)
 
   make "-j #{workers}", env: env
