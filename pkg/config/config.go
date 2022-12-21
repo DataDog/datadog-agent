@@ -1596,6 +1596,7 @@ func setupFipsEndpoints(config Config) error {
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
+	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
 	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
 
