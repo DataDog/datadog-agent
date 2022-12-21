@@ -223,6 +223,17 @@ profiles:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.0.8802.1.1.2.1.3.7.1.2.102",
 				Type:  gosnmp.Integer,
 				Value: 3, // 3->macAddress
@@ -306,6 +317,27 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -434,6 +466,8 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()

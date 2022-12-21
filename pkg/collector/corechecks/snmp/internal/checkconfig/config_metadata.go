@@ -84,6 +84,28 @@ var LegacyMetadataConfig = MetadataConfig{
 			},
 		},
 	},
+	"ip_addresses": {
+		Fields: map[string]MetadataField{
+			"if_index": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.2",
+					Name: "ipAdEntIfIndex",
+				},
+			},
+			"subnet_mask": {
+				Symbol: SymbolConfig{
+					OID:  "1.3.6.1.2.1.4.20.1.3",
+					Name: "ipAdEntNetMask",
+				},
+			},
+		},
+		IDTags: MetricTagConfigList{
+			{
+				Tag:   "ip_address",
+				Index: 1,
+			},
+		},
+	},
 }
 
 var TopologyMetadataConfig = MetadataConfig{
