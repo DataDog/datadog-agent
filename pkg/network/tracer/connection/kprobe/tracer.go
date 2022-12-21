@@ -187,7 +187,8 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
 		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
-			Type: ebpf.Array,
+			Type:       ebpf.Array,
+			EditorFlag: manager.EditType,
 		}
 	}
 
