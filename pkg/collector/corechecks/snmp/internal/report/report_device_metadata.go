@@ -200,7 +200,7 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 	}
 	indexes := store.GetColumnIndexes("ip_addresses.if_index")
 	if len(indexes) == 0 {
-		log.Debugf("Unable to build interfaces metadata: no interface indexes found")
+		log.Debugf("Unable to build ip addresses metadata: no ip_addresses.if_index found")
 		return nil
 	}
 	sort.Strings(indexes)
