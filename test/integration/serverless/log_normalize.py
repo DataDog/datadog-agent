@@ -42,13 +42,15 @@ def normalize_logs(stage):
         replace(stage, 'XXXXXX'),
         replace(r'(architecture:)(x86_64|arm64)', r'\1XXX'),
         sort_by(lambda log: log["message"]["message"]),
-        # ignore a Lambda error that occurs sporadically for log-csharp see here for more info:
-        # https://repost.aws/questions/QUq2OfIFUNTCyCKsChfJLr5w/lambda-function-working-locally-but-crashing-on-aws
-        # TODO
-        # perl -n -e "print unless /LAMBDA_RUNTIME Failed to get next invocation. No Response from endpoint/ or \
-        #  /An error occurred while attempting to execute your code.: LambdaException/ or \
-        #  /terminate called after throwing an instance of 'std::logic_error'/ or \
-        #  /basic_string::_M_construct null not valid/" |
+        # TODO: these messages may be an indication of a real problem and
+        # should be investigated
+        rm_item(
+            lambda log: log["message"]["message"]
+            in (
+                "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled\n",
+                "TIMESTAMP http: proxy error: context canceled\n",
+            )
+        ),
     ]
 
 
@@ -79,6 +81,9 @@ def normalize_traces(stage):
 
 
 def replace(pattern, repl):
+    """
+    Replace all substrings matching regex pattern with given replacement string
+    """
     comp = re.compile(pattern, flags=re.DOTALL)
 
     def _replace(log):
@@ -88,10 +93,16 @@ def replace(pattern, repl):
 
 
 def exclude(pattern):
+    """
+    Remove all substrings matching regex pattern
+    """
     return replace(pattern, '')
 
 
 def require(pattern):
+    """
+    Remove all substrings that don't match the given regex pattern
+    """
     comp = re.compile(pattern, flags=re.DOTALL)
 
     def _require(log):
@@ -104,12 +115,32 @@ def require(pattern):
 
 
 def sort_by(key):
+    """
+    Sort the json entries using the given key function, requires the log string
+    to be proper json and to be a list
+    """
+
     def _sort(log):
         log_json = json.loads(log, strict=False)
         log_sorted = sorted(log_json, key=key)
         return json.dumps(log_sorted)
 
     return _sort
+
+
+def rm_item(key):
+    """
+    Delete json entries from the log string using the given key function, key
+    takes an item from the json list and must return boolean which is True when
+    the item is to be removed and False if it is to be kept
+    """
+
+    def _rm_item(log):
+        log_json = json.loads(log, strict=False)
+        new_logs = [i for i in log_json if not key(i)]
+        return json.dumps(new_logs)
+
+    return _rm_item
 
 
 ###################
