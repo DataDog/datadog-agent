@@ -109,10 +109,10 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 		return "", nil, err
 	}
 	_, err = io.Copy(dst, fagent)
+	dst.Close()
 	if err != nil {
 		return "", nil, err
 	}
-	dst.Close()
 	if err := syscall.Chown(h.root+dstPath, uid, gid); err != nil {
 		return "", nil, err
 	}
