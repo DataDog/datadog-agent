@@ -484,6 +484,14 @@ func (t *Translator) MapMetrics(ctx context.Context, md pmetric.Metrics, consume
 
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
+
+				// Map metric to equivalent Datadog runtime metric if found
+				if ddruntimename, ok := runtimeMetricsMappings[md.Name()]; ok {
+					ddruntime := metricsArray.AppendEmpty()
+					md.CopyTo(ddruntime)
+					ddruntime.SetName(ddruntimename)
+				}
+
 				baseDims := &Dimensions{
 					name:     md.Name(),
 					tags:     additionalTags,
