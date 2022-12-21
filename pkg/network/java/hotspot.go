@@ -40,6 +40,8 @@ type Hotspot struct {
 	root  string
 	cwd   string // viewed by the process
 	conn  *net.UnixConn
+
+	socketPath string
 }
 
 // NewHotspot create an object to connect to an JVM hotspot
@@ -69,7 +71,7 @@ func (h *Hotspot) tmpPath() string {
 }
 
 func (h *Hotspot) socketExists() bool {
-	mode, err := os.Stat(fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid))
+	mode, err := os.Stat(h.socketPath)
 	return err == nil && (mode.Mode()&fs.ModeSocket > 0)
 }
 
@@ -121,8 +123,7 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 }
 
 func (h *Hotspot) connect() (cleanup func(), err error) {
-	JVMSocketPath := fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid)
-	addr, err := net.ResolveUnixAddr("unix", JVMSocketPath)
+	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
 		return func() {}, err
 	}
@@ -225,6 +226,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 		return fmt.Errorf("process %d/%d SIGQUIT failed : %s", h.pid, h.nsPid, err)
 	}
 
+	h.socketPath = fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid)
 	end := time.Now().Add(6 * time.Second)
 	for end.After(time.Now()) {
 		time.Sleep(200 * time.Millisecond)
