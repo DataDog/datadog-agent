@@ -123,7 +123,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		go func() {
 			var exitCode int
 			var err error
-			for attempt := 1; attempt < c.retryCount; attempt++ {
+			for attempt := 1; attempt <= c.retryCount; attempt++ {
 				log.Infof("Updating tags in container `%s` attempt #%d", containerID, attempt)
 				log.Debugf("Update attempt #%d for event %d", attempt, eventTimestamp)
 				exitCode, err = updateTagsInContainer(container, tags)
