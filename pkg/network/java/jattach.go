@@ -32,9 +32,5 @@ func InjectAgent(pid int, agent string, args string) error {
 		return err
 	}
 
-	err = h.Attach(agent, args, int(uids[3]), int(gids[3])) // 3: filesystem uid/gid
-	if err != nil {
-		return err
-	}
-	return nil
+	return h.Attach(agent, args, int(uids[3]), int(gids[3])) // 3: filesystem uid/gid
 }
