@@ -119,7 +119,7 @@ build do
     python = "#{install_dir}/embedded/bin/python2"
   end
 
-  pip_config_file = env['PIP_CONFIG_FILE']
+  pip_config_file = ENV['PIP_CONFIG_FILE']
   pre_build_env = {
     "PIP_CONFIG_FILE" => "#{pip_config_file}"
   }
