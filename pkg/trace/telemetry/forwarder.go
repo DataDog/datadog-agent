@@ -52,18 +52,18 @@ type TelemetryCollector interface {
 // TelemetryForwarder ...
 type telemetryCollector struct {
 	forwarder             epforwarder.EventPlatformForwarder
-	config                *config.AgentConfig
+	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
 }
 
 // NewCollector returns either forwarder, or a noop implementation if instrumentation telemetry is disabled
-func NewCollector(config *config.AgentConfig) TelemetryCollector {
-	if config.TelemetryConfig.Enabled {
+func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
+	if cfg.TelemetryConfig.Enabled {
 		return &noopTelemetryCollector{}
 	}
 	return &telemetryCollector{
 		forwarder:             epforwarder.NewTraceAgentEventPlatformForwarder(),
-		config:                config,
+		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
 	}
 }
@@ -101,14 +101,14 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	if f.collectedStartupError.Load() {
 		return
 	}
-	ev := NewOnboardingTelemetryPayload(f.config)
+	ev := NewOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.success"
 	f.sendOnboardingEvent(&ev)
 }
 
 func (f *telemetryCollector) SendStartupError(code int, err error) {
 	f.collectedStartupError.Store(true)
-	ev := NewOnboardingTelemetryPayload(f.config)
+	ev := NewOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.error"
 	ev.Payload.Error.Code = code
 	ev.Payload.Error.Message = err.Error()
