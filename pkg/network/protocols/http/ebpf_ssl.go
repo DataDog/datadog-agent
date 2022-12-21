@@ -253,7 +253,7 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	return &sslProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
-		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
+		perfHandler: ddebpf.NewPerfHandler(100),
 	}
 }
 

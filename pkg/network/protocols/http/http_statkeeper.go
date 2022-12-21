@@ -10,6 +10,7 @@ package http
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -18,6 +19,7 @@ import (
 )
 
 type httpStatKeeper struct {
+	mux        sync.Mutex
 	stats      map[Key]*RequestStats
 	incomplete *incompleteBuffer
 	maxEntries int
@@ -50,19 +52,22 @@ func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
 	}
 }
 
-func (h *httpStatKeeper) Process(transactions []httpTX) {
-	for i := range transactions {
-		tx := transactions[i]
-		if tx.Incomplete() {
-			h.incomplete.Add(tx)
-			continue
-		}
+func (h *httpStatKeeper) Process(tx httpTX) {
+	h.mux.Lock()
+	defer h.mux.Unlock()
 
-		h.add(tx)
+	if tx.Incomplete() {
+		h.incomplete.Add(tx)
+		return
 	}
+
+	h.add(tx)
 }
 
 func (h *httpStatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+
 	for _, tx := range h.incomplete.Flush(time.Now()) {
 		h.add(tx)
 	}

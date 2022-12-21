@@ -10,18 +10,6 @@
 /* This map is used to keep track of in-flight HTTP transactions for each TCP connection */
 BPF_LRU_MAP(http_in_flight, conn_tuple_t, http_transaction_t, 0)
 
-/* This map used for flush complete HTTP batches to userspace */
-BPF_PERF_EVENT_ARRAY_MAP(http_batch_events, __u32, 0)
-
-/*
-  This map stores finished HTTP transactions in batches so they can be consumed by userspace
-  Size is set dynamically during runtime and must be equal to CPUs*HTTP_BATCH_PAGES
- */
-BPF_HASH_MAP(http_batches, http_batch_key_t, http_batch_t, 0)
-
-/* This map holds one entry per CPU storing state associated to current http batch*/
-BPF_PERCPU_ARRAY_MAP(http_batch_state, __u32, http_batch_state_t, 1)
-
 BPF_LRU_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
 
 BPF_LRU_MAP(ssl_read_args, u64, ssl_read_args_t, 1024)

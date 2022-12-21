@@ -7,10 +7,6 @@
 #define HTTP_BUFFER_SIZE (8 * 20)
 // This controls the number of HTTP transactions read from userspace at a time
 #define HTTP_BATCH_SIZE 15
-// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
-// It's desirable to set this >= 1 to allow batch insertion and flushing to happen idependently
-// without risk of overriding data.
-#define HTTP_BATCH_PAGES 3
 
 // HTTP/1.1 XXX
 // _________^
@@ -39,13 +35,6 @@ typedef enum
     HTTP_PATCH
 } http_method_t;
 
-// This struct is used in the map lookup that returns the active batch for a certain CPU core
-typedef struct {
-    __u32 cpu;
-    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
-    __u32 page_num;
-} http_batch_key_t;
-
 // HTTP transaction information associated to a certain socket (tuple_t)
 typedef struct {
     conn_tuple_t tup;
@@ -67,24 +56,6 @@ typedef struct {
 
     __u64 tags;
 } http_transaction_t;
-
-typedef struct {
-    // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
-    // this is useful for detecting race conditions that result in a batch being overrriden
-    // before it gets consumed from userspace
-    __u64 idx;
-    // idx_to_flush is used to track which batches were flushed to userspace
-    // * if idx_to_flush == idx, the current index is still being appended to;
-    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
-    // (note that idx will never be less than idx_to_flush);
-    __u64 idx_to_flush;
-} http_batch_state_t;
-
-typedef struct {
-    __u64 idx;
-    __u8 pos;
-    http_transaction_t txs[HTTP_BATCH_SIZE];
-} http_batch_t;
 
 // OpenSSL types
 typedef struct {
