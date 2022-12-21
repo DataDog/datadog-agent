@@ -3,13 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
-// +build !windows
+package helpers
 
-package flare
-
-import (
-	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-)
-
-func getWindowsData(fb flarehelpers.FlareBuilder) {}
+// permissionsInfos holds permissions info about the files shipped
+// in the flare.
+// The key is the filepath of the file.
+type permissionsInfos map[string]*filePermsInfo

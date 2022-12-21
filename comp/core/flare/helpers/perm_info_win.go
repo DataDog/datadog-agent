@@ -3,15 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !docker
-// +build !docker
+//go:build windows
+// +build windows
 
-package flare
+package helpers
 
-func getDockerSelfInspect() ([]byte, error) {
-	return nil, nil
+// filePermsInfo represents file rights on windows.
+type filePermsInfo struct{}
+
+func (p permissionsInfos) add(filePath string) error {
+	return nil
 }
 
-func getDockerPs() ([]byte, error) {
+func (p permissionsInfos) commit() ([]byte, error) {
 	return nil, nil
 }
