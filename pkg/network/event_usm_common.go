@@ -5,16 +5,42 @@
 
 package network
 
+import (
+	model "github.com/DataDog/agent-payload/v5/process"
+)
+
 type ProtocolType uint16
 
 const (
-	ProtocolUnclassified ProtocolType = iota
-	ProtocolUnknown
-	ProtocolHTTP
-	ProtocolHTTP2
-	ProtocolTLS
-	ProtocolMongo = 6
-	ProtocolAMQP  = 8
-	ProtocolRedis = 9
-	MaxProtocols  = 10
+	ProtocolUnclassified = ProtocolType(model.ProtocolType_protocolUnclassified)
+	ProtocolUnknown      = ProtocolType(model.ProtocolType_protocolUnknown)
+	ProtocolHTTP         = ProtocolType(model.ProtocolType_protocolHTTP)
+	ProtocolHTTP2        = ProtocolType(model.ProtocolType_protocolHTTP2)
+	ProtocolTLS          = ProtocolType(model.ProtocolType_protocolTLS)
+	ProtocolKafka        = ProtocolType(model.ProtocolType_protocolKafka)
+	ProtocolMongo        = ProtocolType(model.ProtocolType_protocolMongo)
+	ProtocolPostgres     = ProtocolType(model.ProtocolType_protocolPostgres)
+	ProtocolAMQP         = ProtocolType(model.ProtocolType_protocolAMQP)
+	ProtocolRedis        = ProtocolType(model.ProtocolType_protocolRedis)
 )
+
+var (
+	supportedProtocols = map[ProtocolType]struct{}{
+		ProtocolUnclassified: {},
+		ProtocolUnknown:      {},
+		ProtocolHTTP:         {},
+		ProtocolHTTP2:        {},
+		ProtocolTLS:          {},
+		ProtocolKafka:        {},
+		ProtocolMongo:        {},
+		ProtocolPostgres:     {},
+		ProtocolAMQP:         {},
+		ProtocolRedis:        {},
+	}
+)
+
+// IsValidProtocolValue checks if a given value is a valid protocol.
+func IsValidProtocolValue(val uint8) bool {
+	_, ok := supportedProtocols[ProtocolType(val)]
+	return ok
+}

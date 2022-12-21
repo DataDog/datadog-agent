@@ -565,7 +565,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		Cookie:           s.Cookie,
 	}
 
-	if s.Protocol < uint8(network.MaxProtocols) {
+	if network.IsValidProtocolValue(s.Protocol) {
 		stats.Protocol = network.ProtocolType(s.Protocol)
 	} else {
 		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)

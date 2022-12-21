@@ -29,6 +29,7 @@ type libPath C.lib_path_t
 
 type ProtocolType C.protocol_t
 
+// Add tests to TestProtocolValue
 const (
 	ProtocolUnknown ProtocolType = C.PROTOCOL_UNKNOWN
 	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
