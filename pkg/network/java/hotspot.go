@@ -202,6 +202,9 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 
 	attachPath := attachPIDPath(h.root + h.cwd)
 	hook, err := os.OpenFile(attachPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
+	if err != nil {
+		return err
+	}
 	hook.Close()
 	// we don't check Chown() return error here as it can failed on some filesystem
 	_ = syscall.Chown(attachPath, uid, gid)
@@ -218,6 +221,9 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 
 		attachPath = attachPIDPath(h.tmpPath())
 		hook, err = os.OpenFile(attachPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
+		if err != nil {
+			return err
+		}
 		hook.Close()
 	}
 	defer os.Remove(attachPath)
