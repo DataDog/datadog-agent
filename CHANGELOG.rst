@@ -2,6 +2,27 @@
 Release Notes
 =============
 
+.. _Release Notes_7.41.1:
+
+7.41.1 / 6.41.1
+======
+
+.. _Release Notes_7.41.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2022-12-21
+
+
+.. _Release Notes_7.41.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.18.9``.
+
+
 .. _Release Notes_7.41.0:
 
 7.41.0 / 6.41.0
