@@ -752,12 +752,12 @@ profiles:
     {
       "interface_id": "default:1.2.3.4:1",
       "ip_address": "10.0.0.1",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     },
     {
       "interface_id": "default:1.2.3.4:1",
       "ip_address": "10.0.0.2",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     }
   ],
   "collect_timestamp":946684800
@@ -1390,12 +1390,12 @@ tags:
     {
       "interface_id": "default:1.2.3.4:1",
       "ip_address": "10.0.0.1",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     },
     {
       "interface_id": "default:1.2.3.4:1",
       "ip_address": "10.0.0.2",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     }
   ],
   "collect_timestamp":946684800
@@ -1806,12 +1806,12 @@ metric_tags:
     {
       "interface_id": "%s:1",
       "ip_address": "10.0.0.1",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     },
     {
       "interface_id": "%s:1",
       "ip_address": "10.0.0.2",
-      "subnet_mask": "255.255.255.0"
+      "netmask": "255.255.255.0"
     }
   ],
   "collect_timestamp":946684800

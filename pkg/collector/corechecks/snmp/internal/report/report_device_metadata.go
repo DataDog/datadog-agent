@@ -207,11 +207,11 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 	var ipAddresses []metadata.IPAddressMetadata
 	for _, strIndex := range indexes {
 		index := store.GetColumnAsString("ip_addresses.if_index", strIndex)
-		subnetMask := store.GetColumnAsString("ip_addresses.subnet_mask", strIndex)
+		Netmask := store.GetColumnAsString("ip_addresses.netmask", strIndex)
 		ipAddress := metadata.IPAddressMetadata{
 			InterfaceID: deviceID + ":" + index,
 			IPAddress:   strIndex,
-			SubnetMask:  subnetMask,
+			Netmask:     Netmask,
 		}
 		ipAddresses = append(ipAddresses, ipAddress)
 	}

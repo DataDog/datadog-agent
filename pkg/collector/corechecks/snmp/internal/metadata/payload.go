@@ -82,7 +82,7 @@ type InterfaceMetadata struct {
 type IPAddressMetadata struct {
 	InterfaceID string `json:"interface_id"`
 	IPAddress   string `json:"ip_address"`
-	SubnetMask  string `json:"subnet_mask,omitempty"`
+	Netmask     string `json:"netmask,omitempty"`
 }
 
 // TopologyLinkDevice contain device link data

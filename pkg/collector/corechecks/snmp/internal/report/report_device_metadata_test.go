@@ -408,7 +408,7 @@ func Test_batchPayloads(t *testing.T) {
 	}
 	var ipAddresses []metadata.IPAddressMetadata
 	for i := 0; i < 100; i++ {
-		ipAddresses = append(ipAddresses, metadata.IPAddressMetadata{InterfaceID: deviceID + ":1", IPAddress: "1.2.3.4", SubnetMask: "255.255.255.0"})
+		ipAddresses = append(ipAddresses, metadata.IPAddressMetadata{InterfaceID: deviceID + ":1", IPAddress: "1.2.3.4", Netmask: "255.255.255.0"})
 	}
 	var topologyLinks []metadata.TopologyLinkMetadata
 	for i := 0; i < 100; i++ {
