@@ -70,10 +70,7 @@ func (h *Hotspot) tmpPath() string {
 
 func (h *Hotspot) socketExists() bool {
 	mode, err := os.Stat(fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid))
-	if err == nil && (mode.Mode()&fs.ModeSocket > 0) {
-		return true
-	}
-	return false
+	return err == nil && (mode.Mode()&fs.ModeSocket > 0)
 }
 
 func getPathOwner(path string) (uint32, uint32, error) {
