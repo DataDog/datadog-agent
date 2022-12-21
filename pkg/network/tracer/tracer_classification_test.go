@@ -19,10 +19,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/stretchr/testify/require"
 )
 
 // testContext shares the context of a given test.
@@ -72,7 +73,7 @@ func defaultTeardown(_ *testing.T, ctx testContext) {
 
 //nolint:deadcode,unused
 // skipIfNotLinux skips the test if we are not on a linux machine
-func skipIfNotLinux(_ testContext) (bool, string) {
+func skipIfNotLinux(ctx testContext) (bool, string) {
 	if runtime.GOOS != "linux" {
 		return true, "test is supported on linux machine only"
 	}
@@ -84,10 +85,24 @@ func skipIfNotLinux(_ testContext) (bool, string) {
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
 func skipIfUsingNAT(ctx testContext) (bool, string) {
 	if ctx.targetAddress != ctx.serverAddress {
-		return true, "test is supported when NAT is applied"
+		return true, "test is not supported when NAT is applied"
 	}
 
 	return false, ""
+}
+
+//nolint:deadcode,unused
+// composeSkips skips if one of the given filters is matched.
+func composeSkips(filters ...func(ctx testContext) (bool, string)) func(ctx testContext) (bool, string) {
+	return func(ctx testContext) (bool, string) {
+		for _, filter := range filters {
+			if skip, err := filter(ctx); skip {
+				return skip, err
+			}
+		}
+
+		return false, ""
+	}
 }
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
@@ -101,11 +116,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	tests := []struct {
 		name            string
 		context         testContext
-		shouldSkip      func(context testContext) (bool, string)
-		preTracerSetup  func(t *testing.T, context testContext)
-		postTracerSetup func(t *testing.T, context testContext)
-		validation      func(t *testing.T, context testContext, tr *Tracer)
-		teardown        func(t *testing.T, context testContext)
+		shouldSkip      func(ctx testContext) (bool, string)
+		preTracerSetup  func(t *testing.T, ctx testContext)
+		postTracerSetup func(t *testing.T, ctx testContext)
+		validation      func(t *testing.T, ctx testContext, tr *Tracer)
+		teardown        func(t *testing.T, ctx testContext)
 	}{
 		{
 			name: "tcp client without sending data",
@@ -288,17 +303,21 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.context.serverAddress = net.JoinHostPort(serverHost, tt.context.serverPort)
+			tt.context.targetAddress = net.JoinHostPort(targetHost, tt.context.serverPort)
+
 			if tt.shouldSkip != nil {
 				if skip, msg := tt.shouldSkip(tt.context); skip {
 					t.Skip(msg)
 				}
 			}
-			tt.context.serverAddress = net.JoinHostPort(serverHost, tt.context.serverPort)
-			tt.context.targetAddress = net.JoinHostPort(targetHost, tt.context.serverPort)
+
 			tt.context.done = make(chan struct{})
-			t.Cleanup(func() {
-				tt.teardown(t, tt.context)
-			})
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
 			if tt.preTracerSetup != nil {
 				tt.preTracerSetup(t, tt.context)
 			}
