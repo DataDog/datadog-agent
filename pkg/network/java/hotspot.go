@@ -100,21 +100,21 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 
 	fagent, err := os.Open(agent)
 	if err != nil {
-		return "", func() {}, err
+		return "", nil, err
 	}
 	defer fagent.Close()
 
 	dst, err := os.OpenFile(h.root+dstPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(0444))
 	if err != nil {
-		return "", func() {}, err
+		return "", nil, err
 	}
 	_, err = io.Copy(dst, fagent)
 	if err != nil {
-		return "", func() {}, err
+		return "", nil, err
 	}
 	dst.Close()
 	if err := syscall.Chown(h.root+dstPath, uid, gid); err != nil {
-		return "", func() {}, err
+		return "", nil, err
 	}
 
 	return dstPath, func() {
@@ -125,16 +125,16 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 func (h *Hotspot) connect() (cleanup func(), err error) {
 	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
-		return func() {}, err
+		return nil, err
 	}
 	conn, err := net.DialUnix("unix", nil, addr)
 	if err != nil {
-		return func() {}, err
+		return nil, err
 	}
 
 	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		conn.Close()
-		return func() {}, err
+		return nil, err
 	}
 	h.conn = conn
 	return func() { h.conn.Close() }, nil
