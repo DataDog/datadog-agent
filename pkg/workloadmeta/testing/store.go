@@ -169,6 +169,11 @@ func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
 	panic("not implemented")
 }
 
+// Reset is not implemented in the testing store.
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+	panic("not implemented")
+}
+
 func (s *Store) getEntityByKind(kind workloadmeta.Kind, id string) (workloadmeta.Entity, error) {
 	entitiesOfKind, ok := s.store[kind]
 	if !ok {

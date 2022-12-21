@@ -31,7 +31,7 @@ type flareCliParams struct {
 }
 
 func Commands(globalParams *common.GlobalParams) []*cobra.Command {
-	cliParams := flareCliParams{
+	cliParams := &flareCliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -48,6 +48,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.CreateBundleParams(
+					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(common.LoggerName, "off", true)),

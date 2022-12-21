@@ -57,12 +57,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
-					{{range $Check := $Checks}}
-						{{$Check = $Check | printf "(*Event)(ctx.Object).%s"}}
-						if !{{$Check}}() {
-							return {{$Field.GetDefaultReturnValue}}
-						}
-					{{end}}
 
 					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
@@ -83,6 +77,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{else}}
 							elementPtr := (*{{$Field.Iterator.OrigType}})(value)
 							element := *elementPtr
+						{{end}}
+
+						{{range $Check := $Checks}}
+							{{if $Field.Iterator.Name | HasPrefix $Check}}
+								{{$SubName := $Field.Iterator.Name | TrimPrefix $Check}}
+								{{$Check = $SubName | printf "element%s"}}
+								if !{{$Check}}() {
+									results = append(results, {{$Field.GetDefaultScalarReturnValue}})
+									value = iterator.Next()
+									continue
+								}
+							{{end}}
 						{{end}}
 
 						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}

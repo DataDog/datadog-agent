@@ -28,6 +28,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(displayVersion,
 				fx.Supply(core.CreateBundleParams(
+					"",
 					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
 					core.WithConfigLoadSecurityAgent(true),
 				).LogForOneShot(common.LoggerName, "off", true)),

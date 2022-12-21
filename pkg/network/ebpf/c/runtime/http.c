@@ -1,5 +1,6 @@
 #include <linux/kconfig.h>
 
+#include "bpf_tracing.h"
 #include "tracer.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"

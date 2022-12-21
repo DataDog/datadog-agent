@@ -219,10 +219,10 @@
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
-/pkg/collector/corechecks/system/             @DataDog/agent-platform
-/pkg/collector/corechecks/system/*windows*.go @DataDog/agent-platform @DataDog/windows-agent
-/pkg/collector/corechecks/system/winkmem/     @DataDog/windows-agent
-/pkg/collector/corechecks/system/winproc/     @DataDog/windows-agent
+/pkg/collector/corechecks/system/                 @DataDog/agent-platform
+/pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
+/pkg/collector/corechecks/system/winkmem/         @DataDog/windows-agent
+/pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/config/                            @DataDog/agent-shared-components
@@ -293,12 +293,12 @@
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
-/pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks
-/pkg/ebpf/bytecode/runtime/http.go      @DataDog/universal-service-monitoring
+/pkg/ebpf/bytecode/runtime/conntrack.go @DataDog/Networks @DataDog/universal-service-monitoring
+/pkg/ebpf/bytecode/runtime/http.go      @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/ebpf/bytecode/runtime/oom-kill.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
-/pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks
+/pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
 /pkg/quantile/                          @DataDog/metrics-aggregation
 /pkg/compliance/                        @DataDog/agent-security
 /pkg/kubestatemetrics                   @DataDog/container-integrations

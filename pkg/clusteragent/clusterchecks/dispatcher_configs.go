@@ -48,9 +48,10 @@ func (d *dispatcher) addConfig(config integration.Config, targetNodeName string)
 
 	// Register config
 	digest := config.Digest()
+	fastDigest := config.FastDigest()
 	d.store.digestToConfig[digest] = config
 	for _, instance := range config.Instances {
-		checkID := check.BuildID(config.Name, instance, config.InitConfig)
+		checkID := check.BuildID(config.Name, fastDigest, instance, config.InitConfig)
 		d.store.idToDigest[checkID] = digest
 		if targetNodeName != "" {
 			configsInfo.Set(1.0, targetNodeName, string(checkID), le.JoinLeaderValue)

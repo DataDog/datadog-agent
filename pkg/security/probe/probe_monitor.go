@@ -32,6 +32,7 @@ type Monitor struct {
 	activityDumpManager *ActivityDumpManager
 	runtimeMonitor      *RuntimeMonitor
 	discarderMonitor    *DiscarderMonitor
+	cgroupsMonitor      *CgroupsMonitor
 }
 
 // NewMonitor returns a new instance of a ProbeMonitor
@@ -68,6 +69,8 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
+
+	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CgroupsResolver)
 
 	return m, nil
 }
@@ -146,6 +149,10 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send discarder stats: %w", err)
 	}
 
+	if err := m.cgroupsMonitor.SendStats(); err != nil {
+		return fmt.Errorf("failed to send cgroups stats: %w", err)
+	}
+
 	return nil
 }
 
@@ -155,9 +162,11 @@ func (m *Monitor) ProcessEvent(event *Event) {
 
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {
-		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, err),
-		)
+		if !errors.Is(err, &ErrPathResolutionNotCritical{}) {
+			m.probe.DispatchCustomEvent(
+				NewAbnormalPathEvent(event, err),
+			)
+		}
 	} else {
 		if m.activityDumpManager != nil {
 			m.activityDumpManager.ProcessEvent(event)

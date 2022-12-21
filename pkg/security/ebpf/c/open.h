@@ -11,8 +11,6 @@ struct bpf_map_def SEC("maps/open_flags_approvers") open_flags_approvers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct open_event_t {

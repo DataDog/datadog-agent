@@ -11,21 +11,33 @@ package secrets
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dustin/go-humanize"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PayloadVersion defines the current payload version sent to a secret backend
-const PayloadVersion = "1.0"
+const (
+	// PayloadVersion defines the current payload version sent to a secret backend
+	PayloadVersion = "1.0"
+
+	// maxHashFileLimit is the limit for the size of hashing of the binary
+	maxHashFileLimit = 1024 * 1024 * 1024 // 1Gi
+)
 
 var (
 	tlmSecretBackendElapsed = telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation")
@@ -48,8 +60,39 @@ func execCommand(inputPayload string) ([]byte, error) {
 		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, secretBackendCommand, secretBackendArguments...)
-	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
+	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+
+	if secretBackendCommandSHA256 != "" {
+		if !filepath.IsAbs(secretBackendCommand) {
+			return nil, fmt.Errorf("error while running '%s': absolute path required with SHA256", secretBackendCommand)
+		}
+
+		if err := checkConfigFilePermissions(configFileUsed); err != nil {
+			return nil, err
+		}
+
+		f, err := lockOpenFile(secretBackendCommand)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close() //nolint:errcheck
+
+		sha256, err := fileHashSHA256(f)
+		if err != nil {
+			return nil, err
+		}
+
+		if !strings.EqualFold(sha256, secretBackendCommandSHA256) {
+			return nil, fmt.Errorf("error while running '%s': SHA256 mismatch, actual '%s' expected '%s'", secretBackendCommand, sha256, secretBackendCommandSHA256)
+		}
+
+	}
+
+	if err = checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
 
@@ -73,7 +116,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	// datadog.yaml.
 	log.Debugf("%s | calling secret_backend_command with payload: '%s'", time.Now().String(), inputPayload)
 	start := time.Now()
-	err := cmd.Run()
+	err = cmd.Run()
 	elapsed := time.Since(start)
 	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 
@@ -156,4 +199,53 @@ func fetchSecret(secretsHandle []string, origin string) (map[string]string, erro
 		res[sec] = v.Value
 	}
 	return res, nil
+}
+
+func fileHashSHA256(f *os.File) (string, error) {
+	stat, err := f.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	if !stat.Mode().IsRegular() ||
+		(stat.Mode()&(os.ModeSymlink|os.ModeSocket|os.ModeCharDevice|os.ModeDevice|os.ModeNamedPipe) != 0) {
+		return "", fmt.Errorf("expecting regular file, got 0x%x", stat.Mode())
+	}
+
+	h := sha256.New()
+
+	fileSize := stat.Size()
+	if fileSize == 0 {
+		return formatHash(h), nil
+	}
+
+	if fileSize > maxHashFileLimit {
+		return "", fmt.Errorf("file size exceeds the limit of %s", humanize.Bytes(maxHashFileLimit))
+	}
+
+	r := io.LimitReader(f, maxHashFileLimit)
+
+	var bufSize int64 = 102400
+	if fileSize < bufSize {
+		bufSize = fileSize
+	}
+
+	buffer := make([]byte, bufSize)
+
+	for {
+		read, err := r.Read(buffer)
+		if err != nil {
+			if err != io.EOF {
+				return "", err
+			}
+			break
+		}
+		h.Write(buffer[:read])
+	}
+
+	return formatHash(h), nil
+}
+
+func formatHash(h hash.Hash) string {
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

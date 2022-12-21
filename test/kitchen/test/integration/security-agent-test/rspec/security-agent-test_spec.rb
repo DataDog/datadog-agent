@@ -44,6 +44,15 @@ when "docker"
       end
     end
   end
+when "ad"
+  describe 'activity dump functional test running on dedicated node' do
+    it 'successfully runs' do
+      Open3.popen2e({"DEDICATED_ACTIVITY_DUMP_NODE"=>"1", "DD_TESTS_RUNTIME_COMPILED"=>"1", "DD_RUNTIME_SECURITY_CONFIG_RUNTIME_COMPILATION_ENABLED"=>"true", "DD_SYSTEM_PROBE_BPF_DIR"=>"/tmp/security-agent/ebpf_bytecode"}, "sudo", "-E", "/tmp/security-agent/testsuite", "-test.v", "-status-metrics", "-test.run", "TestActivityDump") do |_, output, wait_thr|
+        test_failures = check_output(output, wait_thr, "a")
+        expect(test_failures).to be_empty, test_failures.join("\n")
+      end
+    end
+  end
 else
   raise "no CWS platform provided"
 end

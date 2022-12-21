@@ -28,6 +28,7 @@ const (
 	// Namespace is the top-level configuration key that all system-probe settings are nested underneath
 	Namespace             = "system_probe_config"
 	spNS                  = Namespace
+	smNS                  = "service_monitoring_config"
 	defaultConfigFileName = "system-probe.yaml"
 
 	defaultConnsMessageBatchSize = 600
@@ -186,7 +187,7 @@ func load(configPath string) (*Config, error) {
 
 	// this check must come first so we can accurately tell if system_probe was explicitly enabled
 	npmEnabled := cfg.GetBool("network_config.enabled")
-	usmEnabled := cfg.GetBool("service_monitoring_config.enabled")
+	usmEnabled := cfg.GetBool(key(smNS, "enabled"))
 
 	if npmEnabled {
 		log.Info("network_config.enabled detected: enabling system-probe with network module running.")
@@ -233,8 +234,18 @@ func load(configPath string) (*Config, error) {
 		c.Enabled = false
 		c.SocketAddress = ""
 	}
+
 	cfg.Set(key(spNS, "sysprobe_socket"), c.SocketAddress)
 	cfg.Set(key(spNS, "enabled"), c.Enabled)
+
+	if cfg.GetBool(key(smNS, "process_service_inference", "enabled")) {
+		if !usmEnabled {
+			log.Info("service monitoring is disabled, disabling process service inference")
+			cfg.Set(key(smNS, "process_service_inference", "enabled"), false)
+		} else {
+			log.Info("process service inference is enabled")
+		}
+	}
 
 	return c, nil
 }
