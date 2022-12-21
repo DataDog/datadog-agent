@@ -25,7 +25,8 @@ import (
 )
 
 var (
-	javaUSMAgentJarPath = "/opt/datadog-agent/embedded/share/system-probe/java/agent-usm-7.43.0.jar"
+	// path to our java USM agent TLS tracer
+	javaUSMAgentJarPath = ""
 	// randomID is used here as an identifier, simple proof of authenticity
 	// between the injected java process and the ebpf ioctl that receive the payload
 	randomID = int64(0)
