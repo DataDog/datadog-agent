@@ -25,6 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// Hotspot java has a specific protocol, described here:
+//   o touch .attach_pid<pid-of-java>
+//   o kill -SIGQUIT <pid-of-java>
+//   o java process check if .attach_pid<his-pid> exit
+//   o then create an unix socket .java_pid<his-pid>
+//   o we can write command through the unix socket
+//
+// Public documentation https://openjdk.org/groups/hotspot/docs/Serviceability.html#battach
+//
 type Hotspot struct {
 	pid   int
 	nsPid int
