@@ -1229,6 +1229,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
     docker_compose_paths = [
         "./pkg/network/protocols/dockers/testdata/docker-compose.yml",
+        "./pkg/network/protocols/postgres/testutil/testdata/docker-compose.yml",
     ]
     images = set()
     for docker_compose_path in docker_compose_paths:
