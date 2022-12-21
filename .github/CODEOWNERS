@@ -96,6 +96,8 @@
 /.gitlab/choco_build.yml                             @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
 
+/.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
+
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
@@ -354,6 +356,7 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
+/test/benchmarks/apm_scripts/           @DataDog/agent-apm
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
