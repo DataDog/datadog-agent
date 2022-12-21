@@ -39,6 +39,7 @@ type testContext struct {
 	expectedProtocol network.ProtocolType
 	// A channel to mark goroutines (like servers) to halt.
 	done chan struct{}
+	//nolint:unused
 	// A dynamic map that allows extending the context easily between phases of the test.
 	extras map[string]interface{}
 }
@@ -69,6 +70,7 @@ func defaultTeardown(_ *testing.T, ctx testContext) {
 	close(ctx.done)
 }
 
+//nolint:deadcode,unused
 // skipIfNotLinux skips the test if we are not on a linux machine
 func skipIfNotLinux(_ testContext) (bool, string) {
 	if runtime.GOOS != "linux" {
@@ -78,6 +80,7 @@ func skipIfNotLinux(_ testContext) (bool, string) {
 	return false, ""
 }
 
+//nolint:deadcode,unused
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
 func skipIfUsingNAT(ctx testContext) (bool, string) {
 	if ctx.targetAddress != ctx.serverAddress {
