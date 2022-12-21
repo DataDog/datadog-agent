@@ -99,12 +99,6 @@ var LegacyMetadataConfig = MetadataConfig{
 				},
 			},
 		},
-		IDTags: MetricTagConfigList{
-			{
-				Tag:   "ip_address",
-				Index: 1,
-			},
-		},
 	},
 }
 
