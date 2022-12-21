@@ -33,7 +33,6 @@ from .utils import (
     get_go_version,
     get_gopath,
     get_version,
-    get_version_numeric_only,
 )
 
 BIN_DIR = os.path.join(".", "bin")
