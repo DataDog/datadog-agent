@@ -50,9 +50,6 @@ func TestSpaceInPath(t *testing.T) {
 }
 
 func TestCheckRights(t *testing.T) {
-	_, err := os.CreateTemp("", "agent-collector-test")
-	require.Nil(t, err)
-
 	// default options
 	allowGroupExec := false
 
