@@ -748,6 +748,18 @@ profiles:
       "oper_status": 1
     }
   ],
+  "ip_addresses": [
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "subnet_mask": "255.255.255.0"
+    },
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "subnet_mask": "255.255.255.0"
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1374,6 +1386,18 @@ tags:
       "oper_status": 1
     }
   ],
+  "ip_addresses": [
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "subnet_mask": "255.255.255.0"
+    },
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "subnet_mask": "255.255.255.0"
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1778,9 +1802,21 @@ metric_tags:
       "oper_status": 1
     }
   ],
+  "ip_addresses": [
+    {
+      "interface_id": "%s:1",
+      "ip_address": "10.0.0.1",
+      "subnet_mask": "255.255.255.0"
+    },
+    {
+      "interface_id": "%s:1",
+      "ip_address": "10.0.0.2",
+      "subnet_mask": "255.255.255.0"
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)

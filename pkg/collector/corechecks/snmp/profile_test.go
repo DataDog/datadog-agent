@@ -534,6 +534,18 @@ profiles:
       "oper_status": 1
     }
   ],
+  "ip_addresses": [
+    {
+      "interface_id": "profile-metadata:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "subnet_mask": "255.255.255.0"
+    },
+    {
+      "interface_id": "profile-metadata:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "subnet_mask": "255.255.255.0"
+    }
+  ],
   "links": [
         {
             "local": {
