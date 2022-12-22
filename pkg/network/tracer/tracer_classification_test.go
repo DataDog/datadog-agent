@@ -72,8 +72,9 @@ func defaultTeardown(_ *testing.T, ctx testContext) {
 	close(ctx.done)
 }
 
-//nolint:deadcode,unused
 // skipIfNotLinux skips the test if we are not on a linux machine
+//
+//nolint:deadcode,unused
 func skipIfNotLinux(ctx testContext) (bool, string) {
 	if runtime.GOOS != "linux" {
 		return true, "test is supported on linux machine only"
@@ -82,8 +83,9 @@ func skipIfNotLinux(ctx testContext) (bool, string) {
 	return false, ""
 }
 
-//nolint:deadcode,unused
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
+//
+//nolint:deadcode,unused
 func skipIfUsingNAT(ctx testContext) (bool, string) {
 	if ctx.targetAddress != ctx.serverAddress {
 		return true, "test is not supported when NAT is applied"
@@ -92,8 +94,9 @@ func skipIfUsingNAT(ctx testContext) (bool, string) {
 	return false, ""
 }
 
-//nolint:deadcode,unused
 // composeSkips skips if one of the given filters is matched.
+//
+//nolint:deadcode,unused
 func composeSkips(filters ...func(ctx testContext) (bool, string)) func(ctx testContext) (bool, string) {
 	return func(ctx testContext) (bool, string) {
 		for _, filter := range filters {
@@ -269,48 +272,64 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		},
 		{
 			name: "amqp sender",
-			want: network.ProtocolAMQP,
-			clientRun: func(t *testing.T, serverAddr string) {
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				time.Sleep(5 * time.Second)
-				addr, _, _ := net.SplitHostPort(serverAddr)
-				port := "5672"
-				amqp.Send(addr, port)
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.Send(host, port)
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
-				addr, _, _ := net.SplitHostPort(serverAddr)
-				port := "5672"
-				amqp.RunAmqpServer(t, addr, port)
-				return net.JoinHostPort(addr, port)
-			},
-			shouldSkip: func() (bool, string) {
-				if runtime.GOOS != "linux" {
-					return true, "AMQP tests supported only on Linux"
-				}
-
-				return false, ""
-			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
 		},
 		{
 			name: "amqp consumer",
-			want: network.ProtocolAMQP,
-			clientRun: func(t *testing.T, serverAddr string) {
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				time.Sleep(5 * time.Second)
-				addr, _, _ := net.SplitHostPort(serverAddr)
-				amqp.ConsumeAmqp(addr, "5672")
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.ConsumeAmqp(host, port)
 			},
-			serverRun: func(t *testing.T, serverAddr string, done chan struct{}) string {
-				addr, _, _ := net.SplitHostPort(serverAddr)
-				port := "5672"
-				amqp.RunAmqpServer(t, addr, port)
-				return net.JoinHostPort(addr, port)
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "amqp connect",
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
 			},
-			shouldSkip: func() (bool, string) {
-				if runtime.GOOS != "linux" {
-					return true, "AMQP tests supported only on Linux"
-				}
-
-				return false, ""
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
 			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				time.Sleep(5 * time.Second)
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				conn := amqp.Connect(host, port)
+				defer conn.Close()
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
 		},
 		{
 			// A case where we see multiple protocols on the same socket. In that case, we expect to classify the connection

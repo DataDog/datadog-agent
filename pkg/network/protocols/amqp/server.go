@@ -6,12 +6,21 @@
 package amqp
 
 import (
+	"fmt"
+	"github.com/streadway/amqp"
 	"os/exec"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
 )
+
+func Connect(serverAddr, serverPort string) *amqp.Connection {
+	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", serverAddr, serverPort))
+	failOnError(err, "Failed to connect to RabbitMQ")
+	//defer conn.Close()
+	return conn
+}
 
 func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 	t.Helper()

@@ -6,11 +6,8 @@
 package amqp
 
 import (
-	"fmt"
 	"log"
 	"time"
-
-	"github.com/streadway/amqp"
 )
 
 func failOnError(err error, msg string) {
@@ -20,8 +17,7 @@ func failOnError(err error, msg string) {
 }
 
 func ConsumeAmqp(serverAddr, serverPort string) {
-	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", serverAddr, serverPort))
-	failOnError(err, "Failed to connect to RabbitMQ")
+	conn := Connect(serverAddr, serverPort)
 	defer conn.Close()
 
 	ch, err := conn.Channel()
