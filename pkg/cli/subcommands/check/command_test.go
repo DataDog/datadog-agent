@@ -31,6 +31,6 @@ func TestCommand(t *testing.T) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
 }

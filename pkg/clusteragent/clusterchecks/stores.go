@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"go.uber.org/atomic"
 )
 
 // clusterStore holds the state of cluster-check management.
@@ -84,20 +82,19 @@ func (s *clusterStore) clearDangling() {
 // Lock is to be held by the user (dispatcher)
 type nodeStore struct {
 	sync.RWMutex
-	name           string
-	heartbeat      int64
-	lastStatus     types.NodeStatus
-	configVersion  *atomic.Int64
-	digestToConfig map[string]integration.Config
-	clientIP       string
-	clcRunnerStats types.CLCRunnersStats
-	busyness       int
+	name             string
+	heartbeat        int64
+	lastStatus       types.NodeStatus
+	lastConfigChange int64
+	digestToConfig   map[string]integration.Config
+	clientIP         string
+	clcRunnerStats   types.CLCRunnersStats
+	busyness         int
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
 	return &nodeStore{
 		name:           name,
-		configVersion:  atomic.NewInt64(0),
 		clientIP:       clientIP,
 		digestToConfig: make(map[string]integration.Config),
 		clcRunnerStats: types.CLCRunnersStats{},
@@ -106,8 +103,8 @@ func newNodeStore(name, clientIP string) *nodeStore {
 }
 
 func (s *nodeStore) addConfig(config integration.Config) {
+	s.lastConfigChange = timestampNowNano()
 	s.digestToConfig[config.Digest()] = config
-	s.configVersion.Inc()
 	dispatchedConfigs.Inc(s.name, le.JoinLeaderValue)
 }
 
@@ -117,8 +114,8 @@ func (s *nodeStore) removeConfig(digest string) {
 		log.Debugf("unknown digest %s, skipping", digest)
 		return
 	}
+	s.lastConfigChange = timestampNowNano()
 	delete(s.digestToConfig, digest)
-	s.configVersion.Inc()
 	dispatchedConfigs.Dec(s.name, le.JoinLeaderValue)
 }
 

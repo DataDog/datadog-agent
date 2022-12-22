@@ -21,8 +21,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -113,14 +113,19 @@ func makeCommands() []*cobra.Command {
 func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		fx.Supply(core.CreateBundleParams(
+		// We want to minimize the size of the dogstatsd binary as much as possible. The 'flare' component which
+		// is part of the 'core' bundle adds 20MB to the binary size (it links to the pkg/flare package which
+		// pulls a lot of side dependencies). As a result we don't use the core.Bundle but manually pick which
+		// components we need (in our case only 'config' and 'log').
+		fx.Supply(config.NewParams(
 			defaultConfPath,
-			core.WithConfFilePath(cliParams.confPath),
-			core.WithConfigLoadSecrets(true),
-			core.WithConfigMissingOK(true),
-			core.WithConfigName("dogstatsd"),
+			config.WithConfFilePath(cliParams.confPath),
+			config.WithConfigLoadSecrets(true),
+			config.WithConfigMissingOK(true),
+			config.WithConfigName("dogstatsd"),
 		)),
-		core.Bundle,
+		config.Module,
+		logComp.Module,
 	)
 }
 

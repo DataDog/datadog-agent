@@ -213,12 +213,12 @@ func (t *Tailer) StopAfterFileRotation() {
 	go func() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.Source().BytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
-			log.Infof("After rotation close timeout (%ds), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
+			log.Infof("After rotation close timeout (%s), an additional %d bytes were read from file %q", t.closeTimeout, newBytesRead, t.file.Path)
 			fileStat, err := t.osFile.Stat()
 			if err != nil {
 				log.Warnf("During rotation close, unable to determine total file size for %q, err: %v", t.file.Path, err)
 			} else if remainingBytes := fileStat.Size() - t.lastReadOffset.Load(); remainingBytes > 0 {
-				log.Warnf("After rotation close timeout (%ds), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
+				log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 			}
 		}
 		t.stopForward()

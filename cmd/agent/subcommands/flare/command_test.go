@@ -105,6 +105,6 @@ func TestCommand(t *testing.T) {
 		makeFlare,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets)
+			require.Equal(t, true, coreParams.ConfigLoadSecrets())
 		})
 }
