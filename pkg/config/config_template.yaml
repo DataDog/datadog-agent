@@ -1615,6 +1615,40 @@ api_key:
   #   - HISTSIZE
   #   - HISTFILESIZE
 
+  ## @param activity_dump - custom object - optional
+  ## Activity dumps section to configure if/how the agent sends activity dumps to the backend for security profiles learning.
+  #
+  # activity_dump:
+
+    ## @param enabled - boolean - optional - default: false
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_ENABLED - boolean - optional - default: false
+    ## Set to true to activate the security profiles feature.
+    #
+    #  enabled: false
+
+    ## @param traced_cgroups_count - integer - optional - default: 5
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_TRACED_CGROUPS_COUNT - integer - optional - default: 5
+    ## Defines the number of concurrent cgroups to be learned.
+    #
+    #  traced_cgroups_count: 5
+
+    ## @param cgroup_dump_timeout - integer - optional - default: 30
+    ## @env DD_RUNTIME_SECURITY_CONFIG_ACTIVITY_DUMP_CGROUP_DUMP_TIMEOUT - integer - optional - default: 30
+    ## Defines the duration of cgroups learning phase in minutes. Minimum value is 10.
+    #
+    #  cgroup_dump_timeout: 30
+
+  ## @param network - custom object - optional
+  ## Network section to configure CWS network features.
+  #
+  # network:
+
+    ## @param enabled - boolean - optional - default: true
+    ## @env DD_RUNTIME_SECURITY_CONFIG_NETWORK_ENABLED - boolean - optional - default: true
+    ## Set to true to activate the CWS network detections.
+    #
+    #  enabled: true
+
 {{ end -}}
 {{ end -}}
 
