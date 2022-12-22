@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -110,10 +109,6 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 		log.Debug("Strip all process arguments enabled")
 		a.Scrubber.StripAllArguments = true
 	}
-
-	// Build transport (w/ proxy if needed)
-	a.Transport = httputils.CreateHTTPTransport()
-
 	return nil
 }
 
