@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
+	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -80,7 +81,7 @@ func (m *myservice) Execute(args []string, r <-chan svc.ChangeRequest, changes c
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cliParams := &cliParams{}
-	err := runDogstatsdFct(
+	err := start.RunDogstatsdFct(
 		cliParams,
 		DefaultConfPath,
 		func(config config.Component) error { return runAgent(ctx, cliParams, config) })

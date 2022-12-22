@@ -3,19 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package command
+package start
 
 import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStartCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		makeCommands("defaultLogFile"),
+		[]*cobra.Command{Command("defaultLogFile")},
 		[]string{"start", "--cfgpath", "PATH"},
 		start,
 		func(cliParams *cliParams, _ config.Params) {
