@@ -14,7 +14,7 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.3.0",
         "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "jinroh/cspm-scap-rules"
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
@@ -26,7 +26,7 @@
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_VERSION": "2.3.0",
         "WINDOWS_DDNPM_SHASUM": "36f28fabf3c3466d48265920c9c05ac25d04b9a812c1c3cbdf3933e2bec50233",
-        "SECURITY_AGENT_POLICIES_VERSION": "master"
+        "SECURITY_AGENT_POLICIES_VERSION": "jinroh/cspm-scap-rules"
     },
     "release-a6": {
         "INTEGRATIONS_CORE_VERSION": "7.43.0-rc.3",
