@@ -119,6 +119,7 @@ build do
     python = "#{install_dir}/embedded/bin/python2"
   end
 
+  # TODO: Explain this
   pip_config_file = ENV['PIP_CONFIG_FILE']
   pre_build_env = {
     "PIP_CONFIG_FILE" => "#{pip_config_file}"
@@ -138,11 +139,11 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
-    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools2.rb
-    command "#{pip} install wheel==0.34.1", :env => pre_build_env
-    command "#{pip} install setuptools-scm==5.0.2", :env => pre_build_env # Pin to the last version that supports Python 2
-    command "#{pip} install pip-tools==5.4.0", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env, :live_stream => true
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env, :live_stream => true # Version from ./setuptools2.rb
+    command "#{pip} install wheel==0.34.1", :env => pre_build_env, :live_stream => true
+    command "#{pip} install setuptools-scm==5.0.2", :env => pre_build_env, :live_stream => true # Pin to the last version that supports Python 2
+    command "#{pip} install pip-tools==5.4.0", :env => pre_build_env, :live_stream => true
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
