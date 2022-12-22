@@ -80,8 +80,10 @@ func TestSharedLibraryDetectionWithRoot(t *testing.T) {
 	libpath := "/fooroot.so"
 
 	simulateOpenAt(root + libpath)
-	exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
-	exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
+	require.NoError(t, err)
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+	require.NoError(t, err)
 
 	perfHandler, doneFn := initEBPFProgram(t)
 	t.Cleanup(doneFn)
@@ -112,7 +114,6 @@ func TestSharedLibraryDetectionWithRoot(t *testing.T) {
 	t.Log(string(o))
 	assert.NoError(t, err)
 
-	//	exec.Command("docker", "run", "ubuntu", "bash", "-c", fmt.Sprintf("touch /a ; mv /a %s ; touch %s", libpath, libpath)).Run()
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that soWatcher detected foo.so being opened and triggered the callback
