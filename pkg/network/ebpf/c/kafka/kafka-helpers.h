@@ -79,7 +79,7 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
-    if (request_api_version = 0 && request_api_key == KAFKA_PRODUCE) {
+    if ((request_api_version = 0 ) && (request_api_key == KAFKA_PRODUCE)) {
         // We have seen some false positives when both request_api_version and request_api_key are 0,
         // so dropping support for this case
         return false;
@@ -250,6 +250,9 @@ static __always_inline bool extract_and_set_first_topic_name(kafka_transaction_t
     for (int i = 0; i < TOPIC_NAME_MAX_STRING_SIZE; i++) {
         char ch = kafka_transaction->base.topic_name[i];
         if (ch == 0) {
+            if (i < 3) {
+                 log_debug("kafka: warning: topic name is %s (shorter than 3 letters), this could be a false positive", kafka_transaction->base.topic_name);
+            }
             return i == topic_name_size;
         }
         if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {
