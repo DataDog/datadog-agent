@@ -9,6 +9,7 @@
 package autoscalers
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -50,6 +51,7 @@ type Point struct {
 	Value     float64
 	Timestamp int64
 	Valid     bool
+	Error     error
 }
 
 const (
@@ -60,7 +62,7 @@ const (
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
-func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (map[string]Point, error) {
+func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
 	ddQueriesLen := len(ddQueries)
 	if ddQueriesLen == 0 {
 		log.Tracef("No query in input - nothing to do")
@@ -68,10 +70,11 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 	}
 
 	query := strings.Join(ddQueries, ",")
-	seriesSlice, err := p.datadogClient.QueryMetrics(time.Now().Unix()-bucketSize, time.Now().Unix(), query)
+	currentTime := time.Now()
+	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTime.Unix(), query)
 	if err != nil {
 		ddRequests.Inc("error", le.JoinLeaderValue)
-		return nil, log.Errorf("Error while executing metric query %s: %s", query, err)
+		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
 	}
 	ddRequests.Inc("success", le.JoinLeaderValue)
 
@@ -97,9 +100,9 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		// Otherwise we are not able to determine which value we should take for Autoscaling
 		if existingPoint, found := processedMetrics[ddQueries[queryIndex]]; found {
 			if existingPoint.Valid {
-				log.Warnf("Multiple Series found for query: %s. Please change your query to return a single Serie. Results will be flagged as invalid", ddQueries[queryIndex])
 				existingPoint.Valid = false
-				existingPoint.Timestamp = time.Now().Unix()
+				existingPoint.Timestamp = currentTime.Unix()
+				existingPoint.Error = errors.New("multiple series found. Please change your query to return a single serie")
 				processedMetrics[ddQueries[queryIndex]] = existingPoint
 			}
 			continue
@@ -130,7 +133,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 
 			// Prometheus submissions on the processed external metrics
 			metricsEval.Set(point.Value, m, le.JoinLeaderValue)
-			precision := time.Now().Unix() - point.Timestamp
+			precision := currentTime.Unix() - point.Timestamp
 			metricsDelay.Set(float64(precision), m, le.JoinLeaderValue)
 
 			log.Debugf("Validated %s | Value:%v at %d after %d/%d buckets", ddQueries[queryIndex], point.Value, point.Timestamp, i+1, len(serie.Points))
@@ -143,13 +146,9 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, bucketSize int64) (
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
 				Timestamp: time.Now().Unix(),
+				Error:     fmt.Errorf("no serie returned for this query, check data is available in the last %d seconds", timeWindow),
 			}
 		}
-	}
-
-	// If we add no series at all, return an error on top of invalid metrics
-	if len(seriesSlice) == 0 {
-		return processedMetrics, log.Warnf("none of the queries %s returned any point, there might be an issue with them", query)
 	}
 
 	return processedMetrics, nil

@@ -228,7 +228,6 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	for _, i := range invList {
 		require.False(t, i.Valid)
 	}
-
 }
 
 var ASCIIRunes = []rune("qwertyuiopasdfghjklzxcvbnm1234567890")
@@ -256,7 +255,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "one batch",
 			in: lambdaMakeChunks(14, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -276,7 +276,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "several batches",
 			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -296,7 +297,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "Overspilling queries",
 			in: lambdaMakeChunks(20, custommetrics.ExternalMetricValue{
 				MetricName: randStringRune(4000),
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -316,7 +318,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "Overspilling single query",
 			in: lambdaMakeChunks(0, custommetrics.ExternalMetricValue{
 				MetricName: randStringRune(7000),
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -336,7 +339,8 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			desc: "several batches, one error",
 			in: lambdaMakeChunks(158, custommetrics.ExternalMetricValue{
 				MetricName: "foo",
-				Labels:     map[string]string{"foo": "bar"}}),
+				Labels:     map[string]string{"foo": "bar"},
+			}),
 			out: []datadog.Series{
 				{
 					Metric: &metricName,
@@ -389,7 +393,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 			}
 			p := &Processor{datadogClient: datadogClient}
 
-			_, err := p.QueryExternalMetric(tt.in)
+			_, err := p.QueryExternalMetric(tt.in, 0)
 			if err != nil || tt.err != nil {
 				assert.Contains(t, err.Error(), tt.err.Error())
 			}

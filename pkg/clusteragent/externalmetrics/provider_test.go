@@ -175,7 +175,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format"),
+			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric1"),
 		},
 		{
 			desc: "Test ExternalMetric does not use DatadogMetric format",

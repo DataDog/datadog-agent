@@ -9,6 +9,7 @@
 package externalmetrics
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func (p *mockedProcessor) UpdateExternalMetrics(emList map[string]custommetrics.
 	return nil
 }
 
-func (p *mockedProcessor) QueryExternalMetric(queries []string) (map[string]autoscalers.Point, error) {
+func (p *mockedProcessor) QueryExternalMetric(queries []string, timeWindow time.Duration) (map[string]autoscalers.Point, error) {
 	return p.points, p.err
 }
 
@@ -341,6 +342,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 					Value:     0,
 					Timestamp: defaultPreviousUpdateTime.Unix(),
 					Valid:     false,
+					Error:     errors.New("some err"),
 				},
 			},
 			queryError: nil,
@@ -362,7 +364,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Active: true,
 						Value:  11.0,
 						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricBackendErrorMessage, "query-metric1"),
+						Error:  fmt.Errorf(invalidMetricErrorMessage, errors.New("some err"), "query-metric1"),
 						// UpdateTime not set as it will not be compared directly
 					},
 					query: "query-metric1",
@@ -476,7 +478,7 @@ func TestRetrieveMetricsErrorCases(t *testing.T) {
 						Active: true,
 						Value:  2.0,
 						Valid:  false,
-						Error:  fmt.Errorf(invalidMetricNoDataErrorMessage, "query-metric1"),
+						Error:  fmt.Errorf(invalidMetricNotFoundErrorMessage, "query-metric1"),
 						// UpdateTime not set as it will not be compared directly
 					},
 					query: "query-metric1",
