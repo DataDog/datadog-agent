@@ -9,15 +9,12 @@ package command
 
 import (
 	_ "expvar"
-	"fmt"
 	_ "net/http/pprof"
-	"runtime"
 
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
@@ -43,16 +40,5 @@ extensions for special Datadog features.`,
 }
 
 func makeCommands(defaultLogFile string) []*cobra.Command {
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
-		},
-	}
-
-	return []*cobra.Command{start.Command(defaultLogFile), versionCmd}
+	return []*cobra.Command{start.Command(defaultLogFile), version.MakeCommand("DogStatsD")}
 }
