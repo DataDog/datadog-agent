@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/dogstatsd/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -62,7 +63,7 @@ func main() {
 	}
 	defer log.Flush()
 
-	if err = MakeRootCommand(defaultLogFile).Execute(); err != nil {
+	if err = command.MakeRootCommand(defaultLogFile).Execute(); err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
