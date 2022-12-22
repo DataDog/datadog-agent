@@ -510,8 +510,23 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
+	if ev.PIDContext.IsKworker {
+		return ev.NewEmptyProcessCacheEntry(), false
+	}
+
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}

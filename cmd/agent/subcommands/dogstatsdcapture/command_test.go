@@ -24,6 +24,6 @@ func TestCommand(t *testing.T) {
 		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, 10*time.Second, cliParams.dsdCaptureDuration)
 			require.True(t, cliParams.dsdCaptureCompressed)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

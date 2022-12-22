@@ -66,6 +66,86 @@ func TestActivityDumps(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		cmd := dockerInstance.Command(syscallTester, []string{"sleep", "1"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(dump.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// time.Sleep(time.Second * 60)
+
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *probe.ActivityDump) bool {
+			nodes := ad.FindMatchingNodes("syscall_tester")
+			if nodes == nil {
+				t.Fatalf("Node not found in activity dump: %+v", nodes)
+			}
+			if len(nodes) != 1 {
+				t.Fatalf("Found %d nodes, expected only one.", len(nodes))
+			}
+			node := nodes[0]
+
+			// ProcessActivityNode content1
+			assert.Equal(t, probe.Runtime, node.GenerationType)
+			assert.Equal(t, 0, len(node.Children))
+			assert.Equal(t, 0, len(node.Files))
+			assert.Equal(t, 0, len(node.DNSNames))
+			assert.Equal(t, 0, len(node.Sockets))
+
+			// Process content
+			assert.Equal(t, node.Process.Pid, node.Process.Tid)
+			assert.Equal(t, uint32(0), node.Process.UID)
+			assert.Equal(t, uint32(0), node.Process.GID)
+			assert.Equal(t, "root", node.Process.User)
+			assert.Equal(t, "root", node.Process.Group)
+			if node.Process.Pid < node.Process.PPid {
+				t.Errorf("PID < PPID")
+			}
+			assert.Equal(t, false, node.Process.IsThread)
+			assert.Equal(t, uint64(0), node.Process.SpanID)
+			assert.Equal(t, uint64(0), node.Process.TraceID)
+			assert.Equal(t, "", node.Process.TTYName)
+			assert.Equal(t, "syscall_tester", node.Process.Comm)
+			assert.Equal(t, false, node.Process.ArgsTruncated)
+			assert.Equal(t, 2, len(node.Process.Argv))
+			if len(node.Process.Argv) >= 2 {
+				assert.Equal(t, "sleep", node.Process.Argv[0])
+				assert.Equal(t, "1", node.Process.Argv[1])
+			}
+			assert.Equal(t, syscallTester, node.Process.Argv0)
+			assert.Equal(t, false, node.Process.ArgsTruncated)
+			assert.Equal(t, false, node.Process.EnvsTruncated)
+			found := false
+			for _, env := range node.Process.Envs {
+				if strings.HasPrefix(env, "PATH=") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("PATH not present in envs")
+			}
+
+			// Process.FileEvent content
+			if !strings.HasSuffix(node.Process.FileEvent.PathnameStr, "/syscall_tester") {
+				t.Errorf("PathnameStr did not ends with /syscall_tester: %s", node.Process.FileEvent.PathnameStr)
+			}
+			assert.Equal(t, "syscall_tester", node.Process.FileEvent.BasenameStr)
+			return true
+		})
+	})
+
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
 		dockerInstance, dump, err := test.StartADockerGetDump()
 		if err != nil {

@@ -103,6 +103,7 @@ typedef struct {
 #define TCP_FLAGS_OFFSET 13
 #define TCPHDR_FIN 0x01
 #define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to

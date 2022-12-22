@@ -102,13 +102,13 @@ platforms:
     image_id: <%= platform[1] %>
     block_device_mappings:
       <% if ENV['KITCHEN_ARCH'] == "arm64" %>
-      - device_name: /dev/sda1
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/sda1" %>
       <% else %>
-      - device_name: /dev/xvda
+      - device_name: <%= ENV['KITCHEN_EC2_DEVICE_NAME'] || "/dev/xvda" %>
       <% end %>
         ebs:
           volume_type: gp2
-          volume_size: 40
+          volume_size: 45
           delete_on_termination: true
     <% if allow_rsa_key || al2022 %>
     user_data: |

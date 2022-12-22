@@ -47,6 +47,9 @@ func getAvailableUDPPort() (int, error) {
 }
 
 func TestNewServer(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -62,6 +65,9 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestStopServer(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -88,6 +94,9 @@ func TestStopServer(t *testing.T) {
 }
 
 func TestUDPReceive(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -365,6 +374,9 @@ func TestUDPReceive(t *testing.T) {
 }
 
 func TestUDPForward(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	fport, err := getAvailableUDPPort()
 	require.NoError(t, err)
 
@@ -409,6 +421,9 @@ func TestUDPForward(t *testing.T) {
 }
 
 func TestHistToDist(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	defaultPort := config.Datadog.GetInt("dogstatsd_port")
@@ -507,6 +522,9 @@ func TestEOLParsing(t *testing.T) {
 }
 
 func TestE2EParsing(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -549,6 +567,9 @@ func TestE2EParsing(t *testing.T) {
 }
 
 func TestExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	port, err := getAvailableUDPPort()
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
@@ -583,11 +604,11 @@ func TestStaticTags(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
-	config.Datadog.SetDefault("eks_fargate", true) // triggers DD_TAGS in static_tags
 	config.Datadog.SetDefault("tags", []string{"from:dd_tags"})
-	config.SetDetectedFeatures(config.FeatureMap{})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
-	defer config.Datadog.SetDefault("eks_fargate", false)
+
+	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(10 * time.Millisecond)
 	s, err := NewServer(demux, false)
@@ -618,6 +639,9 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestDebugStatsSpike(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
@@ -678,6 +702,9 @@ func TestDebugStatsSpike(t *testing.T) {
 }
 
 func TestDebugStats(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	demux := mockDemultiplexer()
 	defer demux.Stop(false)
 	s, err := NewServer(demux, false)
@@ -753,6 +780,9 @@ func TestDebugStats(t *testing.T) {
 }
 
 func TestNoMappingsConfig(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	datadogYaml := ``
 	samples := []metrics.MetricSample{}
 
@@ -870,6 +900,9 @@ dogstatsd_mapper_profiles:
 	samples := []metrics.MetricSample{}
 	for _, scenario := range scenarios {
 		t.Run(scenario.name, func(t *testing.T) {
+			config.SetDetectedFeatures(config.FeatureMap{})
+			defer config.SetDetectedFeatures(nil)
+
 			config.Datadog.SetConfigType("yaml")
 			err := config.Datadog.ReadConfig(strings.NewReader(scenario.config))
 			assert.NoError(t, err, "Case `%s` failed. ReadConfig should not return error %v", scenario.name, err)
@@ -907,6 +940,9 @@ dogstatsd_mapper_profiles:
 }
 
 func TestNewServerExtraTags(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	// restore env/config after having runned the test
 	p := config.Datadog.Get("dogstatsd_port")
 	defer func() {
@@ -976,6 +1012,9 @@ func testContainerIDParsing(t *testing.T) {
 }
 
 func TestContainerIDParsing(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {
@@ -1026,6 +1065,9 @@ func testOriginOptout(t *testing.T, enabled bool) {
 }
 
 func TestOriginOptout(t *testing.T) {
+	config.SetDetectedFeatures(config.FeatureMap{})
+	defer config.SetDetectedFeatures(nil)
+
 	v := config.Datadog.GetBool("dogstatsd_origin_optout_enabled")
 	defer config.Datadog.Set("dogstatsd_origin_optout_enabled", v)
 	for _, enabled := range []bool{true, false} {

@@ -464,7 +464,7 @@ func New() *AgentConfig {
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
-		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
+		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",
