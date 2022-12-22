@@ -72,24 +72,20 @@ typedef struct {
 typedef struct {
     conn_tuple_t tup;
     __u64 request_started;
-    __u8  request_method;
-    __u16 response_status_code;
+    __u64 tags;
     __u64 response_last_seen;
-    __u32 current_offset_in_request_fragment;
-    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
-    char request_fragment_bla[32] __attribute__ ((aligned (8)));
 
-    // this field is used exclusively in the kernel side to prevent a TCP segment
-    // to be processed twice in the context of localhost traffic. The field will
-    // be populated with the "original" (pre-normalization) source port number of
-    // the TCP segment containing the beginning of a given HTTP request
+    __u32 tcp_seq;
+    __u32 current_offset_in_request_fragment;
+
+    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
+
+    __u16 response_status_code;
     __u16 owned_by_src_port;
 
-    // this field is used to disambiguate segments in the context of keep-alives
-    // we populate it with the TCP seq number of the request and then the response segments
-    __u32 tcp_seq;
+    char request_fragment_bla[32] __attribute__ ((aligned (8)));
 
-    __u64 tags;
+    __u8  request_method;
 } http2_transaction_t;
 
 typedef struct {

@@ -19,6 +19,9 @@ BPF_HASH_MAP(http2_static_table, u64, static_table_value, 20)
 
 BPF_HASH_MAP(http2_dynamic_table, u64, dynamic_table_value, 20)
 
+/* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
+BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
+
 // All types of http2 frames exist in the protocol.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.
 typedef enum {
@@ -184,45 +187,46 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
                 if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
                     return ;
                 }
-                __u8 first_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-                if (first_string_char > 0){
-                    log_debug("[http2] wow");
-                }
-                log_debug("[http2] ------------ first char %d", first_string_char);
+//                __u8 first_string_char = http2_transaction->request_fragment[http2_transaction->current_offset_in_request_fragment];
+//                if (first_string_char > 0){
+//                    log_debug("[http2] wow");
+//                }
+//                log_debug("[http2] ------------ first char %d", first_string_char);
 
-
-                http2_transaction->current_offset_in_request_fragment += str_len;
-                if (http2_transaction->current_offset_in_request_fragment  > sizeof(http2_transaction->request_fragment)) {
-                    return ;
-                }
-
-                __u8 last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-                log_debug("[http2] ------------------- last char is is %d", last_string_char);
-
-                if (last_string_char > 0){
-                    log_debug("[http2] wow");
+//
+//                http2_transaction->current_offset_in_request_fragment += str_len;
+                if (http2_transaction->current_offset_in_request_fragment + str_len  > sizeof(http2_transaction->request_fragment)) {
+                    return;
                 }
 
-                http2_transaction->current_offset_in_request_fragment -= 1;
-                if (http2_transaction->current_offset_in_request_fragment  > sizeof(http2_transaction->request_fragment)) {
-                    return ;
-                }
-
-                __u8 one_before_last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-                log_debug("[http2] ------------------- one before last char is is %d", one_before_last_string_char);
-
-                if (one_before_last_string_char > 0){
-                    log_debug("[http2] wow");
-                }
-
+//                __u8 last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
+//                log_debug("[http2] ------------------- last char is is %d", last_string_char);
+//
+//                if (last_string_char > 0){
+//                    log_debug("[http2] wow");
+//                }
+//
+//                http2_transaction->current_offset_in_request_fragment -= 1;
+//                if (http2_transaction->current_offset_in_request_fragment  > sizeof(http2_transaction->request_fragment)) {
+//                    return ;
+//                }
+//
+//                __u8 one_before_last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
+//                log_debug("[http2] ------------------- one before last char is is %d", one_before_last_string_char);
+//
+//                if (one_before_last_string_char > 0){
+//                    log_debug("[http2] wow");
+//                }
+//
 //                __u64 index = 1;
 //                __u32 test = 2;
-                char* beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
 
 
 //                if ((beginning > http2_transaction->request_fragment + HTTP2_MAX_PATH_LEN ) || (beginning + HTTP2_MAX_PATH_LEN > http2_transaction->request_fragment + HTTP_BUFFER_SIZE)) {
 //                    return;
 //                }
+                char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
+                // TODO: use const __u64 size11 = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
                 bpf_memcpy(http2_transaction->request_fragment_bla, beginning, HTTP2_MAX_PATH_LEN);
 
 //                 __u8 test = http2_transaction->request_fragment_bla[0];

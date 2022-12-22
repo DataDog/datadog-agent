@@ -37,12 +37,11 @@ typedef enum {
     k400 = 12,
     k404 = 13,
     k500 = 14,
-
 } __attribute__ ((packed)) header_value;
 
 typedef struct {
     char request_fragment[40] __attribute__ ((aligned (8)));
-}__attribute__ ((packed)) dynamic_string_value;
+} __attribute__ ((packed)) dynamic_string_value;
 
 typedef struct {
     header_key name;
