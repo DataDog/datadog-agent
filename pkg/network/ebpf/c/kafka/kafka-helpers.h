@@ -79,6 +79,11 @@ static __always_inline bool try_parse_request_header(kafka_transaction_t *kafka_
     if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
+    if (request_api_version = 0 && request_api_key == KAFKA_PRODUCE) {
+        // We have seen some false positives when both request_api_version and request_api_key are 0,
+        // so dropping support for this case
+        return false;
+    }
     kafka_transaction->base.request_api_version = request_api_version;
 
     int32_t correlation_id = 0;
