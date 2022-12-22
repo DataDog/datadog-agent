@@ -14,7 +14,7 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
-dependency "openscap" if linux? && !suse?
+dependency "openscap" if linux? && !suse? && !arm?
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
@@ -154,7 +154,7 @@ build do
 
   # Security agent
   unless windows?
-    build_tags = linux? && !suse? ? "libopenscap" : ""
+    build_tags = linux? && !suse? && !arm? ? "libopenscap" : ""
     command "invoke -e security-agent.build --major-version #{major_version_arg} --build-tags=#{build_tags}", :env => env
     copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
