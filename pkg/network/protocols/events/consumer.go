@@ -11,10 +11,12 @@ package events
 import (
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 	"go.uber.org/atomic"
 )
@@ -26,6 +28,7 @@ const (
 
 // Consumer provides a standardized abstraction for consuming (batched) events from eBPF
 type Consumer struct {
+	proto       string
 	syncRequest chan (chan struct{})
 	offsets     *offsetManager
 	handler     *ddebpf.PerfHandler
@@ -38,6 +41,7 @@ type Consumer struct {
 	stopped     bool
 
 	// telemetry
+	then        time.Time
 	eventsCount *telemetry.Metric
 	missesCount *telemetry.Metric
 	batchSize   *atomic.Int64
@@ -87,6 +91,7 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 	missesCount := metricGroup.NewMetric("events_missed")
 
 	return &Consumer{
+		proto:       proto,
 		callback:    callback,
 		syncRequest: make(chan chan struct{}),
 		offsets:     offsets,
@@ -102,6 +107,7 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 
 // Start consumption of eBPF events
 func (c *Consumer) Start() {
+	c.then = time.Now()
 	c.eventLoopWG.Add(1)
 	go func() {
 		defer c.eventLoopWG.Done()
@@ -130,6 +136,7 @@ func (c *Consumer) Start() {
 				c.batchReader.ReadAll(func(cpu int, b *batch) {
 					c.process(cpu, b, true)
 				})
+				c.log()
 				close(done)
 			}
 		}
@@ -180,6 +187,29 @@ func (c *Consumer) process(cpu int, b *batch, syncing bool) {
 	for data := iter.Next(); data != nil; data = iter.Next() {
 		c.callback(data)
 	}
+}
+
+func (c *Consumer) log() {
+	var (
+		now      = time.Now()
+		elapsed  = now.Sub(c.then).Seconds()
+		captured = c.eventsCount.Delta()
+		missed   = c.missesCount.Delta()
+	)
+
+	if elapsed == 0 {
+		return
+	}
+
+	log.Infof("usm events summary: name=%q events_captured=%d(%.2f/s) events_missed=%d(%.2f/s)",
+		c.proto,
+		captured,
+		float64(captured)/float64(elapsed),
+		missed,
+		float64(missed)/float64(elapsed),
+	)
+
+	c.then = now
 }
 
 func batchFromEventData(data []byte) *batch {
