@@ -33,10 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// defaultProxyPort is the default port used for proxies.
-// This mirrors the configuration for the infrastructure agent.
-const defaultProxyPort = 3128
-
 // Name for check performed by process-agent or system-probe
 const (
 	ProcessCheckName       = "process"
