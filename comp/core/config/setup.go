@@ -24,7 +24,7 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 	confFilePath := deps.Params.confFilePath
 	configName := deps.Params.configName
 	withoutSecrets := !deps.Params.configLoadSecrets
-	failOnMissingFile := !deps.Params.configMissingOK
+	failOnMissingFile := !deps.Params.baseConfigMissingOK
 	defaultConfPath := deps.Params.defaultConfPath
 
 	if configName != "" {
@@ -109,7 +109,7 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			deps.Params.confFilePath = configurationFilename
 			deps.Params.configName = ""
 			deps.Params.configLoadSecrets = true
-			deps.Params.configMissingOK = false
+			deps.Params.baseConfigMissingOK = false
 			deps.Params.defaultConfPath = ""
 
 			w, err := setupConfig(deps)
