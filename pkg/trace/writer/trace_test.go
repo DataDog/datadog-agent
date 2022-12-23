@@ -9,13 +9,12 @@ import (
 	"compress/gzip"
 	"io"
 	"io/ioutil"
-	"reflect"
 	"runtime"
 	"sync"
 	"testing"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -52,9 +51,9 @@ func TestTraceWriter(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		testSpans := []*SampledChunks{
-			randomSampledSpans(20, 8),
-			randomSampledSpans(10, 0),
-			randomSampledSpans(40, 5),
+			randomSampledSpans(1, 0),
+			randomSampledSpans(1, 0),
+			randomSampledSpans(1, 0),
 		}
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
@@ -69,6 +68,8 @@ func TestTraceWriter(t *testing.T) {
 		// One payload flushes due to overflowing the threshold, and the second one
 		// because of stop.
 		assert.Equal(t, 2, srv.Accepted())
+		//fmt.Printf("PAYLOADS: %#v\n", srv.Payloads())
+		//spew.Dump(srv.Payloads())
 		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
@@ -162,7 +163,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		var found bool
 		for _, tracerPayload := range all.TracerPayloads {
 			for _, trace := range tracerPayload.Chunks {
-				if reflect.DeepEqual(trace, ss.TracerPayload.Chunks[0]) {
+				if proto.Equal(trace, ss.TracerPayload.Chunks[0]) {
 					found = true
 					break
 				}
@@ -411,6 +412,6 @@ func BenchmarkSpanProto(b *testing.B) {
 		},
 	}
 	for n := 0; n < b.N; n++ {
-		s.Marshal()
+		proto.Marshal(&s)
 	}
 }
