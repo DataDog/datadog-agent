@@ -134,12 +134,12 @@ func (a *ClientStatsAggregator) add(now time.Time, p pb.ClientStatsPayload) {
 			b = &bucket{ts: ts}
 			a.buckets[ts.Unix()] = b
 		}
-		p.Stats = []pb.ClientStatsBucket{clientBucket}
+		p.Stats = []*pb.ClientStatsBucket{clientBucket}
 		a.flush(b.add(p))
 	}
 }
 
-func (a *ClientStatsAggregator) flush(p []pb.ClientStatsPayload) {
+func (a *ClientStatsAggregator) flush(p []*pb.ClientStatsPayload) {
 	if len(p) == 0 {
 		return
 	}
@@ -173,7 +173,7 @@ type bucket struct {
 	agg map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts
 }
 
-func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
+func (b *bucket) add(p pb.ClientStatsPayload) []*pb.ClientStatsPayload {
 	b.n++
 	if b.n == 1 {
 		b.first = p
@@ -186,10 +186,10 @@ func (b *bucket) add(p pb.ClientStatsPayload) []pb.ClientStatsPayload {
 		b.agg = make(map[PayloadAggregationKey]map[BucketsAggregationKey]*aggregatedCounts, 2)
 		b.aggregateCounts(first)
 		b.aggregateCounts(p)
-		return []pb.ClientStatsPayload{trimCounts(first), trimCounts(p)}
+		return []*pb.ClientStatsPayload{trimCounts(first), trimCounts(p)}
 	}
 	b.aggregateCounts(p)
-	return []pb.ClientStatsPayload{trimCounts(p)}
+	return []*pb.ClientStatsPayload{trimCounts(p)}
 }
 
 func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
@@ -205,6 +205,9 @@ func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
 	}
 	for _, s := range p.Stats {
 		for _, sb := range s.Stats {
+			if sb == nil {
+				sb = &pb.ClientGroupedStats{}
+			}
 			aggKey := newBucketAggregationKey(sb)
 			agg, ok := payloadAgg[aggKey]
 			if !ok {
@@ -218,19 +221,19 @@ func (b *bucket) aggregateCounts(p pb.ClientStatsPayload) {
 	}
 }
 
-func (b *bucket) flush() []pb.ClientStatsPayload {
+func (b *bucket) flush() []*pb.ClientStatsPayload {
 	if b.n == 1 {
-		return []pb.ClientStatsPayload{b.first}
+		return []*pb.ClientStatsPayload{&b.first}
 	}
 	return b.aggregationToPayloads()
 }
 
-func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
-	res := make([]pb.ClientStatsPayload, 0, len(b.agg))
+func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
+	res := make([]*pb.ClientStatsPayload, 0, len(b.agg))
 	for payloadKey, aggrCounts := range b.agg {
-		stats := make([]pb.ClientGroupedStats, 0, len(aggrCounts))
+		stats := make([]*pb.ClientGroupedStats, 0, len(aggrCounts))
 		for aggrKey, counts := range aggrCounts {
-			stats = append(stats, pb.ClientGroupedStats{
+			stats = append(stats, &pb.ClientGroupedStats{
 				Service:        aggrKey.Service,
 				Name:           aggrKey.Name,
 				Resource:       aggrKey.Resource,
@@ -242,13 +245,13 @@ func (b *bucket) aggregationToPayloads() []pb.ClientStatsPayload {
 				Duration:       counts.duration,
 			})
 		}
-		clientBuckets := []pb.ClientStatsBucket{
+		clientBuckets := []*pb.ClientStatsBucket{
 			{
 				Start:    uint64(b.ts.UnixNano()),
 				Duration: uint64(clientBucketDuration.Nanoseconds()),
 				Stats:    stats,
 			}}
-		res = append(res, pb.ClientStatsPayload{
+		res = append(res, &pb.ClientStatsPayload{
 			Hostname:         payloadKey.Hostname,
 			Env:              payloadKey.Env,
 			Version:          payloadKey.Version,
@@ -263,7 +266,10 @@ func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggrega
 	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
 }
 
-func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
+func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
+	if b == nil {
+		return BucketsAggregationKey{}
+	}
 	return BucketsAggregationKey{
 		Service:    b.Service,
 		Name:       b.Name,
@@ -274,17 +280,20 @@ func newBucketAggregationKey(b pb.ClientGroupedStats) BucketsAggregationKey {
 	}
 }
 
-func trimCounts(p pb.ClientStatsPayload) pb.ClientStatsPayload {
+func trimCounts(p pb.ClientStatsPayload) *pb.ClientStatsPayload {
 	p.AgentAggregation = keyDistributions
 	for _, s := range p.Stats {
 		for i, b := range s.Stats {
+			if b == nil {
+				b = &pb.ClientGroupedStats{}
+			}
 			b.Hits = 0
 			b.Errors = 0
 			b.Duration = 0
 			s.Stats[i] = b
 		}
 	}
-	return p
+	return &p
 }
 
 // aggregate separately hits, errors, duration

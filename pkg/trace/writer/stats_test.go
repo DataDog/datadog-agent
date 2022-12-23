@@ -19,8 +19,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/tinylib/msgp/msgp"
 )
 
@@ -68,10 +70,10 @@ func TestStatsWriter(t *testing.T) {
 				AgentHostname: "1",
 				AgentEnv:      "1",
 				AgentVersion:  "agent-version",
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
@@ -82,10 +84,10 @@ func TestStatsWriter(t *testing.T) {
 				AgentHostname: "2",
 				AgentEnv:      "2",
 				AgentVersion:  "agent-version",
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
@@ -109,7 +111,7 @@ func TestStatsWriter(t *testing.T) {
 			AgentHostname: "agenthost",
 			AgentEnv:      "agentenv",
 			AgentVersion:  "agent-version",
-			Stats: []pb.ClientStatsPayload{{
+			Stats: []*pb.ClientStatsPayload{{
 				Hostname:         testHostname,
 				Env:              testEnv,
 				Version:          "version",
@@ -120,14 +122,14 @@ func TestStatsWriter(t *testing.T) {
 				AgentAggregation: "aggregation",
 				Service:          "service",
 				ContainerID:      "container-id",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
 					testutil.RandomBucket(5),
 				}},
 			},
 		}
-		baseClientPayload := stats.Stats[0]
+		baseClientPayload := proto.Clone(stats.Stats[0]).(*pb.ClientStatsPayload)
 		baseClientPayload.Stats = nil
 		expectedNbEntries := 15
 		expectedNbPayloads := int(math.Ceil(float64(expectedNbEntries) / 12))
@@ -138,15 +140,14 @@ func TestStatsWriter(t *testing.T) {
 		}
 
 		payloads := sw.buildPayloads(stats, 12)
-
-		assert.Equal(expectedNbPayloads, len(payloads))
+		require.Equal(t, expectedNbPayloads, len(payloads))
 		for i := 0; i < expectedNbPayloads; i++ {
 			assert.Equal(1, len(payloads[i].Stats))
 			assert.Equal(1, len(payloads[i].Stats[0].Stats))
 			assert.Equal(expectedNbEntriesByPayload[i], len(payloads[i].Stats[0].Stats[0].Stats))
-			actual := payloads[i].Stats[0]
+			actual := proto.Clone(payloads[i].Stats[0]).(*pb.ClientStatsPayload)
 			actual.Stats = nil
-			assert.Equal(baseClientPayload, actual)
+			assert.True(proto.Equal(baseClientPayload, actual))
 		}
 		assert.Equal(extractCounts([]pb.StatsPayload{stats}), extractCounts(payloads))
 		for _, p := range payloads {
@@ -167,14 +168,14 @@ func TestStatsWriter(t *testing.T) {
 		stats := pb.ClientStatsPayload{
 			Hostname: testHostname,
 			Env:      testEnv,
-			Stats: []pb.ClientStatsBucket{
+			Stats: []*pb.ClientStatsBucket{
 				testutil.RandomBucket(5),
 				testutil.RandomBucket(5),
 				testutil.RandomBucket(5),
 			},
 		}
 
-		payloads := sw.buildPayloads(pb.StatsPayload{Stats: []pb.ClientStatsPayload{stats}}, 1337)
+		payloads := sw.buildPayloads(pb.StatsPayload{Stats: []*pb.ClientStatsPayload{&stats}}, 1337)
 		assert.Equal(1, len(payloads))
 		s := payloads[0].Stats
 		assert.Equal(3, len(s[0].Stats))
@@ -215,20 +216,20 @@ func TestStatsSyncWriter(t *testing.T) {
 		go sw.Run()
 		testSets := []pb.StatsPayload{
 			{
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
 				}}},
 			{
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
@@ -249,20 +250,20 @@ func TestStatsSyncWriter(t *testing.T) {
 
 		testSets := []pb.StatsPayload{
 			{
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 					},
 				}}},
 			{
-				Stats: []pb.ClientStatsPayload{{
+				Stats: []*pb.ClientStatsPayload{{
 					Hostname: testHostname,
 					Env:      testEnv,
-					Stats: []pb.ClientStatsBucket{
+					Stats: []*pb.ClientStatsBucket{
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
 						testutil.RandomBucket(3),
@@ -336,7 +337,7 @@ func extractCounts(stats []pb.StatsPayload) map[key]counts {
 		for _, p := range s.Stats {
 			for _, b := range p.Stats {
 				for _, g := range b.Stats {
-					k := getKey(g, b.Start, b.Duration)
+					k := getKey(*g, b.Start, b.Duration)
 					c := counts[k]
 					c.duration += g.Duration
 					c.hits += g.Hits

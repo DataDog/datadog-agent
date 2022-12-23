@@ -422,17 +422,17 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {
-			normalizeStatsGroup(&b, lang)
-			if !a.Blacklister.AllowsStat(&b) {
+			normalizeStatsGroup(b, lang)
+			if !a.Blacklister.AllowsStat(b) {
 				continue
 			}
-			a.obfuscateStatsGroup(&b)
-			a.Replacer.ReplaceStatsGroup(&b)
+			a.obfuscateStatsGroup(b)
+			a.Replacer.ReplaceStatsGroup(b)
 			group.Stats[n] = b
 			n++
 		}
 		in.Stats[i].Stats = group.Stats[:n]
-		mergeDuplicates(in.Stats[i])
+		mergeDuplicates(*in.Stats[i])
 	}
 	return in
 }
@@ -440,7 +440,7 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 func mergeDuplicates(s pb.ClientStatsBucket) {
 	indexes := make(map[stats.Aggregation]int, len(s.Stats))
 	for i, g := range s.Stats {
-		a := stats.NewAggregationFromGroup(g)
+		a := stats.NewAggregationFromGroup(*g)
 		if j, ok := indexes[a]; ok {
 			s.Stats[j].Hits += g.Hits
 			s.Stats[j].Errors += g.Errors

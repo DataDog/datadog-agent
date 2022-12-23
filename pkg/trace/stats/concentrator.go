@@ -190,7 +190,7 @@ func (c *Concentrator) Flush() pb.StatsPayload {
 }
 
 func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
-	m := make(map[PayloadAggregationKey][]pb.ClientStatsBucket)
+	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -202,7 +202,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		}
 		log.Debugf("flushing bucket %d", ts)
 		for k, b := range srb.Export() {
-			m[k] = append(m[k], b)
+			m[k] = append(m[k], &b)
 		}
 		delete(c.buckets, ts)
 	}
@@ -214,7 +214,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 		c.oldestTs = newOldestTs
 	}
 	c.mu.Unlock()
-	sb := make([]pb.ClientStatsPayload, 0, len(m))
+	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		p := pb.ClientStatsPayload{
 			Env:         k.Env,
@@ -223,7 +223,7 @@ func (c *Concentrator) flushNow(now int64) pb.StatsPayload {
 			Version:     k.Version,
 			Stats:       s,
 		}
-		sb = append(sb, p)
+		sb = append(sb, &p)
 	}
 	return pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }

@@ -196,14 +196,15 @@ func (w *StatsWriter) buildPayloads(sp pb.StatsPayload, maxEntriesPerPayload int
 		nbEntries = 0
 		nbBuckets = 0
 	}
-	for _, p := range split {
+	for _, pa := range split {
+		p := pa
 		if nbEntries+p.nbEntries > maxEntriesPerPayload {
 			addPayload()
 		}
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
 		w.resolveContainerTags(&p.ClientStatsPayload)
-		current.Stats = append(current.Stats, p.ClientStatsPayload)
+		current.Stats = append(current.Stats, &p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
 		addPayload()
@@ -233,10 +234,10 @@ func (w *StatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 	}
 }
 
-func splitPayloads(payloads []pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
+func splitPayloads(payloads []*pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
 	split := make([]clientStatsPayload, 0, len(payloads))
 	for _, p := range payloads {
-		split = append(split, splitPayload(p, maxEntriesPerPayload)...)
+		split = append(split, splitPayload(*p, maxEntriesPerPayload)...)
 	}
 	return split
 }
@@ -287,7 +288,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 				Sequence:         p.Sequence,
 				AgentAggregation: p.AgentAggregation,
 				ContainerID:      p.ContainerID,
-				Stats:            make([]pb.ClientStatsBucket, 0, maxEntriesPerPayload),
+				Stats:            make([]*pb.ClientStatsBucket, 0, maxEntriesPerPayload),
 			},
 		}
 	}
@@ -303,7 +304,7 @@ func splitPayload(p pb.ClientStatsPayload, maxEntriesPerPayload int) []clientSta
 			if !ok {
 				bi = len(payloads[j].Stats)
 				payloads[j].bucketIndexes[tw] = bi
-				payloads[j].Stats = append(payloads[j].Stats, pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
+				payloads[j].Stats = append(payloads[j].Stats, &pb.ClientStatsBucket{Start: tw.start, Duration: tw.duration})
 			}
 			// here, we can just append the group, because there are no duplicate groups in the original stats payloads sent to the writer.
 			payloads[j].Stats[bi].Stats = append(payloads[j].Stats[bi].Stats, g)

@@ -13,17 +13,18 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"google.golang.org/protobuf/proto"
 )
 
 func FuzzProcessStats(f *testing.F) {
 	agent, cancel := agentWithDefaults()
 	defer cancel()
 	encode := func(pbStats pb.ClientStatsPayload) ([]byte, error) {
-		return pbStats.Marshal()
+		return proto.Marshal(&pbStats)
 	}
 	decode := func(stats []byte) (pb.ClientStatsPayload, error) {
 		var payload pb.ClientStatsPayload
-		err := payload.Unmarshal(stats)
+		err := proto.Unmarshal(stats, &payload)
 		return payload, err
 	}
 	pbStats := testutil.StatsPayloadSample()
@@ -46,7 +47,7 @@ func FuzzProcessStats(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Couldn't decode stats after processing: %v", err)
 		}
-		if !reflect.DeepEqual(decPostProcess, processedStats) {
+		if !proto.Equal(&decPostProcess, &processedStats) {
 			t.Fatalf("Inconsistent encoding/decoding after processing: (%v) is different from (%v)", decPostProcess, processedStats)
 		}
 	})

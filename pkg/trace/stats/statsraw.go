@@ -137,7 +137,7 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]pb.ClientStatsBucket {
 				Duration: sb.duration,
 			}
 		}
-		s.Stats = append(s.Stats, b)
+		s.Stats = append(s.Stats, &b)
 		m[key] = s
 	}
 	return m

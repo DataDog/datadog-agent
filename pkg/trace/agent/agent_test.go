@@ -1462,11 +1462,11 @@ func TestConvertStats(t *testing.T) {
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
 				Version:  "code_version",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name------",
@@ -1500,11 +1500,11 @@ func TestConvertStats(t *testing.T) {
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
-				Stats: []pb.ClientStatsBucket{
+				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
 						Duration: 2,
-						Stats: []pb.ClientGroupedStats{
+						Stats: []*pb.ClientGroupedStats{
 							{
 								Service:        "service",
 								Name:           "name",
@@ -1539,7 +1539,7 @@ func TestConvertStats(t *testing.T) {
 
 func TestMergeDuplicates(t *testing.T) {
 	in := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",
@@ -1579,7 +1579,7 @@ func TestMergeDuplicates(t *testing.T) {
 		},
 	}
 	expected := pb.ClientStatsBucket{
-		Stats: []pb.ClientGroupedStats{
+		Stats: []*pb.ClientGroupedStats{
 			{
 				Service:      "s1",
 				Resource:     "r1",

@@ -79,18 +79,18 @@ func spansToTraceChunk(spans []*pb.Span) *pb.TraceChunk {
 }
 
 // assertCountsEqual is a test utility function to assert expected == actual for count aggregations.
-func assertCountsEqual(t *testing.T, expected []pb.ClientGroupedStats, actual []pb.ClientGroupedStats) {
+func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual []*pb.ClientGroupedStats) {
 	expectedM := make(map[string]pb.ClientGroupedStats)
 	actualM := make(map[string]pb.ClientGroupedStats)
 	for _, e := range expected {
 		e.ErrorSummary = nil
 		e.OkSummary = nil
-		expectedM[e.Service+e.Resource] = e
+		expectedM[e.Service+e.Resource] = *e
 	}
 	for _, a := range actual {
 		a.ErrorSummary = nil
 		a.OkSummary = nil
-		actualM[a.Service+a.Resource] = a
+		actualM[a.Service+a.Resource] = *a
 	}
 	assert.Equal(t, expectedM, actualM)
 }
@@ -153,7 +153,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates old past time buckets, so each count
 		// should be an aggregated total across the spans.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -190,7 +190,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 
 		// First oldest bucket aggregates, it should have it all except the
 		// last four spans that have offset of 0.
-		expected := []pb.ClientGroupedStats{
+		expected := []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -210,7 +210,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 		}
 
 		// Stats of the last four spans.
-		expected = []pb.ClientGroupedStats{
+		expected = []*pb.ClientGroupedStats{
 			{
 				Service:      "A1",
 				Resource:     "resource1",
@@ -316,9 +316,9 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		testSpan(6, 0, 24, 0, "A1", "resource2", 0),
 	}
 
-	expectedCountValByKeyByTime := make(map[int64][]pb.ClientGroupedStats)
+	expectedCountValByKeyByTime := make(map[int64][]*pb.ClientGroupedStats)
 	// 2-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-2*testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -351,7 +351,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// 1-bucket old flush
-	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow-testBucketInterval] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource1",
@@ -404,7 +404,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 		},
 	}
 	// last bucket to be flushed
-	expectedCountValByKeyByTime[alignedNow] = []pb.ClientGroupedStats{
+	expectedCountValByKeyByTime[alignedNow] = []*pb.ClientGroupedStats{
 		{
 			Service:      "A1",
 			Resource:     "resource2",
@@ -416,7 +416,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Errors:       0,
 		},
 	}
-	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []pb.ClientGroupedStats{}
+	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
 
 	traceutil.ComputeTopLevel(spans)
 	testTrace := toProcessedTrace(spans, "none", "")
