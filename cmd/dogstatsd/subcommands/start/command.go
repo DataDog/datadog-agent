@@ -40,7 +40,7 @@ var (
 	dogstatsdStats *http.Server
 )
 
-type cliParams struct {
+type CLIParams struct {
 	confPath string
 }
 
@@ -51,7 +51,7 @@ const (
 
 // Command returns the start subcommand for the 'dogstatsd' command.
 func Command(defaultLogFile string) *cobra.Command {
-	cliParams := &cliParams{}
+	cliParams := &CLIParams{}
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start DogStatsD",
@@ -72,12 +72,12 @@ func Command(defaultLogFile string) *cobra.Command {
 }
 
 type Params struct {
-	defaultLogFile string
+	DefaultLogFile string
 }
 
-func RunDogstatsdFct(cliParams *cliParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
+func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
 	params := &Params{
-		defaultLogFile: defaultLogFile,
+		DefaultLogFile: defaultLogFile,
 	}
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
@@ -94,15 +94,15 @@ func RunDogstatsdFct(cliParams *cliParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *cliParams, config config.Component, params *Params) error {
+func start(cliParams *CLIParams, config config.Component, params *Params) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	defer stopAgent(cancel)
+	defer StopAgent(cancel)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, cliParams, config, params)
+	err := RunAgent(ctx, cliParams, config, params)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func start(cliParams *cliParams, config config.Component, params *Params) error 
 	return nil
 }
 
-func runAgent(ctx context.Context, cliParams *cliParams, config config.Component, params *Params) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -134,7 +134,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	syslogURI := pkgconfig.GetSyslogURI()
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = params.defaultLogFile
+		logFile = params.DefaultLogFile
 	}
 
 	if config.GetBool("disable_file_logging") {
@@ -249,7 +249,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
-func stopAgent(cancel context.CancelFunc) {
+func StopAgent(cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()

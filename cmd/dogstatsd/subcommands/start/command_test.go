@@ -19,7 +19,7 @@ func TestStartCommand(t *testing.T) {
 		[]*cobra.Command{Command("defaultLogFile")},
 		[]string{"start", "--cfgpath", "PATH"},
 		start,
-		func(cliParams *cliParams, _ config.Params) {
+		func(cliParams *CLIParams, _ config.Params) {
 			require.Equal(t, "PATH", cliParams.confPath)
 		})
 }
