@@ -111,6 +111,7 @@ type forwarders struct {
 	orchestrator       forwarder.Forwarder
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
+	containerImage     *forwarder.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -239,6 +240,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 				orchestrator:       orchestratorForwarder,
 				eventPlatform:      eventPlatformForwarder,
 				containerLifecycle: containerLifecycleForwarder,
+				containerImage: containerImageForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -316,6 +318,15 @@ func (d *AgentDemultiplexer) Run() {
 			}
 		} else {
 			log.Debug("not starting the container lifecycle forwarder")
+		}
+
+		// container image forwarder
+		if d.forwarders.containerImage != nil {
+			if err := d.forwarders.containerImage.Start(); err != nil {
+				log.Errorf("error starting container image forwarder: %v", err)
+			}
+		} else {
+			log.Debug("no starting the container image forwarder")
 		}
 
 		// shared forwarder
@@ -429,6 +440,10 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		if d.dataOutputs.forwarders.containerLifecycle != nil {
 			d.dataOutputs.forwarders.containerLifecycle.Stop()
 			d.dataOutputs.forwarders.containerLifecycle = nil
+		}
+		if d.dataOutputs.forwarders.containerImage != nil {
+			d.dataOutputs.forwarders.containerImage.Stop()
+			d.dataOutputs.forwarders.containerImage = nil
 		}
 		if d.dataOutputs.forwarders.shared != nil {
 			d.dataOutputs.forwarders.shared.Stop()
