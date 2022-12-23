@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 )
@@ -27,7 +28,7 @@ type secretsPayload struct {
 }
 
 func main() {
-	data, err := io.ReadAll(os.Stdin)
+	data, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not read from stdin: %s", err)
 		os.Exit(1)

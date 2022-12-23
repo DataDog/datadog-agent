@@ -40,18 +40,16 @@ func newReplCtxWithParams(constants map[string]interface{}, legacyFields map[Fie
 }
 
 func parseRule(expr string, model Model, replCtx ReplacementContext) (*Rule, error) {
-	pc := ast.NewParsingContext()
-
 	rule := &Rule{
 		ID:         "id1",
 		Expression: expr,
 	}
 
-	if err := rule.Parse(pc); err != nil {
+	if err := rule.Parse(); err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
 	}
 
-	if err := rule.GenEvaluator(model, pc, replCtx); err != nil {
+	if err := rule.GenEvaluator(model, replCtx); err != nil {
 		return rule, fmt.Errorf("compilation error: %v", err)
 	}
 
@@ -584,14 +582,12 @@ func TestPartial(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"list",
 		`[ "/etc/shadow", "/etc/password" ]`,
 		model,
-		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -614,14 +610,12 @@ func TestMacroList(t *testing.T) {
 
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -653,14 +647,12 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
 		`open.filename in [ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -718,14 +710,12 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext()
 	replCtx := newReplCtxWithParams(make(map[string]interface{}), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
 		`[ "/etc/shadow", "/etc/passwd" ]`,
 		model,
-		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -737,7 +727,6 @@ func TestNestedMacros(t *testing.T) {
 		"is_sensitive_opened",
 		`open.filename in sensitive_files`,
 		model,
-		pc,
 		replCtx,
 	)
 	if err != nil {
@@ -1489,8 +1478,7 @@ func BenchmarkPartial(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	pc := ast.NewParsingContext()
-	if err := rule.GenEvaluator(model, pc, emptyReplCtx()); err != nil {
+	if err := rule.GenEvaluator(model, emptyReplCtx()); err != nil {
 		b.Fatal(err)
 	}
 

@@ -158,9 +158,12 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 					cs.Protocol = ProtocolHTTP
 				}
 			}
+
+		} else if flow.ClassificationStatus == driver.ClassificationUnclassified {
+			cs.Protocol = ProtocolUnclassified
 		} else {
 			// one of
-			// ClassificationUnableInsufficientData, ClassificationUnknown, ClassificationUnclassified
+			// ClassificationUnableInsufficientData, ClassificationUnknown
 			cs.Protocol = ProtocolUnknown
 		}
 	}

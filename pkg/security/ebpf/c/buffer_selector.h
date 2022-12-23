@@ -9,6 +9,8 @@ struct bpf_map_def SEC("maps/buffer_selector") buffer_selector = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 3,
+    .pinning = 0,
+    .namespace = "",
 };
 
 static __attribute__((always_inline))

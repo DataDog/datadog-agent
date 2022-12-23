@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/go-tuf/data"
-	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"github.com/secure-systems-lab/go-securesystemslib/cjson"
+	"github.com/theupdateframework/go-tuf/data"
+	tufutil "github.com/theupdateframework/go-tuf/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -353,7 +353,7 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
-func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+func (s *Service) ClientGetConfigs(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
 	err := validateRequest(request)

@@ -10,6 +10,7 @@ package legacy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -125,7 +126,7 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *config.LegacyC
 		return err
 	}
 
-	if err := os.WriteFile(dst, data, 0640); err != nil {
+	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return fmt.Errorf("Could not write new docker configuration to %s: %s", dst, err)
 	}
 

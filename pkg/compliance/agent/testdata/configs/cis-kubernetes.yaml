@@ -8,7 +8,7 @@ rules:
   scope:
     - kubernetesNode
   hostSelector: node.label("kubernetes.io/role") in ["worker"]
-  input:
+  resources:
     - file:
         path: /files/kube-apiserver.yaml
-      type: object
+      condition: file.permissions == 0647

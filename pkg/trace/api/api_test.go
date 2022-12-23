@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -361,7 +362,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					t.Fatalf("no data received")
 				}
 
-				body, err := io.ReadAll(resp.Body)
+				body, err := ioutil.ReadAll(resp.Body)
 				assert.Nil(err)
 				assert.Equal("OK\n", string(body))
 			case v04:
@@ -385,7 +386,7 @@ func TestReceiverMsgpackDecoder(t *testing.T) {
 					t.Fatalf("no data received")
 				}
 
-				body, err := io.ReadAll(resp.Body)
+				body, err := ioutil.ReadAll(resp.Body)
 				assert.Nil(err)
 				var tr traceResponse
 				err = json.Unmarshal(body, &tr)
@@ -635,7 +636,7 @@ func TestHandleStats(t *testing.T) {
 			t.Fatal(err)
 		}
 		if resp.StatusCode != 200 {
-			slurp, _ := io.ReadAll(resp.Body)
+			slurp, _ := ioutil.ReadAll(resp.Body)
 			t.Fatal(string(slurp), resp.StatusCode)
 		}
 
@@ -1035,7 +1036,7 @@ func TestReplyOKV5(t *testing.T) {
 	path := fmt.Sprintf("http://%s:%d/v0.5/traces", r.conf.ReceiverHost, r.conf.ReceiverPort)
 	resp, err := http.Post(path, "application/msgpack", bytes.NewReader(data))
 	assert.NoError(t, err)
-	slurp, err := io.ReadAll(resp.Body)
+	slurp, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}

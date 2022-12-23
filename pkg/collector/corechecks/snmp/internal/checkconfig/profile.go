@@ -7,7 +7,7 @@ package checkconfig
 
 import (
 	"fmt"
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -78,7 +78,7 @@ func loadDefaultProfiles() (profileDefinitionMap, error) {
 
 func getDefaultProfilesDefinitionFiles() (profileConfigMap, error) {
 	profilesRoot := getProfileConfdRoot()
-	files, err := os.ReadDir(profilesRoot)
+	files, err := ioutil.ReadDir(profilesRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir `%s`: %v", profilesRoot, err)
 	}
@@ -126,7 +126,7 @@ func loadProfiles(pConfig profileConfigMap) (profileDefinitionMap, error) {
 
 func readProfileDefinition(definitionFile string) (*profileDefinition, error) {
 	filePath := resolveProfileDefinitionPath(definitionFile)
-	buf, err := os.ReadFile(filePath)
+	buf, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file `%s`: %s", filePath, err)
 	}

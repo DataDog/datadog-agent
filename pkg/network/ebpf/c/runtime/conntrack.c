@@ -1,7 +1,6 @@
 #include "kconfig.h"
 #include <linux/version.h>
 
-#include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
 #include "conntrack.h"
@@ -25,7 +24,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-
+    
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
 
     conntrack_tuple_t orig = {}, reply = {};
@@ -57,7 +56,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
         return 0;
     }
-
+    
     log_debug("kprobe/ctnetlink_fill_info: netns: %u, status: %x\n", get_netns(&ct->ct_net), status);
 
     conntrack_tuple_t orig = {}, reply = {};

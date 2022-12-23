@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -181,7 +182,7 @@ func analyzeResponse(r *http.Response, err error) (string, error) {
 	}
 
 	var res flareResponse
-	b, _ := io.ReadAll(r.Body)
+	b, _ := ioutil.ReadAll(r.Body)
 	if r.StatusCode != http.StatusOK {
 		err = fmt.Errorf("HTTP %d %s", r.StatusCode, r.Status)
 	} else if contentType := r.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {

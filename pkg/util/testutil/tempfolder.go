@@ -6,6 +6,7 @@
 package testutil
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,7 @@ type TempFolder struct {
 
 // NewTempFolder creates a new temporary folder
 func NewTempFolder(namePrefix string) (*TempFolder, error) {
-	path, err := os.MkdirTemp("", namePrefix)
+	path, err := ioutil.TempDir("", namePrefix)
 	if err != nil {
 		return nil, err
 	}

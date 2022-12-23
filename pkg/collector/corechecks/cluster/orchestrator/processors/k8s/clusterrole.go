@@ -46,7 +46,8 @@ func (h *ClusterRoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext,
 		GroupId:      ctx.MsgGroupID,
 		GroupSize:    int32(groupSize),
 		ClusterRoles: models,
-		Tags:         append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag)}
+		Tags:         ctx.Cfg.ExtraTags,
+	}
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
@@ -69,7 +70,7 @@ func (h *ClusterRoleHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *ClusterRoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *ClusterRoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*rbacv1.ClusterRole).UID
 }
 

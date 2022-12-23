@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 
-	lru "github.com/hashicorp/golang-lru/v2"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -1008,11 +1008,11 @@ func (f RetValError) String() string {
 	return ""
 }
 
-var capsStringArrayCache *lru.Cache[KernelCapability, []string]
+var capsStringArrayCache *lru.Cache
 
 func init() {
 	initConstants()
-	capsStringArrayCache, _ = lru.New[KernelCapability, []string](4)
+	capsStringArrayCache, _ = lru.New(4)
 }
 
 // KernelCapability represents a kernel capability bitmask value
@@ -1025,7 +1025,7 @@ func (kc KernelCapability) String() string {
 // StringArray returns the kernel capabilities as an array of strings
 func (kc KernelCapability) StringArray() []string {
 	if value, ok := capsStringArrayCache.Get(kc); ok {
-		return value
+		return value.([]string)
 	}
 	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
 	capsStringArrayCache.Add(kc, computed)

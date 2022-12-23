@@ -35,8 +35,6 @@ func build(m *testing.M, outBin, pkg string) {
 }
 
 func TestMain(m *testing.M) {
-	testCheckRightsStub()
-
 	if runtime.GOOS == "windows" {
 		binExtension = ".exe"
 	}

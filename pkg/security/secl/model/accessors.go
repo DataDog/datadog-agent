@@ -926,9 +926,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -937,9 +934,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -948,9 +942,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -959,9 +950,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -970,9 +958,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return false
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -981,9 +966,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -992,9 +974,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1003,9 +982,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -1014,9 +990,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -1026,9 +999,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -1047,9 +1017,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -1067,9 +1034,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1078,9 +1042,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -1089,9 +1050,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exec.interpreter.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exec.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exec.Process.LinuxBinprm.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -1512,9 +1470,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -1523,9 +1478,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -1534,9 +1486,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -1545,9 +1494,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -1556,9 +1502,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return false
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -1567,9 +1510,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -1578,9 +1518,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1589,9 +1526,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -1600,9 +1534,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -1612,9 +1543,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -1633,9 +1561,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -1653,9 +1578,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -1664,9 +1586,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -1675,9 +1594,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "exit.interpreter.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Exit.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Exit.Process.LinuxBinprm.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -3402,9 +3318,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3421,9 +3334,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3440,9 +3350,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3459,9 +3366,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3478,9 +3382,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []bool{}
-				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3497,9 +3398,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3516,9 +3414,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3535,9 +3430,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3554,9 +3446,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3574,9 +3463,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3611,9 +3497,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3647,9 +3530,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3666,9 +3546,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -3685,9 +3562,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -4164,9 +4038,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -4175,9 +4046,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -4186,9 +4054,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -4197,9 +4062,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -4208,9 +4070,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return false
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -4219,9 +4078,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -4230,9 +4086,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4241,9 +4094,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -4252,9 +4102,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -4264,9 +4111,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -4285,9 +4129,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -4305,9 +4146,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -4316,9 +4154,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -4327,9 +4162,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.interpreter.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -4347,759 +4179,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				return (*Event)(ctx.Object).ProcessContext.Process.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.args":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Args
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "process.parent.args_flags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.args_options":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.args_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.ArgsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.argv":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Argv
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "process.parent.argv0":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Argv0
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "process.parent.cap_effective":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.CapEffective)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.cap_permitted":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.CapPermitted)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.comm":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Comm
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.container.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.created_at":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.CreatedAt)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.egid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.EGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.egroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.envp":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Envp
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.envs":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Envs
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.envs_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.EnvsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.euid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.EUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.euser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.EUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.fsgid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.FSGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.fsgroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.fsuid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.FSUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.fsuser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.FSUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.interpreter.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.interpreter.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).ProcessContext.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "process.parent.is_kworker":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.PIDContext.IsKworker
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.is_thread":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.pid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.PIDContext.Pid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.ppid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.PPid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.tty_name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.TTYName
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).ProcessContext.Parent.Credentials.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "process.parent.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).ProcessContext.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).ProcessContext.Parent.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -5831,9 +4910,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5850,9 +4926,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5869,9 +4942,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5888,9 +4958,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5907,9 +4974,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []bool{}
-				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5926,9 +4990,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5945,9 +5006,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5964,9 +5022,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -5983,9 +5038,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6003,9 +5055,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6040,9 +5089,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6076,9 +5122,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6095,9 +5138,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6114,9 +5154,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -6593,9 +5630,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -6604,9 +5638,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -6615,9 +5646,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -6626,9 +5654,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -6637,9 +5662,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return false
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -6648,9 +5670,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -6659,9 +5678,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -6670,9 +5686,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -6681,9 +5694,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -6693,9 +5703,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -6714,9 +5721,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -6734,9 +5738,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -6745,9 +5746,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -6756,9 +5754,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "ptrace.tracee.interpreter.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.LinuxBinprm.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -6776,759 +5771,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				return (*Event)(ctx.Object).PTrace.Tracee.Process.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.args":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Args
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.args_flags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.args_options":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.args_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.ArgsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.argv":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Argv
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.argv0":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Argv0
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.cap_effective":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.CapEffective)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.cap_permitted":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.CapPermitted)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.comm":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Comm
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.container.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.created_at":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.CreatedAt)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.egid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.EGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.egroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.envp":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Envp
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.envs":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Envs
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.envs_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.EnvsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.euid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.EUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.euser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.EUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.fsgid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.FSGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.fsgroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.fsuid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.FSUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.fsuser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.FSUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).PTrace.Tracee.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "ptrace.tracee.parent.is_kworker":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.PIDContext.IsKworker
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.is_thread":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.pid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.PIDContext.Pid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.ppid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.PPid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.tty_name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.TTYName
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "ptrace.tracee.parent.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).PTrace.Tracee.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).PTrace.Tracee.Parent.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9112,9 +7354,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9131,9 +7370,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.filesystem":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9150,9 +7386,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.gid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9169,9 +7402,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.group":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9188,9 +7418,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []bool {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []bool{}
-				}
 				var results []bool
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9207,9 +7434,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.inode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9226,9 +7450,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mode":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9245,9 +7466,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.modification_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9264,9 +7482,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.mount_id":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9284,9 +7499,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9321,9 +7533,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringArrayEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9357,9 +7566,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.rights":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9376,9 +7582,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.uid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []int{}
-				}
 				var results []int
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9395,9 +7598,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.ancestors.interpreter.file.user":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.Ancestor.ProcessContext.Process.HasInterpreter() {
-					return []string{}
-				}
 				var results []string
 				iterator := &ProcessAncestorsIterator{}
 				value := iterator.Front(ctx)
@@ -9874,9 +8074,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime)
 			},
 			Field:  field,
@@ -9885,9 +8082,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.filesystem":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.Filesystem
 			},
 			Field:  field,
@@ -9896,9 +8090,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.gid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.GID)
 			},
 			Field:  field,
@@ -9907,9 +8098,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.group":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Group
 			},
 			Field:  field,
@@ -9918,9 +8106,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return false
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer
 			},
 			Field:  field,
@@ -9929,9 +8114,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.inode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Inode)
 			},
 			Field:  field,
@@ -9940,9 +8122,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -9951,9 +8130,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.modification_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime)
 			},
 			Field:  field,
@@ -9962,9 +8138,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.mount_id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.MountID)
 			},
 			Field:  field,
@@ -9974,9 +8147,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkBasename,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.BasenameStr
 			},
 			Field:  field,
@@ -9995,9 +8165,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			OpOverrides: ProcessSymlinkPathname,
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.PathnameStr
 			},
 			Field:  field,
@@ -10015,9 +8182,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.rights":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode)
 			},
 			Field:  field,
@@ -10026,9 +8190,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.uid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return 0
-				}
 				return int((*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.UID)
 			},
 			Field:  field,
@@ -10037,9 +8198,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "signal.target.interpreter.file.user":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.Process.HasInterpreter() {
-					return ""
-				}
 				return (*Event)(ctx.Object).Signal.Target.Process.LinuxBinprm.FileEvent.FileFields.User
 			},
 			Field:  field,
@@ -10057,759 +8215,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
 				return (*Event)(ctx.Object).Signal.Target.Process.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.args":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Args
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.args_flags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.args_options":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Argv
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.args_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.ArgsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.argv":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Argv
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.argv0":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Argv0
-			},
-			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.cap_effective":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.CapEffective)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.cap_permitted":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.CapPermitted)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.comm":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Comm
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.container.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.ContainerID
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.cookie":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Cookie)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.created_at":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.CreatedAt)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.egid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.EGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.egroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.EGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.envp":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Envp
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.envs":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return []string{}
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Envs
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.envs_truncated":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.EnvsTruncated
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.euid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.EUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.euser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.EUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.fsgid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.FSGID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.fsgroup":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.FSGroup
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.fsuid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.FSUID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.fsuser":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.FSUser
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.Group
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.change_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.gid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.group":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.mode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.name":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.name.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkBasename,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.path":
-		return &eval.StringEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.path.length":
-		return &eval.IntEvaluator{
-			OpOverrides: ProcessSymlinkPathname,
-			EvalFnc: func(ctx *eval.Context) int {
-				return len((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.rights":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.interpreter.file.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				if !(*Event)(ctx.Object).Signal.Target.Parent.HasInterpreter() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-		}, nil
-	case "signal.target.parent.is_kworker":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.PIDContext.IsKworker
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.is_thread":
-		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return false
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.IsThread
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.pid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.PIDContext.Pid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.ppid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.PPid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.tid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.PIDContext.Tid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.tty_name":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.TTYName
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.uid":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return 0
-				}
-				return int((*Event)(ctx.Object).Signal.Target.Parent.Credentials.UID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "signal.target.parent.user":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				if !(*Event)(ctx.Object).Signal.Target.HasParent() {
-					return ""
-				}
-				return (*Event)(ctx.Object).Signal.Target.Parent.Credentials.User
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -11777,71 +9182,6 @@ func (e *Event) GetFields() []eval.Field {
 		"process.interpreter.file.user",
 		"process.is_kworker",
 		"process.is_thread",
-		"process.parent.args",
-		"process.parent.args_flags",
-		"process.parent.args_options",
-		"process.parent.args_truncated",
-		"process.parent.argv",
-		"process.parent.argv0",
-		"process.parent.cap_effective",
-		"process.parent.cap_permitted",
-		"process.parent.comm",
-		"process.parent.container.id",
-		"process.parent.cookie",
-		"process.parent.created_at",
-		"process.parent.egid",
-		"process.parent.egroup",
-		"process.parent.envp",
-		"process.parent.envs",
-		"process.parent.envs_truncated",
-		"process.parent.euid",
-		"process.parent.euser",
-		"process.parent.file.change_time",
-		"process.parent.file.filesystem",
-		"process.parent.file.gid",
-		"process.parent.file.group",
-		"process.parent.file.in_upper_layer",
-		"process.parent.file.inode",
-		"process.parent.file.mode",
-		"process.parent.file.modification_time",
-		"process.parent.file.mount_id",
-		"process.parent.file.name",
-		"process.parent.file.name.length",
-		"process.parent.file.path",
-		"process.parent.file.path.length",
-		"process.parent.file.rights",
-		"process.parent.file.uid",
-		"process.parent.file.user",
-		"process.parent.fsgid",
-		"process.parent.fsgroup",
-		"process.parent.fsuid",
-		"process.parent.fsuser",
-		"process.parent.gid",
-		"process.parent.group",
-		"process.parent.interpreter.file.change_time",
-		"process.parent.interpreter.file.filesystem",
-		"process.parent.interpreter.file.gid",
-		"process.parent.interpreter.file.group",
-		"process.parent.interpreter.file.in_upper_layer",
-		"process.parent.interpreter.file.inode",
-		"process.parent.interpreter.file.mode",
-		"process.parent.interpreter.file.modification_time",
-		"process.parent.interpreter.file.mount_id",
-		"process.parent.interpreter.file.name",
-		"process.parent.interpreter.file.name.length",
-		"process.parent.interpreter.file.path",
-		"process.parent.interpreter.file.path.length",
-		"process.parent.interpreter.file.rights",
-		"process.parent.interpreter.file.uid",
-		"process.parent.interpreter.file.user",
-		"process.parent.is_kworker",
-		"process.parent.is_thread",
-		"process.parent.pid",
-		"process.parent.ppid",
-		"process.parent.tid",
-		"process.parent.tty_name",
-		"process.parent.uid",
-		"process.parent.user",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
@@ -11974,71 +9314,6 @@ func (e *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.user",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
-		"ptrace.tracee.parent.args",
-		"ptrace.tracee.parent.args_flags",
-		"ptrace.tracee.parent.args_options",
-		"ptrace.tracee.parent.args_truncated",
-		"ptrace.tracee.parent.argv",
-		"ptrace.tracee.parent.argv0",
-		"ptrace.tracee.parent.cap_effective",
-		"ptrace.tracee.parent.cap_permitted",
-		"ptrace.tracee.parent.comm",
-		"ptrace.tracee.parent.container.id",
-		"ptrace.tracee.parent.cookie",
-		"ptrace.tracee.parent.created_at",
-		"ptrace.tracee.parent.egid",
-		"ptrace.tracee.parent.egroup",
-		"ptrace.tracee.parent.envp",
-		"ptrace.tracee.parent.envs",
-		"ptrace.tracee.parent.envs_truncated",
-		"ptrace.tracee.parent.euid",
-		"ptrace.tracee.parent.euser",
-		"ptrace.tracee.parent.file.change_time",
-		"ptrace.tracee.parent.file.filesystem",
-		"ptrace.tracee.parent.file.gid",
-		"ptrace.tracee.parent.file.group",
-		"ptrace.tracee.parent.file.in_upper_layer",
-		"ptrace.tracee.parent.file.inode",
-		"ptrace.tracee.parent.file.mode",
-		"ptrace.tracee.parent.file.modification_time",
-		"ptrace.tracee.parent.file.mount_id",
-		"ptrace.tracee.parent.file.name",
-		"ptrace.tracee.parent.file.name.length",
-		"ptrace.tracee.parent.file.path",
-		"ptrace.tracee.parent.file.path.length",
-		"ptrace.tracee.parent.file.rights",
-		"ptrace.tracee.parent.file.uid",
-		"ptrace.tracee.parent.file.user",
-		"ptrace.tracee.parent.fsgid",
-		"ptrace.tracee.parent.fsgroup",
-		"ptrace.tracee.parent.fsuid",
-		"ptrace.tracee.parent.fsuser",
-		"ptrace.tracee.parent.gid",
-		"ptrace.tracee.parent.group",
-		"ptrace.tracee.parent.interpreter.file.change_time",
-		"ptrace.tracee.parent.interpreter.file.filesystem",
-		"ptrace.tracee.parent.interpreter.file.gid",
-		"ptrace.tracee.parent.interpreter.file.group",
-		"ptrace.tracee.parent.interpreter.file.in_upper_layer",
-		"ptrace.tracee.parent.interpreter.file.inode",
-		"ptrace.tracee.parent.interpreter.file.mode",
-		"ptrace.tracee.parent.interpreter.file.modification_time",
-		"ptrace.tracee.parent.interpreter.file.mount_id",
-		"ptrace.tracee.parent.interpreter.file.name",
-		"ptrace.tracee.parent.interpreter.file.name.length",
-		"ptrace.tracee.parent.interpreter.file.path",
-		"ptrace.tracee.parent.interpreter.file.path.length",
-		"ptrace.tracee.parent.interpreter.file.rights",
-		"ptrace.tracee.parent.interpreter.file.uid",
-		"ptrace.tracee.parent.interpreter.file.user",
-		"ptrace.tracee.parent.is_kworker",
-		"ptrace.tracee.parent.is_thread",
-		"ptrace.tracee.parent.pid",
-		"ptrace.tracee.parent.ppid",
-		"ptrace.tracee.parent.tid",
-		"ptrace.tracee.parent.tty_name",
-		"ptrace.tracee.parent.uid",
-		"ptrace.tracee.parent.user",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
@@ -12275,71 +9550,6 @@ func (e *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.user",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
-		"signal.target.parent.args",
-		"signal.target.parent.args_flags",
-		"signal.target.parent.args_options",
-		"signal.target.parent.args_truncated",
-		"signal.target.parent.argv",
-		"signal.target.parent.argv0",
-		"signal.target.parent.cap_effective",
-		"signal.target.parent.cap_permitted",
-		"signal.target.parent.comm",
-		"signal.target.parent.container.id",
-		"signal.target.parent.cookie",
-		"signal.target.parent.created_at",
-		"signal.target.parent.egid",
-		"signal.target.parent.egroup",
-		"signal.target.parent.envp",
-		"signal.target.parent.envs",
-		"signal.target.parent.envs_truncated",
-		"signal.target.parent.euid",
-		"signal.target.parent.euser",
-		"signal.target.parent.file.change_time",
-		"signal.target.parent.file.filesystem",
-		"signal.target.parent.file.gid",
-		"signal.target.parent.file.group",
-		"signal.target.parent.file.in_upper_layer",
-		"signal.target.parent.file.inode",
-		"signal.target.parent.file.mode",
-		"signal.target.parent.file.modification_time",
-		"signal.target.parent.file.mount_id",
-		"signal.target.parent.file.name",
-		"signal.target.parent.file.name.length",
-		"signal.target.parent.file.path",
-		"signal.target.parent.file.path.length",
-		"signal.target.parent.file.rights",
-		"signal.target.parent.file.uid",
-		"signal.target.parent.file.user",
-		"signal.target.parent.fsgid",
-		"signal.target.parent.fsgroup",
-		"signal.target.parent.fsuid",
-		"signal.target.parent.fsuser",
-		"signal.target.parent.gid",
-		"signal.target.parent.group",
-		"signal.target.parent.interpreter.file.change_time",
-		"signal.target.parent.interpreter.file.filesystem",
-		"signal.target.parent.interpreter.file.gid",
-		"signal.target.parent.interpreter.file.group",
-		"signal.target.parent.interpreter.file.in_upper_layer",
-		"signal.target.parent.interpreter.file.inode",
-		"signal.target.parent.interpreter.file.mode",
-		"signal.target.parent.interpreter.file.modification_time",
-		"signal.target.parent.interpreter.file.mount_id",
-		"signal.target.parent.interpreter.file.name",
-		"signal.target.parent.interpreter.file.name.length",
-		"signal.target.parent.interpreter.file.path",
-		"signal.target.parent.interpreter.file.path.length",
-		"signal.target.parent.interpreter.file.rights",
-		"signal.target.parent.interpreter.file.uid",
-		"signal.target.parent.interpreter.file.user",
-		"signal.target.parent.is_kworker",
-		"signal.target.parent.is_thread",
-		"signal.target.parent.pid",
-		"signal.target.parent.ppid",
-		"signal.target.parent.tid",
-		"signal.target.parent.tty_name",
-		"signal.target.parent.uid",
-		"signal.target.parent.user",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
@@ -13945,136 +11155,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.ProcessContext.Process.PIDContext.IsKworker, nil
 	case "process.is_thread":
 		return e.ProcessContext.Process.IsThread, nil
-	case "process.parent.args":
-		return e.ProcessContext.Parent.Args, nil
-	case "process.parent.args_flags":
-		return e.ProcessContext.Parent.Argv, nil
-	case "process.parent.args_options":
-		return e.ProcessContext.Parent.Argv, nil
-	case "process.parent.args_truncated":
-		return e.ProcessContext.Parent.ArgsTruncated, nil
-	case "process.parent.argv":
-		return e.ProcessContext.Parent.Argv, nil
-	case "process.parent.argv0":
-		return e.ProcessContext.Parent.Argv0, nil
-	case "process.parent.cap_effective":
-		return int(e.ProcessContext.Parent.Credentials.CapEffective), nil
-	case "process.parent.cap_permitted":
-		return int(e.ProcessContext.Parent.Credentials.CapPermitted), nil
-	case "process.parent.comm":
-		return e.ProcessContext.Parent.Comm, nil
-	case "process.parent.container.id":
-		return e.ProcessContext.Parent.ContainerID, nil
-	case "process.parent.cookie":
-		return int(e.ProcessContext.Parent.Cookie), nil
-	case "process.parent.created_at":
-		return int(e.ProcessContext.Parent.CreatedAt), nil
-	case "process.parent.egid":
-		return int(e.ProcessContext.Parent.Credentials.EGID), nil
-	case "process.parent.egroup":
-		return e.ProcessContext.Parent.Credentials.EGroup, nil
-	case "process.parent.envp":
-		return e.ProcessContext.Parent.Envp, nil
-	case "process.parent.envs":
-		return e.ProcessContext.Parent.Envs, nil
-	case "process.parent.envs_truncated":
-		return e.ProcessContext.Parent.EnvsTruncated, nil
-	case "process.parent.euid":
-		return int(e.ProcessContext.Parent.Credentials.EUID), nil
-	case "process.parent.euser":
-		return e.ProcessContext.Parent.Credentials.EUser, nil
-	case "process.parent.file.change_time":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.CTime), nil
-	case "process.parent.file.filesystem":
-		return e.ProcessContext.Parent.FileEvent.Filesystem, nil
-	case "process.parent.file.gid":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.GID), nil
-	case "process.parent.file.group":
-		return e.ProcessContext.Parent.FileEvent.FileFields.Group, nil
-	case "process.parent.file.in_upper_layer":
-		return e.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer, nil
-	case "process.parent.file.inode":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.Inode), nil
-	case "process.parent.file.mode":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.Mode), nil
-	case "process.parent.file.modification_time":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.MTime), nil
-	case "process.parent.file.mount_id":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.MountID), nil
-	case "process.parent.file.name":
-		return e.ProcessContext.Parent.FileEvent.BasenameStr, nil
-	case "process.parent.file.name.length":
-		return len(e.ProcessContext.Parent.FileEvent.BasenameStr), nil
-	case "process.parent.file.path":
-		return e.ProcessContext.Parent.FileEvent.PathnameStr, nil
-	case "process.parent.file.path.length":
-		return len(e.ProcessContext.Parent.FileEvent.PathnameStr), nil
-	case "process.parent.file.rights":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.Mode), nil
-	case "process.parent.file.uid":
-		return int(e.ProcessContext.Parent.FileEvent.FileFields.UID), nil
-	case "process.parent.file.user":
-		return e.ProcessContext.Parent.FileEvent.FileFields.User, nil
-	case "process.parent.fsgid":
-		return int(e.ProcessContext.Parent.Credentials.FSGID), nil
-	case "process.parent.fsgroup":
-		return e.ProcessContext.Parent.Credentials.FSGroup, nil
-	case "process.parent.fsuid":
-		return int(e.ProcessContext.Parent.Credentials.FSUID), nil
-	case "process.parent.fsuser":
-		return e.ProcessContext.Parent.Credentials.FSUser, nil
-	case "process.parent.gid":
-		return int(e.ProcessContext.Parent.Credentials.GID), nil
-	case "process.parent.group":
-		return e.ProcessContext.Parent.Credentials.Group, nil
-	case "process.parent.interpreter.file.change_time":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime), nil
-	case "process.parent.interpreter.file.filesystem":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem, nil
-	case "process.parent.interpreter.file.gid":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
-	case "process.parent.interpreter.file.group":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group, nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
-	case "process.parent.interpreter.file.inode":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Inode), nil
-	case "process.parent.interpreter.file.mode":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "process.parent.interpreter.file.modification_time":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime), nil
-	case "process.parent.interpreter.file.mount_id":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MountID), nil
-	case "process.parent.interpreter.file.name":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr, nil
-	case "process.parent.interpreter.file.name.length":
-		return len(e.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr), nil
-	case "process.parent.interpreter.file.path":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr, nil
-	case "process.parent.interpreter.file.path.length":
-		return len(e.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr), nil
-	case "process.parent.interpreter.file.rights":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "process.parent.interpreter.file.uid":
-		return int(e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID), nil
-	case "process.parent.interpreter.file.user":
-		return e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User, nil
-	case "process.parent.is_kworker":
-		return e.ProcessContext.Parent.PIDContext.IsKworker, nil
-	case "process.parent.is_thread":
-		return e.ProcessContext.Parent.IsThread, nil
-	case "process.parent.pid":
-		return int(e.ProcessContext.Parent.PIDContext.Pid), nil
-	case "process.parent.ppid":
-		return int(e.ProcessContext.Parent.PPid), nil
-	case "process.parent.tid":
-		return int(e.ProcessContext.Parent.PIDContext.Tid), nil
-	case "process.parent.tty_name":
-		return e.ProcessContext.Parent.TTYName, nil
-	case "process.parent.uid":
-		return int(e.ProcessContext.Parent.Credentials.UID), nil
-	case "process.parent.user":
-		return e.ProcessContext.Parent.Credentials.User, nil
 	case "process.pid":
 		return int(e.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
@@ -14989,136 +12069,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.PTrace.Tracee.Process.PIDContext.IsKworker, nil
 	case "ptrace.tracee.is_thread":
 		return e.PTrace.Tracee.Process.IsThread, nil
-	case "ptrace.tracee.parent.args":
-		return e.PTrace.Tracee.Parent.Args, nil
-	case "ptrace.tracee.parent.args_flags":
-		return e.PTrace.Tracee.Parent.Argv, nil
-	case "ptrace.tracee.parent.args_options":
-		return e.PTrace.Tracee.Parent.Argv, nil
-	case "ptrace.tracee.parent.args_truncated":
-		return e.PTrace.Tracee.Parent.ArgsTruncated, nil
-	case "ptrace.tracee.parent.argv":
-		return e.PTrace.Tracee.Parent.Argv, nil
-	case "ptrace.tracee.parent.argv0":
-		return e.PTrace.Tracee.Parent.Argv0, nil
-	case "ptrace.tracee.parent.cap_effective":
-		return int(e.PTrace.Tracee.Parent.Credentials.CapEffective), nil
-	case "ptrace.tracee.parent.cap_permitted":
-		return int(e.PTrace.Tracee.Parent.Credentials.CapPermitted), nil
-	case "ptrace.tracee.parent.comm":
-		return e.PTrace.Tracee.Parent.Comm, nil
-	case "ptrace.tracee.parent.container.id":
-		return e.PTrace.Tracee.Parent.ContainerID, nil
-	case "ptrace.tracee.parent.cookie":
-		return int(e.PTrace.Tracee.Parent.Cookie), nil
-	case "ptrace.tracee.parent.created_at":
-		return int(e.PTrace.Tracee.Parent.CreatedAt), nil
-	case "ptrace.tracee.parent.egid":
-		return int(e.PTrace.Tracee.Parent.Credentials.EGID), nil
-	case "ptrace.tracee.parent.egroup":
-		return e.PTrace.Tracee.Parent.Credentials.EGroup, nil
-	case "ptrace.tracee.parent.envp":
-		return e.PTrace.Tracee.Parent.Envp, nil
-	case "ptrace.tracee.parent.envs":
-		return e.PTrace.Tracee.Parent.Envs, nil
-	case "ptrace.tracee.parent.envs_truncated":
-		return e.PTrace.Tracee.Parent.EnvsTruncated, nil
-	case "ptrace.tracee.parent.euid":
-		return int(e.PTrace.Tracee.Parent.Credentials.EUID), nil
-	case "ptrace.tracee.parent.euser":
-		return e.PTrace.Tracee.Parent.Credentials.EUser, nil
-	case "ptrace.tracee.parent.file.change_time":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.CTime), nil
-	case "ptrace.tracee.parent.file.filesystem":
-		return e.PTrace.Tracee.Parent.FileEvent.Filesystem, nil
-	case "ptrace.tracee.parent.file.gid":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.GID), nil
-	case "ptrace.tracee.parent.file.group":
-		return e.PTrace.Tracee.Parent.FileEvent.FileFields.Group, nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		return e.PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer, nil
-	case "ptrace.tracee.parent.file.inode":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.Inode), nil
-	case "ptrace.tracee.parent.file.mode":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.Mode), nil
-	case "ptrace.tracee.parent.file.modification_time":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.MTime), nil
-	case "ptrace.tracee.parent.file.mount_id":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.MountID), nil
-	case "ptrace.tracee.parent.file.name":
-		return e.PTrace.Tracee.Parent.FileEvent.BasenameStr, nil
-	case "ptrace.tracee.parent.file.name.length":
-		return len(e.PTrace.Tracee.Parent.FileEvent.BasenameStr), nil
-	case "ptrace.tracee.parent.file.path":
-		return e.PTrace.Tracee.Parent.FileEvent.PathnameStr, nil
-	case "ptrace.tracee.parent.file.path.length":
-		return len(e.PTrace.Tracee.Parent.FileEvent.PathnameStr), nil
-	case "ptrace.tracee.parent.file.rights":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.Mode), nil
-	case "ptrace.tracee.parent.file.uid":
-		return int(e.PTrace.Tracee.Parent.FileEvent.FileFields.UID), nil
-	case "ptrace.tracee.parent.file.user":
-		return e.PTrace.Tracee.Parent.FileEvent.FileFields.User, nil
-	case "ptrace.tracee.parent.fsgid":
-		return int(e.PTrace.Tracee.Parent.Credentials.FSGID), nil
-	case "ptrace.tracee.parent.fsgroup":
-		return e.PTrace.Tracee.Parent.Credentials.FSGroup, nil
-	case "ptrace.tracee.parent.fsuid":
-		return int(e.PTrace.Tracee.Parent.Credentials.FSUID), nil
-	case "ptrace.tracee.parent.fsuser":
-		return e.PTrace.Tracee.Parent.Credentials.FSUser, nil
-	case "ptrace.tracee.parent.gid":
-		return int(e.PTrace.Tracee.Parent.Credentials.GID), nil
-	case "ptrace.tracee.parent.group":
-		return e.PTrace.Tracee.Parent.Credentials.Group, nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime), nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem, nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group, nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Inode), nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime), nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MountID), nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr, nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return len(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr), nil
-	case "ptrace.tracee.parent.interpreter.file.path":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr, nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return len(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr), nil
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		return int(e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.UID), nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		return e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User, nil
-	case "ptrace.tracee.parent.is_kworker":
-		return e.PTrace.Tracee.Parent.PIDContext.IsKworker, nil
-	case "ptrace.tracee.parent.is_thread":
-		return e.PTrace.Tracee.Parent.IsThread, nil
-	case "ptrace.tracee.parent.pid":
-		return int(e.PTrace.Tracee.Parent.PIDContext.Pid), nil
-	case "ptrace.tracee.parent.ppid":
-		return int(e.PTrace.Tracee.Parent.PPid), nil
-	case "ptrace.tracee.parent.tid":
-		return int(e.PTrace.Tracee.Parent.PIDContext.Tid), nil
-	case "ptrace.tracee.parent.tty_name":
-		return e.PTrace.Tracee.Parent.TTYName, nil
-	case "ptrace.tracee.parent.uid":
-		return int(e.PTrace.Tracee.Parent.Credentials.UID), nil
-	case "ptrace.tracee.parent.user":
-		return e.PTrace.Tracee.Parent.Credentials.User, nil
 	case "ptrace.tracee.pid":
 		return int(e.PTrace.Tracee.Process.PIDContext.Pid), nil
 	case "ptrace.tracee.ppid":
@@ -16241,136 +13191,6 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return e.Signal.Target.Process.PIDContext.IsKworker, nil
 	case "signal.target.is_thread":
 		return e.Signal.Target.Process.IsThread, nil
-	case "signal.target.parent.args":
-		return e.Signal.Target.Parent.Args, nil
-	case "signal.target.parent.args_flags":
-		return e.Signal.Target.Parent.Argv, nil
-	case "signal.target.parent.args_options":
-		return e.Signal.Target.Parent.Argv, nil
-	case "signal.target.parent.args_truncated":
-		return e.Signal.Target.Parent.ArgsTruncated, nil
-	case "signal.target.parent.argv":
-		return e.Signal.Target.Parent.Argv, nil
-	case "signal.target.parent.argv0":
-		return e.Signal.Target.Parent.Argv0, nil
-	case "signal.target.parent.cap_effective":
-		return int(e.Signal.Target.Parent.Credentials.CapEffective), nil
-	case "signal.target.parent.cap_permitted":
-		return int(e.Signal.Target.Parent.Credentials.CapPermitted), nil
-	case "signal.target.parent.comm":
-		return e.Signal.Target.Parent.Comm, nil
-	case "signal.target.parent.container.id":
-		return e.Signal.Target.Parent.ContainerID, nil
-	case "signal.target.parent.cookie":
-		return int(e.Signal.Target.Parent.Cookie), nil
-	case "signal.target.parent.created_at":
-		return int(e.Signal.Target.Parent.CreatedAt), nil
-	case "signal.target.parent.egid":
-		return int(e.Signal.Target.Parent.Credentials.EGID), nil
-	case "signal.target.parent.egroup":
-		return e.Signal.Target.Parent.Credentials.EGroup, nil
-	case "signal.target.parent.envp":
-		return e.Signal.Target.Parent.Envp, nil
-	case "signal.target.parent.envs":
-		return e.Signal.Target.Parent.Envs, nil
-	case "signal.target.parent.envs_truncated":
-		return e.Signal.Target.Parent.EnvsTruncated, nil
-	case "signal.target.parent.euid":
-		return int(e.Signal.Target.Parent.Credentials.EUID), nil
-	case "signal.target.parent.euser":
-		return e.Signal.Target.Parent.Credentials.EUser, nil
-	case "signal.target.parent.file.change_time":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.CTime), nil
-	case "signal.target.parent.file.filesystem":
-		return e.Signal.Target.Parent.FileEvent.Filesystem, nil
-	case "signal.target.parent.file.gid":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.GID), nil
-	case "signal.target.parent.file.group":
-		return e.Signal.Target.Parent.FileEvent.FileFields.Group, nil
-	case "signal.target.parent.file.in_upper_layer":
-		return e.Signal.Target.Parent.FileEvent.FileFields.InUpperLayer, nil
-	case "signal.target.parent.file.inode":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.Inode), nil
-	case "signal.target.parent.file.mode":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.Mode), nil
-	case "signal.target.parent.file.modification_time":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.MTime), nil
-	case "signal.target.parent.file.mount_id":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.MountID), nil
-	case "signal.target.parent.file.name":
-		return e.Signal.Target.Parent.FileEvent.BasenameStr, nil
-	case "signal.target.parent.file.name.length":
-		return len(e.Signal.Target.Parent.FileEvent.BasenameStr), nil
-	case "signal.target.parent.file.path":
-		return e.Signal.Target.Parent.FileEvent.PathnameStr, nil
-	case "signal.target.parent.file.path.length":
-		return len(e.Signal.Target.Parent.FileEvent.PathnameStr), nil
-	case "signal.target.parent.file.rights":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.Mode), nil
-	case "signal.target.parent.file.uid":
-		return int(e.Signal.Target.Parent.FileEvent.FileFields.UID), nil
-	case "signal.target.parent.file.user":
-		return e.Signal.Target.Parent.FileEvent.FileFields.User, nil
-	case "signal.target.parent.fsgid":
-		return int(e.Signal.Target.Parent.Credentials.FSGID), nil
-	case "signal.target.parent.fsgroup":
-		return e.Signal.Target.Parent.Credentials.FSGroup, nil
-	case "signal.target.parent.fsuid":
-		return int(e.Signal.Target.Parent.Credentials.FSUID), nil
-	case "signal.target.parent.fsuser":
-		return e.Signal.Target.Parent.Credentials.FSUser, nil
-	case "signal.target.parent.gid":
-		return int(e.Signal.Target.Parent.Credentials.GID), nil
-	case "signal.target.parent.group":
-		return e.Signal.Target.Parent.Credentials.Group, nil
-	case "signal.target.parent.interpreter.file.change_time":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime), nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem, nil
-	case "signal.target.parent.interpreter.file.gid":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID), nil
-	case "signal.target.parent.interpreter.file.group":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group, nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, nil
-	case "signal.target.parent.interpreter.file.inode":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Inode), nil
-	case "signal.target.parent.interpreter.file.mode":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime), nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MountID), nil
-	case "signal.target.parent.interpreter.file.name":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr, nil
-	case "signal.target.parent.interpreter.file.name.length":
-		return len(e.Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr), nil
-	case "signal.target.parent.interpreter.file.path":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr, nil
-	case "signal.target.parent.interpreter.file.path.length":
-		return len(e.Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr), nil
-	case "signal.target.parent.interpreter.file.rights":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode), nil
-	case "signal.target.parent.interpreter.file.uid":
-		return int(e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID), nil
-	case "signal.target.parent.interpreter.file.user":
-		return e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User, nil
-	case "signal.target.parent.is_kworker":
-		return e.Signal.Target.Parent.PIDContext.IsKworker, nil
-	case "signal.target.parent.is_thread":
-		return e.Signal.Target.Parent.IsThread, nil
-	case "signal.target.parent.pid":
-		return int(e.Signal.Target.Parent.PIDContext.Pid), nil
-	case "signal.target.parent.ppid":
-		return int(e.Signal.Target.Parent.PPid), nil
-	case "signal.target.parent.tid":
-		return int(e.Signal.Target.Parent.PIDContext.Tid), nil
-	case "signal.target.parent.tty_name":
-		return e.Signal.Target.Parent.TTYName, nil
-	case "signal.target.parent.uid":
-		return int(e.Signal.Target.Parent.Credentials.UID), nil
-	case "signal.target.parent.user":
-		return e.Signal.Target.Parent.Credentials.User, nil
 	case "signal.target.pid":
 		return int(e.Signal.Target.Process.PIDContext.Pid), nil
 	case "signal.target.ppid":
@@ -17386,136 +14206,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.is_thread":
 		return "*", nil
-	case "process.parent.args":
-		return "*", nil
-	case "process.parent.args_flags":
-		return "*", nil
-	case "process.parent.args_options":
-		return "*", nil
-	case "process.parent.args_truncated":
-		return "*", nil
-	case "process.parent.argv":
-		return "*", nil
-	case "process.parent.argv0":
-		return "*", nil
-	case "process.parent.cap_effective":
-		return "*", nil
-	case "process.parent.cap_permitted":
-		return "*", nil
-	case "process.parent.comm":
-		return "*", nil
-	case "process.parent.container.id":
-		return "*", nil
-	case "process.parent.cookie":
-		return "*", nil
-	case "process.parent.created_at":
-		return "*", nil
-	case "process.parent.egid":
-		return "*", nil
-	case "process.parent.egroup":
-		return "*", nil
-	case "process.parent.envp":
-		return "*", nil
-	case "process.parent.envs":
-		return "*", nil
-	case "process.parent.envs_truncated":
-		return "*", nil
-	case "process.parent.euid":
-		return "*", nil
-	case "process.parent.euser":
-		return "*", nil
-	case "process.parent.file.change_time":
-		return "*", nil
-	case "process.parent.file.filesystem":
-		return "*", nil
-	case "process.parent.file.gid":
-		return "*", nil
-	case "process.parent.file.group":
-		return "*", nil
-	case "process.parent.file.in_upper_layer":
-		return "*", nil
-	case "process.parent.file.inode":
-		return "*", nil
-	case "process.parent.file.mode":
-		return "*", nil
-	case "process.parent.file.modification_time":
-		return "*", nil
-	case "process.parent.file.mount_id":
-		return "*", nil
-	case "process.parent.file.name":
-		return "*", nil
-	case "process.parent.file.name.length":
-		return "*", nil
-	case "process.parent.file.path":
-		return "*", nil
-	case "process.parent.file.path.length":
-		return "*", nil
-	case "process.parent.file.rights":
-		return "*", nil
-	case "process.parent.file.uid":
-		return "*", nil
-	case "process.parent.file.user":
-		return "*", nil
-	case "process.parent.fsgid":
-		return "*", nil
-	case "process.parent.fsgroup":
-		return "*", nil
-	case "process.parent.fsuid":
-		return "*", nil
-	case "process.parent.fsuser":
-		return "*", nil
-	case "process.parent.gid":
-		return "*", nil
-	case "process.parent.group":
-		return "*", nil
-	case "process.parent.interpreter.file.change_time":
-		return "*", nil
-	case "process.parent.interpreter.file.filesystem":
-		return "*", nil
-	case "process.parent.interpreter.file.gid":
-		return "*", nil
-	case "process.parent.interpreter.file.group":
-		return "*", nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		return "*", nil
-	case "process.parent.interpreter.file.inode":
-		return "*", nil
-	case "process.parent.interpreter.file.mode":
-		return "*", nil
-	case "process.parent.interpreter.file.modification_time":
-		return "*", nil
-	case "process.parent.interpreter.file.mount_id":
-		return "*", nil
-	case "process.parent.interpreter.file.name":
-		return "*", nil
-	case "process.parent.interpreter.file.name.length":
-		return "*", nil
-	case "process.parent.interpreter.file.path":
-		return "*", nil
-	case "process.parent.interpreter.file.path.length":
-		return "*", nil
-	case "process.parent.interpreter.file.rights":
-		return "*", nil
-	case "process.parent.interpreter.file.uid":
-		return "*", nil
-	case "process.parent.interpreter.file.user":
-		return "*", nil
-	case "process.parent.is_kworker":
-		return "*", nil
-	case "process.parent.is_thread":
-		return "*", nil
-	case "process.parent.pid":
-		return "*", nil
-	case "process.parent.ppid":
-		return "*", nil
-	case "process.parent.tid":
-		return "*", nil
-	case "process.parent.tty_name":
-		return "*", nil
-	case "process.parent.uid":
-		return "*", nil
-	case "process.parent.user":
-		return "*", nil
 	case "process.pid":
 		return "*", nil
 	case "process.ppid":
@@ -17779,136 +14469,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.is_kworker":
 		return "ptrace", nil
 	case "ptrace.tracee.is_thread":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.args":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.args_flags":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.args_options":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.args_truncated":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.argv":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.argv0":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.cap_effective":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.cap_permitted":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.comm":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.container.id":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.cookie":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.created_at":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.egid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.egroup":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.envp":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.envs":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.envs_truncated":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.euid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.euser":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.change_time":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.filesystem":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.gid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.group":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.inode":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.mode":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.modification_time":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.mount_id":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.name":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.name.length":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.path":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.path.length":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.rights":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.uid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.file.user":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.fsgid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.fsgroup":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.fsuid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.fsuser":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.gid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.group":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.path":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.is_kworker":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.is_thread":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.pid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.ppid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.tid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.tty_name":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.uid":
-		return "ptrace", nil
-	case "ptrace.tracee.parent.user":
 		return "ptrace", nil
 	case "ptrace.tracee.pid":
 		return "ptrace", nil
@@ -18381,136 +14941,6 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.is_kworker":
 		return "signal", nil
 	case "signal.target.is_thread":
-		return "signal", nil
-	case "signal.target.parent.args":
-		return "signal", nil
-	case "signal.target.parent.args_flags":
-		return "signal", nil
-	case "signal.target.parent.args_options":
-		return "signal", nil
-	case "signal.target.parent.args_truncated":
-		return "signal", nil
-	case "signal.target.parent.argv":
-		return "signal", nil
-	case "signal.target.parent.argv0":
-		return "signal", nil
-	case "signal.target.parent.cap_effective":
-		return "signal", nil
-	case "signal.target.parent.cap_permitted":
-		return "signal", nil
-	case "signal.target.parent.comm":
-		return "signal", nil
-	case "signal.target.parent.container.id":
-		return "signal", nil
-	case "signal.target.parent.cookie":
-		return "signal", nil
-	case "signal.target.parent.created_at":
-		return "signal", nil
-	case "signal.target.parent.egid":
-		return "signal", nil
-	case "signal.target.parent.egroup":
-		return "signal", nil
-	case "signal.target.parent.envp":
-		return "signal", nil
-	case "signal.target.parent.envs":
-		return "signal", nil
-	case "signal.target.parent.envs_truncated":
-		return "signal", nil
-	case "signal.target.parent.euid":
-		return "signal", nil
-	case "signal.target.parent.euser":
-		return "signal", nil
-	case "signal.target.parent.file.change_time":
-		return "signal", nil
-	case "signal.target.parent.file.filesystem":
-		return "signal", nil
-	case "signal.target.parent.file.gid":
-		return "signal", nil
-	case "signal.target.parent.file.group":
-		return "signal", nil
-	case "signal.target.parent.file.in_upper_layer":
-		return "signal", nil
-	case "signal.target.parent.file.inode":
-		return "signal", nil
-	case "signal.target.parent.file.mode":
-		return "signal", nil
-	case "signal.target.parent.file.modification_time":
-		return "signal", nil
-	case "signal.target.parent.file.mount_id":
-		return "signal", nil
-	case "signal.target.parent.file.name":
-		return "signal", nil
-	case "signal.target.parent.file.name.length":
-		return "signal", nil
-	case "signal.target.parent.file.path":
-		return "signal", nil
-	case "signal.target.parent.file.path.length":
-		return "signal", nil
-	case "signal.target.parent.file.rights":
-		return "signal", nil
-	case "signal.target.parent.file.uid":
-		return "signal", nil
-	case "signal.target.parent.file.user":
-		return "signal", nil
-	case "signal.target.parent.fsgid":
-		return "signal", nil
-	case "signal.target.parent.fsgroup":
-		return "signal", nil
-	case "signal.target.parent.fsuid":
-		return "signal", nil
-	case "signal.target.parent.fsuser":
-		return "signal", nil
-	case "signal.target.parent.gid":
-		return "signal", nil
-	case "signal.target.parent.group":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.change_time":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.gid":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.group":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.inode":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.mode":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.name":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.name.length":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.path":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.path.length":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.rights":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.uid":
-		return "signal", nil
-	case "signal.target.parent.interpreter.file.user":
-		return "signal", nil
-	case "signal.target.parent.is_kworker":
-		return "signal", nil
-	case "signal.target.parent.is_thread":
-		return "signal", nil
-	case "signal.target.parent.pid":
-		return "signal", nil
-	case "signal.target.parent.ppid":
-		return "signal", nil
-	case "signal.target.parent.tid":
-		return "signal", nil
-	case "signal.target.parent.tty_name":
-		return "signal", nil
-	case "signal.target.parent.uid":
-		return "signal", nil
-	case "signal.target.parent.user":
 		return "signal", nil
 	case "signal.target.pid":
 		return "signal", nil
@@ -19527,136 +15957,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 	case "process.is_thread":
 		return reflect.Bool, nil
-	case "process.parent.args":
-		return reflect.String, nil
-	case "process.parent.args_flags":
-		return reflect.String, nil
-	case "process.parent.args_options":
-		return reflect.String, nil
-	case "process.parent.args_truncated":
-		return reflect.Bool, nil
-	case "process.parent.argv":
-		return reflect.String, nil
-	case "process.parent.argv0":
-		return reflect.String, nil
-	case "process.parent.cap_effective":
-		return reflect.Int, nil
-	case "process.parent.cap_permitted":
-		return reflect.Int, nil
-	case "process.parent.comm":
-		return reflect.String, nil
-	case "process.parent.container.id":
-		return reflect.String, nil
-	case "process.parent.cookie":
-		return reflect.Int, nil
-	case "process.parent.created_at":
-		return reflect.Int, nil
-	case "process.parent.egid":
-		return reflect.Int, nil
-	case "process.parent.egroup":
-		return reflect.String, nil
-	case "process.parent.envp":
-		return reflect.String, nil
-	case "process.parent.envs":
-		return reflect.String, nil
-	case "process.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "process.parent.euid":
-		return reflect.Int, nil
-	case "process.parent.euser":
-		return reflect.String, nil
-	case "process.parent.file.change_time":
-		return reflect.Int, nil
-	case "process.parent.file.filesystem":
-		return reflect.String, nil
-	case "process.parent.file.gid":
-		return reflect.Int, nil
-	case "process.parent.file.group":
-		return reflect.String, nil
-	case "process.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.parent.file.inode":
-		return reflect.Int, nil
-	case "process.parent.file.mode":
-		return reflect.Int, nil
-	case "process.parent.file.modification_time":
-		return reflect.Int, nil
-	case "process.parent.file.mount_id":
-		return reflect.Int, nil
-	case "process.parent.file.name":
-		return reflect.String, nil
-	case "process.parent.file.name.length":
-		return reflect.Int, nil
-	case "process.parent.file.path":
-		return reflect.String, nil
-	case "process.parent.file.path.length":
-		return reflect.Int, nil
-	case "process.parent.file.rights":
-		return reflect.Int, nil
-	case "process.parent.file.uid":
-		return reflect.Int, nil
-	case "process.parent.file.user":
-		return reflect.String, nil
-	case "process.parent.fsgid":
-		return reflect.Int, nil
-	case "process.parent.fsgroup":
-		return reflect.String, nil
-	case "process.parent.fsuid":
-		return reflect.Int, nil
-	case "process.parent.fsuser":
-		return reflect.String, nil
-	case "process.parent.gid":
-		return reflect.Int, nil
-	case "process.parent.group":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "process.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "process.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "process.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "process.parent.is_kworker":
-		return reflect.Bool, nil
-	case "process.parent.is_thread":
-		return reflect.Bool, nil
-	case "process.parent.pid":
-		return reflect.Int, nil
-	case "process.parent.ppid":
-		return reflect.Int, nil
-	case "process.parent.tid":
-		return reflect.Int, nil
-	case "process.parent.tty_name":
-		return reflect.String, nil
-	case "process.parent.uid":
-		return reflect.Int, nil
-	case "process.parent.user":
-		return reflect.String, nil
 	case "process.pid":
 		return reflect.Int, nil
 	case "process.ppid":
@@ -19921,136 +16221,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 	case "ptrace.tracee.is_thread":
 		return reflect.Bool, nil
-	case "ptrace.tracee.parent.args":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_flags":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_options":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.args_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.argv":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.argv0":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.cap_effective":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.cap_permitted":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.comm":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.container.id":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.cookie":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.created_at":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.egid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.egroup":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envp":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envs":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.euid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.euser":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.fsgid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.fsgroup":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.fsuid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.fsuser":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.is_kworker":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.is_thread":
-		return reflect.Bool, nil
-	case "ptrace.tracee.parent.pid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.ppid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.tid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.tty_name":
-		return reflect.String, nil
-	case "ptrace.tracee.parent.uid":
-		return reflect.Int, nil
-	case "ptrace.tracee.parent.user":
-		return reflect.String, nil
 	case "ptrace.tracee.pid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ppid":
@@ -20523,136 +16693,6 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Bool, nil
 	case "signal.target.is_thread":
 		return reflect.Bool, nil
-	case "signal.target.parent.args":
-		return reflect.String, nil
-	case "signal.target.parent.args_flags":
-		return reflect.String, nil
-	case "signal.target.parent.args_options":
-		return reflect.String, nil
-	case "signal.target.parent.args_truncated":
-		return reflect.Bool, nil
-	case "signal.target.parent.argv":
-		return reflect.String, nil
-	case "signal.target.parent.argv0":
-		return reflect.String, nil
-	case "signal.target.parent.cap_effective":
-		return reflect.Int, nil
-	case "signal.target.parent.cap_permitted":
-		return reflect.Int, nil
-	case "signal.target.parent.comm":
-		return reflect.String, nil
-	case "signal.target.parent.container.id":
-		return reflect.String, nil
-	case "signal.target.parent.cookie":
-		return reflect.Int, nil
-	case "signal.target.parent.created_at":
-		return reflect.Int, nil
-	case "signal.target.parent.egid":
-		return reflect.Int, nil
-	case "signal.target.parent.egroup":
-		return reflect.String, nil
-	case "signal.target.parent.envp":
-		return reflect.String, nil
-	case "signal.target.parent.envs":
-		return reflect.String, nil
-	case "signal.target.parent.envs_truncated":
-		return reflect.Bool, nil
-	case "signal.target.parent.euid":
-		return reflect.Int, nil
-	case "signal.target.parent.euser":
-		return reflect.String, nil
-	case "signal.target.parent.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.parent.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.parent.file.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.file.group":
-		return reflect.String, nil
-	case "signal.target.parent.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.parent.file.inode":
-		return reflect.Int, nil
-	case "signal.target.parent.file.mode":
-		return reflect.Int, nil
-	case "signal.target.parent.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.parent.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.parent.file.name":
-		return reflect.String, nil
-	case "signal.target.parent.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.parent.file.path":
-		return reflect.String, nil
-	case "signal.target.parent.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.parent.file.rights":
-		return reflect.Int, nil
-	case "signal.target.parent.file.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.file.user":
-		return reflect.String, nil
-	case "signal.target.parent.fsgid":
-		return reflect.Int, nil
-	case "signal.target.parent.fsgroup":
-		return reflect.String, nil
-	case "signal.target.parent.fsuid":
-		return reflect.Int, nil
-	case "signal.target.parent.fsuser":
-		return reflect.String, nil
-	case "signal.target.parent.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.group":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.change_time":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.gid":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.group":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return reflect.Bool, nil
-	case "signal.target.parent.interpreter.file.inode":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.mode":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.name":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.name.length":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.path":
-		return reflect.String, nil
-	case "signal.target.parent.interpreter.file.path.length":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.rights":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.interpreter.file.user":
-		return reflect.String, nil
-	case "signal.target.parent.is_kworker":
-		return reflect.Bool, nil
-	case "signal.target.parent.is_thread":
-		return reflect.Bool, nil
-	case "signal.target.parent.pid":
-		return reflect.Int, nil
-	case "signal.target.parent.ppid":
-		return reflect.Int, nil
-	case "signal.target.parent.tid":
-		return reflect.Int, nil
-	case "signal.target.parent.tty_name":
-		return reflect.String, nil
-	case "signal.target.parent.uid":
-		return reflect.Int, nil
-	case "signal.target.parent.user":
-		return reflect.String, nil
 	case "signal.target.pid":
 		return reflect.Int, nil
 	case "signal.target.ppid":
@@ -24636,825 +20676,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Process.IsThread"}
 		}
 		return nil
-	case "process.parent.args":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Args"}
-		}
-		e.ProcessContext.Parent.Args = str
-		return nil
-	case "process.parent.args_flags":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
-		}
-		e.ProcessContext.Parent.Argv = append(e.ProcessContext.Parent.Argv, str)
-		return nil
-	case "process.parent.args_options":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
-		}
-		e.ProcessContext.Parent.Argv = append(e.ProcessContext.Parent.Argv, str)
-		return nil
-	case "process.parent.args_truncated":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.ArgsTruncated"}
-		}
-		return nil
-	case "process.parent.argv":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv"}
-		}
-		e.ProcessContext.Parent.Argv = append(e.ProcessContext.Parent.Argv, str)
-		return nil
-	case "process.parent.argv0":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Argv0"}
-		}
-		e.ProcessContext.Parent.Argv0 = str
-		return nil
-	case "process.parent.cap_effective":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.CapEffective"}
-		}
-		e.ProcessContext.Parent.Credentials.CapEffective = uint64(v)
-		return nil
-	case "process.parent.cap_permitted":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.CapPermitted"}
-		}
-		e.ProcessContext.Parent.Credentials.CapPermitted = uint64(v)
-		return nil
-	case "process.parent.comm":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Comm"}
-		}
-		e.ProcessContext.Parent.Comm = str
-		return nil
-	case "process.parent.container.id":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.ContainerID"}
-		}
-		e.ProcessContext.Parent.ContainerID = str
-		return nil
-	case "process.parent.cookie":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Cookie"}
-		}
-		e.ProcessContext.Parent.Cookie = uint32(v)
-		return nil
-	case "process.parent.created_at":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.CreatedAt"}
-		}
-		e.ProcessContext.Parent.CreatedAt = uint64(v)
-		return nil
-	case "process.parent.egid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EGID"}
-		}
-		e.ProcessContext.Parent.Credentials.EGID = uint32(v)
-		return nil
-	case "process.parent.egroup":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EGroup"}
-		}
-		e.ProcessContext.Parent.Credentials.EGroup = str
-		return nil
-	case "process.parent.envp":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Envp"}
-		}
-		e.ProcessContext.Parent.Envp = append(e.ProcessContext.Parent.Envp, str)
-		return nil
-	case "process.parent.envs":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Envs"}
-		}
-		e.ProcessContext.Parent.Envs = append(e.ProcessContext.Parent.Envs, str)
-		return nil
-	case "process.parent.envs_truncated":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.EnvsTruncated"}
-		}
-		return nil
-	case "process.parent.euid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EUID"}
-		}
-		e.ProcessContext.Parent.Credentials.EUID = uint32(v)
-		return nil
-	case "process.parent.euser":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.EUser"}
-		}
-		e.ProcessContext.Parent.Credentials.EUser = str
-		return nil
-	case "process.parent.file.change_time":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.CTime"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "process.parent.file.filesystem":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.Filesystem"}
-		}
-		e.ProcessContext.Parent.FileEvent.Filesystem = str
-		return nil
-	case "process.parent.file.gid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.GID"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "process.parent.file.group":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Group"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.Group = str
-		return nil
-	case "process.parent.file.in_upper_layer":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "process.parent.file.inode":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Inode"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "process.parent.file.mode":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "process.parent.file.modification_time":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.MTime"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "process.parent.file.mount_id":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.MountID"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "process.parent.file.name":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.BasenameStr"}
-		}
-		e.ProcessContext.Parent.FileEvent.BasenameStr = str
-		return nil
-	case "process.parent.file.name.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
-	case "process.parent.file.path":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.PathnameStr"}
-		}
-		e.ProcessContext.Parent.FileEvent.PathnameStr = str
-		return nil
-	case "process.parent.file.path.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.file.path.length"}
-	case "process.parent.file.rights":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "process.parent.file.uid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.UID"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "process.parent.file.user":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.FileEvent.FileFields.User"}
-		}
-		e.ProcessContext.Parent.FileEvent.FileFields.User = str
-		return nil
-	case "process.parent.fsgid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSGID"}
-		}
-		e.ProcessContext.Parent.Credentials.FSGID = uint32(v)
-		return nil
-	case "process.parent.fsgroup":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSGroup"}
-		}
-		e.ProcessContext.Parent.Credentials.FSGroup = str
-		return nil
-	case "process.parent.fsuid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSUID"}
-		}
-		e.ProcessContext.Parent.Credentials.FSUID = uint32(v)
-		return nil
-	case "process.parent.fsuser":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.FSUser"}
-		}
-		e.ProcessContext.Parent.Credentials.FSUser = str
-		return nil
-	case "process.parent.gid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.GID"}
-		}
-		e.ProcessContext.Parent.Credentials.GID = uint32(v)
-		return nil
-	case "process.parent.group":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.Group"}
-		}
-		e.ProcessContext.Parent.Credentials.Group = str
-		return nil
-	case "process.parent.interpreter.file.change_time":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "process.parent.interpreter.file.filesystem":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.Filesystem = str
-		return nil
-	case "process.parent.interpreter.file.gid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "process.parent.interpreter.file.group":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Group = str
-		return nil
-	case "process.parent.interpreter.file.in_upper_layer":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "process.parent.interpreter.file.inode":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Inode"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "process.parent.interpreter.file.mode":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "process.parent.interpreter.file.modification_time":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "process.parent.interpreter.file.mount_id":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MountID"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "process.parent.interpreter.file.name":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr = str
-		return nil
-	case "process.parent.interpreter.file.name.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.name.length"}
-	case "process.parent.interpreter.file.path":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.PathnameStr = str
-		return nil
-	case "process.parent.interpreter.file.path.length":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.path.length"}
-	case "process.parent.interpreter.file.rights":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "process.parent.interpreter.file.uid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "process.parent.interpreter.file.user":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User"}
-		}
-		e.ProcessContext.Parent.LinuxBinprm.FileEvent.FileFields.User = str
-		return nil
-	case "process.parent.is_kworker":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.IsKworker"}
-		}
-		return nil
-	case "process.parent.is_thread":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		var ok bool
-		if e.ProcessContext.Parent.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.IsThread"}
-		}
-		return nil
-	case "process.parent.pid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.Pid"}
-		}
-		e.ProcessContext.Parent.PIDContext.Pid = uint32(v)
-		return nil
-	case "process.parent.ppid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PPid"}
-		}
-		e.ProcessContext.Parent.PPid = uint32(v)
-		return nil
-	case "process.parent.tid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.PIDContext.Tid"}
-		}
-		e.ProcessContext.Parent.PIDContext.Tid = uint32(v)
-		return nil
-	case "process.parent.tty_name":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.TTYName"}
-		}
-		e.ProcessContext.Parent.TTYName = str
-		return nil
-	case "process.parent.uid":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.UID"}
-		}
-		e.ProcessContext.Parent.Credentials.UID = uint32(v)
-		return nil
-	case "process.parent.user":
-		if e.ProcessContext == nil {
-			e.ProcessContext = &ProcessContext{}
-		}
-		if e.ProcessContext.Parent == nil {
-			e.ProcessContext.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "ProcessContext.Parent.Credentials.User"}
-		}
-		e.ProcessContext.Parent.Credentials.User = str
-		return nil
 	case "process.pid":
 		if e.ProcessContext == nil {
 			e.ProcessContext = &ProcessContext{}
@@ -26911,825 +22132,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.PTrace.Tracee.Process.IsThread, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.IsThread"}
 		}
-		return nil
-	case "ptrace.tracee.parent.args":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Args"}
-		}
-		e.PTrace.Tracee.Parent.Args = str
-		return nil
-	case "ptrace.tracee.parent.args_flags":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv"}
-		}
-		e.PTrace.Tracee.Parent.Argv = append(e.PTrace.Tracee.Parent.Argv, str)
-		return nil
-	case "ptrace.tracee.parent.args_options":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv"}
-		}
-		e.PTrace.Tracee.Parent.Argv = append(e.PTrace.Tracee.Parent.Argv, str)
-		return nil
-	case "ptrace.tracee.parent.args_truncated":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ArgsTruncated"}
-		}
-		return nil
-	case "ptrace.tracee.parent.argv":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv"}
-		}
-		e.PTrace.Tracee.Parent.Argv = append(e.PTrace.Tracee.Parent.Argv, str)
-		return nil
-	case "ptrace.tracee.parent.argv0":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Argv0"}
-		}
-		e.PTrace.Tracee.Parent.Argv0 = str
-		return nil
-	case "ptrace.tracee.parent.cap_effective":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.CapEffective"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.CapEffective = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.cap_permitted":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.CapPermitted"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.CapPermitted = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.comm":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Comm"}
-		}
-		e.PTrace.Tracee.Parent.Comm = str
-		return nil
-	case "ptrace.tracee.parent.container.id":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.ContainerID"}
-		}
-		e.PTrace.Tracee.Parent.ContainerID = str
-		return nil
-	case "ptrace.tracee.parent.cookie":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Cookie"}
-		}
-		e.PTrace.Tracee.Parent.Cookie = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.created_at":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.CreatedAt"}
-		}
-		e.PTrace.Tracee.Parent.CreatedAt = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.egid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EGID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.EGID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.egroup":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EGroup"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.EGroup = str
-		return nil
-	case "ptrace.tracee.parent.envp":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Envp"}
-		}
-		e.PTrace.Tracee.Parent.Envp = append(e.PTrace.Tracee.Parent.Envp, str)
-		return nil
-	case "ptrace.tracee.parent.envs":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Envs"}
-		}
-		e.PTrace.Tracee.Parent.Envs = append(e.PTrace.Tracee.Parent.Envs, str)
-		return nil
-	case "ptrace.tracee.parent.envs_truncated":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.EnvsTruncated"}
-		}
-		return nil
-	case "ptrace.tracee.parent.euid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EUID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.EUID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.euser":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.EUser"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.EUser = str
-		return nil
-	case "ptrace.tracee.parent.file.change_time":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.CTime"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.file.filesystem":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.Filesystem"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.Filesystem = str
-		return nil
-	case "ptrace.tracee.parent.file.gid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.GID"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.file.group":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Group"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.Group = str
-		return nil
-	case "ptrace.tracee.parent.file.in_upper_layer":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "ptrace.tracee.parent.file.inode":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Inode"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.file.mode":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "ptrace.tracee.parent.file.modification_time":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.MTime"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.file.mount_id":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.MountID"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.file.name":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.BasenameStr"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.BasenameStr = str
-		return nil
-	case "ptrace.tracee.parent.file.name.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.file.name.length"}
-	case "ptrace.tracee.parent.file.path":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.PathnameStr"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.PathnameStr = str
-		return nil
-	case "ptrace.tracee.parent.file.path.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.file.path.length"}
-	case "ptrace.tracee.parent.file.rights":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "ptrace.tracee.parent.file.uid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.UID"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.file.user":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.FileEvent.FileFields.User"}
-		}
-		e.PTrace.Tracee.Parent.FileEvent.FileFields.User = str
-		return nil
-	case "ptrace.tracee.parent.fsgid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSGID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.FSGID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.fsgroup":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSGroup"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.FSGroup = str
-		return nil
-	case "ptrace.tracee.parent.fsuid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSUID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.FSUID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.fsuser":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.FSUser"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.FSUser = str
-		return nil
-	case "ptrace.tracee.parent.gid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.GID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.GID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.group":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.Group"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.Group = str
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.change_time":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.Filesystem = str
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.gid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.group":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Group = str
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.inode":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Inode"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.mode":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MountID"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.name":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.BasenameStr = str
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.name.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.interpreter.file.name.length"}
-	case "ptrace.tracee.parent.interpreter.file.path":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PathnameStr = str
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.path.length":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.interpreter.file.path.length"}
-	case "ptrace.tracee.parent.interpreter.file.rights":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.uid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.UID"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.interpreter.file.user":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User"}
-		}
-		e.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.FileFields.User = str
-		return nil
-	case "ptrace.tracee.parent.is_kworker":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.PIDContext.IsKworker"}
-		}
-		return nil
-	case "ptrace.tracee.parent.is_thread":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		var ok bool
-		if e.PTrace.Tracee.Parent.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.IsThread"}
-		}
-		return nil
-	case "ptrace.tracee.parent.pid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.PIDContext.Pid"}
-		}
-		e.PTrace.Tracee.Parent.PIDContext.Pid = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.ppid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.PPid"}
-		}
-		e.PTrace.Tracee.Parent.PPid = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.tid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.PIDContext.Tid"}
-		}
-		e.PTrace.Tracee.Parent.PIDContext.Tid = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.tty_name":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.TTYName"}
-		}
-		e.PTrace.Tracee.Parent.TTYName = str
-		return nil
-	case "ptrace.tracee.parent.uid":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.UID"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.UID = uint32(v)
-		return nil
-	case "ptrace.tracee.parent.user":
-		if e.PTrace.Tracee == nil {
-			e.PTrace.Tracee = &ProcessContext{}
-		}
-		if e.PTrace.Tracee.Parent == nil {
-			e.PTrace.Tracee.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.Credentials.User"}
-		}
-		e.PTrace.Tracee.Parent.Credentials.User = str
 		return nil
 	case "ptrace.tracee.pid":
 		if e.PTrace.Tracee == nil {
@@ -29859,825 +24261,6 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if e.Signal.Target.Process.IsThread, ok = value.(bool); !ok {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.IsThread"}
 		}
-		return nil
-	case "signal.target.parent.args":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Args"}
-		}
-		e.Signal.Target.Parent.Args = str
-		return nil
-	case "signal.target.parent.args_flags":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv"}
-		}
-		e.Signal.Target.Parent.Argv = append(e.Signal.Target.Parent.Argv, str)
-		return nil
-	case "signal.target.parent.args_options":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv"}
-		}
-		e.Signal.Target.Parent.Argv = append(e.Signal.Target.Parent.Argv, str)
-		return nil
-	case "signal.target.parent.args_truncated":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.ArgsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ArgsTruncated"}
-		}
-		return nil
-	case "signal.target.parent.argv":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv"}
-		}
-		e.Signal.Target.Parent.Argv = append(e.Signal.Target.Parent.Argv, str)
-		return nil
-	case "signal.target.parent.argv0":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Argv0"}
-		}
-		e.Signal.Target.Parent.Argv0 = str
-		return nil
-	case "signal.target.parent.cap_effective":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.CapEffective"}
-		}
-		e.Signal.Target.Parent.Credentials.CapEffective = uint64(v)
-		return nil
-	case "signal.target.parent.cap_permitted":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.CapPermitted"}
-		}
-		e.Signal.Target.Parent.Credentials.CapPermitted = uint64(v)
-		return nil
-	case "signal.target.parent.comm":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Comm"}
-		}
-		e.Signal.Target.Parent.Comm = str
-		return nil
-	case "signal.target.parent.container.id":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.ContainerID"}
-		}
-		e.Signal.Target.Parent.ContainerID = str
-		return nil
-	case "signal.target.parent.cookie":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Cookie"}
-		}
-		e.Signal.Target.Parent.Cookie = uint32(v)
-		return nil
-	case "signal.target.parent.created_at":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.CreatedAt"}
-		}
-		e.Signal.Target.Parent.CreatedAt = uint64(v)
-		return nil
-	case "signal.target.parent.egid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EGID"}
-		}
-		e.Signal.Target.Parent.Credentials.EGID = uint32(v)
-		return nil
-	case "signal.target.parent.egroup":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EGroup"}
-		}
-		e.Signal.Target.Parent.Credentials.EGroup = str
-		return nil
-	case "signal.target.parent.envp":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Envp"}
-		}
-		e.Signal.Target.Parent.Envp = append(e.Signal.Target.Parent.Envp, str)
-		return nil
-	case "signal.target.parent.envs":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Envs"}
-		}
-		e.Signal.Target.Parent.Envs = append(e.Signal.Target.Parent.Envs, str)
-		return nil
-	case "signal.target.parent.envs_truncated":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.EnvsTruncated, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.EnvsTruncated"}
-		}
-		return nil
-	case "signal.target.parent.euid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EUID"}
-		}
-		e.Signal.Target.Parent.Credentials.EUID = uint32(v)
-		return nil
-	case "signal.target.parent.euser":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.EUser"}
-		}
-		e.Signal.Target.Parent.Credentials.EUser = str
-		return nil
-	case "signal.target.parent.file.change_time":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.CTime"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "signal.target.parent.file.filesystem":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.Filesystem"}
-		}
-		e.Signal.Target.Parent.FileEvent.Filesystem = str
-		return nil
-	case "signal.target.parent.file.gid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.GID"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "signal.target.parent.file.group":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Group"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.Group = str
-		return nil
-	case "signal.target.parent.file.in_upper_layer":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "signal.target.parent.file.inode":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Inode"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "signal.target.parent.file.mode":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "signal.target.parent.file.modification_time":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.MTime"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "signal.target.parent.file.mount_id":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.MountID"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "signal.target.parent.file.name":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.BasenameStr"}
-		}
-		e.Signal.Target.Parent.FileEvent.BasenameStr = str
-		return nil
-	case "signal.target.parent.file.name.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.file.name.length"}
-	case "signal.target.parent.file.path":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.PathnameStr"}
-		}
-		e.Signal.Target.Parent.FileEvent.PathnameStr = str
-		return nil
-	case "signal.target.parent.file.path.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.file.path.length"}
-	case "signal.target.parent.file.rights":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.Mode"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "signal.target.parent.file.uid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.UID"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "signal.target.parent.file.user":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.FileEvent.FileFields.User"}
-		}
-		e.Signal.Target.Parent.FileEvent.FileFields.User = str
-		return nil
-	case "signal.target.parent.fsgid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSGID"}
-		}
-		e.Signal.Target.Parent.Credentials.FSGID = uint32(v)
-		return nil
-	case "signal.target.parent.fsgroup":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSGroup"}
-		}
-		e.Signal.Target.Parent.Credentials.FSGroup = str
-		return nil
-	case "signal.target.parent.fsuid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSUID"}
-		}
-		e.Signal.Target.Parent.Credentials.FSUID = uint32(v)
-		return nil
-	case "signal.target.parent.fsuser":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.FSUser"}
-		}
-		e.Signal.Target.Parent.Credentials.FSUser = str
-		return nil
-	case "signal.target.parent.gid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.GID"}
-		}
-		e.Signal.Target.Parent.Credentials.GID = uint32(v)
-		return nil
-	case "signal.target.parent.group":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.Group"}
-		}
-		e.Signal.Target.Parent.Credentials.Group = str
-		return nil
-	case "signal.target.parent.interpreter.file.change_time":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(v)
-		return nil
-	case "signal.target.parent.interpreter.file.filesystem":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.Filesystem = str
-		return nil
-	case "signal.target.parent.interpreter.file.gid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(v)
-		return nil
-	case "signal.target.parent.interpreter.file.group":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group = str
-		return nil
-	case "signal.target.parent.interpreter.file.in_upper_layer":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer"}
-		}
-		return nil
-	case "signal.target.parent.interpreter.file.inode":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Inode"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Inode = uint64(v)
-		return nil
-	case "signal.target.parent.interpreter.file.mode":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "signal.target.parent.interpreter.file.modification_time":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(v)
-		return nil
-	case "signal.target.parent.interpreter.file.mount_id":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MountID"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.MountID = uint32(v)
-		return nil
-	case "signal.target.parent.interpreter.file.name":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.BasenameStr = str
-		return nil
-	case "signal.target.parent.interpreter.file.name.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.interpreter.file.name.length"}
-	case "signal.target.parent.interpreter.file.path":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.PathnameStr = str
-		return nil
-	case "signal.target.parent.interpreter.file.path.length":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.interpreter.file.path.length"}
-	case "signal.target.parent.interpreter.file.rights":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(v)
-		return nil
-	case "signal.target.parent.interpreter.file.uid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(v)
-		return nil
-	case "signal.target.parent.interpreter.file.user":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User"}
-		}
-		e.Signal.Target.Parent.LinuxBinprm.FileEvent.FileFields.User = str
-		return nil
-	case "signal.target.parent.is_kworker":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.PIDContext.IsKworker, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.PIDContext.IsKworker"}
-		}
-		return nil
-	case "signal.target.parent.is_thread":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		var ok bool
-		if e.Signal.Target.Parent.IsThread, ok = value.(bool); !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.IsThread"}
-		}
-		return nil
-	case "signal.target.parent.pid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.PIDContext.Pid"}
-		}
-		e.Signal.Target.Parent.PIDContext.Pid = uint32(v)
-		return nil
-	case "signal.target.parent.ppid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.PPid"}
-		}
-		e.Signal.Target.Parent.PPid = uint32(v)
-		return nil
-	case "signal.target.parent.tid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.PIDContext.Tid"}
-		}
-		e.Signal.Target.Parent.PIDContext.Tid = uint32(v)
-		return nil
-	case "signal.target.parent.tty_name":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.TTYName"}
-		}
-		e.Signal.Target.Parent.TTYName = str
-		return nil
-	case "signal.target.parent.uid":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		v, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.UID"}
-		}
-		e.Signal.Target.Parent.Credentials.UID = uint32(v)
-		return nil
-	case "signal.target.parent.user":
-		if e.Signal.Target == nil {
-			e.Signal.Target = &ProcessContext{}
-		}
-		if e.Signal.Target.Parent == nil {
-			e.Signal.Target.Parent = &Process{}
-		}
-		str, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.Credentials.User"}
-		}
-		e.Signal.Target.Parent.Credentials.User = str
 		return nil
 	case "signal.target.pid":
 		if e.Signal.Target == nil {

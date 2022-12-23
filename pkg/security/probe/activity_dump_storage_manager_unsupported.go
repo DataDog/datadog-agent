@@ -13,14 +13,14 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 )
 
 // ActivityDumpStorageManager is defined for unsupported platforms
 type ActivityDumpStorageManager struct{}
 
 // PersistRaw is defined for unsupported platforms
-func (manager *ActivityDumpStorageManager) PersistRaw(requests []config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (manager *ActivityDumpStorageManager) PersistRaw(requests []dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	return nil
 }
 
@@ -34,7 +34,7 @@ func NewSecurityAgentStorageManager() (*ActivityDumpStorageManager, error) {
 
 // ActivityDump is defined for unsupported platforms
 type ActivityDump struct {
-	StorageRequests map[config.StorageFormat][]config.StorageRequest
+	StorageRequests map[dump.StorageFormat][]dump.StorageRequest
 }
 
 // NewActivityDumpFromMessage returns a new ActivityDump from a SecurityActivityDumpMessage

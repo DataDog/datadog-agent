@@ -81,7 +81,7 @@ func (s *Set) Since(name string, start time.Time) {
 	s.getCounter(name).add(float64(ms))
 }
 
-// getCounter returns the counter with the given name, initializing any uninitialized
+// getCounter returns the counter with the given name, initializing any unitialized
 // fields of s.
 func (s *Set) getCounter(name string) *counter {
 	s.mu.RLock()

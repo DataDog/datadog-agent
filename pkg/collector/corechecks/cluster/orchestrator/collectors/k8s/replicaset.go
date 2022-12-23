@@ -40,14 +40,11 @@ type ReplicaSetCollector struct {
 func NewReplicaSetCollector() *ReplicaSetCollector {
 	return &ReplicaSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "replicasets",
-			NodeType:                  orchestrator.K8sReplicaSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "replicasets",
+			NodeType:         orchestrator.K8sReplicaSet,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ReplicaSetHandlers)),
 	}
@@ -79,7 +76,13 @@ func (c *ReplicaSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collect
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

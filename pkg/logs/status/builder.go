@@ -86,6 +86,7 @@ func (b *Builder) getIntegrations() []Integration {
 		var sources []Source
 		for _, source := range logSources {
 			sources = append(sources, Source{
+				BytesRead:          source.BytesRead.Load(),
 				AllTimeAvgLatency:  source.LatencyStats.AllTimeAvg() / int64(time.Millisecond),
 				AllTimePeakLatency: source.LatencyStats.AllTimePeak() / int64(time.Millisecond),
 				RecentAvgLatency:   source.LatencyStats.MovingAvg() / int64(time.Millisecond),

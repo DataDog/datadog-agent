@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,6 +43,7 @@ const (
 	downloaderModule    = "datadog_checks.downloader"
 	disclaimer          = "For your security, only use this to install wheels containing an Agent integration " +
 		"and coming from a known source. The Agent cannot perform any verification on local wheels."
+	pythonMinorVersionScript = "import sys;print(sys.version_info[1])"
 	integrationVersionScript = `
 import pkg_resources
 try:
@@ -59,6 +61,7 @@ var (
 	pep440VersionStringRe = regexp.MustCompile("^(?P<release>\\d+\\.\\d+\\.\\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\\d+)?)?$") // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
 
 	rootDir             string
+	pythonMinorVersion  string
 	reqAgentReleasePath string
 	constraintsPath     string
 )
@@ -103,7 +106,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runOneShot := func(callback interface{}) error {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
-			fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigMissingOK(true))),
+			fx.Supply(core.BundleParams{
+				ConfFilePath:      globalParams.ConfFilePath,
+				ConfigLoadSecrets: false,
+				ConfigMissingOK:   true,
+			}),
 			core.Bundle,
 		)
 	}
@@ -195,6 +202,25 @@ func loadPythonInfo(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
+func detectPythonMinorVersion(cliParams *cliParams) error {
+	if pythonMinorVersion == "" {
+		pythonPath, err := getCommandPython(cliParams)
+		if err != nil {
+			return err
+		}
+
+		versionCmd := exec.Command(pythonPath, "-c", pythonMinorVersionScript)
+		minorVersion, err := versionCmd.Output()
+		if err != nil {
+			return err
+		}
+
+		pythonMinorVersion = strings.TrimSpace(string(minorVersion))
+	}
+
+	return nil
+}
+
 func getIntegrationName(packageName string) string {
 	switch packageName {
 	case "datadog-checks-base":
@@ -260,12 +286,12 @@ func PEP440ToSemver(pep440 string) (*semver.Version, error) {
 	return semver.NewVersion(versionString)
 }
 
-func getCommandPython(pythonMajorVersion string, useSysPython bool) (string, error) {
-	if useSysPython {
+func getCommandPython(cliParams *cliParams) (string, error) {
+	if cliParams.useSysPython {
 		return pythonBin, nil
 	}
 
-	pyPath := filepath.Join(rootDir, getRelPyPath(pythonMajorVersion))
+	pyPath := filepath.Join(rootDir, getRelPyPath(cliParams))
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -302,7 +328,7 @@ func validateArgs(args []string, local bool) error {
 }
 
 func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer) error {
-	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
+	pythonPath, err := getCommandPython(cliParams)
 	if err != nil {
 		return err
 	}
@@ -494,8 +520,7 @@ func install(config config.Component, cliParams *cliParams) error {
 }
 
 func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType string) (string, error) {
-	// We use python 3 to invoke the downloader regardless of config
-	pyPath, err := getCommandPython("3", cliParams.useSysPython)
+	pyPath, err := getCommandPython(cliParams)
 	if err != nil {
 		return "", err
 	}
@@ -695,7 +720,7 @@ func validateRequirement(version *semver.Version, comp string, versionReq *semve
 }
 
 func minAllowedVersion(integration string) (*semver.Version, bool, error) {
-	lines, err := os.ReadFile(reqAgentReleasePath)
+	lines, err := ioutil.ReadFile(reqAgentReleasePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -709,7 +734,7 @@ func minAllowedVersion(integration string) (*semver.Version, bool, error) {
 
 // Return the version of an installed integration and whether or not it was found
 func installedVersion(cliParams *cliParams, integration string) (*semver.Version, bool, error) {
-	pythonPath, err := getCommandPython(cliParams.pythonMajorVersion, cliParams.useSysPython)
+	pythonPath, err := getCommandPython(cliParams)
 	if err != nil {
 		return nil, false, err
 	}
@@ -791,7 +816,7 @@ func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 }
 
 func moveConfigurationFiles(srcFolder string, dstFolder string) error {
-	files, err := os.ReadDir(srcFolder)
+	files, err := ioutil.ReadDir(srcFolder)
 	if err != nil {
 		return err
 	}
@@ -821,12 +846,12 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 		}
 		src := filepath.Join(srcFolder, filename)
 		dst := filepath.Join(dstFolder, filename)
-		srcContent, err := os.ReadFile(src)
+		srcContent, err := ioutil.ReadFile(src)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
 			continue
 		}
-		err = os.WriteFile(dst, srcContent, 0644)
+		err = ioutil.WriteFile(dst, srcContent, 0644)
 		if err != nil {
 			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue

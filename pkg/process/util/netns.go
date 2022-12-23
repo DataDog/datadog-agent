@@ -30,18 +30,13 @@ func WithRootNS(procRoot string, fn func() error) error {
 	if err != nil {
 		return err
 	}
-	defer rootNS.Close()
 
-	return WithNS(rootNS, fn)
+	return WithNS(procRoot, rootNS, fn)
 }
 
 // WithNS executes the given function in the given network namespace, and then
 // switches back to the previous namespace.
-func WithNS(ns netns.NsHandle, fn func() error) error {
-	if ns == netns.None() {
-		return fn()
-	}
-
+func WithNS(procRoot string, ns netns.NsHandle, fn func() error) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 

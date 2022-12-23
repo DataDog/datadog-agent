@@ -50,7 +50,7 @@ func compileRules(exprs []string) []*regexp.Regexp {
 	for _, entry := range exprs {
 		rule, err := regexp.Compile(entry)
 		if err != nil {
-			log.Errorf("Invalid resource filter: %s: %s", entry, err)
+			log.Errorf("Invalid resource filter: %q", entry)
 			continue
 		}
 		list = append(list, rule)

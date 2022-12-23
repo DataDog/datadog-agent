@@ -79,7 +79,8 @@ init_config:
 */
 
 // Configure is called to configure the object prior to the first run
-func (w *KMemCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (w *KMemCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+
 	// check to make sure the function is actually there, so we can fail gracefully
 	// if it's not
 	if err := modntdll.Load(); err != nil {
@@ -89,7 +90,7 @@ func (w *KMemCheck) Configure(integrationConfigDigest uint64, data integration.D
 		return err
 	}
 
-	if err := w.CommonConfigure(integrationConfigDigest, initConfig, data, source); err != nil {
+	if err := w.CommonConfigure(initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{
@@ -144,7 +145,7 @@ func (w *KMemCheck) Run() error {
 	for k, v := range tagmap {
 		// double sanity check, but should always be true
 		if v {
-			tags := []string{}
+			var tags = []string{}
 			pti := spi.spti.poolTags[k]
 
 			tags = append(tags, "kmemtag:"+string(pti.tag[:]))
@@ -159,6 +160,7 @@ func (w *KMemCheck) Run() error {
 	sender.Commit()
 	log.Debugf("Logged %v entries", len(tagmap))
 	return nil
+
 }
 
 type systemPooltag struct {
@@ -172,7 +174,7 @@ type systemPooltag struct {
 }
 type systemPooltagInformation struct {
 	count    uint32
-	_        uint32 // padding
+	padding  uint32
 	poolTags []systemPooltag
 }
 

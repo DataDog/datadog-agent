@@ -31,20 +31,21 @@ func TestParseSuite(t *testing.T) {
 					Version:   "1.2.0",
 					Source:    "./testdata/cis-docker.yaml",
 				},
-				RegoRules: []RegoRule{
+				Rules: []ConditionFallbackRule{
 					{
 						RuleCommon: RuleCommon{
 							ID:           "cis-docker-1",
 							Scope:        RuleScopeList{DockerScope},
 							HostSelector: `"foo" in node.labels`,
 						},
-						Inputs: []RegoInput{
+						Resources: []Resource{
 							{
 								ResourceCommon: ResourceCommon{
 									File: &File{
 										Path: "/etc/docker/daemon.json",
 									},
 								},
+								Condition: `file.permissions == 0644`,
 							},
 						},
 					},

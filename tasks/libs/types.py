@@ -44,12 +44,12 @@ class FailedJobType(Enum):
 
 
 class FailedJobReason(Enum):
-    RUNNER = 1
+    MAIN_RUNNER = 1
+    DOCKER_RUNNER = 2
+    K8S_RUNNER = 3
     KITCHEN_AZURE = 4
-    FAILED_JOB_SCRIPT = 5
-    GITLAB = 6
-    KITCHEN = 7
-    EC2_SPOT = 8
+    KITCHEN = 5
+    FAILED_JOB_SCRIPT = 6
 
 
 class SlackMessage:

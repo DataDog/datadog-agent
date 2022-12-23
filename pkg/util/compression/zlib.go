@@ -11,7 +11,7 @@ package compression
 import (
 	"bytes"
 	"compress/zlib"
-	"io"
+	"io/ioutil"
 )
 
 // ContentEncoding describes the HTTP header value associated with the compression method
@@ -42,7 +42,7 @@ func Decompress(src []byte) ([]byte, error) {
 	}
 	defer r.Close()
 
-	dst, err := io.ReadAll(r)
+	dst, err := ioutil.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

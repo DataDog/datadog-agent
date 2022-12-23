@@ -32,7 +32,7 @@ func (j *JMXFetch) Stop() error {
 		stopChan = make(chan struct{})
 
 		go func() {
-			_ = j.Wait()
+			j.Wait()
 			close(stopChan)
 		}()
 	}

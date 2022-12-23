@@ -9,6 +9,7 @@
 package integrations
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,7 +29,7 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 		assert.NoError(t, f.Close())
 	}
 
-	filesCreated, _ := os.ReadDir(srcFolder)
+	filesCreated, _ := ioutil.ReadDir(srcFolder)
 	assert.Equal(t, 5, len(filesCreated))
 	for _, file := range filesCreated {
 		assert.Contains(t, append(yamlFiles, otherFile), file.Name())
@@ -36,7 +37,7 @@ func TestMoveConfigurationsFiles(t *testing.T) {
 
 	moveConfigurationFiles(srcFolder, dstFolder)
 
-	filesMoved, _ := os.ReadDir(dstFolder)
+	filesMoved, _ := ioutil.ReadDir(dstFolder)
 	assert.Equal(t, 4, len(filesMoved))
 	for _, file := range filesMoved {
 		assert.Contains(t, yamlFiles, file.Name())

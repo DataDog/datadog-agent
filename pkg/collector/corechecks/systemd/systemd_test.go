@@ -14,17 +14,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+
 	"github.com/coreos/go-systemd/dbus"
 	godbus "github.com/godbus/dbus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -99,7 +100,7 @@ unit_names:
  - ssh.service
  - syslog.socket
 `)
-	err := check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	assert.Nil(t, err)
 	assert.ElementsMatch(t, []string{"ssh.service", "syslog.socket"}, check.config.instance.UnitNames)
@@ -107,7 +108,7 @@ unit_names:
 
 func TestMissingUnitNamesShouldRaiseError(t *testing.T) {
 	check := SystemdCheck{}
-	err := check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	err := check.Configure([]byte(``), []byte(``), "test")
 
 	expectedErrorMsg := "instance config `unit_names` must not be empty"
 	assert.EqualError(t, err, expectedErrorMsg)
@@ -123,7 +124,7 @@ substate_status_mapping:
     exited: critical
     running: ok
 `)
-	err := check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	expectedErrorMsg := "instance config specifies a custom substate mapping for unit 'bar' but this unit is not monitored. Please add 'bar' to 'unit_names'"
 	assert.EqualError(t, err, expectedErrorMsg)
@@ -139,7 +140,7 @@ substate_status_mapping:
     running: ok
     exited: Critical
 `)
-	err := check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 
 	expectedErrorMsg := "Status 'Critical' for unit 'foo' in 'substate_status_mapping' is invalid. It should be one of 'ok, warning, critical, unknown'"
 	assert.EqualError(t, err, expectedErrorMsg)
@@ -162,7 +163,7 @@ substate_status_mapping:
     plugged: ok
     running: ok
 `)
-	err := check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := check.Configure(rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
 }
 
@@ -176,7 +177,7 @@ unit_names:
 private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -195,7 +196,7 @@ unit_names:
 private_socket: /tmp/foo/private_socket
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.EqualError(t, err, "some error")
@@ -214,7 +215,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -232,7 +233,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -252,7 +253,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.Nil(t, err)
@@ -272,7 +273,7 @@ unit_names:
 - ssh.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	check.Configure(rawInstanceConfig, []byte(``), "test")
 	conn, err := check.getDbusConnection()
 
 	assert.NotNil(t, err)
@@ -287,7 +288,7 @@ func TestDbusConnectionErr(t *testing.T) {
 	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	check.Configure([]byte(``), []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -297,6 +298,7 @@ func TestDbusConnectionErr(t *testing.T) {
 	expectedErrorMsg := "cannot create a connection: some error"
 	assert.EqualError(t, err, expectedErrorMsg)
 	mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, metrics.ServiceCheckCritical, "", []string(nil), expectedErrorMsg)
+
 }
 
 func TestSystemStateCallFailGracefully(t *testing.T) {
@@ -307,7 +309,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	check.Configure([]byte(``), []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -326,7 +328,7 @@ func TestListUnitErr(t *testing.T) {
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
+	check.Configure([]byte(``), []byte(``), "test")
 
 	mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -361,7 +363,7 @@ unit_names:
  - unit2.service
 `)
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectations
 	stats.On("GetUnitTypeProperties", mock.Anything, mock.Anything, mock.Anything).Return(map[string]interface{}{}, nil)
@@ -422,7 +424,7 @@ unit_names:
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -489,7 +491,7 @@ unit_names:
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -564,7 +566,7 @@ unit_names:
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -613,7 +615,7 @@ func TestServiceCheckSystemStateAndCanConnect(t *testing.T) {
 			stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 			check := SystemdCheck{stats: stats}
-			check.Configure(integration.FakeConfigHash, []byte(``), []byte(``), "test")
+			check.Configure([]byte(``), []byte(``), "test")
 
 			mockSender := mocksender.NewMockSender(check.ID()) // required to initiate aggregator
 			mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -660,7 +662,7 @@ unit_names:
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -725,7 +727,7 @@ substate_status_mapping:
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	// setup expectation
 	mockSender := mocksender.NewMockSender(check.ID())
@@ -828,7 +830,7 @@ unit_names:
 `)
 
 	check := SystemdCheck{}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	data := []struct {
 		unitName              string
@@ -848,7 +850,7 @@ unit_names:
 func TestIsMonitoredEmptyConfigShouldNone(t *testing.T) {
 	rawInstanceConfig := []byte(``)
 	check := SystemdCheck{}
-	check.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	check.Configure(rawInstanceConfig, nil, "test")
 
 	data := []struct {
 		unitName              string
@@ -972,6 +974,7 @@ func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 }
 
 func TestGetVersion(t *testing.T) {
+
 	rawInstanceConfig := []byte(`
 unit_names:
  - ssh.service
@@ -990,7 +993,7 @@ unit_names:
 	mockSender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	systemdCheck.Configure(integration.FakeConfigHash, rawInstanceConfig, nil, "test")
+	systemdCheck.Configure(rawInstanceConfig, nil, "test")
 	// run
 	systemdCheck.Run()
 
@@ -1003,8 +1006,7 @@ unit_names:
 				InitConf:     "",
 				InstanceConf: "{}",
 			},
-		},
-	}
+		}}
 
 	p := inventories.GetPayload(context.Background(), "testHostname", coll, false)
 	checkMetadata := *p.CheckMetadata
@@ -1030,13 +1032,13 @@ unit_names:
  - ssh.service2
 `)
 
-	err := check1.Configure(integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
+	err := check1.Configure(rawInstanceConfig1, []byte(``), "test")
 	assert.Nil(t, err)
 
-	err = check2.Configure(integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
+	err = check2.Configure(rawInstanceConfig2, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, check.ID("systemd:71ee0a4fef872b6d"), check1.ID())
-	assert.Equal(t, check.ID("systemd:b1fb7cdd591e17a1"), check2.ID())
+	assert.Equal(t, check.ID("systemd:29388db26b0a8c38"), check1.ID())
+	assert.Equal(t, check.ID("systemd:31a0335c91ba9ae6"), check2.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }

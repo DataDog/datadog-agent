@@ -37,8 +37,6 @@ network_devices:
     aggregator_rollup_tracker_refresh_interval: 60
     log_payloads: true
     aggregator_port_rollup_disabled: true
-    prometheus_listener_enabled: true
-    prometheus_listener_address: 127.0.0.1:9099
     listeners:
       - flow_type: netflow9
         bind_host: 127.0.0.1
@@ -61,8 +59,6 @@ network_devices:
 				AggregatorPortRollupThreshold:          20,
 				AggregatorRollupTrackerRefreshInterval: 60,
 				AggregatorPortRollupDisabled:           true,
-				PrometheusListenerEnabled:              true,
-				PrometheusListenerAddress:              "127.0.0.1:9099",
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -97,7 +93,6 @@ network_devices:
 				AggregatorFlowContextTTL:               300,
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 300,
-				PrometheusListenerAddress:              "localhost:9090",
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -126,7 +121,6 @@ network_devices:
 				AggregatorFlowContextTTL:               50,
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 300,
-				PrometheusListenerAddress:              "localhost:9090",
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,

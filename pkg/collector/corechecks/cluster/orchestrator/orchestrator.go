@@ -47,12 +47,7 @@ type OrchestratorInstance struct {
 	// collectors:
 	//   - nodes
 	//   - services
-	Collectors []string `yaml:"collectors"`
-	// CRDCollectors defines collectors for custom Kubernetes resource types.
-	// crd_collectors:
-	//   - datadoghq.com/v1alpha1/datadogmetrics
-	//   - stable.example.com/v1/crontabs
-	CRDCollectors           []string `yaml:"crd_collectors"`
+	Collectors              []string `yaml:"collectors"`
 	ExtraSyncTimeoutSeconds int      `yaml:"extra_sync_timeout_seconds"`
 }
 
@@ -98,10 +93,10 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 }
 
 // Configure configures the orchestrator check
-func (o *OrchestratorCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	o.BuildID(integrationConfigDigest, config, initConfig)
+func (o *OrchestratorCheck) Configure(config, initConfig integration.Data, source string) error {
+	o.BuildID(config, initConfig)
 
-	err := o.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}

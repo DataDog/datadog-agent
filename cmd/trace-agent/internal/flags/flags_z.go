@@ -31,9 +31,11 @@ var (
 
 // Win holds a set of flags which will be populated only during the Windows build.
 var Win = struct {
-	StartService bool
-	StopService  bool
-	Foreground   bool
+	InstallService   bool
+	UninstallService bool
+	StartService     bool
+	StopService      bool
+	Foreground       bool
 }{}
 
 func init() {

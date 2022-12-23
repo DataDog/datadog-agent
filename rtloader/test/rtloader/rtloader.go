@@ -13,6 +13,7 @@ import "C"
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,7 +39,7 @@ func setUp() error {
 	}
 
 	var err error
-	tmpfile, err = os.CreateTemp("", "testout")
+	tmpfile, err = ioutil.TempFile("", "testout")
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func runString(code string) (string, error) {
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
-	output, err := os.ReadFile(tmpfile.Name())
+	output, err := ioutil.ReadFile(tmpfile.Name())
 	return string(output), err
 }
 

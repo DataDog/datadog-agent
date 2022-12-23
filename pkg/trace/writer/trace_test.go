@@ -7,7 +7,7 @@ package writer
 
 import (
 	"compress/gzip"
-	"io"
+	"io/ioutil"
 	"reflect"
 	"runtime"
 	"sync"
@@ -132,7 +132,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 		assert := assert.New(t)
 		gzipr, err := gzip.NewReader(p.body)
 		assert.NoError(err)
-		slurp, err := io.ReadAll(gzipr)
+		slurp, err := ioutil.ReadAll(gzipr)
 		assert.NoError(err)
 		var payload pb.AgentPayload
 		err = proto.Unmarshal(slurp, &payload)

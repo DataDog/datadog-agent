@@ -13,7 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
+	"io/ioutil"
 	"path"
 	"path/filepath"
 
@@ -41,13 +41,13 @@ func parseArg() (string, error) {
 }
 
 func dumpRetryFiles(folder string) error {
-	entries, err := os.ReadDir(folder)
+	entries, err := ioutil.ReadDir(folder)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) == ".retry" {
+		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == ".retry" {
 			fmt.Println(entry.Name())
 			filePath := path.Join(folder, entry.Name())
 			fileContent, err := dumpRetryFile(filePath)
@@ -55,7 +55,7 @@ func dumpRetryFiles(folder string) error {
 				return err
 			}
 			output := filePath + ".json"
-			err = os.WriteFile(output, fileContent, 0600)
+			err = ioutil.WriteFile(output, fileContent, 0600)
 			if err != nil {
 				return err
 			}
@@ -65,7 +65,7 @@ func dumpRetryFiles(folder string) error {
 }
 
 func dumpRetryFile(file string) ([]byte, error) {
-	content, err := os.ReadFile(file)
+	content, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}

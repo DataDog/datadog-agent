@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -131,7 +132,7 @@ func GetSysRoot() string {
 // passed the `pid`. If `fn` returns an error the iteration aborts,
 // returning the last error returned from `fn`.
 func WithAllProcs(procRoot string, fn func(int) error) error {
-	files, err := os.ReadDir(procRoot)
+	files, err := ioutil.ReadDir(procRoot)
 	if err != nil {
 		return err
 	}

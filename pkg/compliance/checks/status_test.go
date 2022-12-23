@@ -68,4 +68,5 @@ func TestStatus(t *testing.T) {
 		},
 		status.getChecksStatus(),
 	)
+
 }

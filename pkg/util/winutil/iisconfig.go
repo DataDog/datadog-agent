@@ -10,6 +10,7 @@ package winutil
 import (
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -79,7 +80,7 @@ func (iiscfg *DynamicIISConfig) Start() error {
 			select {
 			case event := <-iiscfg.watcher.Events:
 				if event.Op&fsnotify.Write == fsnotify.Write {
-					_ = iiscfg.readXmlConfig()
+					iiscfg.readXmlConfig()
 				}
 			case err = <-iiscfg.watcher.Errors:
 				return
@@ -129,7 +130,7 @@ type iisConfiguration struct {
 
 func (iiscfg *DynamicIISConfig) readXmlConfig() error {
 	var newcfg iisConfiguration
-	f, err := os.ReadFile(iiscfg.path)
+	f, err := ioutil.ReadFile(iiscfg.path)
 	if err != nil {
 		return err
 	}

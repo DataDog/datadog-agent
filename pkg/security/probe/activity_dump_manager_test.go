@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	mock "github.com/DataDog/datadog-agent/pkg/security/tests"
 )
 
 func compareListOfDumps(t *testing.T, out, expectedOut []*ActivityDump) {
@@ -346,19 +346,17 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		probe := &Probe{
-			StatsdClient: &statsd.NoOpClient{},
-			Config: &config.Config{
-				ActivityDumpMaxDumpSize: func() int {
-					return 2048
-				},
-			}}
 		t.Run(tt.name, func(t *testing.T) {
 			adm := &ActivityDumpManager{
-				activeDumps:        tt.fields.activeDumps,
-				probe:              probe,
-				config:             probe.Config,
-				statsdClient:       probe.StatsdClient,
+				activeDumps: tt.fields.activeDumps,
+				probe: &Probe{
+					statsdClient: mock.NewStatsdClient(),
+					config: &config.Config{
+						ActivityDumpMaxDumpSize: func() int {
+							return 2048
+						},
+					},
+				},
 				ignoreFromSnapshot: make(map[string]bool),
 			}
 

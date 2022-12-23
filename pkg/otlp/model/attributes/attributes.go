@@ -16,6 +16,7 @@ package attributes
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
@@ -173,14 +174,19 @@ func OriginIDFromAttributes(attrs pcommon.Map) (originID string) {
 
 // ContainerTagFromAttributes extracts the value of _dd.tags.container from the given
 // set of attributes.
-func ContainerTagFromAttributes(attr map[string]string) map[string]string {
-	ddtags := make(map[string]string)
+func ContainerTagFromAttributes(attr map[string]string) string {
+	var str strings.Builder
 	for _, key := range containerTagsAttributes {
 		val, ok := attr[key]
 		if !ok {
 			continue
 		}
-		ddtags[conventionsMapping[key]] = val
+		if str.Len() > 0 {
+			str.WriteByte(',')
+		}
+		str.WriteString(conventionsMapping[key])
+		str.WriteByte(':')
+		str.WriteString(val)
 	}
-	return ddtags
+	return str.String()
 }

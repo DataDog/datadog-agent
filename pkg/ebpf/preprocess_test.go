@@ -9,7 +9,7 @@
 package ebpf
 
 import (
-	"os"
+	"io/ioutil"
 	"path"
 	"testing"
 
@@ -42,11 +42,11 @@ struct test_struct {
 #endif /* defined(TEST_H) */
 `
 
-	if err := os.WriteFile(path.Join(testBPFDir, "test-asset.c"), []byte(assetSource), 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(testBPFDir, "test-asset.c"), []byte(assetSource), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile(path.Join(testBPFDir, "test-header.h"), []byte(assetHeader), 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(testBPFDir, "test-header.h"), []byte(assetHeader), 0644); err != nil {
 		t.Fatal(err)
 	}
 

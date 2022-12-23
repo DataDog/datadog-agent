@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -39,7 +39,7 @@ type agentRunner struct {
 }
 
 func newAgentRunner(ddAddr string, verbose bool) (*agentRunner, error) {
-	bindir, err := os.MkdirTemp("", "trace-agent-integration-tests")
+	bindir, err := ioutil.TempDir("", "trace-agent-integration-tests")
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 	cmd := exec.Command(filepath.Join(s.bindir, "trace-agent"), "-config", path)
 	s.log.Reset()
 	cmd.Stdout = s.log
-	cmd.Stderr = io.Discard
+	cmd.Stderr = ioutil.Discard
 	if err := cmd.Start(); err != nil {
 		log.Print("error starting process: ", err)
 	}

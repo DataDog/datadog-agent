@@ -17,7 +17,6 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 )
 
 //nolint:deadcode,unused
@@ -25,12 +24,10 @@ import (
 var schemaAssetFS embed.FS
 
 // ValidInodeFormatChecker defines the format inode checker
-//
 //nolint:deadcode,unused
 type ValidInodeFormatChecker struct{}
 
 // IsFormat check inode format
-//
 //nolint:deadcode,unused
 func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 
@@ -48,7 +45,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 	default:
 		return false
 	}
-	return !resolvers.IsFakeInode(inode)
+	return !sprobe.IsFakeInode(inode)
 }
 
 //nolint:deadcode,unused

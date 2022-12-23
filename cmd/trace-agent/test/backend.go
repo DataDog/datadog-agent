@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -134,7 +135,7 @@ func readProtoRequest(req *http.Request, msg proto.Message) error {
 	if err != nil {
 		return err
 	}
-	slurp, err := io.ReadAll(rc)
+	slurp, err := ioutil.ReadAll(rc)
 	defer rc.Close()
 	if err != nil {
 		return err

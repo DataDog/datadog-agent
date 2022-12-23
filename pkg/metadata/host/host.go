@@ -32,6 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 
+	"io/ioutil"
+
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -255,7 +257,7 @@ func getInstallInfoPath() string {
 }
 
 func getInstallInfo(infoPath string) (*installInfo, error) {
-	yamlContent, err := os.ReadFile(infoPath)
+	yamlContent, err := ioutil.ReadFile(infoPath)
 
 	if err != nil {
 		return nil, err

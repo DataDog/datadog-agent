@@ -8,6 +8,7 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +34,7 @@ func TestJSONConverter(t *testing.T) {
 		var cf integration.RawMap
 
 		// Read file contents
-		yamlFile, err := os.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
+		yamlFile, err := ioutil.ReadFile(fmt.Sprintf("../collector/corechecks/embed/jmx/fixtures/%s.yaml", c))
 		assert.Nil(t, err)
 
 		// Parse configuration
@@ -71,7 +72,7 @@ func TestCopyDir(t *testing.T) {
 		p := filepath.Join(src, file)
 		err := os.MkdirAll(filepath.Dir(p), os.ModePerm)
 		assert.NoError(err)
-		err = os.WriteFile(p, []byte(content), os.ModePerm)
+		err = ioutil.WriteFile(p, []byte(content), os.ModePerm)
 		assert.NoError(err)
 	}
 	err := CopyDir(src, dst)
@@ -79,7 +80,7 @@ func TestCopyDir(t *testing.T) {
 
 	for file, content := range files {
 		p := filepath.Join(dst, file)
-		actual, err := os.ReadFile(p)
+		actual, err := ioutil.ReadFile(p)
 		assert.NoError(err)
 		assert.Equal(string(actual), content)
 	}

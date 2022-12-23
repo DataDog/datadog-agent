@@ -87,7 +87,7 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
 	var reposDir string
 	switch strings.ToLower(target.Distro.Display) {
-	case "fedora", "rhel", "redhat", "centos", "amazon", "oracle":
+	case "fedora", "rhel", "redhat", "centos", "amazon":
 		reposDir = h.yumReposDir
 	case "opensuse", "opensuse-leap", "opensuse-tumbleweed", "opensuse-tumbleweed-kubic", "suse", "sles", "sled", "caasp":
 		reposDir = h.zypperReposDir
@@ -111,7 +111,7 @@ func (h *headerDownloader) getHeaderDownloadBackend(target *types.Target, reposD
 	switch strings.ToLower(target.Distro.Display) {
 	case "fedora":
 		backend, err = rpm.NewFedoraBackend(target, reposDir, logger)
-	case "rhel", "redhat", "oracle":
+	case "rhel", "redhat":
 		backend, err = rpm.NewRedHatBackend(target, reposDir, logger)
 	case "amazon":
 		if target.Distro.Release == "2022" {

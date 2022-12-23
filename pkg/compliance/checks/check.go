@@ -15,16 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	// Register compliance resources
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/command"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/constants"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/docker"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/group"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/kubeapiserver"
-	_ "github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
 )
 
 // eventNotify is a callback invoked when a compliance check reported an event
@@ -45,7 +35,7 @@ type complianceCheck struct {
 	scope           compliance.RuleScope
 	resourceHandler resourceReporter
 
-	checkable Checkable
+	checkable checkable
 
 	eventNotify eventNotify
 }
@@ -60,7 +50,7 @@ func (c *complianceCheck) String() string {
 	return compliance.CheckName(c.ruleID, c.description)
 }
 
-func (c *complianceCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {
 	return nil
 }
 
@@ -125,7 +115,7 @@ func (c *complianceCheck) Run() error {
 
 	var err error
 
-	reports := c.checkable.Check(c)
+	reports := c.checkable.check(c)
 	resourceQuadIDs := make(map[resourceQuadID]bool)
 
 	for _, report := range reports {

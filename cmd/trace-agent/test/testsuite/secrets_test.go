@@ -7,7 +7,7 @@ package testsuite
 
 import (
 	"bytes"
-	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +24,7 @@ func TestSecrets(t *testing.T) {
 	// install trace-agent with -tags=secrets
 	binTraceAgent := filepath.Join(tmpDir, "trace-agent")
 	cmd := exec.Command("go", "build", "-o", binTraceAgent, "-tags=secrets", "github.com/DataDog/datadog-agent/cmd/trace-agent")
-	cmd.Stdout = io.Discard
+	cmd.Stdout = ioutil.Discard
 	if err := cmd.Run(); err != nil {
 		t.Skip(err.Error())
 	}
@@ -33,7 +33,7 @@ func TestSecrets(t *testing.T) {
 	// install a secrets provider script
 	binSecrets := filepath.Join(tmpDir, "secret-script.test")
 	cmd = exec.Command("go", "build", "-o", binSecrets, "./testdata/secretscript.go")
-	cmd.Stdout = io.Discard
+	cmd.Stdout = ioutil.Discard
 	if err := cmd.Run(); err != nil {
 		t.Skip(err.Error())
 	}
@@ -44,7 +44,7 @@ func TestSecrets(t *testing.T) {
 
 	// CI environment might have no datadog.yaml; we don't care in this
 	// case so we can just use an empty file to avoid failure.
-	if err := os.WriteFile(filepath.Join(tmpDir, "datadog.yaml"), []byte(""), os.ModePerm); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(tmpDir, "datadog.yaml"), []byte(""), os.ModePerm); err != nil {
 		t.Skip(err.Error())
 	}
 

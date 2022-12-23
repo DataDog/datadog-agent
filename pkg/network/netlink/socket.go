@@ -15,14 +15,9 @@ import (
 	"syscall"
 	"unsafe"
 
-	"go.uber.org/atomic"
-
 	"github.com/mdlayher/netlink"
-	"github.com/vishvananda/netns"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 var _ netlink.Socket = &Socket{}
@@ -50,23 +45,15 @@ type Socket struct {
 	n       int
 	oobn    int
 	readErr error
-
-	seq *atomic.Uint32
 }
 
 // NewSocket creates a new NETLINK socket
-func NewSocket(netNS netns.NsHandle) (*Socket, error) {
-	var fd int
-	var err error
-	err = util.WithNS(netNS, func() error {
-		fd, err = unix.Socket(
-			unix.AF_NETLINK,
-			unix.SOCK_RAW|unix.SOCK_CLOEXEC,
-			unix.NETLINK_NETFILTER,
-		)
-
-		return err
-	})
+func NewSocket() (*Socket, error) {
+	fd, err := unix.Socket(
+		unix.AF_NETLINK,
+		unix.SOCK_RAW|unix.SOCK_CLOEXEC,
+		unix.NETLINK_NETFILTER,
+	)
 
 	if err != nil {
 		return nil, err
@@ -105,29 +92,12 @@ func NewSocket(netNS netns.NsHandle) (*Socket, error) {
 		conn:    conn,
 		recvbuf: make([]byte, 32*1024),
 		oobbuf:  make([]byte, unix.CmsgSpace(24)),
-		seq:     atomic.NewUint32(0),
 	}
 	return socket, nil
 }
 
-// fixMsg updates the fields of m using the logic specified in Send.
-func (c *Socket) fixMsg(m *netlink.Message, ml int) {
-	if m.Header.Length == 0 {
-		m.Header.Length = uint32(nlmsgAlign(ml))
-	}
-
-	if m.Header.Sequence == 0 {
-		m.Header.Sequence = c.seq.Add(1)
-	}
-
-	if m.Header.PID == 0 {
-		m.Header.PID = c.pid
-	}
-}
-
 // Send a netlink.Message
 func (s *Socket) Send(m netlink.Message) error {
-	s.fixMsg(&m, nlmsgLength(len(m.Data)))
 	b, err := m.MarshalBinary()
 	if err != nil {
 		return err
@@ -155,102 +125,61 @@ func (s *Socket) Receive() ([]netlink.Message, error) {
 
 // ReceiveAndDiscard reads netlink messages off the socket & discards them.
 // If the NLMSG_DONE flag is found in one of the messages, returns true.
-func (s *Socket) ReceiveAndDiscard() (bool, uint32, error) {
-	for {
-		n, _, err := s.recvmsg()
-		if err != nil {
-			return false, 0, os.NewSyscallError("recvmsg", err)
-		}
-
-		n = nlmsgAlign(n)
-		i := 0
-		nmsgs := uint32(0)
-		var multi bool
-		for n >= unix.NLMSG_HDRLEN {
-			header := (*netlink.Header)(unsafe.Pointer(&s.recvbuf[i]))
-			msgLen := nlmsgAlign(int(header.Length))
-			if msgLen < syscall.NLMSG_HDRLEN {
-				return false, 0, syscall.EINVAL
-			}
-
-			if err := checkMessage(netlink.Message{
-				Header: *header,
-				Data:   s.recvbuf[i+unix.NLMSG_HDRLEN : i+unix.NLMSG_HDRLEN+msgLen],
-			}); err != nil {
-				return false, 0, err
-			}
-
-			n -= msgLen
-			i += msgLen
-
-			nmsgs++
-
-			if header.Flags&netlink.Multi == 0 {
-				continue
-			}
-
-			multi = header.Type != netlink.Done
-		}
-
-		if !multi {
-			return true, nmsgs, nil
-		}
+func (s *Socket) ReceiveAndDiscard() (bool, error) {
+	n, _, err := s.recvmsg()
+	if err != nil {
+		return false, os.NewSyscallError("recvmsg", err)
 	}
+
+	n = nlmsgAlign(n)
+	i := 0
+	for n >= syscall.NLMSG_HDRLEN {
+		header := (*syscall.NlMsghdr)(unsafe.Pointer(&s.recvbuf[i]))
+		if header.Type == syscall.NLMSG_DONE {
+			return true, nil
+		}
+		msgLen := nlmsgAlign(int(header.Len))
+		if msgLen < syscall.NLMSG_HDRLEN {
+			return false, syscall.EINVAL
+		}
+		i += msgLen
+		n -= msgLen
+	}
+
+	return false, nil
 }
 
 // ReceiveInto reads one or more netlink.Messages off the socket
 func (s *Socket) ReceiveInto(b []byte) ([]netlink.Message, uint32, error) {
+	n, oobn, err := s.recvmsg()
+	if err != nil {
+		return nil, 0, os.NewSyscallError("recvmsg", err)
+	}
+
+	n = nlmsgAlign(n)
+	// If we cannot fit the date into the supplied buffer,  we allocate a slice
+	// with enough capacity. This should happen very rarely.
+	if n > len(b) {
+		b = make([]byte, n)
+	}
+	copy(b, s.recvbuf[:n])
+
+	msgs, err := ParseNetlinkMessage(b[:n])
+	if err != nil {
+		return nil, 0, err
+	}
+
 	var netns uint32
-	var ret []netlink.Message
-	for {
-		n, oobn, err := s.recvmsg()
-		if err != nil {
-			return nil, 0, os.NewSyscallError("recvmsg", err)
-		}
-
-		n = nlmsgAlign(n)
-		// If we cannot fit the date into the supplied buffer,  we allocate a slice
-		// with enough capacity. This should happen very rarely.
-		if n > len(b) {
-			b = make([]byte, n)
-		}
-		copy(b, s.recvbuf[:n])
-
-		msgs, err := ParseNetlinkMessage(b[:n])
+	if oobn > 0 {
+		scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
 		if err != nil {
 			return nil, 0, err
 		}
 
-		var multi bool
-		for _, m := range msgs {
-			if err := checkMessage(m); err != nil {
-				return nil, 0, err
-			}
-
-			if m.Header.Flags&netlink.Multi == 0 {
-				continue
-			}
-
-			multi = m.Header.Type != netlink.Done
-		}
-
-		ret = append(ret, msgs...)
-
-		if oobn > 0 && netns == 0 {
-			scms, err := unix.ParseSocketControlMessage(s.oobbuf[:oobn])
-			if err != nil {
-				return nil, 0, err
-			}
-
-			netns = parseNetNS(scms)
-		}
-
-		if !multi {
-			break
-		}
+		netns = parseNetNS(scms)
 	}
 
-	return ret, netns, nil
+	return msgs, netns, nil
 }
 
 // ParseNetlinkMessage parses b as an array of netlink messages and

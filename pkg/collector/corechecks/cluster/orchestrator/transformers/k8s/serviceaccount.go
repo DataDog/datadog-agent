@@ -12,8 +12,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 )
 
 // ExtractServiceAccount returns the protobuf model corresponding to a
@@ -43,8 +41,5 @@ func ExtractServiceAccount(sa *corev1.ServiceAccount) *model.ServiceAccount {
 			Name: imgPullSecret.Name,
 		})
 	}
-
-	serviceAccount.Tags = append(serviceAccount.Tags, transformers.RetrieveUnifiedServiceTags(sa.ObjectMeta.Labels)...)
-
 	return serviceAccount
 }

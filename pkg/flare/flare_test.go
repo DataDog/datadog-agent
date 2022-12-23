@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -94,7 +95,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234}"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.NoError(t, reserr)
@@ -107,7 +108,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\"}"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"case_id\": 1234, \"error\": \"uhoh\"}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t, errors.New("uhoh"), reserr)
@@ -120,7 +121,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json; charset=UTF-8"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("thats-not-json"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("thats-not-json"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t,
@@ -141,7 +142,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte(resp))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte(resp))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t,
@@ -157,7 +158,7 @@ func TestAnalyzeResponse(t *testing.T) {
 	t.Run("no-content-type", func(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t,
@@ -174,7 +175,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"text/plain"}},
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("{\"json\": true}"))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t,
@@ -191,7 +192,7 @@ func TestAnalyzeResponse(t *testing.T) {
 		r := &http.Response{
 			StatusCode: 502,
 			Status:     "Bad Gateway",
-			Body:       io.NopCloser(bytes.NewBuffer([]byte("<html>.."))),
+			Body:       ioutil.NopCloser(bytes.NewBuffer([]byte("<html>.."))),
 		}
 		resstr, reserr := analyzeResponse(r, nil)
 		require.Equal(t,

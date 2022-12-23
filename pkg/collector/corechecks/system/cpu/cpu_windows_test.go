@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
@@ -33,7 +32,7 @@ func TestCPUCheckWindows(t *testing.T) {
 	pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
 
 	cpuCheck := new(Check)
-	cpuCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	cpuCheck.Configure(nil, nil, "test")
 
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)

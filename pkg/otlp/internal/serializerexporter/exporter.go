@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -23,11 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-var _ component.ExporterConfig = (*exporterConfig)(nil)
+var _ config.Exporter = (*exporterConfig)(nil)
 
-func newDefaultConfig() component.ExporterConfig {
+func newDefaultConfig() config.Exporter {
 	return &exporterConfig{
-		ExporterSettings: config.NewExporterSettings(component.NewID(TypeStr)),
+		ExporterSettings: config.NewExporterSettings(config.NewComponentID(TypeStr)),
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutSettings: exporterhelper.TimeoutSettings{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
@@ -174,7 +173,7 @@ func (e *exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	}
 
 	consumer.addTelemetryMetric(e.hostname)
-	if err := consumer.Send(e.s); err != nil {
+	if err := consumer.flush(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}
 	return nil

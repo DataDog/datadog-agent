@@ -224,6 +224,8 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
     .key_size = sizeof(u64),
     .value_size = sizeof(struct syscall_cache_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {

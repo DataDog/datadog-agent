@@ -9,6 +9,7 @@
 package system
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,9 +24,9 @@ func TestNamespacesInodes(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "2", "ns"), 0o755))
 	assert.NoError(t, os.MkdirAll(filepath.Join(fakeProc, "3", "ns"), 0o755))
 
-	assert.NoError(t, os.WriteFile(filepath.Join(fakeProc, "1", "ns", "net"), []byte{}, 0o644))
+	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeProc, "1", "ns", "net"), []byte{}, 0o644))
 	assert.NoError(t, os.Link(filepath.Join(fakeProc, "1", "ns", "net"), filepath.Join(fakeProc, "2", "ns", "net")))
-	assert.NoError(t, os.WriteFile(filepath.Join(fakeProc, "3", "ns", "net"), []byte{}, 0o644))
+	assert.NoError(t, ioutil.WriteFile(filepath.Join(fakeProc, "3", "ns", "net"), []byte{}, 0o644))
 
 	pid2inode, err := GetProcessNamespaceInode(fakeProc, "2", "net")
 	assert.NoError(t, err)

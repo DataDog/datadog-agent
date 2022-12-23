@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,7 +71,7 @@ func TestConfigEndpoint(t *testing.T) {
 			req.Header.Set("Content-Type", "application/msgpack")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := io.ReadAll(resp.Body)
+			body, err := ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
 			assert.Nil(err)
 			assert.Equal(tc.expectedStatusCode, resp.StatusCode)
@@ -80,7 +80,7 @@ func TestConfigEndpoint(t *testing.T) {
 	}
 }
 
-func TestUpstreamRequest(t *testing.T) {
+func TestTags(t *testing.T) {
 
 	var tcs = []struct {
 		name                    string
@@ -90,40 +90,34 @@ func TestUpstreamRequest(t *testing.T) {
 	}{
 		{
 			name:      "both tracer and container tags",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar","baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar","baz:qux"]}}}`,
 		},
 		{
 			name:                    "tracer tags only",
-			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["foo:bar"]}}}`,
+			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 		{
 			name:      "container tags only",
-			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test"}}}`,
+			tracerReq: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{}}}`,
 			cfg: &config.AgentConfig{
 				ContainerTags: func(cid string) ([]string, error) {
 					return []string{"baz:qux"}, nil
 				},
 			},
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test","tags":["baz:qux"]}}}`,
+			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"tags":["baz:qux"]}}}`,
 		},
 		{
 			name:                    "no tracer",
 			tracerReq:               `{"client":{"id":"test_client"}}`,
 			expectedUpstreamRequest: `{"client":{"id":"test_client"}}`,
-			cfg:                     &config.AgentConfig{},
-		},
-		{
-			name:                    "tracer service and env are normalized",
-			tracerReq:               `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test ww w@","env":"test@ww","tags":["foo:bar"]}}}`,
-			expectedUpstreamRequest: `{"client":{"id":"test_client","is_tracer":true,"client_tracer":{"service":"test_ww_w","env":"test_ww","tags":["foo:bar"]}}}`,
 			cfg:                     &config.AgentConfig{},
 		},
 	}
@@ -147,12 +141,14 @@ func TestUpstreamRequest(t *testing.T) {
 			req.Header.Set("Datadog-Container-ID", "cid")
 			resp, err := http.DefaultClient.Do(req)
 			assert.Nil(err)
-			body, err := io.ReadAll(resp.Body)
+			body, err := ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
-			assert.NoError(err)
+			assert.Nil(err)
 			assert.Equal(200, resp.StatusCode)
 			assert.Equal(`{"targets":"dGVzdA=="}`, string(body))
+
 		})
+
 	}
 }
 

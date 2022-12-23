@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -134,7 +135,7 @@ func TestYamlConfig(t *testing.T) {
 	// Reset the config
 	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 
-	f, err := os.CreateTemp("", "yamlConfigTest*.yaml")
+	f, err := ioutil.TempFile("", "yamlConfigTest*.yaml")
 	defer os.Remove(f.Name())
 	assert.NoError(t, err)
 
@@ -264,7 +265,6 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(config.DefaultDDAgentBin, config.Datadog.GetString("process_config.dd_agent_bin"))
 	assert.Equal(config.DefaultGRPCConnectionTimeoutSecs, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	assert.False(config.Datadog.GetBool("process_config.remote_tagger"))
-	assert.False(config.Datadog.GetBool("process_config.remote_workloadmeta"))
 	assert.True(config.Datadog.GetBool("process_config.process_discovery.enabled"))
 	assert.Equal(4*time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
 }

@@ -9,6 +9,7 @@ import (
 	"container/list"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -31,6 +32,12 @@ type serviceKeyCatalog struct {
 type catalogEntry struct {
 	key ServiceSignature
 	sig Signature
+}
+
+// rm specifies the pair of rate and mechanism.
+type rm struct {
+	r float64
+	m apmsampling.SamplingMechanism
 }
 
 // newServiceLookup returns a new serviceKeyCatalog with maxEntries maximum number of entries.
@@ -70,14 +77,18 @@ func (cat *serviceKeyCatalog) register(svcSig ServiceSignature) Signature {
 
 // ratesByService returns a map of service signatures mapping to the rates identified using
 // the signatures.
-func (cat *serviceKeyCatalog) ratesByService(agentEnv string, rates map[Signature]float64, defaultRate float64) map[ServiceSignature]float64 {
-	rbs := make(map[ServiceSignature]float64, len(rates)+1)
+func (cat *serviceKeyCatalog) ratesByService(agentEnv string, localRates map[Signature]float64, remoteRates map[Signature]rm, defaultRate float64) map[ServiceSignature]rm {
+	rbs := make(map[ServiceSignature]rm, len(localRates)+1)
 	cat.mu.Lock()
 	defer cat.mu.Unlock()
 	for key, el := range cat.items {
 		sig := el.Value.(catalogEntry).sig
-		if rate, ok := rates[sig]; ok {
-			rbs[key] = rate
+		if r, ok := remoteRates[sig]; ok {
+			rbs[key] = r
+		} else if rate, ok := localRates[sig]; ok {
+			rbs[key] = rm{
+				r: rate,
+			}
 		} else {
 			cat.ll.Remove(el)
 			delete(cat.items, key)
@@ -88,6 +99,8 @@ func (cat *serviceKeyCatalog) ratesByService(agentEnv string, rates map[Signatur
 			rbs[ServiceSignature{Name: key.Name}] = rbs[key]
 		}
 	}
-	rbs[ServiceSignature{}] = defaultRate
+	rbs[ServiceSignature{}] = rm{
+		r: defaultRate,
+	}
 	return rbs
 }

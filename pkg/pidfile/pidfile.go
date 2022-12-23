@@ -7,6 +7,7 @@ package pidfile
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -17,7 +18,7 @@ import (
 // doesn't exist or doesn't contain a PID for a running process.
 func WritePID(pidFilePath string) error {
 	// check whether the pidfile exists and contains the PID for a running proc...
-	if byteContent, err := os.ReadFile(pidFilePath); err == nil {
+	if byteContent, err := ioutil.ReadFile(pidFilePath); err == nil {
 		pidStr := strings.TrimSpace(string(byteContent))
 		pid, err := strconv.Atoi(pidStr)
 		if err == nil && isProcess(pid) {
@@ -34,7 +35,7 @@ func WritePID(pidFilePath string) error {
 
 	// write current pid in it
 	pidStr := fmt.Sprintf("%d", os.Getpid())
-	if err := os.WriteFile(pidFilePath, []byte(pidStr), 0644); err != nil {
+	if err := ioutil.WriteFile(pidFilePath, []byte(pidStr), 0644); err != nil {
 		return err
 	}
 

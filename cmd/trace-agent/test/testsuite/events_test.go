@@ -7,7 +7,7 @@ package testsuite
 
 import (
 	"encoding/json"
-	"os"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -17,7 +17,7 @@ import (
 )
 
 func jsonTraceFromPath(path string) (pb.Trace, error) {
-	slurp, err := os.ReadFile(path)
+	slurp, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

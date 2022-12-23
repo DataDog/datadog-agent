@@ -14,11 +14,15 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/internal"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-shared-components
+
+// BundleParams defines the parameters for this bundle.
+type BundleParams = internal.BundleParams
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(

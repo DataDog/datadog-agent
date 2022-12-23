@@ -279,7 +279,7 @@ func InitConfig(config Config) {
 
 	// Fips
 	config.BindEnvAndSetDefault("fips.enabled", false)
-	config.BindEnvAndSetDefault("fips.port_range_start", 9803)
+	config.BindEnvAndSetDefault("fips.port_range_start", 3833)
 	config.BindEnvAndSetDefault("fips.local_address", "localhost")
 	config.BindEnvAndSetDefault("fips.https", true)
 	config.BindEnvAndSetDefault("fips.tls_verify", true)
@@ -354,12 +354,6 @@ func InitConfig(config Config) {
 	// When enabled, hostname defined in the configuration (datadog.yaml) and starting with `ip-` or `domu` on EC2 is used as
 	// canonical hostname, otherwise the instance-id is used as canonical hostname.
 	config.BindEnvAndSetDefault("hostname_force_config_as_canonical", false)
-
-	// By default the Agent does not trust the hostname value retrieved from non-root UTS namespace.
-	// When enabled, the Agent will trust the value retrieved from non-root UTS namespace instead of failing
-	// hostname resolution.
-	// (Linux only)
-	config.BindEnvAndSetDefault("hostname_trust_uts_namespace", false)
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
@@ -658,7 +652,6 @@ func InitConfig(config Config) {
 	config.SetKnown("snmp_listener.allowed_failures")
 	config.SetKnown("snmp_listener.discovery_allowed_failures")
 	config.SetKnown("snmp_listener.collect_device_metadata")
-	config.SetKnown("snmp_listener.collect_topology")
 	config.SetKnown("snmp_listener.workers")
 	config.SetKnown("snmp_listener.configs")
 	config.SetKnown("snmp_listener.loader")
@@ -713,7 +706,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cluster_agent.token_name", "datadogtoken")
 	config.BindEnvAndSetDefault("cluster_agent.max_leader_connections", 100)
 	config.BindEnvAndSetDefault("cluster_agent.client_reconnect_period_seconds", 1200)
-	config.BindEnvAndSetDefault("cluster_agent.collect_kubernetes_tags", false)
 	config.BindEnvAndSetDefault("metrics_port", "5000")
 
 	// Metadata endpoints
@@ -732,7 +724,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("ec2_prioritize_instance_id_as_hostname", false) // used to bypass the hostname detection logic and force the EC2 instance ID as a hostname.
 	config.BindEnvAndSetDefault("collect_ec2_tags", false)
 	config.BindEnvAndSetDefault("collect_ec2_tags_use_imds", false)
-	config.BindEnvAndSetDefault("exclude_ec2_tags", []string{})
 
 	// ECS
 	config.BindEnvAndSetDefault("ecs_agent_url", "") // Will be autodetected
@@ -1018,7 +1009,6 @@ func InitConfig(config Config) {
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
-	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1052,8 +1042,6 @@ func InitConfig(config Config) {
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
-	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
-	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 
 	// Container lifecycle configuration
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
@@ -1084,7 +1072,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", defaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
-	config.BindEnvAndSetDefault("security_agent.remote_workloadmeta", false) // TODO: switch this to true when ready
 
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.enabled", false, "DD_SECURITY_AGENT_INTERNAL_PROFILING_ENABLED")
 	config.BindEnvAndSetDefault("security_agent.internal_profiling.site", DefaultSite, "DD_SECURITY_AGENT_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -1141,7 +1128,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.log_tags", []string{})
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
-	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
+	config.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", false)
 	config.BindEnvAndSetDefault("runtime_security_config.runtime_compilation.enabled", false)
 	config.BindEnv("runtime_security_config.runtime_compilation.compiled_constants_enabled")
 	config.BindEnvAndSetDefault("runtime_security_config.network.enabled", true)
@@ -1191,31 +1178,9 @@ func InitConfig(config Config) {
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
 
-	// Windows Performance Counter refresh interval in seconds (introduced in 7.40, narrowed down
-	// in 7.42). Additional information can be found where it is used (refreshPdhObjectCache())
-	// The refresh can be disabled by setting the interval to 0.
+	// Windows Performance Counter refresh interval
+	// Controls if and how often Performance Counters need to be refreshed by the agent. This is mainly used in integrations that rely on Performance Counters.
 	config.BindEnvAndSetDefault("windows_counter_refresh_interval", 60)
-
-	// Added in Agent version 7.42
-	// Limits the number of times a check will attempt to initialize a performance counter before ceasing
-	// attempts to initialize the counter. This allows the Agent to stop incurring the overhead of trying
-	// to initialize a counter that will probably never succeed. For example, when the performance counter
-	// database needs to be rebuilt or the counter is disabled.
-	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/manually-rebuild-performance-counters
-	//
-	// The value of this option should be chosen in consideration with the windows_counter_refresh_interval option.
-	// The performance counter cache is refreshed during subsequent attempts to intiialize a counter that failed
-	// the first time (with consideration of the windows_counter_refresh_interval value).
-	// It is unknown if it is possible for a counter that failed to initialize to later succeed without a refresh
-	// in between the attempts. Consequently, if windows_counter_refresh_interval is 0 (disabled), then this option should
-	// be 1. If this option is too small compared to the windows_counter_refresh_interval, it is possible to reach the limit
-	// before a refresh occurs. Typically there is one attempt per check run, and check runs are 15 seconds apart by default.
-	//
-	// Increasing this value may help in the rare instance where counters are not available for some time after host boot.
-	//
-	// Setting this option to 0 disables the limit and the Agent will attempt to initialize the counter forever.
-	// The default value of 20 means the Agent will retry counter intialization for roughly 5 minutes.
-	config.BindEnvAndSetDefault("windows_counter_init_failure_limit", 20)
 
 	// Vector integration
 	bindVectorOptions(config, Metrics)
@@ -1404,11 +1369,11 @@ func findUnknownEnvVars(config Config, environ []string) []string {
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_SERVICE":                   {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		// this variable is used by CWS functional tests
+		"DD_SERVICE":            {},
+		"DD_DOTNET_TRACER_HOME": {},
+		// these variables are used by system-probe, but not via the Config struct
 		"DD_TESTS_RUNTIME_COMPILED": {},
+		"DD_TESTS_CO_RE":            {},
 	}
 	for _, key := range config.GetEnvVars() {
 		knownVars[key] = struct{}{}

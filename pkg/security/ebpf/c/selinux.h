@@ -42,6 +42,8 @@ struct bpf_map_def SEC("maps/selinux_write_buffer") selinux_write_buffer = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct selinux_write_buffer_t),
     .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
@@ -49,6 +51,8 @@ struct bpf_map_def SEC("maps/selinux_enforce_status") selinux_enforce_status = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u16),
     .max_entries = 2,
+    .pinning = 0,
+    .namespace = "",
 };
 
 #define SELINUX_ENFORCE_STATUS_DISABLE_KEY 0

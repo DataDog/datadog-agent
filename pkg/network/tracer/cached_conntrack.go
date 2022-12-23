@@ -17,7 +17,6 @@ import (
 	"sync"
 
 	"github.com/golang/groupcache/lru"
-	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -30,11 +29,11 @@ type cachedConntrack struct {
 	sync.Mutex
 	procRoot         string
 	cache            *lru.Cache
-	conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error)
+	conntrackCreator func(int) (netlink.Conntrack, error)
 	closed           bool
 }
 
-func newCachedConntrack(procRoot string, conntrackCreator func(netns.NsHandle) (netlink.Conntrack, error), size int) *cachedConntrack {
+func newCachedConntrack(procRoot string, conntrackCreator func(int) (netlink.Conntrack, error), size int) *cachedConntrack {
 	cache := &cachedConntrack{
 		procRoot:         procRoot,
 		conntrackCreator: conntrackCreator,
@@ -149,7 +148,7 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 	}
 	defer ns.Close()
 
-	ctrk, err := cache.conntrackCreator(ns)
+	ctrk, err := cache.conntrackCreator(int(ns))
 	if err != nil {
 		log.Errorf("could not create conntrack object for net ns %d: %s", ino, err)
 		return nil, err

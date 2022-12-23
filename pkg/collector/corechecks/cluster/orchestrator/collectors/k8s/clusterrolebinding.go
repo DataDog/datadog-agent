@@ -40,14 +40,11 @@ type ClusterRoleBindingCollector struct {
 func NewClusterRoleBindingCollector() *ClusterRoleBindingCollector {
 	return &ClusterRoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "clusterrolebindings",
-			NodeType:                  orchestrator.K8sClusterRoleBinding,
-			Version:                   "rbac.authorization.k8s.io/v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "clusterrolebindings",
+			NodeType:         orchestrator.K8sClusterRoleBinding,
+			Version:          "rbac.authorization.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleBindingHandlers)),
 	}
@@ -79,7 +76,13 @@ func (c *ClusterRoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

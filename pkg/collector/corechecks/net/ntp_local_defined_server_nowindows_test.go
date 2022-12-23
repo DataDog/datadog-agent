@@ -9,6 +9,7 @@
 package net
 
 import (
+	"io/ioutil"
 	"os"
 	"sort"
 	"testing"
@@ -22,13 +23,13 @@ func TestGetNTPServersFromFileNotExist(t *testing.T) {
 }
 
 func createTempFile(t *testing.T, content string, callback func(filename string)) {
-	file, err := os.CreateTemp("", "")
+	file, err := ioutil.TempFile("", "")
 
 	filename := file.Name()
 	defer os.Remove(filename)
 	assert.NoError(t, err)
 
-	os.WriteFile(filename, []byte(content), 0)
+	ioutil.WriteFile(filename, []byte(content), 0)
 	callback(filename)
 }
 

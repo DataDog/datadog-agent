@@ -148,20 +148,22 @@ func (l *SysProbeListener) run() {
 // consumeData unmarshals the serialized process event received from the SecurityModule server, filters it and applies the
 // EventHandler
 func (l *SysProbeListener) consumeData(data []byte) {
-	var sysEvent model.ProcessEvent
+	var sysEvent model.ProcessMonitoringEvent
 	if _, err := sysEvent.UnmarshalMsg(data); err != nil {
 		log.Errorf("Could not unmarshal process event: %v", err)
 		return
 	}
 
+	e := model.ProcessMonitoringToProcessEvent(&sysEvent)
+
 	// Only consume expected process events
-	switch sysEvent.EventType {
+	switch e.EventType {
 	case model.Exec, model.Exit:
 		if l.handler == nil {
 			log.Error("No EventHandler set to consume event, dropping it")
 			return
 		}
-		l.handler(&sysEvent)
+		l.handler(e)
 	default: // drop unexpected event
 	}
 }

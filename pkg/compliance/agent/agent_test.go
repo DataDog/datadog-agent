@@ -87,8 +87,7 @@ func eventMatcher(m eventMatch) interface{} {
 		}
 
 		eventData := e.Data.(event.Data)
-		eventPermissions, _ := eventData["file.permissions"].(json.Number).Int64()
-		return eventData["file.path"] == m.path && eventPermissions == int64(m.permissions)
+		return eventData["file.path"] == m.path && eventData["file.permissions"] == m.permissions
 	}
 }
 

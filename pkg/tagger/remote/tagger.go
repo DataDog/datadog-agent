@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -23,12 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,9 +42,8 @@ var errTaggerStreamNotStarted = errors.New("tagger stream not started")
 // Tagger holds a connection to a remote tagger, processes incoming events from
 // it, and manages the storage of entities to allow querying.
 type Tagger struct {
-	store   *tagStore
-	ready   bool
-	options Options
+	store *tagStore
+	ready bool
 
 	conn   *grpc.ClientConn
 	client pb.AgentSecureClient
@@ -57,49 +55,22 @@ type Tagger struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	health          *health.Handle
 	telemetryTicker *time.Ticker
-}
-
-type Options struct {
-	Target       string
-	TokenFetcher func() (string, error)
-}
-
-func NodeAgentOptions() (Options, error) {
-	return Options{
-		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
-		TokenFetcher: security.FetchAuthToken,
-	}, nil
-}
-
-func CLCRunnerOptions() (Options, error) {
-	target, err := clusteragent.GetClusterAgentEndpoint()
-	if err != nil {
-		return Options{}, fmt.Errorf("unable to get cluster agent endpoint: %w", err)
-	}
-
-	// gRPC targets do not have a protocol. the DCA endpoint is always HTTPS,
-	// so a simple `TrimPrefix` is enough.
-	target = strings.TrimPrefix(target, "https://")
-
-	return Options{
-		Target:       target,
-		TokenFetcher: security.GetClusterAgentAuthToken,
-	}, nil
 }
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger(options Options) *Tagger {
+func NewTagger() *Tagger {
 	return &Tagger{
-		options: options,
-		store:   newTagStore(),
+		store: newTagStore(),
 	}
 }
 
 // Init initializes the connection to the remote tagger and starts watching for
 // events.
 func (t *Tagger) Init(ctx context.Context) error {
+	t.health = health.RegisterLiveness("tagger")
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
 	t.ctx, t.cancel = context.WithCancel(ctx)
@@ -116,7 +87,7 @@ func (t *Tagger) Init(ctx context.Context) error {
 	var err error
 	t.conn, err = grpc.DialContext(
 		t.ctx,
-		t.options.Target,
+		fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
 			return net.Dial("tcp", url)
@@ -155,6 +126,10 @@ func (t *Tagger) Stop() error {
 	}
 
 	t.telemetryTicker.Stop()
+	err = t.health.Deregister()
+	if err != nil {
+		return err
+	}
 
 	log.Info("remote tagger stopped successfully")
 
@@ -237,6 +212,8 @@ func (t *Tagger) Unsubscribe(ch chan []types.EntityEvent) {
 func (t *Tagger) run() {
 	for {
 		select {
+		case <-t.health.C:
+			continue
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
 			continue
@@ -247,7 +224,7 @@ func (t *Tagger) run() {
 
 		if t.stream == nil {
 			if err := t.startTaggerStream(noTimeout); err != nil {
-				log.Warnf("error received trying to start stream with target %q: %s", t.options.Target, err)
+				log.Warnf("error received trying to start stream: %s", err)
 				continue
 			}
 		}
@@ -347,9 +324,10 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 		default:
 		}
 
-		token, err := t.options.TokenFetcher()
+		token, err := security.FetchAuthToken()
 		if err != nil {
-			log.Infof("unable to fetch auth token, will possibly retry: %s", err)
+			err = fmt.Errorf("unable to fetch authentication token: %w", err)
+			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err
 		}
 

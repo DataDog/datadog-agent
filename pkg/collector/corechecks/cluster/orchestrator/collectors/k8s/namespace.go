@@ -40,14 +40,11 @@ type NamespaceCollector struct {
 func NewNamespaceCollector() *NamespaceCollector {
 	return &NamespaceCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "namespaces",
-			NodeType:                  orchestrator.K8sNamespace,
-			Version:                   "v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "namespaces",
+			NodeType:         orchestrator.K8sNamespace,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NamespaceHandlers)),
 	}
@@ -79,7 +76,13 @@ func (c *NamespaceCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

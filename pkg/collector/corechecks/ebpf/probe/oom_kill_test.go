@@ -10,6 +10,7 @@ package probe
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -38,8 +39,11 @@ const oomKilledBashScript = `
 exec systemd-run --scope -p MemoryLimit=1M python3 %v # replace shell, so that the process launched by Go is the one getting oom-killed
 `
 
+// COREEnvVar forces use of CO-RE for ebpf functionality
+const COREEnvVar = "DD_TESTS_CO_RE"
+
 func writeTempFile(pattern string, content string) (*os.File, error) {
-	f, err := os.CreateTemp("", pattern)
+	f, err := ioutil.TempFile("", pattern)
 	if err != nil {
 		return nil, err
 	}
@@ -127,12 +131,12 @@ func TestOOMKillProbe(t *testing.T) {
 		if result.TPid == uint32(cmd.Process.Pid) {
 			found = true
 
-			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
-			assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
-			assert.Equal(t, "python3", result.FComm, "fcomm")
-			assert.Equal(t, "python3", result.TComm, "tcomm")
-			assert.NotZero(t, result.Pages, "pages")
-			assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
+			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName)
+			assert.Equal(t, result.TPid, result.Pid)
+			assert.Equal(t, "python3", result.FComm)
+			assert.Equal(t, "python3", result.TComm)
+			assert.NotZero(t, result.Pages)
+			assert.Equal(t, uint32(1), result.MemCgOOM)
 			break
 		}
 	}
@@ -144,5 +148,13 @@ func TestOOMKillProbe(t *testing.T) {
 
 func testConfig() *ebpf.Config {
 	cfg := ebpf.NewConfig()
+
+	if os.Getenv(COREEnvVar) != "" {
+		cfg.EnableCORE = true
+		cfg.AllowRuntimeCompiledFallback = false
+	} else {
+		cfg.EnableCORE = false
+	}
+
 	return cfg
 }

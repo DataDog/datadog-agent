@@ -9,6 +9,7 @@
 package replay
 
 import (
+	"io/ioutil"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -20,7 +21,7 @@ import (
 func getFileContent(path string, mmap bool) ([]byte, error) {
 
 	if !mmap {
-		return os.ReadFile(path)
+		return ioutil.ReadFile(path)
 	}
 
 	f, err := os.Open(path)

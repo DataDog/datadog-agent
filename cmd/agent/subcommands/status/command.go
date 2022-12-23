@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -62,7 +63,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithConfigLoadSysProbe(true), core.WithLogForOneShot("CORE", "off", true))),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:       globalParams.ConfFilePath,
+					ConfigLoadSecrets:  false,
+					ConfigLoadSysProbe: true,
+				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
 		},
@@ -86,7 +91,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 			return fxutil.OneShot(componentStatusCmd,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithLogForOneShot("CORE", "off", true))),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
 		},
@@ -167,7 +175,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}
@@ -230,7 +238,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	}
 
 	if cliParams.statusFilePath != "" {
-		os.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
+		ioutil.WriteFile(cliParams.statusFilePath, []byte(s), 0644) //nolint:errcheck
 	} else {
 		fmt.Println(s)
 	}

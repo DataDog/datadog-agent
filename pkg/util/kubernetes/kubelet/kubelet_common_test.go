@@ -11,7 +11,7 @@ package kubelet
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ process_cpu_seconds_total 127923.04
 }
 
 func loadPodsFixture(path string) ([]*Pod, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

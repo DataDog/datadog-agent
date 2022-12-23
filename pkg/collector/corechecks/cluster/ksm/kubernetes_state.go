@@ -89,16 +89,6 @@ type KSMConfig struct {
 	//     - "team_*"
 	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
 
-	// AnnotationsAsTags
-	// Example:
-	// annotations_as_tags:
-	//   pod:
-	//     - "app_*"
-	//   node:
-	//     - "zone"
-	//     - "team_*"
-	AnnotationsAsTags map[string]map[string]string `yaml:"annotations_as_tags"`
-
 	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
 	// Example: Adding kube_namespace tag instead of namespace.
 	// labels_mapper:
@@ -195,10 +185,10 @@ func init() {
 }
 
 // Configure prepares the configuration of the KSM check instance
-func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	k.BuildID(integrationConfigDigest, config, initConfig)
+func (k *KSMCheck) Configure(config, initConfig integration.Data, source string) error {
+	k.BuildID(config, initConfig)
 
-	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -219,7 +209,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	k.instance.labelsMapperByResourceKind = defaultLabelsMapperByResourceKind()
 
 	k.processLabelsAsTags()
-	k.processAnnotationsAsTags()
 
 	// Prepare labels mapper
 	labelsMapper := defaultLabelsMapper()
@@ -249,16 +238,6 @@ func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig 
 	}
 
 	builder.WithAllowLabels(allowedLabels)
-
-	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
-	// Equivalent to configuring --metric-annotations-allowlist.
-	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
-		// Any annotation can be used for label joins.
-		allowedAnnotations[collector] = []string{"*"}
-	}
-
-	builder.WithAllowAnnotations(allowedAnnotations)
 
 	// Prepare watched namespaces
 	namespaces := k.instance.Namespaces
@@ -658,18 +637,10 @@ func (k *KSMCheck) mergeLabelJoins(extra map[string]*JoinsConfig) {
 }
 
 func (k *KSMCheck) processLabelsAsTags() {
-	k.processLabelsOrAnnotationsAsTags("label", k.instance.LabelsAsTags)
-}
-
-func (k *KSMCheck) processAnnotationsAsTags() {
-	k.processLabelsOrAnnotationsAsTags("annotation", k.instance.AnnotationsAsTags)
-}
-
-func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTags map[string]map[string]string) {
-	for resourceKind, labelsMapper := range configStuffAsTags {
+	for resourceKind, labelsMapper := range k.instance.LabelsAsTags {
 		labels := make([]string, 0, len(labelsMapper))
 		for label, tag := range labelsMapper {
-			label = what + "_" + labelRegexp.ReplaceAllString(label, "_")
+			label = "label_" + labelRegexp.ReplaceAllString(label, "_")
 			if _, ok := k.instance.labelsMapperByResourceKind[resourceKind]; !ok {
 				k.instance.labelsMapperByResourceKind[resourceKind] = map[string]string{
 					label: tag,
@@ -680,14 +651,14 @@ func (k *KSMCheck) processLabelsOrAnnotationsAsTags(what string, configStuffAsTa
 			labels = append(labels, label)
 		}
 
-		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_"+what+"s"]; ok {
+		if joinsConfig, ok := k.instance.LabelJoins["kube_"+resourceKind+"_labels"]; ok {
 			joinsConfig.LabelsToGet = append(joinsConfig.LabelsToGet, labels...)
 		} else {
 			joinsConfig := &JoinsConfig{
 				LabelsToMatch: getLabelToMatchForKind(resourceKind),
 				LabelsToGet:   labels,
 			}
-			k.instance.LabelJoins["kube_"+resourceKind+"_"+what+"s"] = joinsConfig
+			k.instance.LabelJoins["kube_"+resourceKind+"_labels"] = joinsConfig
 		}
 	}
 }
@@ -813,9 +784,9 @@ func resourceNameFromMetric(name string) string {
 
 // isKnownMetric returns whether the KSM metric name is known by the check
 // A known metric should satisfy one of the conditions:
-//   - has a datadog metric name
-//   - has a metric transformer
-//   - has a metric aggregator
+//  - has a datadog metric name
+//  - has a metric transformer
+//  - has a metric aggregator
 func (k *KSMCheck) isKnownMetric(name string) bool {
 	if _, found := k.metricNamesMapper[name]; found {
 		return true

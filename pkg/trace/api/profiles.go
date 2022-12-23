@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -100,7 +101,7 @@ func errorHandler(err error) http.Handler {
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider("/proc")
+	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -165,13 +166,13 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
 	}
-	slurp, err := io.ReadAll(req.Body)
+	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	for i, u := range m.targets {
 		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
@@ -182,7 +183,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 
 		if resp, err := m.rt.RoundTrip(newreq); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

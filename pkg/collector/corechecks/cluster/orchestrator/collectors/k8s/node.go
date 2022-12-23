@@ -39,14 +39,11 @@ type NodeCollector struct {
 func NewNodeCollector() *NodeCollector {
 	return &NodeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "nodes",
-			NodeType:                  orchestrator.K8sNode,
-			Version:                   "v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "nodes",
+			NodeType:         orchestrator.K8sNode,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.NodeHandlers)),
 	}
@@ -78,7 +75,13 @@ func (c *NodeCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

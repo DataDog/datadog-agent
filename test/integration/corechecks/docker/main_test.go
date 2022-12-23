@@ -16,7 +16,6 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -107,7 +106,7 @@ func setup() error {
 	}
 	config.DetectFeatures()
 
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
+	store := workloadmeta.GetGlobalStore()
 	store.Start(context.Background())
 
 	// Setup tagger
@@ -138,9 +137,9 @@ func doRun(m *testing.M) int {
 	sender.SetupAcceptAll()
 
 	// Setup docker check
-	dockerCfg := integration.Data(dockerCfgString)
-	dockerInitCfg := integration.Data("")
-	dockerCheck.Configure(integration.FakeConfigHash, dockerCfg, dockerInitCfg, "test")
+	dockerCfg := []byte(dockerCfgString)
+	dockerInitCfg := []byte("")
+	dockerCheck.Configure(dockerCfg, dockerInitCfg, "test")
 
 	dockerCheck.Run()
 	return m.Run()

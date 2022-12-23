@@ -9,7 +9,7 @@
 package kubelet
 
 import (
-	"os"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -189,7 +189,7 @@ func TestKubeletCollectorWindows(t *testing.T) {
 func setStatsSummaryFromFile(t *testing.T, filePath string, kubeletMock *mock.KubeletMock) {
 	t.Helper()
 
-	content, err := os.ReadFile(filePath)
+	content, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		t.Errorf("unable to read test file at: %s, err: %v", filePath, err)
 	}

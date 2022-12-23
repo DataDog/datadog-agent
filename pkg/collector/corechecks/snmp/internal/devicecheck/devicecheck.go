@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
@@ -37,17 +36,12 @@ const (
 	deviceHostnamePrefix = "device:"
 )
 
-// define timeNow as variable to make it possible to mock it during test
-var timeNow = time.Now
-
 // DeviceCheck hold info necessary to collect info for a single device
 type DeviceCheck struct {
-	config                 *checkconfig.CheckConfig
-	sender                 *report.MetricSender
-	session                session.Session
-	sessionCloseErrorCount *atomic.Uint64
-	savedDynamicTags       []string
-	nextAutodetectMetrics  time.Time
+	config           *checkconfig.CheckConfig
+	sender           *report.MetricSender
+	session          session.Session
+	savedDynamicTags []string
 }
 
 // NewDeviceCheck returns a new DeviceCheck
@@ -60,10 +54,8 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	}
 
 	return &DeviceCheck{
-		config:                 newConfig,
-		session:                sess,
-		sessionCloseErrorCount: atomic.NewUint64(0),
-		nextAutodetectMetrics:  timeNow(),
+		config:  newConfig,
+		session: sess,
 	}, nil
 }
 
@@ -162,8 +154,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	defer func() {
 		err := d.session.Close()
 		if err != nil {
-			d.sessionCloseErrorCount.Inc()
-			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
+			log.Warnf("failed to close session: %v", err)
 		}
 	}()
 
@@ -179,7 +170,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 		}
 	}
 
-	err = d.detectMetricsToMonitor(d.session)
+	err = d.doAutodetectProfile(d.session)
 	if err != nil {
 		checkErrors = append(checkErrors, fmt.Sprintf("failed to autodetect profile: %s", err))
 	}
@@ -204,20 +195,9 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 	return deviceReachable, tags, valuesStore, joinedError
 }
 
-func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	if d.config.DetectMetricsEnabled {
-		if d.nextAutodetectMetrics.After(timeNow()) {
-			return nil
-		}
-		d.nextAutodetectMetrics = d.nextAutodetectMetrics.Add(time.Duration(d.config.DetectMetricsRefreshInterval) * time.Second)
-
-		detectedMetrics, metricTagConfigs := d.detectAvailableMetrics()
-		log.Debugf("detected metrics: %v", detectedMetrics)
-		d.config.Metrics = []checkconfig.MetricsConfig{}
-		d.config.AddUptimeMetric()
-		d.config.UpdateConfigMetadataMetricsAndTags(nil, detectedMetrics, metricTagConfigs, d.config.CollectTopology)
-	} else if d.config.AutodetectProfile {
-		// detect using sysObjectID
+func (d *DeviceCheck) doAutodetectProfile(sess session.Session) error {
+	// Try to detect profile using device sysobjectid
+	if d.config.AutodetectProfile {
 		sysObjectID, err := session.FetchSysObjectID(sess)
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
@@ -235,46 +215,6 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		}
 	}
 	return nil
-}
-
-func (d *DeviceCheck) detectAvailableMetrics() ([]checkconfig.MetricsConfig, []checkconfig.MetricTagConfig) {
-	fetchedOIDs := session.FetchAllOIDsUsingGetNext(d.session)
-	log.Debugf("fetched OIDs: %v", fetchedOIDs)
-
-	root := common.BuildOidTrie(fetchedOIDs)
-	if log.ShouldLog(seelog.DebugLvl) {
-		root.DebugPrint()
-	}
-
-	var metricConfigs []checkconfig.MetricsConfig
-	var metricTagConfigs []checkconfig.MetricTagConfig
-
-	for _, profileDef := range d.config.Profiles {
-		for _, metricConfig := range profileDef.Metrics {
-			newMetricConfig := metricConfig
-			if metricConfig.IsScalar() {
-				if root.LeafExist(metricConfig.Symbol.OID) {
-					metricConfigs = append(metricConfigs, newMetricConfig)
-				}
-			} else if metricConfig.IsColumn() {
-				newMetricConfig.Symbols = []checkconfig.SymbolConfig{}
-				for _, symbol := range metricConfig.Symbols {
-					if root.NonLeafNodeExist(symbol.OID) {
-						newMetricConfig.Symbols = append(newMetricConfig.Symbols, symbol)
-					}
-				}
-				if len(newMetricConfig.Symbols) > 0 {
-					metricConfigs = append(metricConfigs, newMetricConfig)
-				}
-			}
-		}
-		for _, metricTag := range profileDef.MetricTags {
-			if root.LeafExist(metricTag.OID) || root.LeafExist(metricTag.Column.OID) {
-				metricTagConfigs = append(metricTagConfigs, metricTag)
-			}
-		}
-	}
-	return metricConfigs, metricTagConfigs
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {

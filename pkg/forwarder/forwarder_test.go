@@ -7,7 +7,7 @@ package forwarder
 
 import (
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -614,7 +614,7 @@ func TestHighPriorityTransaction(t *testing.T) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		defer r.Body.Close()
-		body, err := io.ReadAll(r.Body)
+		body, err := ioutil.ReadAll(r.Body)
 		assert.NoError(t, err)
 		bodyStr := string(body)
 

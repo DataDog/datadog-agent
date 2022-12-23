@@ -6,6 +6,7 @@
 package scrubber
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,11 +29,11 @@ func TestConfigScrubbedValidYaml(t *testing.T) {
 	wd, _ := os.Getwd()
 
 	inputConf := filepath.Join(wd, "test", "conf.yaml")
-	inputConfData, err := os.ReadFile(inputConf)
+	inputConfData, err := ioutil.ReadFile(inputConf)
 	require.NoError(t, err)
 
 	outputConf := filepath.Join(wd, "test", "conf_scrubbed.yaml")
-	outputConfData, err := os.ReadFile(outputConf)
+	outputConfData, err := ioutil.ReadFile(outputConf)
 	require.NoError(t, err)
 
 	cleaned, err := ScrubBytes([]byte(inputConfData))

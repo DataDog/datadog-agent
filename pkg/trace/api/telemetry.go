@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
@@ -82,12 +83,6 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 			// See https://codereview.appspot.com/7532043
 			req.Header.Set("User-Agent", "")
 		}
-
-		if cid := r.containerIDProvider.GetContainerID(req.Context(), req.Header); cid != "" {
-			req.Header.Set(headerContainerID, cid)
-		} else {
-			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
-		}
 		req.Header.Set("DD-Agent-Hostname", r.conf.Hostname)
 		req.Header.Set("DD-Agent-Env", r.conf.DefaultEnv)
 	}
@@ -108,20 +103,20 @@ func (m *telemetryMultiTransport) RoundTrip(req *http.Request) (*http.Response, 
 	if len(m.Endpoints) == 1 {
 		return m.roundTrip(req, m.Endpoints[0])
 	}
-	slurp, err := io.ReadAll(req.Body)
+	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
 	}
 	newreq := req.Clone(req.Context())
-	newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+	newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 	// despite the number of endpoints, we always return the response of the first
 	rresp, rerr := m.roundTrip(newreq, m.Endpoints[0])
 	for _, endpoint := range m.Endpoints[1:] {
 		newreq := req.Clone(req.Context())
-		newreq.Body = io.NopCloser(bytes.NewReader(slurp))
+		newreq.Body = ioutil.NopCloser(bytes.NewReader(slurp))
 		if resp, err := m.roundTrip(newreq, endpoint); err == nil {
 			// we discard responses for all subsequent requests
-			io.Copy(io.Discard, resp.Body) //nolint:errcheck
+			io.Copy(ioutil.Discard, resp.Body) //nolint:errcheck
 			resp.Body.Close()
 		} else {
 			log.Error(err)

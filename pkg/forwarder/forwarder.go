@@ -277,23 +277,20 @@ func NewDefaultForwarder(options *Options) *DefaultForwarder {
 				}
 			}
 
-			pointCountTelemetry := retry.NewPointCountTelemetry(domain, telemetry.GetStatsTelemetryProvider())
 			transactionContainer := retry.BuildTransactionRetryQueue(
 				options.RetryQueuePayloadsTotalMaxSize,
 				flushToDiskMemRatio,
 				domainFolderPath,
 				diskUsageLimit,
 				transactionContainerSort,
-				resolver,
-				pointCountTelemetry)
+				resolver)
 			f.domainResolvers[domain] = resolver
 			fwd := newDomainForwarder(
 				domain,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
-				domainForwarderSort,
-				pointCountTelemetry)
+				domainForwarderSort)
 			f.domainForwarders[domain] = fwd
 			// Register all alternate domains for each forwarder
 			for _, v := range resolver.GetAlternateDomains() {

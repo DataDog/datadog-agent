@@ -8,7 +8,6 @@ package obfuscate
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -41,7 +40,7 @@ const (
 	String
 	DoubleQuotedString
 	DollarQuotedString // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
-	DollarQuotedFunc   // a dollar-quoted string delimited by the tag "$func$" (funcTag); gets special treatment when feature "dollar_quoted_func" is set
+	DollarQuotedFunc   // a dollar-quoted string delimited by the tag "$func$"; gets special treatment when feature "dollar_quoted_func" is set
 	Number
 	BooleanLiteral
 	ValueArg
@@ -107,10 +106,6 @@ const (
 	// See issue https://github.com/DataDog/datadog-trace-agent/issues/475.
 	FilteredBracketedIdentifier
 )
-
-// funcTag is a tag that delimits the start and end of an inline SQL function. A string delimited
-// with this tag will be of type DollarQuotedFunc rather than DollarQuotedString.
-const funcTag = "$func$"
 
 var tokenKindStrings = map[TokenKind]string{
 	LexError:                     "LexError",
@@ -477,15 +472,13 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 			kind, tok := tkn.scanDollarQuotedString()
 			if kind == DollarQuotedFunc {
 				// this is considered an embedded query, we should try and
-				// obfuscate it; temporarily remove the funcTag so we can
-				// obfuscate the query before replacing the tag below.
-				tok = tok[len(funcTag) : len(tok)-len(funcTag)]
+				// obfuscate it
 				out, err := attemptObfuscation(NewSQLTokenizer(string(tok), tkn.literalEscapes, tkn.cfg))
 				if err != nil {
 					// if we can't obfuscate it, treat it as a regular string
 					return DollarQuotedString, tok
 				}
-				tok = append(append([]byte(funcTag), []byte(out.Query)...), []byte(funcTag)...)
+				tok = append(append([]byte("$func$"), []byte(out.Query)...), []byte("$func$")...)
 			}
 			return kind, tok
 		case '@':
@@ -579,7 +572,7 @@ func toUpper(src, dst []byte) []byte {
 
 func (tkn *SQLTokenizer) scanIdentifier() (TokenKind, []byte) {
 	tkn.advance()
-	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || strings.ContainsRune(".*$", tkn.lastChar) {
+	for isLetter(tkn.lastChar) || isDigit(tkn.lastChar) || tkn.lastChar == '.' || tkn.lastChar == '*' {
 		tkn.advance()
 	}
 
@@ -624,7 +617,12 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		buf bytes.Buffer
 	)
 	delim := tag
-	buf.Write(delim)
+	// on empty strings, tkn.scanString returns the delimiters
+	if string(delim) != "$$" {
+		// on non-empty strings, the delimiter is $tag$
+		delim = append([]byte{'$'}, delim...)
+		delim = append(delim, '$')
+	}
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
@@ -649,8 +647,7 @@ func (tkn *SQLTokenizer) scanDollarQuotedString() (TokenKind, []byte) {
 		}
 		buf.WriteRune(ch)
 	}
-	buf.Write(delim)
-	if tkn.cfg.DollarQuotedFunc && string(delim) == funcTag {
+	if tkn.cfg.DollarQuotedFunc && string(delim) == "$func$" {
 		return DollarQuotedFunc, buf.Bytes()
 	}
 	return DollarQuotedString, buf.Bytes()
@@ -726,12 +723,20 @@ func (tkn *SQLTokenizer) scanNumber(seenDecimalPoint bool) (TokenKind, []byte) {
 			tkn.scanMantissa(16)
 		} else {
 			// octal int or float
+			seenDecimalDigit := false
 			tkn.scanMantissa(8)
 			if tkn.lastChar == '8' || tkn.lastChar == '9' {
+				// illegal octal int or float
+				seenDecimalDigit = true
 				tkn.scanMantissa(10)
 			}
 			if tkn.lastChar == '.' || tkn.lastChar == 'e' || tkn.lastChar == 'E' {
 				goto fraction
+			}
+			// octal int
+			if seenDecimalDigit {
+				// tkn.setErr called in caller
+				return LexError, tkn.bytes()
 			}
 		}
 		goto exit
@@ -758,7 +763,6 @@ exponent:
 exit:
 	t := tkn.bytes()
 	if len(t) == 0 {
-		tkn.setErr("Parse error: ended up with zero-length number.")
 		return LexError, nil
 	}
 	return Number, t
@@ -766,14 +770,12 @@ exit:
 
 func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []byte) {
 	buf := bytes.NewBuffer(tkn.buf[:0])
-	buf.WriteRune(delim)
 	for {
 		ch := tkn.lastChar
 		tkn.advance()
 		if ch == delim {
-			if tkn.lastChar == delim && delim != '$' {
+			if tkn.lastChar == delim {
 				// doubling a delimiter is the default way to embed the delimiter within a string
-				buf.WriteRune(ch)
 				tkn.advance()
 			} else {
 				// a single delimiter denotes the end of the string
@@ -784,7 +786,6 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 
 			if !tkn.literalEscapes {
 				// treat as an escape character
-				buf.WriteRune(ch)
 				ch = tkn.lastChar
 				tkn.advance()
 			}
@@ -795,7 +796,13 @@ func (tkn *SQLTokenizer) scanString(delim rune, kind TokenKind) (TokenKind, []by
 		}
 		buf.WriteRune(ch)
 	}
-	buf.WriteRune(delim)
+	if kind == ID && buf.Len() == 0 || bytes.IndexFunc(buf.Bytes(), func(r rune) bool { return !unicode.IsSpace(r) }) == -1 {
+		// This string is an empty or white-space only identifier.
+		// We should keep the start and end delimiters in order to
+		// avoid creating invalid queries.
+		// See: https://github.com/DataDog/datadog-trace-agent/issues/316
+		return kind, append(runeBytes(delim), runeBytes(delim)...)
+	}
 	return kind, buf.Bytes()
 }
 
@@ -892,6 +899,13 @@ func digitVal(ch rune) int {
 }
 
 func isDigit(ch rune) bool { return '0' <= ch && ch <= '9' }
+
+// runeBytes converts the given rune to a slice of bytes.
+func runeBytes(r rune) []byte {
+	buf := make([]byte, utf8.UTFMax)
+	n := utf8.EncodeRune(buf, r)
+	return buf[:n]
+}
 
 // isValidCharAfterOperator returns true if c is a valid character after an operator
 func isValidCharAfterOperator(c rune) bool {

@@ -9,7 +9,7 @@
 package sysctl
 
 import (
-	"os"
+	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -94,7 +94,7 @@ func (s *sctl) get(now time.Time) (string, bool, error) {
 		return "", false, nil
 	}
 
-	content, err := os.ReadFile(s.path)
+	content, err := ioutil.ReadFile(s.path)
 	if err != nil {
 		return "", false, err
 	}

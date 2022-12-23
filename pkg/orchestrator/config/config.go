@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -45,8 +44,6 @@ type OrchestratorConfig struct {
 	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 	IsManifestCollectionEnabled    bool
-	BufferedManifestEnabled        bool
-	ManifestBufferFlushInterval    time.Duration
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -118,8 +115,6 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
 	oc.ExtraTags = config.Datadog.GetStringSlice(key(orchestratorNS, "extra_tags"))
 	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.enabled"))
-	oc.BufferedManifestEnabled = config.Datadog.GetBool(key(orchestratorNS, "manifest_collection.buffer_manifest"))
-	oc.ManifestBufferFlushInterval = config.Datadog.GetDuration(key(orchestratorNS, "manifest_collection.buffer_flush_interval"))
 
 	return nil
 }

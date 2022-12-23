@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -88,8 +87,6 @@ func ExtractNode(n *corev1.Node) *model.Node {
 	}
 
 	addAdditionalNodeTags(msg)
-
-	msg.Tags = append(msg.Tags, transformers.RetrieveUnifiedServiceTags(n.ObjectMeta.Labels)...)
 
 	return msg
 }

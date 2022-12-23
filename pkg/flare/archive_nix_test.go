@@ -10,6 +10,7 @@ package flare
 
 import (
 	"archive/zip"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,10 +56,10 @@ func TestAddPermsInfo(t *testing.T) {
 	permsInfos := make(permissionsInfos)
 
 	// create two files for which we'll add infos into the permissions.log
-	f1, err := os.CreateTemp("", "ddtests*")
+	f1, err := ioutil.TempFile("", "ddtests*")
 	assert.NoError(err, "creating a temporary file should not fail")
 	assert.NotNil(f1, "temporary file should not be nil")
-	f2, err := os.CreateTemp("", "ddtests*")
+	f2, err := ioutil.TempFile("", "ddtests*")
 	assert.NoError(err, "creating a temporary file should not fail")
 	assert.NotNil(f2, "temporary file should not be nil")
 
@@ -72,7 +73,7 @@ func TestAddPermsInfo(t *testing.T) {
 
 	// should have created a permissions.log in the tmp dir
 	// + added headers and info of the previously created files
-	data, err := os.ReadFile(permsFilePath)
+	data, err := ioutil.ReadFile(permsFilePath)
 	assert.NoError(err, "should be able to read the temporary permissions file")
 	assert.Equal(4, strings.Count(string(data), "\n"), "the permissions file should contain 2 lines of headers, 2 lines of entries")
 

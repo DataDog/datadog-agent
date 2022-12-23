@@ -11,9 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -37,9 +35,6 @@ type Endpoint struct {
 
 // TelemetryEndpointPrefix specifies the prefix of the telemetry endpoint URL.
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
-
-// App Services env var
-const azureAppServices = "DD_AZURE_APP_SERVICES"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
 type OTLP struct {
@@ -421,9 +416,6 @@ type AgentConfig struct {
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
-
-	// Azure App Services
-	InAzureAppServices bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -500,8 +492,6 @@ func New() *AgentConfig {
 			Enabled:        true,
 			MaxPayloadSize: 5 * 1024 * 1024,
 		},
-
-		InAzureAppServices: inAzureAppServices(os.Getenv),
 	}
 }
 
@@ -546,13 +536,4 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	return transport
-}
-
-func inAzureAppServices(getenv func(string) string) bool {
-	str := getenv(azureAppServices)
-	if val, err := strconv.ParseBool(str); err == nil {
-		return val
-	} else {
-		return false
-	}
 }

@@ -40,14 +40,11 @@ type PersistentVolumeCollector struct {
 func NewPersistentVolumeCollector() *PersistentVolumeCollector {
 	return &PersistentVolumeCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "persistentvolumes",
-			NodeType:                  orchestrator.K8sPersistentVolume,
-			Version:                   "v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "persistentvolumes",
+			NodeType:         orchestrator.K8sPersistentVolume,
+			Version:          "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.PersistentVolumeHandlers)),
 	}
@@ -79,7 +76,13 @@ func (c *PersistentVolumeCollector) Run(rcfg *collectors.CollectorRunConfig) (*c
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

@@ -160,6 +160,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
 		p.lastRun = time.Now()
+		p.storeCreateTimes()
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
@@ -178,6 +179,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
 	p.lastRun = time.Now()
+	p.storeCreateTimes()
 
 	result := &RunResult{
 		Standard: messages,
@@ -461,6 +463,14 @@ func skipProcess(
 		return true
 	}
 	return false
+}
+
+func (p *ProcessCheck) storeCreateTimes() {
+	createTimes := make(map[int32]int64, len(p.lastProcs))
+	for pid, proc := range p.lastProcs {
+		createTimes[pid] = proc.Stats.CreateTime
+	}
+	ProcessNotify.UpdateCreateTimes(createTimes)
 }
 
 func (p *ProcessCheck) getRemoteSysProbeUtil() *net.RemoteSysProbeUtil {

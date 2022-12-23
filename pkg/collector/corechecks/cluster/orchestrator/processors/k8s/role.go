@@ -46,7 +46,7 @@ func (h *RoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resour
 		GroupId:     ctx.MsgGroupID,
 		GroupSize:   int32(groupSize),
 		Roles:       models,
-		Tags:        append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:        ctx.Cfg.ExtraTags,
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *RoleHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *RoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *RoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*rbacv1.Role).UID
 }
 

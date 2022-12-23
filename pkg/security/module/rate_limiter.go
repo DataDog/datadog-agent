@@ -13,26 +13,30 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var (
+const (
 	// Arbitrary default limit to prevent flooding.
 	defaultLimit = rate.Limit(10)
 	// Default Token bucket size. 40 is meant to handle sudden burst of events while making sure that we prevent
 	// flooding.
 	defaultBurst int = 40
-
-	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
-	}
 )
+
+// Limit defines rate limiter limit
+type Limit struct {
+	Limit int
+	Burst int
+}
+
+// LimiterOpts rate limiter options
+type LimiterOpts struct {
+	Limits map[rules.RuleID]Limit
+}
 
 // Limiter describes an object that applies limits on
 // the rate of triggering of a rule to ensure we don't overflow
@@ -40,64 +44,56 @@ var (
 type Limiter struct {
 	limiter *rate.Limiter
 
-	dropped *atomic.Uint64
-	allowed *atomic.Uint64
+	// https://github.com/golang/go/issues/36606
+	padding int32 //nolint:structcheck,unused
+	dropped int64
+	allowed int64
 }
 
 // NewLimiter returns a new rule limiter
 func NewLimiter(limit rate.Limit, burst int) *Limiter {
 	return &Limiter{
 		limiter: rate.NewLimiter(limit, burst),
-		dropped: atomic.NewUint64(0),
-		allowed: atomic.NewUint64(0),
 	}
 }
 
 // RateLimiter describes a set of rule rate limiters
 type RateLimiter struct {
 	sync.RWMutex
+	opts         LimiterOpts
 	limiters     map[rules.RuleID]*Limiter
 	statsdClient statsd.ClientInterface
 }
 
 // NewRateLimiter initializes an empty rate limiter
-func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
-	rl := &RateLimiter{
+func NewRateLimiter(client statsd.ClientInterface, opts LimiterOpts) *RateLimiter {
+	return &RateLimiter{
 		limiters:     make(map[string]*Limiter),
 		statsdClient: client,
-	}
-
-	return rl
-}
-
-func applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
-	for id, limiter := range defaultPerRuleLimiters {
-		limiters[id] = limiter
+		opts:         opts,
 	}
 }
 
 // Apply a set of rules
-func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID) {
+func (rl *RateLimiter) Apply(rules []rules.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()
 
 	newLimiters := make(map[string]*Limiter)
-
-	for _, id := range customRuleIDs {
-		newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
-	}
-
-	// override if there is more specific defs
-	applyBaseLimitersFromDefault(newLimiters)
-
-	for id, rule := range ruleSet.GetRules() {
-		if rule.Definition.Every != 0 {
-			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
+	for _, id := range rules {
+		if limiter, found := rl.limiters[id]; found {
+			newLimiters[id] = limiter
 		} else {
-			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+			limit := defaultLimit
+			burst := defaultBurst
+
+			if l, exists := rl.opts.Limits[id]; exists {
+				limit = rate.Limit(l.Limit)
+				burst = l.Burst
+			}
+			newLimiters[id] = NewLimiter(limit, burst)
 		}
 	}
-
 	rl.limiters = newLimiters
 }
 
@@ -111,17 +107,17 @@ func (rl *RateLimiter) Allow(ruleID string) bool {
 		return false
 	}
 	if ruleLimiter.limiter.Allow() {
-		ruleLimiter.allowed.Inc()
+		ruleLimiter.allowed++
 		return true
 	}
-	ruleLimiter.dropped.Inc()
+	ruleLimiter.dropped++
 	return false
 }
 
 // RateLimiterStat represents the rate limiting statistics
 type RateLimiterStat struct {
-	dropped uint64
-	allowed uint64
+	dropped int64
+	allowed int64
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
@@ -133,9 +129,11 @@ func (rl *RateLimiter) GetStats() map[rules.RuleID]RateLimiterStat {
 	stats := make(map[rules.RuleID]RateLimiterStat)
 	for ruleID, ruleLimiter := range rl.limiters {
 		stats[ruleID] = RateLimiterStat{
-			dropped: ruleLimiter.dropped.Swap(0),
-			allowed: ruleLimiter.allowed.Swap(0),
+			dropped: ruleLimiter.dropped,
+			allowed: ruleLimiter.allowed,
 		}
+		ruleLimiter.dropped = 0
+		ruleLimiter.allowed = 0
 	}
 	return stats
 }
@@ -146,12 +144,12 @@ func (rl *RateLimiter) SendStats() error {
 	for ruleID, counts := range rl.GetStats() {
 		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
 		if counts.dropped > 0 {
-			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, int64(counts.dropped), tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterDrop, counts.dropped, tags, 1.0); err != nil {
 				return err
 			}
 		}
 		if counts.allowed > 0 {
-			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, int64(counts.allowed), tags, 1.0); err != nil {
+			if err := rl.statsdClient.Count(metrics.MetricRateLimiterAllow, counts.allowed, tags, 1.0); err != nil {
 				return err
 			}
 		}

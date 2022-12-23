@@ -10,7 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"time"
 
 	"go.uber.org/fx"
@@ -58,7 +58,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(dogstatsdCapture,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, false, core.WithLogForOneShot("CORE", "off", true))),
+				fx.Supply(core.BundleParams{
+					ConfFilePath:      globalParams.ConfFilePath,
+					ConfigLoadSecrets: false,
+				}.LogForOneShot("CORE", "off", true)),
 				core.Bundle,
 			)
 		},
@@ -69,7 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	dogstatsdCaptureCmd.Flags().BoolVarP(&cliParams.dsdCaptureCompressed, "compressed", "z", true, "Should capture be zstd compressed.")
 
 	// shut up grpc client!
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
 
 	return []*cobra.Command{dogstatsdCaptureCmd}
 }

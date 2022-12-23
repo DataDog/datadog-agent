@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"html/template"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -273,14 +274,14 @@ func TestConfigHostname(t *testing.T) {
 	})
 
 	t.Run("external", func(t *testing.T) {
-		body, err := os.ReadFile("testdata/stringcode.go.tmpl")
+		body, err := ioutil.ReadFile("testdata/stringcode.go.tmpl")
 		if err != nil {
 			t.Fatal(err)
 		}
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(response string, code int) string {
-			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
+			f, err := ioutil.TempFile("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
 			}

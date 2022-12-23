@@ -7,6 +7,7 @@ package auditor
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 		TailingMode: "end",
 	}
 	suite.a.flushRegistry()
-	r, err := os.ReadFile(suite.testPath)
+	r, err := ioutil.ReadFile(suite.testPath)
 	suite.Nil(err)
 	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0}}}", string(r))
 

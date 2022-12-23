@@ -110,11 +110,7 @@ func TestFormatProtocols(t *testing.T) {
 		{
 			name:     "unclassified protocol",
 			protocol: network.ProtocolUnclassified,
-			want: &model.ProtocolStack{
-				Stack: []model.ProtocolType{
-					model.ProtocolType_protocolUnknown,
-				},
-			},
+			want:     nil,
 		},
 		{
 			name:     "http protocol",

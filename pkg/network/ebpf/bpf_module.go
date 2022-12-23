@@ -14,12 +14,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 )
 
-func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
-	var file string
+// ReadBPFModule from the asset file
+func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
+	file := "tracer.o"
 	if debug {
-		file = fmt.Sprintf("%s-debug.o", moduleName)
-	} else {
-		file = fmt.Sprintf("%s.o", moduleName)
+		file = "tracer-debug.o"
 	}
 
 	ebpfReader, err := bytecode.GetReader(bpfDir, file)
@@ -30,22 +29,47 @@ func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, er
 	return ebpfReader, nil
 }
 
-// ReadBPFModule from the asset file
-func ReadBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "tracer", debug)
-}
-
 // ReadHTTPModule from the asset file
 func ReadHTTPModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "http", debug)
+	file := "http.o"
+	if debug {
+		file = "http-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
 }
 
 // ReadDNSModule from the asset file
 func ReadDNSModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "dns", debug)
+	file := "dns.o"
+	if debug {
+		file = "dns-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
 }
 
 // ReadOffsetBPFModule from the asset file
 func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "offset-guess", debug)
+	file := "offset-guess.o"
+	if debug {
+		file = "offset-guess-debug.o"
+	}
+
+	ebpfReader, err := bytecode.GetReader(bpfDir, file)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't find asset: %s", err)
+	}
+
+	return ebpfReader, nil
 }

@@ -10,7 +10,6 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 )
@@ -27,9 +26,6 @@ func ExtractClusterRole(cr *rbacv1.ClusterRole) *model.ClusterRole {
 			clusterRole.AggregationRules = append(clusterRole.AggregationRules, extractLabelSelector(&rule)...)
 		}
 	}
-
-	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveUnifiedServiceTags(cr.ObjectMeta.Labels)...)
-
 	return clusterRole
 }
 

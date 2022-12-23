@@ -43,7 +43,7 @@ func EnumerateChannels() (chans []string, err error) {
 	if hEnum == evtEnumHandle(0) {
 		return
 	}
-	defer procEvtClose.Call(uintptr(hEnum)) //nolint:errcheck
+	defer procEvtClose.Call(uintptr(hEnum))
 
 	for {
 		var str string

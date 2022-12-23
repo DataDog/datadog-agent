@@ -9,11 +9,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
@@ -98,7 +98,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		body, err = io.ReadAll(resp.Body)
+		body, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response: %w", err)
 		}
@@ -106,7 +106,7 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
 	}
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -142,7 +142,7 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 		return nil, fmt.Errorf("non-200 response code: %d", resp.StatusCode)
 	}
 
-	body, err = io.ReadAll(resp.Body)
+	body, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -737,11 +737,5 @@ func mergeConnectionStats(a, b *ConnectionStats) {
 
 	if a.IPTranslation == nil {
 		a.IPTranslation = b.IPTranslation
-	}
-
-	if a.Protocol == ProtocolUnknown && b.Protocol != ProtocolUnknown {
-		a.Protocol = b.Protocol
-	} else if b.Protocol == ProtocolUnknown && a.Protocol != ProtocolUnknown {
-		b.Protocol = a.Protocol
 	}
 }

@@ -18,6 +18,8 @@ struct bpf_map_def SEC("maps/span_tls") span_tls = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct span_tls_t),
     .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
 };
 
 // defined in process.h

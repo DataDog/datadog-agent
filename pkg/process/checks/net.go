@@ -18,9 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
+	"github.com/DataDog/datadog-agent/pkg/process/dockerproxy"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,14 +50,13 @@ type ConnectionsCheck struct {
 	notInitializedLogLimit *putil.LogLimit
 	// store the last collection result by PID, currently used to populate network data for processes
 	// it's in format map[int32][]*model.Connections
-	lastConnsByPID   *atomic.Value
-	dockerFilter     *parser.DockerProxy
-	serviceExtractor *parser.ServiceExtractor
-	processData      *ProcessData
+	lastConnsByPID *atomic.Value
+	probe          procutil.Probe
 }
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
+	c.probe = newProcessProbe()
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
@@ -82,11 +82,6 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 		log.Infof("no network ID detected: %s", err)
 	}
 	c.networkID = networkID
-	c.processData = NewProcessData()
-	c.dockerFilter = parser.NewDockerProxy()
-	c.serviceExtractor = parser.NewServiceExtractor()
-	c.processData.Register(c.dockerFilter)
-	c.processData.Register(c.serviceExtractor)
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -116,11 +111,11 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	err = c.processData.Fetch()
+	procs, err := c.probe.ProcessesByPID(time.Now(), false)
 	if err != nil {
-		log.Warnf("error collecting processes for filter and extraction: %s", err)
+		log.Warnf("error collecting processes for proxy filter: %s", err)
 	} else {
-		c.dockerFilter.Filter(conns)
+		dockerproxy.NewFilter(procs).Filter(conns)
 	}
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
@@ -128,7 +123,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
+	return batchConnections(cfg, groupID, c.enrichConnections(conns.Conns), conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -143,6 +138,19 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		return nil, ErrTracerStillNotInitialized
 	}
 	return tu.GetConnections(c.tracerClientID)
+}
+
+func (c *ConnectionsCheck) enrichConnections(conns []*model.Connection) []*model.Connection {
+	// Process create-times required to construct unique process hash keys on the backend
+	createTimeForPID := ProcessNotify.GetCreateTimes(connectionPIDs(conns))
+	for _, conn := range conns {
+		if _, ok := createTimeForPID[conn.Pid]; !ok {
+			createTimeForPID[conn.Pid] = 0
+		}
+
+		conn.PidCreateTime = createTimeForPID[conn.Pid]
+	}
+	return conns
 }
 
 func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
@@ -257,7 +265,6 @@ func batchConnections(
 	routes []*model.Route,
 	tags []string,
 	agentCfg *model.AgentConfiguration,
-	serviceExtractor *parser.ServiceExtractor,
 ) []model.MessageBody {
 	groupSize := groupSize(len(cxs), cfg.MaxConnsPerMessage)
 	batches := make([]model.MessageBody, 0, groupSize)
@@ -304,15 +311,17 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			serviceTag := serviceExtractor.GetServiceTag(c.Pid)
-			tagsStr := convertAndEnrichWithServiceTags(tags, c.Tags, serviceTag)
-
-			if len(tagsStr) > 0 {
+			if len(c.Tags) > 0 {
+				var tagsStr []string
+				for _, t := range c.Tags {
+					tagsStr = append(tagsStr, tags[t])
+				}
 				c.Tags = nil
 				c.TagsIdx = int32(tagsEncoder.Encode(tagsStr))
 			} else {
 				c.TagsIdx = -1
 			}
+
 		}
 
 		// remap route indices
@@ -413,16 +422,15 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-// converts the tags based on the tagOffsets for encoding. It also enriches it with service tags if any
-func convertAndEnrichWithServiceTags(tags []string, tagOffsets []uint32, serviceTag string) []string {
-	tagCount := len(tagOffsets) + len(serviceTag)
-	tagsStr := make([]string, 0, tagCount)
-	for _, t := range tagOffsets {
-		tagsStr = append(tagsStr, tags[t])
-	}
-	if serviceTag != "" {
-		tagsStr = append(tagsStr, serviceTag)
+func connectionPIDs(conns []*model.Connection) []int32 {
+	ps := make(map[int32]struct{})
+	for _, c := range conns {
+		ps[c.Pid] = struct{}{}
 	}
 
-	return tagsStr
+	pids := make([]int32, 0, len(ps))
+	for pid := range ps {
+		pids = append(pids, pid)
+	}
+	return pids
 }

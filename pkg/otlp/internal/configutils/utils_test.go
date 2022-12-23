@@ -8,7 +8,7 @@ package configutils
 import (
 	"context"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +46,7 @@ func buildTestFactories(t *testing.T) component.Factories {
 
 func TestNewConfigProviderFromMap(t *testing.T) {
 	// build constant provider
-	content, err := os.ReadFile(testPath)
+	content, err := ioutil.ReadFile(testPath)
 	require.NoError(t, err)
 	cfgMap, err := NewMapFromYAMLString(string(content))
 	require.NoError(t, err)

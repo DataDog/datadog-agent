@@ -10,7 +10,7 @@ package compiler
 
 import (
 	"fmt"
-	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -42,7 +42,7 @@ func TestCompilerMatch(t *testing.T) {
 		"-I../network/ebpf/c",
 		"-includeasm_goto_workaround.h",
 	}
-	tmpObjFile, err := os.CreateTemp("", "offset-guess-static-*.o")
+	tmpObjFile, err := ioutil.TempFile("", "offset-guess-static-*.o")
 	require.NoError(t, err)
 	defer os.Remove(tmpObjFile.Name())
 
@@ -50,7 +50,7 @@ func TestCompilerMatch(t *testing.T) {
 	err = CompileToObjectFile(input, onDiskObjFilename, cflags, nil)
 	require.NoError(t, err)
 
-	bs, err := os.ReadFile(onDiskObjFilename)
+	bs, err := ioutil.ReadFile(onDiskObjFilename)
 	require.NoError(t, err)
 
 	bundleFilename := "offset-guess.o"
@@ -58,7 +58,7 @@ func TestCompilerMatch(t *testing.T) {
 	require.NoError(t, err)
 	defer actualReader.Close()
 
-	actual, err := io.ReadAll(actualReader)
+	actual, err := ioutil.ReadAll(actualReader)
 	require.NoError(t, err)
 
 	assert.Equal(t, bs, actual, fmt.Sprintf("prebuilt file %s and statically-linked clang compiled content %s are different", bundleFilename, onDiskObjFilename))

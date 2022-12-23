@@ -8,25 +8,22 @@ package timing
 import (
 	"fmt"
 	"math/rand"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
+	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTiming(t *testing.T) {
 	assert := assert.New(t)
-	stats := &teststatsd.Client{}
+	stats := &testutil.TestStatsClient{}
 
-	Stop() // https://github.com/DataDog/datadog-agent/issues/13934
 	defer func(old metrics.StatsClient) { metrics.Client = old }(metrics.Client)
 	metrics.Client = stats
-	stopReport = defaultSet.Autoreport(AutoreportInterval)
 
 	t.Run("report", func(t *testing.T) {
 		stats.Reset()
@@ -50,9 +47,6 @@ func TestTiming(t *testing.T) {
 		set := NewSet()
 		set.Since("counter1", time.Now().Add(-1*time.Second))
 		stop := set.Autoreport(time.Millisecond)
-		if runtime.GOOS == "windows" {
-			time.Sleep(5 * time.Second)
-		}
 		time.Sleep(5 * time.Millisecond)
 		stop()
 		assert.True(len(stats.CountCalls) > 1)
@@ -88,12 +82,12 @@ func TestTiming(t *testing.T) {
 	})
 }
 
-func findCall(assert *assert.Assertions, calls []teststatsd.MetricsArgs, name string) teststatsd.MetricsArgs {
+func findCall(assert *assert.Assertions, calls []testutil.MetricsArgs, name string) testutil.MetricsArgs {
 	for _, c := range calls {
 		if c.Name == name {
 			return c
 		}
 	}
 	assert.Failf("call not found", "key %q missing", name)
-	return teststatsd.MetricsArgs{}
+	return testutil.MetricsArgs{}
 }

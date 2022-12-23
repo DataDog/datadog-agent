@@ -8,7 +8,7 @@ package writer
 import (
 	"bytes"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -139,7 +139,7 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(ts.latency)
 	}
 
-	slurp, err := io.ReadAll(req.Body)
+	slurp, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading request body: %v", err))
 	}

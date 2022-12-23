@@ -9,6 +9,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -88,14 +89,14 @@ func (p *FileRemovalPolicy) RemoveUnknownDomains() ([]string, error) {
 }
 
 func (p *FileRemovalPolicy) forEachDomainPath(callback func(folderPath string) ([]string, error)) ([]string, error) {
-	entries, err := os.ReadDir(p.rootPath)
+	entries, err := ioutil.ReadDir(p.rootPath)
 	if err != nil {
 		return nil, err
 	}
 
 	var paths []string
 	for _, domain := range entries {
-		if domain.IsDir() {
+		if domain.Mode().IsDir() {
 			folderPath := path.Join(p.rootPath, domain.Name())
 			files, err := callback(folderPath)
 
@@ -158,13 +159,13 @@ func (p *FileRemovalPolicy) removeRetryFiles(folderPath string, shouldRemove fun
 }
 
 func (p *FileRemovalPolicy) getRetryFiles(folder string) ([]string, error) {
-	entries, err := os.ReadDir(folder)
+	entries, err := ioutil.ReadDir(folder)
 	if err != nil {
 		return nil, err
 	}
 	var files []string
 	for _, entry := range entries {
-		if entry.Type().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
+		if entry.Mode().IsRegular() && filepath.Ext(entry.Name()) == retryTransactionsExtension {
 			files = append(files, path.Join(folder, entry.Name()))
 		}
 	}

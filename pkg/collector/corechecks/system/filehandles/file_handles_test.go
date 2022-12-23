@@ -8,11 +8,11 @@
 package filehandles
 
 import (
+	"io/ioutil"
 	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -32,10 +32,11 @@ func writeSampleFile(f *os.File, content []byte) string {
 }
 
 func getFileNr() (f *os.File, err error) {
-	return os.CreateTemp("", "file-nr")
+	return ioutil.TempFile("", "file-nr")
 }
 
 func TestFhCheckLinux(t *testing.T) {
+
 	tmpFile, err := getFileNr()
 	if err != nil {
 		t.Fatalf("unable to create temporary file-nr file: %v", err)
@@ -45,7 +46,7 @@ func TestFhCheckLinux(t *testing.T) {
 	fileNrHandle = writeSampleFile(tmpFile, samplecontent1)
 	t.Logf("Testing from file %s", fileNrHandle) // To pass circle ci tests
 
-	// we have to init the mocked sender here before fileHandleCheck.Configure(integration.FakeConfigHash, ...)
+	// we have to init the mocked sender here before fileHandleCheck.Configure(...)
 	// (and append it to the aggregator, which is automatically done in NewMockSender)
 	// because the FinalizeCheckServiceTag is called in Configure.
 	// Hopefully, the check ID is an empty string while running unit tests;
@@ -53,7 +54,7 @@ func TestFhCheckLinux(t *testing.T) {
 	mock.On("FinalizeCheckServiceTag").Return()
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
+	fileHandleCheck.Configure(nil, nil, "test")
 
 	// reset the check ID for the sake of correctness
 	mocksender.SetSender(mock, fileHandleCheck.ID())

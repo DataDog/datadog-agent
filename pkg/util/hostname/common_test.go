@@ -8,6 +8,7 @@ package hostname
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -42,10 +43,10 @@ func TestFromConfigInvalid(t *testing.T) {
 
 func setupHostnameFile(t *testing.T, content string) {
 	dir := t.TempDir()
-	destFile, err := os.CreateTemp(dir, "test-hostname-file-config-")
+	destFile, err := ioutil.TempFile(dir, "test-hostname-file-config-")
 	require.NoError(t, err, "Could not create tmp file: %s", err)
 
-	err = os.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
+	err = ioutil.WriteFile(destFile.Name(), []byte(content), os.ModePerm)
 	require.NoError(t, err, "Could not write to tmp file %s: %s", destFile.Name(), err)
 
 	config.Mock(t)

@@ -17,15 +17,12 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
+	lib "github.com/cilium/ebpf"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 const (
@@ -42,6 +39,10 @@ const (
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
+
+	// Map names for discarder stats. Discarder stats includes counts of discarders added and events discarded. Look up "multiple buffering" for more details about why there's two buffers.
+	frontBufferDiscarderStatsMapName = "discarder_stats_fb"
+	backBufferDiscarderStatsMapName  = "discarder_stats_bb"
 )
 
 var (
@@ -51,6 +52,10 @@ var (
 			Name:  "discarder_retention",
 			Value: uint64(DiscardRetention.Nanoseconds()),
 		},
+		/*{
+			Name:  "max_discarder_depth",
+			Value: uint64(maxParentDiscarderDepth),
+		},*/
 	}
 
 	// recentlyAddedTimeout do not add twice the same discarder in 2sec
@@ -61,12 +66,6 @@ var (
 // that the value will be always rejected by the rules
 type Discarder struct {
 	Field eval.Field
-}
-
-// DiscarderStats is used to collect kernel space metrics about discarders
-type DiscarderStats struct {
-	DiscarderAdded uint64 `yaml:"discarder_added"`
-	EventDiscarded uint64 `yaml:"event_discarded"`
 }
 
 // ErrDiscarderNotSupported is returned when trying to discover a discarder on a field that doesn't support them
@@ -108,14 +107,7 @@ var InvalidDiscarders = map[eval.Field][]interface{}{
 	"removexattr.file.path":        dentryInvalidDiscarder,
 }
 
-// bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
-func bumpDiscardersRevision(e *erpc.ERPC) error {
-	var req erpc.ERPCRequest
-	req.OP = erpc.BumpDiscardersRevision
-	return e.Request(&req)
-}
-
-func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, timeout uint64) int {
+func marshalDiscardHeader(req *ERPCRequest, eventType model.EventType, timeout uint64) int {
 	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
 	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
 
@@ -123,53 +115,61 @@ func marshalDiscardHeader(req *erpc.ERPCRequest, eventType model.EventType, time
 }
 
 type pidDiscarders struct {
-	erpc *erpc.ERPC
+	*lib.Map
+	erpc *ERPC
 }
 
-func (p *pidDiscarders) discardWithTimeout(req *erpc.ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
-	req.OP = erpc.DiscardPidOp
+func (p *pidDiscarders) discardWithTimeout(req *ERPCRequest, eventType model.EventType, pid uint32, timeout int64) error {
+	req.OP = DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
 	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(req)
 }
 
-func newPidDiscarders(erpc *erpc.ERPC) *pidDiscarders {
-	return &pidDiscarders{erpc: erpc}
+// expirePidDiscarder sends an eRPC request to expire a discarder
+func (p *pidDiscarders) expirePidDiscarder(req *ERPCRequest, pid uint32) error {
+	req.OP = ExpirePidDiscarderOp
+	model.ByteOrder.PutUint32(req.Data[0:4], pid)
+
+	return p.erpc.Request(req)
 }
 
-// InodeDiscarderMapEntry describes a map entry
-type InodeDiscarderMapEntry struct {
-	PathKey resolvers.PathKey
+func newPidDiscarders(m *lib.Map, erpc *ERPC) *pidDiscarders {
+	return &pidDiscarders{Map: m, erpc: erpc}
+}
+
+type inodeDiscarderMapEntry struct {
+	PathKey PathKey
 	IsLeaf  uint32
 	Padding uint32
 }
 
-// InodeDiscarderEntry describes a map entry
-type InodeDiscarderEntry struct {
+type inodeDiscarderEntry struct {
 	Inode     uint64
 	MountID   uint32
 	Timestamp uint64
 }
 
-// InodeDiscarderParams describes a map value
-type InodeDiscarderParams struct {
-	DiscarderParams `yaml:"params"`
+type inodeDiscarderParams struct {
+	DiscarderParams discarderParams
 	Revision        uint32
 }
 
-// PidDiscarderParams describes a map value
-type PidDiscarderParams struct {
-	DiscarderParams `yaml:"params"`
+type pidDiscarderParams struct {
+	DiscarderParams discarderParams
 }
 
-// DiscarderParams describes a map value
-type DiscarderParams struct {
-	EventMask  uint64                                                               `yaml:"event_mask"`
-	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64 `yaml:"-"`
-	ExpireAt   uint64                                                               `yaml:"expire_at"`
-	IsRetained uint32                                                               `yaml:"is_retained"`
-	Revision   uint32
+type discarderParams struct {
+	EventMask  uint64
+	Timestamps [model.LastDiscarderEventType - model.FirstDiscarderEventType]uint64
+	ExpireAt   uint64
+	IsRetained uint32
+}
+
+type discarderStats struct {
+	DiscardersAdded uint64
+	EventDiscarded  uint64
 }
 
 func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
@@ -178,8 +178,9 @@ func recentlyAddedIndex(mountID uint32, inode uint64) uint64 {
 
 // inodeDiscarders is used to issue eRPC discarder requests
 type inodeDiscarders struct {
-	erpc           *erpc.ERPC
-	dentryResolver *resolvers.DentryResolver
+	*lib.Map
+	erpc           *ERPC
+	dentryResolver *DentryResolver
 	rs             *rules.RuleSet
 	discarderEvent *Event
 	evalCtx        *eval.Context
@@ -187,14 +188,15 @@ type inodeDiscarders struct {
 	// parentDiscarderFncs holds parent discarder functions per depth
 	parentDiscarderFncs [maxParentDiscarderDepth]map[eval.Field]func(dirname string) (bool, error)
 
-	recentlyAddedEntries [maxRecentlyAddedCacheSize]InodeDiscarderEntry
+	recentlyAddedEntries [maxRecentlyAddedCacheSize]inodeDiscarderEntry
 }
 
-func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *resolvers.DentryResolver) *inodeDiscarders {
+func newInodeDiscarders(inodesMap *lib.Map, erpc *ERPC, dentryResolver *DentryResolver) *inodeDiscarders {
 	event := NewEvent(nil, nil, nil)
 	ctx := eval.NewContext(event.GetPointer())
 
 	id := &inodeDiscarders{
+		Map:            inodesMap,
 		erpc:           erpc,
 		dentryResolver: dentryResolver,
 		discarderEvent: event,
@@ -226,18 +228,27 @@ func (id *inodeDiscarders) recentlyAdded(mountID uint32, inode uint64, timestamp
 	entry.Timestamp = timestamp
 }
 
-func (id *inodeDiscarders) discardInode(req *erpc.ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
+func (id *inodeDiscarders) discardInode(req *ERPCRequest, eventType model.EventType, mountID uint32, inode uint64, isLeaf bool) error {
 	var isLeafInt uint32
 	if isLeaf {
 		isLeafInt = 1
 	}
 
-	req.OP = erpc.DiscardInodeOp
+	req.OP = DiscardInodeOp
 
 	offset := marshalDiscardHeader(req, eventType, 0)
 	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
 	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
 	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+
+	return id.erpc.Request(req)
+}
+
+// expireInodeDiscarder sends an eRPC request to expire a discarder
+func (id *inodeDiscarders) expireInodeDiscarder(req *ERPCRequest, mountID uint32, inode uint64) error {
+	req.OP = ExpireInodeDiscarderOp
+	model.ByteOrder.PutUint64(req.Data[0:8], inode)
+	model.ByteOrder.PutUint32(req.Data[8:12], mountID)
 
 	return id.erpc.Request(req)
 }
@@ -424,7 +435,7 @@ func (id *inodeDiscarders) isParentPathDiscarder(rs *rules.RuleSet, eventType mo
 	return true, nil
 }
 
-func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
+func (id *inodeDiscarders) discardParentInode(req *ERPCRequest, rs *rules.RuleSet, eventType model.EventType, field eval.Field, filename string, mountID uint32, inode uint64, pathID uint32, timestamp uint64) (bool, uint32, uint64, error) {
 	var discarderDepth int
 	var isDiscarder bool
 	var err error
@@ -442,7 +453,7 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.ERPCRequest, rs *rules.R
 
 	for i := 0; i < discarderDepth; i++ {
 		parentMountID, parentInode, err := id.dentryResolver.GetParent(mountID, inode, pathID)
-		if err != nil || resolvers.IsFakeInode(parentInode) {
+		if err != nil || IsFakeInode(parentInode) {
 			if i == 0 {
 				return false, 0, 0, err
 			}
@@ -493,12 +504,14 @@ func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter
 			}
 
 			isDiscarded, _, parentInode, err := probe.inodeDiscarders.discardParentInode(probe.erpcRequest, rs, eventType, field, filename, mountID, inode, pathID, event.TimestampRaw)
-			if !isDiscarded && !isDeleted && err == nil {
-				if !resolvers.IsFakeInode(inode) {
-					seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
+			if !isDiscarded && !isDeleted {
+				if _, ok := err.(*ErrInvalidKeyPath); !ok {
+					if !IsFakeInode(inode) {
+						seclog.Tracef("Apply `%s.file.path` inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, inode, filename)
 
-					// not able to discard the parent then only discard the filename
-					_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
+						// not able to discard the parent then only discard the filename
+						_ = probe.inodeDiscarders.discardInode(probe.erpcRequest, eventType, mountID, inode, true)
+					}
 				}
 			} else if !isDeleted {
 				seclog.Tracef("Apply `%s.file.path` parent inode discarder for event `%s`, inode: %d(%s)", eventType, eventType, parentInode, filename)
@@ -541,161 +554,6 @@ func createInvalidDiscardersCache() map[eval.Field]map[interface{}]bool {
 	}
 
 	return invalidDiscarders
-}
-
-// PidDiscarderDump describes a dump of a pid discarder
-type PidDiscarderDump struct {
-	Index              int `yaml:"index"`
-	PidDiscarderParams `yaml:"value"`
-}
-
-// InodeDiscarderDump describes a dump of an inode discarder
-type InodeDiscarderDump struct {
-	Index                int `yaml:"index"`
-	InodeDiscarderParams `yaml:"value"`
-	FilePath             string `yaml:"path"`
-	Inode                uint64
-	MountID              uint32 `yaml:"mount_id"`
-}
-
-// DiscardersDump describes a dump of discarders
-type DiscardersDump struct {
-	Date   time.Time                 `yaml:"date"`
-	Inodes []InodeDiscarderDump      `yaml:"inodes"`
-	Pids   []PidDiscarderDump        `yaml:"pids"`
-	Stats  map[string]DiscarderStats `yaml:"stats"`
-}
-
-func dumpPidDiscarders(resolver *resolvers.DentryResolver, pidMap *ebpf.Map) ([]PidDiscarderDump, error) {
-	var dumps []PidDiscarderDump
-
-	info, err := pidMap.Info()
-	if err != nil {
-		return nil, fmt.Errorf("could not get info about pid discarders: %w", err)
-	}
-
-	var (
-		count     int
-		pid       uint32
-		pidParams PidDiscarderParams
-	)
-
-	for entries := pidMap.Iterate(); entries.Next(&pid, &pidParams); {
-		record := PidDiscarderDump{
-			Index:              count,
-			PidDiscarderParams: pidParams,
-		}
-
-		dumps = append(dumps, record)
-
-		count++
-		if count == int(info.MaxEntries) {
-			break
-		}
-	}
-
-	return dumps, nil
-}
-
-func dumpInodeDiscarders(resolver *resolvers.DentryResolver, inodeMap *ebpf.Map) ([]InodeDiscarderDump, error) {
-	var dumps []InodeDiscarderDump
-
-	info, err := inodeMap.Info()
-	if err != nil {
-		return nil, fmt.Errorf("could not get info about inode discarders: %w", err)
-	}
-
-	var (
-		count       int
-		inodeEntry  InodeDiscarderMapEntry
-		inodeParams InodeDiscarderParams
-	)
-
-	for entries := inodeMap.Iterate(); entries.Next(&inodeEntry, &inodeParams); {
-		record := InodeDiscarderDump{
-			Index:                count,
-			InodeDiscarderParams: inodeParams,
-			Inode:                inodeEntry.PathKey.Inode,
-			MountID:              inodeEntry.PathKey.MountID,
-		}
-
-		path, err := resolver.Resolve(inodeEntry.PathKey.MountID, inodeEntry.PathKey.Inode, inodeEntry.PathKey.PathID, false)
-		if err == nil {
-			record.FilePath = path
-		}
-
-		dumps = append(dumps, record)
-
-		count++
-		if count == int(info.MaxEntries) {
-			break
-		}
-	}
-
-	return dumps, nil
-}
-
-func dumpDiscarderStats(buffers ...*ebpf.Map) (map[string]DiscarderStats, error) {
-	numCPU, err := utils.NumCPU()
-	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
-	}
-
-	stats := make(map[string]DiscarderStats)
-	perCpu := make([]DiscarderStats, numCPU)
-
-	var eventType uint32
-	for _, buffer := range buffers {
-		iterator := buffer.Iterate()
-
-		for iterator.Next(&eventType, &perCpu) {
-			for _, stat := range perCpu {
-				key := model.EventType(eventType).String()
-
-				entry, exists := stats[key]
-				if !exists {
-					stats[key] = DiscarderStats{
-						DiscarderAdded: stat.DiscarderAdded,
-						EventDiscarded: stat.EventDiscarded,
-					}
-				} else {
-					entry.DiscarderAdded += stat.DiscarderAdded
-					entry.EventDiscarded += stat.EventDiscarded
-				}
-			}
-		}
-	}
-
-	return stats, nil
-}
-
-// DumpDiscarders removes all the discarders
-func dumpDiscarders(resolver *resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB *ebpf.Map) (DiscardersDump, error) {
-	seclog.Debugf("Dumping discarders")
-
-	dump := DiscardersDump{
-		Date: time.Now(),
-	}
-
-	pids, err := dumpPidDiscarders(resolver, pidMap)
-	if err != nil {
-		return dump, err
-	}
-	dump.Pids = pids
-
-	inodes, err := dumpInodeDiscarders(resolver, inodeMap)
-	if err != nil {
-		return dump, err
-	}
-	dump.Inodes = inodes
-
-	stats, err := dumpDiscarderStats(statsFB, statsBB)
-	if err != nil {
-		return dump, err
-	}
-	dump.Stats = stats
-
-	return dump, nil
 }
 
 var invalidDiscarders map[eval.Field]map[interface{}]bool

@@ -16,8 +16,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -79,11 +77,8 @@ type APIClient struct {
 
 	// DDClient gives access to all datadoghq/ custom types
 	DDClient dynamic.Interface
-	// DynamicInformerFactory gives access to dynamic informers in example for all datadoghq/ custom types
-	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
-
-	// CRDInformerFactory gives access to informers for all crds
-	CRDInformerFactory externalversions.SharedInformerFactory
+	// DDInformerFactory gives access to informers for all datadoghq/ custom types
+	DDInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
 	// initRetry used to setup the APIClient
 	initRetry retry.Retrier
@@ -212,15 +207,6 @@ func getKubeDynamicClient(timeout time.Duration) (dynamic.Interface, error) {
 	return dynamic.NewForConfig(clientConfig)
 }
 
-func getCRDClient(timeout time.Duration) (*clientset.Clientset, error) {
-	clientConfig, err := getClientConfig(timeout)
-	if err != nil {
-		return nil, err
-	}
-
-	return clientset.NewForConfig(clientConfig)
-}
-
 func getKubeDiscoveryClient(timeout time.Duration) (discovery.DiscoveryInterface, error) {
 	clientConfig, err := getClientConfig(timeout)
 	if err != nil {
@@ -278,16 +264,6 @@ func getInformerFactory() (informers.SharedInformerFactory, error) {
 		return nil, err
 	}
 	return informers.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
-}
-
-func getCRDInformerFactory() (externalversions.SharedInformerFactory, error) {
-	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
-	client, err := getCRDClient(0) // No timeout for the Informers, to allow long watch.
-	if err != nil {
-		log.Errorf("Could not get apiserver client: %v", err)
-		return nil, err
-	}
-	return externalversions.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
 }
 
 func getInformerFactoryWithOption(options ...informers.SharedInformerOption) (informers.SharedInformerFactory, error) {
@@ -348,14 +324,6 @@ func (c *APIClient) connect() error {
 			log.Infof("Could not get informer factory: %v", err)
 			return err
 		}
-		if c.CRDInformerFactory, err = getCRDInformerFactory(); err != nil {
-			_ = log.Errorf("Error getting crd informer Client: %s", err.Error())
-			return err
-		}
-		if c.DynamicInformerFactory, err = getDDInformerFactory(); err != nil {
-			_ = log.Errorf("Error getting datadoghq informer Client: %s", err.Error())
-			return err
-		}
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
@@ -396,7 +364,7 @@ func (c *APIClient) connect() error {
 		}
 	}
 	if config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") {
-		if c.DynamicInformerFactory, err = getDDInformerFactory(); err != nil {
+		if c.DDInformerFactory, err = getDDInformerFactory(); err != nil {
 			log.Errorf("Error getting datadoghq Client: %s", err.Error())
 			return err
 		}

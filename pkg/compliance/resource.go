@@ -49,21 +49,27 @@ type ResourceCommon struct {
 	Custom        *Custom             `yaml:"custom,omitempty"`
 }
 
+// Resource describes supported resource types observed by a Rule
+type Resource struct {
+	ResourceCommon `yaml:",inline"`
+	Condition      string    `yaml:"condition"`
+	Fallback       *Fallback `yaml:"fallback,omitempty"`
+}
+
 // RegoInput describes supported resource types observed by a Rego Rule
 type RegoInput struct {
 	ResourceCommon `yaml:",inline"`
-	TagName        string `yaml:"tag,omitempty"`
-	Type           string `yaml:"type,omitempty"`
-	Transform      string `yaml:"transform,omitempty"`
+	TagName        string `yaml:"tag"`
+	Type           string `yaml:"type"`
 }
 
 // ValidateInputType returns the validated input type or an error
-func (i *RegoInput) ValidateInputType(t string) (string, error) {
-	switch t {
+func (i *RegoInput) ValidateInputType() (string, error) {
+	switch i.Type {
 	case "object", "array":
-		return t, nil
+		return i.Type, nil
 	case "":
-		return "array", nil
+		return "object", nil
 	default:
 		return "", fmt.Errorf("invalid input type `%s`", i.Type)
 	}
@@ -95,6 +101,12 @@ func (r *ResourceCommon) Kind() ResourceKind {
 	}
 }
 
+// Fallback specifies optional fallback configuration for a resource
+type Fallback struct {
+	Condition string   `yaml:"condition,omitempty"`
+	Resource  Resource `yaml:"resource"`
+}
+
 // Fields & functions available for File
 const (
 	FileFieldGlob        = "file.glob"
@@ -112,7 +124,6 @@ const (
 // File describes a file resource
 type File struct {
 	Path   string `yaml:"path"`
-	Glob   string `yaml:"glob"`
 	Parser string `yaml:"parser,omitempty"`
 }
 

@@ -6,7 +6,7 @@
 package request
 
 import (
-	"google.golang.org/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )

@@ -11,6 +11,7 @@ package netlink
 import (
 	"encoding/binary"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"testing"
@@ -79,7 +80,7 @@ func TestMessageDump(t *testing.T) {
 
 	testutil.SetupDNAT(t)
 
-	f, err := os.CreateTemp("", "message_dump")
+	f, err := ioutil.TempFile("", "message_dump")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -92,7 +93,7 @@ func TestMessageDump6(t *testing.T) {
 
 	testutil.SetupDNAT6(t)
 
-	f, err := os.CreateTemp("", "message_dump6")
+	f, err := ioutil.TempFile("", "message_dump6")
 	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
@@ -107,7 +108,6 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 				ProcRoot: "/proc",
 			},
 			ConntrackRateLimit:           500,
-			ConntrackRateLimitInterval:   time.Second,
 			EnableRootNetNs:              true,
 			EnableConntrackAllNamespaces: false,
 		})
@@ -151,7 +151,7 @@ func skipUnless(t *testing.T, requiredArg string) {
 
 	t.Skip(
 		fmt.Sprintf(
-			"skipped %s. you can enable it by using running tests with `-args %s`",
+			"skipped %s. you can enable it by using running tests with `-args %s`.\n",
 			t.Name(),
 			requiredArg,
 		),

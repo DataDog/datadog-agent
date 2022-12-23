@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/go/goid"
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/go-delve/delve/pkg/goversion"
 )
 
@@ -44,13 +43,11 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 		return nil, err
 	}
 
-	symbolsSet := make(common.StringSet, len(functions))
-	for symbol := range functions {
-		symbolsSet[symbol] = struct{}{}
-	}
+	_, includesDebugInfo := HasDwarfInfo(elfFile)
+
 	// Try to load in the ELF symbols.
 	// This might fail if the binary was stripped.
-	symbols, err := GetAllSymbolsByName(elfFile, symbolsSet)
+	symbols, err := GetAllSymbolsByName(elfFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed retrieving symbols: %+v", err)
 	}
@@ -84,12 +81,13 @@ func InspectNewProcessBinary(elfFile *elf.File, functions map[string]FunctionCon
 	}
 
 	return &Result{
-		Arch:                arch,
-		ABI:                 abi,
-		GoVersion:           goVersion,
-		Functions:           functionsData,
-		StructOffsets:       structOffsets,
-		GoroutineIDMetadata: goroutineIDMetadata,
+		Arch:                 arch,
+		ABI:                  abi,
+		GoVersion:            goVersion,
+		IncludesDebugSymbols: includesDebugInfo,
+		Functions:            functionsData,
+		StructOffsets:        structOffsets,
+		GoroutineIDMetadata:  goroutineIDMetadata,
 	}, nil
 
 }
@@ -98,7 +96,7 @@ func (i *newProcessBinaryInspector) findFunctions(functions map[string]FunctionC
 	functionMetadata := make(map[string]FunctionMetadata, len(functions))
 
 	for funcName, funcConfig := range functions {
-		offset, err := SymbolToOffset(i.elf.file, i.symbols[funcName])
+		offset, err := SymbolToOffset(i.elf.file, funcName)
 		if err != nil {
 			return nil, fmt.Errorf("could not find location for function %q: %w", funcName, err)
 		}

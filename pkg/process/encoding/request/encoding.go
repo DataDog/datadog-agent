@@ -8,7 +8,7 @@ package request
 import (
 	"strings"
 
-	"google.golang.org/protobuf/encoding/protojson"
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -16,8 +16,8 @@ import (
 var (
 	pSerializer = protoSerializer{}
 	jSerializer = jsonSerializer{
-		marshaler: protojson.MarshalOptions{
-			EmitUnpopulated: true,
+		marshaler: jsonpb.Marshaler{
+			EmitDefaults: true,
 		},
 	}
 )

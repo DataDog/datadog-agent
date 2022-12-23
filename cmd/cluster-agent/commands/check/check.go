@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -206,7 +207,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			if profileMemory {
 				// If no directory is specified, make a temporary one
 				if profileMemoryDir == "" {
-					profileMemoryDir, err = os.MkdirTemp("", "datadog-agent-memory-profiler")
+					profileMemoryDir, err = ioutil.TempDir("", "datadog-agent-memory-profiler")
 					if err != nil {
 						return err
 					}
@@ -355,7 +356,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 					snapshotDir := filepath.Join(profileDataDir, "snapshots")
 					if _, err := os.Stat(snapshotDir); !os.IsNotExist(err) {
-						snapshots, err := os.ReadDir(snapshotDir)
+						snapshots, err := ioutil.ReadDir(snapshotDir)
 						if err != nil {
 							return err
 						}
@@ -363,7 +364,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						numSnapshots := len(snapshots)
 						if numSnapshots > 0 {
 							lastSnapshot := snapshots[numSnapshots-1]
-							snapshotContents, err := os.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
+							snapshotContents, err := ioutil.ReadFile(filepath.Join(snapshotDir, lastSnapshot.Name()))
 							if err != nil {
 								return err
 							}
@@ -378,7 +379,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 					diffDir := filepath.Join(profileDataDir, "diffs")
 					if _, err := os.Stat(diffDir); !os.IsNotExist(err) {
-						diffs, err := os.ReadDir(diffDir)
+						diffs, err := ioutil.ReadDir(diffDir)
 						if err != nil {
 							return err
 						}
@@ -386,7 +387,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 						numDiffs := len(diffs)
 						if numDiffs > 0 {
 							lastDiff := diffs[numDiffs-1]
-							diffContents, err := os.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
+							diffContents, err := ioutil.ReadFile(filepath.Join(diffDir, lastDiff.Name()))
 							if err != nil {
 								return err
 							}
@@ -496,7 +497,7 @@ func writeCheckToFile(checkName string, checkFileOutput *bytes.Buffer) {
 	if err != nil {
 		fmt.Println("Error while scrubbing the check file:", err)
 	}
-	err = os.WriteFile(flarePath, scrubbed, os.ModePerm)
+	err = ioutil.WriteFile(flarePath, scrubbed, os.ModePerm)
 
 	if err != nil {
 		fmt.Println("Error while writing the check file (is the location writable by the dd-agent user?):", err)

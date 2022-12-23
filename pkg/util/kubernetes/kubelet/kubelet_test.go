@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -60,7 +61,7 @@ func newDummyKubelet(podListJSONPath string) (*dummyKubelet, error) {
 func (d *dummyKubelet) loadPodList(podListJSONPath string) error {
 	d.Lock()
 	defer d.Unlock()
-	podList, err := os.ReadFile(podListJSONPath)
+	podList, err := ioutil.ReadFile(podListJSONPath)
 	if err != nil {
 		return err
 	}
@@ -130,12 +131,12 @@ func (d *dummyKubelet) StartTLS() (*httptest.Server, int, error) {
 	if len(ts.TLS.Certificates) != 1 {
 		return ts, 0, fmt.Errorf("unexpected number of testing certificates: 1 != %d", len(ts.TLS.Certificates))
 	}
-	certOut, err := os.CreateTemp("", "kubelet-test-cert-")
+	certOut, err := ioutil.TempFile("", "kubelet-test-cert-")
 	d.testingCertificate = certOut.Name()
 	if err != nil {
 		return ts, 0, err
 	}
-	keyOut, err := os.CreateTemp("", "kubelet-test-key-")
+	keyOut, err := ioutil.TempFile("", "kubelet-test-key-")
 	d.testingPrivateKey = keyOut.Name()
 	if err != nil {
 		return ts, 0, err

@@ -9,6 +9,7 @@
 package sysctl
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,5 +101,5 @@ func createTmpProcSys(t *testing.T) (procRoot string) {
 }
 
 func createTmpSysctl(t *testing.T, procRoot, sysctl string, v string) {
-	require.NoError(t, os.WriteFile(filepath.Join(procRoot, "sys", sysctl), []byte(v), 0777))
+	require.NoError(t, ioutil.WriteFile(filepath.Join(procRoot, "sys", sysctl), []byte(v), 0777))
 }

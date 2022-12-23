@@ -14,6 +14,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +47,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 		return fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
 	}
 
-	tmpIncludeDir, err := os.MkdirTemp(os.TempDir(), "include-")
+	tmpIncludeDir, err := ioutil.TempDir(os.TempDir(), "include-")
 	if err != nil {
 		return fmt.Errorf("error creating temporary include directory: %s", err.Error())
 	}

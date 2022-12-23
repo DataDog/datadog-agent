@@ -23,7 +23,6 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +31,8 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
+
+	"runtime/pprof"
 
 	"github.com/cihub/seelog"
 	"github.com/davecgh/go-spew/spew"
@@ -61,8 +62,7 @@ var (
 )
 
 const (
-	getEventTimeout                 = 10 * time.Second
-	filelessExecutionFilenamePrefix = "memfd:"
+	getEventTimeout = 10 * time.Second
 )
 
 type stringSlice []string
@@ -91,8 +91,6 @@ runtime_security_config:
   activity_dump:
     enabled: true
     rate_limiter: {{ .ActivityDumpRateLimiter }}
-    cgroup_dump_timeout: {{ .ActivityDumpCgroupDumpTimeout }}
-    traced_cgroups_count: {{ .ActivityDumpTracedCgroupsCount }}
     traced_event_types:   {{range .ActivityDumpTracedEventTypes}}
     - {{.}}
     {{end}}
@@ -184,8 +182,6 @@ type testOpts struct {
 	disableApprovers                    bool
 	enableActivityDump                  bool
 	activityDumpRateLimiter             int
-	activityDumpCgroupDumpTimeout       int
-	activityDumpTracedCgroupsCount      int
 	activityDumpTracedEventTypes        []string
 	activityDumpLocalStorageDirectory   string
 	activityDumpLocalStorageCompression bool
@@ -212,8 +208,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
-		to.activityDumpCgroupDumpTimeout == opts.activityDumpCgroupDumpTimeout &&
-		to.activityDumpTracedCgroupsCount == opts.activityDumpTracedCgroupsCount &&
 		reflect.DeepEqual(to.activityDumpTracedEventTypes, opts.activityDumpTracedEventTypes) &&
 		to.activityDumpLocalStorageDirectory == opts.activityDumpLocalStorageDirectory &&
 		to.activityDumpLocalStorageCompression == opts.activityDumpLocalStorageCompression &&
@@ -281,9 +275,8 @@ func which(tb testing.TB, name string) string {
 	return executable
 }
 
-// whichNonFatal is "which" which returns an error instead of fatal
-//
 //nolint:deadcode,unused
+// whichNonFatal is "which" which returns an error instead of fatal
 func whichNonFatal(name string) (string, error) {
 	executable, err := exec.LookPath(name)
 	if err != nil {
@@ -379,17 +372,6 @@ func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value int
 }
 
 //nolint:deadcode,unused
-func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	fieldValue, err := e.GetFieldValue(field)
-	if err != nil {
-		tb.Errorf("failed to get field '%s': %s", field, err)
-		return false
-	}
-	return assert.Contains(tb, possibleValues, fieldValue, msgAndArgs...)
-}
-
-//nolint:deadcode,unused
 func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
@@ -461,68 +443,40 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
-	// Process file name values cannot be blank
-	nameFields := []string{
-		"process.file.name",
-		"process.ancestors.file.name",
-		"process.parent.file.path",
-		"process.parent.file.name",
-	}
-
-	nameFieldValid, hasPath := checkProcessContextFieldsForBlankValues(tb, event, nameFields)
-
-	// Process path values can be blank if the process was a fileless execution
-	pathFields := []string{
+	fields := []string{
 		"process.file.path",
+		"process.file.name",
 		"process.ancestors.file.path",
+		"process.ancestors.file.name",
 	}
 
-	pathFieldValid := true
-	if hasPath {
-		pathFieldValid, _ = checkProcessContextFieldsForBlankValues(tb, event, pathFields)
-	}
-
-	return nameFieldValid && pathFieldValid
-}
-
-func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event, fieldNamesToCheck []string) (bool, bool) {
-	validField := true
-	hasPath := true
-
-	for _, field := range fieldNamesToCheck {
+	for _, field := range fields {
 		fieldValue, err := event.GetFieldValue(field)
 		if err != nil {
 			tb.Errorf("failed to get field '%s': %s", field, err)
-			validField = false
+			return false
 		}
 
 		switch value := fieldValue.(type) {
 		case string:
 			if len(value) == 0 {
 				tb.Errorf("empty value for '%s'", field)
-				validField = false
-			}
-
-			if strings.HasSuffix(field, ".name") && strings.HasPrefix(value, filelessExecutionFilenamePrefix) {
-				hasPath = false
+				return false
 			}
 		case []string:
 			for _, v := range value {
 				if len(v) == 0 {
 					tb.Errorf("empty value for '%s'", field)
-					validField = false
-				}
-				if strings.HasSuffix(field, ".name") && strings.HasPrefix(v, filelessExecutionFilenamePrefix) {
-					hasPath = false
+					return false
 				}
 			}
 		default:
 			tb.Errorf("unknown type value for '%s'", field)
-			validField = false
+			return false
 		}
 	}
 
-	return validField, hasPath
+	return true
 }
 
 //nolint:deadcode,unused
@@ -614,14 +568,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		opts.activityDumpRateLimiter = 500
 	}
 
-	if opts.activityDumpTracedCgroupsCount == 0 {
-		opts.activityDumpTracedCgroupsCount = 5
-	}
-
-	if opts.activityDumpCgroupDumpTimeout == 0 {
-		opts.activityDumpTracedCgroupsCount = 30
-	}
-
 	if len(opts.activityDumpTracedEventTypes) == 0 {
 		opts.activityDumpTracedEventTypes = []string{"exec", "open", "bind", "dns", "syscalls"}
 	}
@@ -646,8 +592,6 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"DisableApprovers":                    opts.disableApprovers,
 		"EnableActivityDump":                  opts.enableActivityDump,
 		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
-		"ActivityDumpCgroupDumpTimeout":       opts.activityDumpCgroupDumpTimeout,
-		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression": opts.activityDumpLocalStorageCompression,
@@ -799,7 +743,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
@@ -1306,7 +1250,7 @@ func (tm *testModule) cleanup() {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"))
 }
 
 func (tm *testModule) Close() {
@@ -1470,7 +1414,6 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
-//
 //nolint:deadcode,unused
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
 	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
@@ -1524,7 +1467,7 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 	}
 }
 
-func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
+func (tm *testModule) StartActivityDumpComm(t *testing.T, comm string, outputDir string, formats []string) ([]string, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1543,7 +1486,8 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	}
 	mess, err := monitor.DumpActivity(p)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
-		return nil, errors.New("failed to start activity dump")
+		t.Errorf("failed to start activity dump: %s", err)
+		return nil, err
 	}
 
 	var files []string
@@ -1553,18 +1497,17 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 	return files, nil
 }
 
-func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
+func (tm *testModule) StopActivityDumpComm(t *testing.T, comm string) error {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return errors.New("No monitor")
 	}
 	p := &api.ActivityDumpStopParams{
-		Name:        name,
-		ContainerID: containerID,
-		Comm:        comm,
+		Comm: comm,
 	}
 	_, err := monitor.StopActivityDump(p)
 	if err != nil {
+		t.Errorf("failed to stop activity dump: %s", err)
 		return err
 	}
 	return nil
@@ -1573,11 +1516,10 @@ func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
 type activityDumpIdentifier struct {
 	Name        string
 	ContainerID string
-	Timeout     string
 	OutputFiles []string
 }
 
-func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
+func (tm *testModule) ListActivityDumps() ([]activityDumpIdentifier, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1588,7 +1530,7 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 		return nil, err
 	}
 
-	var dumps []*activityDumpIdentifier
+	var dumps []activityDumpIdentifier
 	for _, dump := range mess.Dumps {
 		var files []string
 		for _, storage := range dump.Storage {
@@ -1600,17 +1542,16 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 			continue // do not add activity dumps without any local storage files
 		}
 
-		dumps = append(dumps, &activityDumpIdentifier{
+		dumps = append(dumps, activityDumpIdentifier{
 			Name:        dump.Metadata.Name,
 			ContainerID: dump.Metadata.ContainerID,
-			Timeout:     dump.Metadata.Timeout,
 			OutputFiles: files,
 		})
 	}
 	return dumps, nil
 }
 
-func (tm *testModule) DecodeActivityDump(path string) (*sprobe.ActivityDump, error) {
+func (tm *testModule) DecodeActivityDump(t *testing.T, path string) (*sprobe.ActivityDump, error) {
 	monitor := tm.probe.GetMonitor()
 	if monitor == nil {
 		return nil, errors.New("No monitor")
@@ -1658,7 +1599,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
-	dump := findLearningContainerID(dumps, dockerInstance.containerID)
+	dump := findLearningContainer(dumps, dockerInstance.containerID)
 	if dump == nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, errors.New("ContainerID not found on activity dump list")
@@ -1666,258 +1607,11 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	return dockerInstance, dump, nil
 }
 
-//nolint:deadcode,unused
-func findLearningContainerID(dumps []*activityDumpIdentifier, containerID string) *activityDumpIdentifier {
+func findLearningContainer(dumps []activityDumpIdentifier, containerID string) *activityDumpIdentifier {
 	for _, dump := range dumps {
 		if dump.ContainerID == containerID {
-			return dump
+			return &dump
 		}
 	}
 	return nil
-}
-
-//nolint:deadcode,unused
-func findLearningContainerName(dumps []*activityDumpIdentifier, name string) *activityDumpIdentifier {
-	for _, dump := range dumps {
-		if dump.Name == name {
-			return dump
-		}
-	}
-	return nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) isDumpRunning(id *activityDumpIdentifier) bool {
-	dumps, err := tm.ListActivityDumps()
-	if err != nil {
-		return false
-	}
-	dump := findLearningContainerName(dumps, id.Name)
-	if dump == nil {
-		return false
-	}
-	return true
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpIdentifier {
-	dumps, err := tm.ListActivityDumps()
-	if err != nil {
-		return nil
-	}
-	dump := findLearningContainerID(dumps, id.ContainerID)
-	if dump == nil {
-		return nil
-	}
-	return dump
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier, syscallTester string) {
-	// open
-	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
-	_, _ = cmd.CombinedOutput()
-
-	// dns
-	cmd = dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
-	_, _ = cmd.CombinedOutput()
-
-	// bind
-	cmd = dockerInstance.Command(syscallTester, []string{"bind", "AF_INET", "any", "tcp"}, []string{})
-	_, _ = cmd.CombinedOutput()
-
-	// syscalls should be added with previous events
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) triggerLoadControlerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
-	monitor := tm.probe.GetMonitor()
-	if monitor == nil {
-		return
-	}
-	adm := monitor.GetActivityDumpManager()
-	if adm == nil {
-		return
-	}
-	adm.FakeDumpOverweight(id.Name)
-
-	// wait until the dump learning has stopped
-	for tm.isDumpRunning(id) {
-		time.Sleep(time.Second * 1)
-	}
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
-	var files []string
-	for i := 0; i < numberOfFiles; i++ {
-		files = append(files, filepath.Join(directory, "ad-test-create-"+fmt.Sprintf("%d", i)))
-	}
-	args := []string{"sleep", "2", ";", "open"}
-	args = append(args, files...)
-	cmd := dockerInstance.Command(syscallTester, args, []string{})
-	_, err := cmd.CombinedOutput()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) findNextPartialDump(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) (*activityDumpIdentifier, error) {
-	for i := 0; i < 10; i++ { // retry during 5sec
-		dump := tm.findCgroupDump(id)
-		if dump != nil {
-			return dump, nil
-		}
-		cmd := dockerInstance.Command("echo", []string{"trying to trigger the dump"}, []string{})
-		_, err := cmd.CombinedOutput()
-		if err != nil {
-			return nil, err
-		}
-		time.Sleep(time.Second * 1)
-	}
-	return nil, errors.New("Unable to find the next partial dump")
-}
-
-//nolint:deadcode,unused
-func searchForOpen(ad *sprobe.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
-		if len(node.Files) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-//nolint:deadcode,unused
-func searchForDns(ad *sprobe.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
-		if len(node.DNSNames) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-//nolint:deadcode,unused
-func searchForBind(ad *sprobe.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
-		if len(node.Sockets) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-//nolint:deadcode,unused
-func searchForSyscalls(ad *sprobe.ActivityDump) bool {
-	for _, node := range ad.ProcessActivityTree {
-		if len(node.Syscalls) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) getADFromDumpId(id *activityDumpIdentifier) (*sprobe.ActivityDump, error) {
-	var fileProtobuf string
-	// decode the dump
-	for _, file := range id.OutputFiles {
-		if filepath.Ext(file) == ".protobuf" {
-			fileProtobuf = file
-			break
-		}
-	}
-	if len(fileProtobuf) < 1 {
-		return nil, errors.New("protobuf output file not found")
-	}
-	ad, err := tm.DecodeActivityDump(fileProtobuf)
-	if err != nil {
-		return nil, err
-	}
-	return ad, nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) findNumberOfExistingDirectoryFiles(id *activityDumpIdentifier, testDir string) (int, error) {
-	ad, err := tm.getADFromDumpId(id)
-	if err != nil {
-		return 0, err
-	}
-
-	var total int
-	tempPathParts := strings.Split(testDir, "/")
-	lastDir := filepath.Base(testDir)
-
-firstLoop:
-	for _, node := range ad.ProcessActivityTree {
-		current := node.Files
-		for _, part := range tempPathParts {
-			if part == "" {
-				continue
-			}
-			next, found := current[part]
-			if !found {
-				continue firstLoop
-			}
-			current = next.Children
-			if part == lastDir {
-				total += len(current)
-				continue firstLoop
-			}
-		}
-	}
-	return total, nil
-}
-
-//nolint:deadcode,unused
-func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]string, error) {
-	var res []string
-
-	ad, err := tm.getADFromDumpId(id)
-	if err != nil {
-		return res, err
-	}
-
-	if searchForBind(ad) {
-		res = append(res, "bind")
-	}
-	if searchForDns(ad) {
-		res = append(res, "dns")
-	}
-	if searchForSyscalls(ad) {
-		res = append(res, "syscalls")
-	}
-	if searchForOpen(ad) {
-		res = append(res, "open")
-	}
-	return res, nil
-}
-
-func (tm *testModule) StopAllActivityDumps() error {
-	dumps, err := tm.ListActivityDumps()
-	if err != nil {
-		return err
-	}
-	if len(dumps) == 0 {
-		return nil
-	}
-	for _, dump := range dumps {
-		_ = tm.StopActivityDump(dump.Name, "", "")
-	}
-	dumps, err = tm.ListActivityDumps()
-	if err != nil {
-		return err
-	}
-	if len(dumps) != 0 {
-		return errors.New("Didn't manage to stop all activity dumps")
-	}
-	return nil
-}
-
-func IsDedicatedNode(env string) bool {
-	_, present := os.LookupEnv(env)
-	return present
 }

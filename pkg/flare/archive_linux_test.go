@@ -9,6 +9,7 @@
 package flare
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +35,7 @@ func TestZipLinuxFileWrapper(t *testing.T) {
 	require.NoError(t, err)
 
 	targetPath := filepath.Join(dstDir, "hostname", "testfile.txt")
-	actualContent, err := os.ReadFile(targetPath)
+	actualContent, err := ioutil.ReadFile(targetPath)
 	require.NoError(t, err)
 	require.Equal(t, expectedContent, string(actualContent))
 }

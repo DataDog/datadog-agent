@@ -53,7 +53,6 @@ func TestAddEventForNewRelease(t *testing.T) {
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -74,7 +73,6 @@ func TestAddEventForNewRelease(t *testing.T) {
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -114,7 +112,6 @@ func TestAddEventForDeletedRelease(t *testing.T) {
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		storedEvent,
 	)
@@ -153,22 +150,6 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	exampleReleaseWithNonFailedStatus := release{
-		Name: "my_datadog",
-		Info: &info{
-			Status: "uninstalling",
-		},
-		Chart: &chart{
-			Metadata: &metadata{
-				Name:       "datadog",
-				Version:    "2.30.5",
-				AppVersion: "7",
-			},
-		},
-		Version:   1,
-		Namespace: "default",
-	}
-
 	releaseWithoutInfo := release{
 		Name: "my_datadog",
 		Info: nil,
@@ -190,7 +171,7 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 		expectedEvent  *coreMetrics.Event
 	}{
 		{
-			name:           "The status changed to \"failed\"",
+			name:           "The status changed",
 			oldRelease:     &exampleRelease,
 			updatedRelease: &exampleReleaseWithFailedStatus,
 			expectedEvent: &coreMetrics.Event{
@@ -202,23 +183,6 @@ func TestAddEventForUpdatedRelease(t *testing.T) {
 				EventType:      "helm",
 				AggregationKey: "helm_release:default/my_datadog",
 				Tags:           testTags(),
-				AlertType:      coreMetrics.EventAlertTypeError, // Because the new status is "failed"
-			},
-		},
-		{
-			name:           "The status changed and it is not \"failed\"",
-			oldRelease:     &exampleRelease,
-			updatedRelease: &exampleReleaseWithNonFailedStatus,
-			expectedEvent: &coreMetrics.Event{
-				Title:          "Event on Helm release",
-				Text:           "Helm release \"my_datadog\" (revision 1) in \"default\" namespace changed its status from \"deployed\" to \"uninstalling\".",
-				Ts:             0,
-				Priority:       coreMetrics.EventPriorityNormal,
-				SourceTypeName: "helm",
-				EventType:      "helm",
-				AggregationKey: "helm_release:default/my_datadog",
-				Tags:           testTags(),
-				AlertType:      coreMetrics.EventAlertTypeInfo, // Because the new status is not "failed"
 			},
 		},
 		{
@@ -294,7 +258,6 @@ func TestSendEvents(t *testing.T) {
 			EventType:      "helm",
 			AggregationKey: "helm_release:default/my_datadog",
 			Tags:           testTags(),
-			AlertType:      coreMetrics.EventAlertTypeInfo,
 		},
 		10*time.Second,
 	)

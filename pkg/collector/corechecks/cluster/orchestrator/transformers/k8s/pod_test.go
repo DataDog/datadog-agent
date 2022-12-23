@@ -87,11 +87,6 @@ func TestExtractPod(t *testing.T) {
 							Type:   v1.PodReady,
 							Status: v1.ConditionTrue,
 						},
-						{
-							Type:               v1.PodScheduled,
-							Status:             v1.ConditionTrue,
-							LastTransitionTime: timestamp,
-						},
 					},
 					ContainerStatuses: []v1.ContainerStatus{
 						{
@@ -180,8 +175,6 @@ func TestExtractPod(t *testing.T) {
 				NominatedNodeName: "nominated",
 				NodeName:          "node",
 				RestartCount:      42,
-				ScheduledTime:     timestamp.Unix(),
-				StartTime:         timestamp.Unix(),
 				Status:            "chillin",
 				QOSClass:          "Guaranteed",
 				PriorityClass:     "high-priority",

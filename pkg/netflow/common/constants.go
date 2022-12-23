@@ -23,7 +23,4 @@ const (
 
 	// DefaultBindHost is the default bind host used for flow listeners
 	DefaultBindHost = "0.0.0.0"
-
-	// DefaultPrometheusListenerAddress is the default goflow prometheus listener address
-	DefaultPrometheusListenerAddress = "localhost:9090"
 )

@@ -15,7 +15,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -27,7 +26,7 @@ func TestEnsureConntrack(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	errorCreator := func(_ netns.NsHandle) (netlink.Conntrack, error) { return nil, assert.AnError }
+	errorCreator := func(_ int) (netlink.Conntrack, error) { return nil, assert.AnError }
 
 	cache := newCachedConntrack("/proc", errorCreator, 1)
 	defer cache.Close()
@@ -39,7 +38,7 @@ func TestEnsureConntrack(t *testing.T) {
 
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
+	creator := func(_ int) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}
@@ -68,7 +67,7 @@ func TestEnsureConntrack(t *testing.T) {
 }
 
 func TestCachedConntrackIgnoreErrExists(t *testing.T) {
-	cache := newCachedConntrack("/proc", func(_ netns.NsHandle) (netlink.Conntrack, error) {
+	cache := newCachedConntrack("/proc", func(_ int) (netlink.Conntrack, error) {
 		require.FailNow(t, "unexpected call to conntrack creator")
 		return nil, nil
 	}, 1)
@@ -85,7 +84,7 @@ func TestCachedConntrackExists(t *testing.T) {
 
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
+	creator := func(_ int) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}
@@ -162,7 +161,7 @@ func TestCachedConntrackClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	m := netlink.NewMockConntrack(ctrl)
 	n := 0
-	creator := func(_ netns.NsHandle) (netlink.Conntrack, error) {
+	creator := func(_ int) (netlink.Conntrack, error) {
 		n++
 		return m, nil
 	}

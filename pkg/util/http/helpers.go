@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -20,7 +20,7 @@ func parseResponse(res *http.Response, method string, URL string) (string, error
 	}
 
 	defer res.Body.Close()
-	all, err := io.ReadAll(res.Body)
+	all, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return "", fmt.Errorf("error while reading response from %s: %s", URL, err)
 	}

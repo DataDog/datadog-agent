@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-// +build test
-
 package retry
 
 import (
@@ -133,7 +130,7 @@ func newTestOnDiskRetryQueue(a *assert.Assertions, path string, maxSizeInBytes i
 			Total:     10000,
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
-	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
+	storage, err := newOnDiskRetryQueue(NewHTTPTransactionsSerializer(resolver.NewSingleDomainResolver(domainName, nil)), path, diskUsageLimit, telemetry, NewPointDroppedSenderMock())
 	a.NoError(err)
 	return storage
 }

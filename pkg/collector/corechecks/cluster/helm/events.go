@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	eventTitle       = "Event on Helm release"
-	helmStatusFailed = "failed"
+	eventTitle = "Event on Helm release"
 )
 
 type eventsManager struct {
@@ -65,11 +64,6 @@ func (em *eventsManager) storeEvent(event coreMetrics.Event) {
 }
 
 func eventForRelease(rel *release, text string, tags []string) coreMetrics.Event {
-	status := ""
-	if rel.Info != nil {
-		status = rel.Info.Status
-	}
-
 	return coreMetrics.Event{
 		Title:          eventTitle,
 		Text:           text,
@@ -79,7 +73,6 @@ func eventForRelease(rel *release, text string, tags []string) coreMetrics.Event
 		EventType:      checkName,
 		AggregationKey: fmt.Sprintf("helm_release:%s", rel.namespacedName()),
 		Tags:           tags,
-		AlertType:      alertType(status),
 	}
 }
 
@@ -114,12 +107,4 @@ func textForChangedStatus(previousRelStatus string, updatedRelease *release) str
 		updatedRelease.Namespace,
 		previousRelStatus,
 		updatedRelease.Info.Status)
-}
-
-func alertType(releaseStatus string) coreMetrics.EventAlertType {
-	if releaseStatus == helmStatusFailed {
-		return coreMetrics.EventAlertTypeError
-	}
-
-	return coreMetrics.EventAlertTypeInfo
 }

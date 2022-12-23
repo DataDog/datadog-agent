@@ -132,10 +132,10 @@ func teardownDNAT6(t *testing.T, ifName string, linkName string) {
 // SetupVethPair sets up a network namespace, along with two IP addresses
 // 2.2.2.3 and 2.2.2.4 to be used for namespace aware tests.
 // 2.2.2.4 is within the specified namespace, while 2.2.2.3 is a peer in the root namespace.
-func SetupVethPair(tb testing.TB) (ns string) {
-	ns = AddNS(tb)
-	tb.Cleanup(func() {
-		teardownVethPair(tb)
+func SetupVethPair(t *testing.T) (ns string) {
+	ns = AddNS(t)
+	t.Cleanup(func() {
+		teardownVethPair(t)
 	})
 
 	cmds := []string{
@@ -147,16 +147,16 @@ func SetupVethPair(tb testing.TB) (ns string) {
 		fmt.Sprintf("ip -n %s link set veth2 up", ns),
 		fmt.Sprintf("ip netns exec %s ip route add default via 2.2.2.3", ns),
 	}
-	nettestutil.RunCommands(tb, cmds, false)
+	nettestutil.RunCommands(t, cmds, false)
 	return
 }
 
 // teardownVethPair cleans up the resources created by SetupVethPair
-func teardownVethPair(tb testing.TB) {
+func teardownVethPair(t *testing.T) {
 	cmds := []string{
 		"ip link del veth1",
 	}
-	nettestutil.RunCommands(tb, cmds, true)
+	nettestutil.RunCommands(t, cmds, true)
 }
 
 // SetupVeth6Pair sets up a network namespace, along with two IPv6 addresses
@@ -193,26 +193,26 @@ func teardownVeth6Pair(t *testing.T, ns string) {
 // SetupCrossNsDNAT sets up a network namespace, a veth pair, and a NAT
 // rule in the specified network namespace. Redirecting port 80 to 8080
 // within the namespace.
-func SetupCrossNsDNAT(tb testing.TB) (ns string) {
-	return setupCrossNsDNAT(tb, 80, 8080)
+func SetupCrossNsDNAT(t *testing.T) (ns string) {
+	return setupCrossNsDNAT(t, 80, 8080)
 }
 
 // SetupCrossNsDNATWithPorts sets up a network namespace, a veth pair, and a NAT
 // rule in the specified network namespace. Redirecting `dport` to `redirPort`
 // within the namespace.
-func SetupCrossNsDNATWithPorts(tb testing.TB, dport int, redirPort int) (ns string) {
-	return setupCrossNsDNAT(tb.(*testing.T), dport, redirPort)
+func SetupCrossNsDNATWithPorts(t *testing.T, dport int, redirPort int) (ns string) {
+	return setupCrossNsDNAT(t, dport, redirPort)
 }
 
-func setupCrossNsDNAT(tb testing.TB, dport int, redirPort int) (ns string) {
-	tb.Cleanup(func() {
-		teardownCrossNsDNAT(tb)
+func setupCrossNsDNAT(t *testing.T, dport int, redirPort int) (ns string) {
+	t.Cleanup(func() {
+		teardownCrossNsDNAT(t)
 	})
-	ns = SetupVethPair(tb)
+	ns = SetupVethPair(t)
 
-	iptablesState := nettestutil.IptablesSave(tb)
-	tb.Cleanup(func() {
-		nettestutil.IptablesRestore(tb, iptablesState)
+	iptablesState := nettestutil.IptablesSave(t)
+	t.Cleanup(func() {
+		nettestutil.IptablesRestore(t, iptablesState)
 	})
 	cmds := []string{
 		//this is required to enable conntrack in the root net namespace
@@ -223,16 +223,16 @@ func setupCrossNsDNAT(tb testing.TB, dport int, redirPort int) (ns string) {
 		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p tcp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
 		fmt.Sprintf("ip netns exec %s iptables -A PREROUTING -t nat -p udp --dport %d -j REDIRECT --to-port %d", ns, dport, redirPort),
 	}
-	nettestutil.RunCommands(tb, cmds, false)
+	nettestutil.RunCommands(t, cmds, false)
 	return
 }
 
 // teardownCrossNsDNAT cleans up the resources created by SetupCrossNsDNAT
-func teardownCrossNsDNAT(tb testing.TB) {
+func teardownCrossNsDNAT(t *testing.T) {
 	cmds := []string{
 		"conntrack -F",
 	}
-	nettestutil.RunCommands(tb, cmds, true)
+	nettestutil.RunCommands(t, cmds, true)
 }
 
 // SetupCrossNsDNAT6 sets up a network namespace, along with two IPv6 addresses
@@ -264,20 +264,20 @@ func teardownCrossNsDNAT6(t *testing.T) {
 }
 
 // AddNS adds a randomly named network namespace
-func AddNS(tb testing.TB) string {
-	tb.Helper()
+func AddNS(t *testing.T) string {
+	t.Helper()
 	var err error
 	for i := 0; i < 10; i++ {
 		ns := "test" + strconv.Itoa(rand.Intn(99))
 		_, err = nettestutil.RunCommand("ip netns add " + ns)
 		if err == nil {
-			tb.Cleanup(func() {
+			t.Cleanup(func() {
 				_, _ = nettestutil.RunCommand("ip netns del " + ns)
 			})
 			return ns
 		}
 	}
-	tb.Fatalf("unable to create network namespace: %s", err)
+	t.Fatalf("unable to create network namespace: %s", err)
 	return ""
 }
 

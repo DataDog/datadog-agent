@@ -7,6 +7,7 @@ package testuutil
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"runtime"
 	"strings"
@@ -44,7 +45,7 @@ func setUp() error {
 	}
 
 	var err error
-	tmpfile, err = os.CreateTemp("", "testout")
+	tmpfile, err = ioutil.TempFile("", "testout")
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ except Exception as e:
 		return "", fmt.Errorf("`run_simple_string` errored")
 	}
 
-	output, err := os.ReadFile(tmpfile.Name())
+	output, err := ioutil.ReadFile(tmpfile.Name())
 
 	return strings.TrimSpace(string(output)), err
 }

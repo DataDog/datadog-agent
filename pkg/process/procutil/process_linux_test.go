@@ -9,6 +9,7 @@
 package procutil
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1247,7 +1248,7 @@ func makeBenchmarkDir(b *testing.B, dirPath string, fileCount int) {
 
 	createEmptyFile := func(name string) {
 		d := []byte("")
-		err = os.WriteFile(name, d, 0755)
+		err = ioutil.WriteFile(name, d, 0755)
 		require.NoError(b, err)
 	}
 

@@ -6,7 +6,7 @@
 package check
 
 import (
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,7 +71,7 @@ func LoadCheck(name, path string) (integration.Config, error) {
 	cf := config{}
 	config := integration.Config{Name: name}
 
-	yamlFile, err := os.ReadFile(path)
+	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {
 		return config, err
 	}

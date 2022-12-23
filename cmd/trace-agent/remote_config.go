@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -42,7 +41,7 @@ func putBuffer(buffer *bytes.Buffer) {
 }
 
 func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, token string, cfg *config.AgentConfig) http.Handler {
-	cidProvider := api.NewIDProvider("/proc")
+	cidProvider := api.NewIDProvider(cfg.ContainerProcRoot)
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		defer timing.Since("datadog.trace_agent.receiver.config_process_ms", time.Now())
 		tags := r.TagStats(api.V07, req.Header).AsTags()
@@ -71,7 +70,6 @@ func remoteConfigHandler(r *api.HTTPReceiver, client pbgo.AgentSecureClient, tok
 		}
 		ctx := metadata.NewOutgoingContext(req.Context(), md)
 		if configsRequest.GetClient().GetClientTracer() != nil {
-			normalize(&configsRequest)
 			if configsRequest.Client.ClientTracer.Tags == nil {
 				configsRequest.Client.ClientTracer.Tags = make([]string, 0)
 			}
@@ -113,11 +111,4 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 		return containerTags
 	}
 	return nil
-}
-
-func normalize(configsRequest *pbgo.ClientGetConfigsRequest) {
-	// err is explicitly ignored as it is not an actual error and the expected normalized service
-	// is returned regardless.
-	configsRequest.Client.ClientTracer.Service, _ = traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
-	configsRequest.Client.ClientTracer.Env = traceutil.NormalizeTag(configsRequest.Client.ClientTracer.Env)
 }

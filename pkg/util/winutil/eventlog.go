@@ -25,13 +25,13 @@ func LogEventViewer(servicename string, msgnum uint32, arg string) {
 	switch msgnum & 0xF0000000 {
 	case 0x40000000:
 		// Info level message
-		_ = elog.Info(msgnum, arg)
+		elog.Info(msgnum, arg)
 	case 0x80000000:
 		// warning level message
-		_ = elog.Warning(msgnum, arg)
+		elog.Warning(msgnum, arg)
 	case 0xC0000000:
 		// error level message
-		_ = elog.Error(msgnum, arg)
+		elog.Error(msgnum, arg)
 	}
 
 }

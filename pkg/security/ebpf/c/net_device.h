@@ -54,6 +54,8 @@ struct bpf_map_def SEC("maps/veth_state_machine") veth_state_machine = {
     .key_size = sizeof(u64),
     .value_size = sizeof(struct veth_state_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/veth_devices") veth_devices = {
@@ -61,6 +63,8 @@ struct bpf_map_def SEC("maps/veth_devices") veth_devices = {
     .key_size = sizeof(struct device_ifindex_t),
     .value_size = sizeof(struct device_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/veth_device_name_to_ifindex") veth_device_name_to_ifindex = {
@@ -68,6 +72,8 @@ struct bpf_map_def SEC("maps/veth_device_name_to_ifindex") veth_device_name_to_i
     .key_size = sizeof(struct device_name_t),
     .value_size = sizeof(struct device_ifindex_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct register_netdevice_cache_t {
@@ -80,6 +86,8 @@ struct bpf_map_def SEC("maps/register_netdevice_cache") register_netdevice_cache
     .key_size = sizeof(u64),
     .value_size = sizeof(struct register_netdevice_cache_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/netdevice_lookup_cache") netdevice_lookup_cache = {
@@ -87,6 +95,8 @@ struct bpf_map_def SEC("maps/netdevice_lookup_cache") netdevice_lookup_cache = {
     .key_size = sizeof(u64),
     .value_size = sizeof(struct device_ifindex_t),
     .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
 };
 
 SEC("kprobe/veth_newlink")

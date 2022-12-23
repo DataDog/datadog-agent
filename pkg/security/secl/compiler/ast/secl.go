@@ -16,13 +16,8 @@ import (
 	"github.com/alecthomas/participle/lexer/ebnf"
 )
 
-type ParsingContext struct {
-	ruleParser  *participle.Parser
-	macroParser *participle.Parser
-}
-
-func NewParsingContext() *ParsingContext {
-	seclLexer := lexer.Must(ebnf.New(`
+var (
+	seclLexer = lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 CIDR = IP "/" digit { digit } .
 IP = (ipv4 | ipv6) .
@@ -42,26 +37,7 @@ alpha = "a"…"z" | "A"…"Z" .
 digit = "0"…"9" .
 any = "\u0000"…"\uffff" .
 `))
-
-	return &ParsingContext{
-		ruleParser:  buildParser(&Rule{}, seclLexer),
-		macroParser: buildParser(&Macro{}, seclLexer),
-	}
-}
-
-func buildParser(obj interface{}, lexer lexer.Definition) *participle.Parser {
-	parser, err := participle.Build(obj,
-		participle.Lexer(lexer),
-		participle.Elide("Whitespace", "Comment"),
-		participle.Unquote("String"),
-		participle.Map(parseDuration, "Duration"),
-		participle.Map(unquotePattern, "Pattern", "Regexp"),
-	)
-	if err != nil {
-		panic(err)
-	}
-	return parser
-}
+)
 
 func unquotePattern(t lexer.Token) (lexer.Token, error) {
 	unquoted := strings.TrimSpace(t.Value[1:])
@@ -81,10 +57,26 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 	return t, nil
 }
 
+func buildParser(obj interface{}) (*participle.Parser, error) {
+	return participle.Build(obj,
+		participle.Lexer(seclLexer),
+		participle.Elide("Whitespace", "Comment"),
+		participle.Unquote("String"),
+		participle.Map(parseDuration, "Duration"),
+		participle.Map(unquotePattern, "Pattern", "Regexp"),
+	)
+}
+
 // ParseRule parses a SECL rule.
-func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
+func ParseRule(expr string) (*Rule, error) {
+	parser, err := buildParser(&Rule{})
+	if err != nil {
+		return nil, err
+	}
+
 	rule := &Rule{}
-	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
+
+	err = parser.Parse(bytes.NewBufferString(expr), rule)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +94,15 @@ type Rule struct {
 }
 
 // ParseMacro parses a SECL macro
-func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
+func ParseMacro(expr string) (*Macro, error) {
+	parser, err := buildParser(&Macro{})
+	if err != nil {
+		return nil, err
+	}
+
 	macro := &Macro{}
-	err := pc.macroParser.Parse(bytes.NewBufferString(expr), macro)
+
+	err = parser.Parse(bytes.NewBufferString(expr), macro)
 	if err != nil {
 		return nil, err
 	}

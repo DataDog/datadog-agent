@@ -7,6 +7,7 @@ package legacy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -134,7 +135,7 @@ func importKubernetesConfWithDeprec(src, dst string, overwrite bool, converter *
 	if err != nil {
 		return deprecations, err
 	}
-	if err := os.WriteFile(dst, data, 0640); err != nil {
+	if err := ioutil.WriteFile(dst, data, 0640); err != nil {
 		return deprecations, fmt.Errorf("Could not write new kubelet configuration to %s: %s", dst, err)
 	}
 	fmt.Printf("Successfully imported the contents of %s into %s\n", src, dst)

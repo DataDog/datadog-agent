@@ -12,7 +12,7 @@ import (
 	"time"
 
 	adproto "github.com/DataDog/datadog-agent/pkg/security/adproto/v1"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -29,7 +29,7 @@ func protoToActivityDump(dest *ActivityDump, ad *adproto.ActivityDump) {
 	dest.Tags = make([]string, len(ad.Tags))
 	copy(dest.Tags, ad.Tags)
 	dest.ProcessActivityTree = make([]*ProcessActivityNode, 0, len(ad.Tree))
-	dest.StorageRequests = make(map[config.StorageFormat][]config.StorageRequest)
+	dest.StorageRequests = make(map[dump.StorageFormat][]dump.StorageRequest)
 
 	for _, tree := range ad.Tree {
 		dest.ProcessActivityTree = append(dest.ProcessActivityTree, protoDecodeProcessActivityNode(tree))

@@ -20,40 +20,12 @@ type Collector interface {
 	Pull(context.Context) error
 }
 
-type CollectorCatalog map[string]collectorFactory
-
 type collectorFactory func() Collector
 
-var (
-	// NodeAgentCatalog is a catalog of collectors that runs in the node
-	// agents
-	NodeAgentCatalog = make(CollectorCatalog)
+var collectorCatalog = make(map[string]collectorFactory)
 
-	// ClusterAgentCatalog is a catalog of collectors that runs in the
-	// cluster agent, and the cluster checks runner agents
-	ClusterAgentCatalog = make(CollectorCatalog)
-
-	// RemoteCatalog collectors to run when workloadmeta is configured as remote
-	RemoteCatalog = make(CollectorCatalog)
-)
-
-// RegisterCollector registers a new collector in the NodeAgentCatalog,
-// identified by an id for logging and telemetry purposes, to be used by the
-// store.
+// RegisterCollector registers a new collector, identified by an id for logging
+// and telemetry purposes, to be used by the store.
 func RegisterCollector(id string, c collectorFactory) {
-	NodeAgentCatalog[id] = c
-}
-
-// RegisterClusterCollector registers a new collector in the
-// ClusterAgentCatalog, identified by an id for logging and telemetry purposes,
-// to be used by the store.
-func RegisterClusterCollector(id string, c collectorFactory) {
-	ClusterAgentCatalog[id] = c
-}
-
-// RegisterRemoteCollector registers a new collector in the RemoteCatalog,
-// identified by an id for logging and telemetry purposes, to be used by the
-// store.
-func RegisterRemoteCollector(id string, c collectorFactory) {
-	RemoteCatalog[id] = c
+	collectorCatalog[id] = c
 }

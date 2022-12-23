@@ -114,7 +114,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
-			fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true).LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+			fx.Supply(core.BundleParams{
+				ConfFilePath:      globalParams.ConfFilePath,
+				ConfigLoadSecrets: true,
+			}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 			core.Bundle,
 		)
 	}
@@ -197,8 +200,10 @@ func StartAgentWithDefaults() error {
 	return fxutil.OneShot(func(log log.Component, config config.Component) error {
 		return startAgent(&cliParams{GlobalParams: &command.GlobalParams{}})
 	},
-		// no config file path specification in this situation
-		fx.Supply(core.CreateAgentBundleParams("", true).LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
+		fx.Supply(core.BundleParams{
+			ConfFilePath:      "", // no config file path specification in this situation
+			ConfigLoadSecrets: true,
+		}.LogForDaemon("CORE", "log_file", common.DefaultLogFile)),
 		core.Bundle,
 	)
 }

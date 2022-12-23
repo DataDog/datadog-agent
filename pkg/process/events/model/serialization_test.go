@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newBenchmarkProcessEvent(argCount int) *ProcessEvent {
+func newBenchmarkProcessEvent(argCount int) *ProcessMonitoringEvent {
 	args := make([]string, 0, argCount)
 	for i := 0; i < argCount; i++ {
 		args = append(args, fmt.Sprintf("arg_%d", i))
 	}
 
-	return NewMockedExitEvent(time.Now(), 42, "/usr/bin/exe", args, 0)
+	return ProcessEventToProcessMonitoringEvent(NewMockedExitEvent(time.Now(), 42, "/usr/bin/exe", args, 0))
 }
 
 // Benchmark between JSON and messagePack serialization changing the command-line length of the collected event
@@ -37,7 +37,7 @@ func benchmarkProcessEventsJSON(b *testing.B, argCount int) {
 		data, err := json.Marshal(evt)
 		require.NoError(b, err)
 
-		var desEvt ProcessEvent
+		var desEvt ProcessMonitoringEvent
 		err = json.Unmarshal(data, &desEvt)
 		require.NoError(b, err)
 	}
@@ -49,7 +49,7 @@ func benchmarkProcessEventsMsgPack(b *testing.B, argCount int) {
 		data, err := evt.MarshalMsg(nil)
 		require.NoError(b, err)
 
-		var desEvt ProcessEvent
+		var desEvt ProcessMonitoringEvent
 		_, err = desEvt.UnmarshalMsg(data)
 		require.NoError(b, err)
 	}

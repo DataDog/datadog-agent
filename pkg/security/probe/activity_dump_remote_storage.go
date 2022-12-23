@@ -24,6 +24,7 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
 )
@@ -46,7 +47,7 @@ func getEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 }
 
 type tooLargeEntityStatsEntry struct {
-	storageFormat config.StorageFormat
+	storageFormat dump.StorageFormat
 	compression   bool
 }
 
@@ -68,7 +69,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 		},
 	}
 
-	for _, format := range config.AllStorageFormats() {
+	for _, format := range dump.AllStorageFormats() {
 		for _, compression := range []bool{true, false} {
 			entry := tooLargeEntityStatsEntry{
 				storageFormat: format,
@@ -91,8 +92,8 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 }
 
 // GetStorageType returns the storage type of the ActivityDumpLocalStorage
-func (storage *ActivityDumpRemoteStorage) GetStorageType() config.StorageType {
-	return config.RemoteStorage
+func (storage *ActivityDumpRemoteStorage) GetStorageType() dump.StorageType {
+	return dump.RemoteStorage
 }
 
 func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.Writer, ad *ActivityDump) error {
@@ -125,7 +126,7 @@ func (storage *ActivityDumpRemoteStorage) writeEventMetadata(writer *multipart.W
 	return err
 }
 
-func (storage *ActivityDumpRemoteStorage) writeDump(writer *multipart.Writer, request config.StorageRequest, raw *bytes.Buffer) error {
+func (storage *ActivityDumpRemoteStorage) writeDump(writer *multipart.Writer, request dump.StorageRequest, raw *bytes.Buffer) error {
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="dump"; filename="dump.%s"`, request.Format.String()))
 	h.Set("Content-Type", "application/json")
@@ -140,7 +141,7 @@ func (storage *ActivityDumpRemoteStorage) writeDump(writer *multipart.Writer, re
 	return nil
 }
 
-func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) (*multipart.Writer, *bytes.Buffer, error) {
+func (storage *ActivityDumpRemoteStorage) buildBody(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) (*multipart.Writer, *bytes.Buffer, error) {
 	body := bytes.NewBuffer(nil)
 	var multipartWriter *multipart.Writer
 
@@ -166,7 +167,7 @@ func (storage *ActivityDumpRemoteStorage) buildBody(request config.StorageReques
 	return multipartWriter, body, nil
 }
 
-func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey string, request config.StorageRequest, writer *multipart.Writer, body *bytes.Buffer) error {
+func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey string, request dump.StorageRequest, writer *multipart.Writer, body *bytes.Buffer) error {
 	r, err := http.NewRequest("POST", url, bytes.NewBuffer(body.Bytes()))
 	if err != nil {
 		return err
@@ -197,7 +198,7 @@ func (storage *ActivityDumpRemoteStorage) sendToEndpoint(url string, apiKey stri
 }
 
 // Persist saves the provided buffer to the persistent storage
-func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
+func (storage *ActivityDumpRemoteStorage) Persist(request dump.StorageRequest, ad *ActivityDump, raw *bytes.Buffer) error {
 	writer, body, err := storage.buildBody(request, ad, raw)
 	if err != nil {
 		return fmt.Errorf("couldn't build request: %w", err)
@@ -205,7 +206,7 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 
 	for i, url := range storage.urls {
 		if err := storage.sendToEndpoint(url, storage.apiKeys[i], request, writer, body); err != nil {
-			seclog.Warnf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), ad.Size, err)
+			seclog.Errorf("couldn't sent activity dump to [%s, body size: %d, dump size: %d]: %v", url, body.Len(), ad.Size, err)
 		} else {
 			seclog.Infof("[%s] file for activity dump [%s] successfully sent to [%s]", request.Format, ad.GetSelectorStr(), url)
 		}

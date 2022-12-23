@@ -6,7 +6,9 @@
 package request
 
 import (
-	"google.golang.org/protobuf/encoding/protojson"
+	"bytes"
+
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
@@ -15,18 +17,22 @@ import (
 const ContentTypeJSON = "application/json"
 
 type jsonSerializer struct {
-	marshaler protojson.MarshalOptions
+	marshaler jsonpb.Marshaler
 }
 
 // Marshal returns the json encoding of the ProcessStatRequest
 func (j jsonSerializer) Marshal(r *pbgo.ProcessStatRequest) ([]byte, error) {
-	return j.marshaler.Marshal(r)
+	writer := new(bytes.Buffer)
+
+	err := j.marshaler.Marshal(writer, r)
+	return writer.Bytes(), err
 }
 
 // Unmarshal parses the JSON-encoded ProcessStatRequest
 func (jsonSerializer) Unmarshal(blob []byte) (*pbgo.ProcessStatRequest, error) {
 	req := new(pbgo.ProcessStatRequest)
-	if err := protojson.Unmarshal(blob, req); err != nil {
+	reader := bytes.NewReader(blob)
+	if err := jsonpb.Unmarshal(reader, req); err != nil {
 		return nil, err
 	}
 	return req, nil

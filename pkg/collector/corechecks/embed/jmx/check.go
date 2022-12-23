@@ -31,16 +31,15 @@ type JMXCheck struct {
 }
 
 func newJMXCheck(config integration.Config, source string) *JMXCheck {
-	digest := config.IntDigest()
 	check := &JMXCheck{
 		config:    config,
 		stop:      make(chan struct{}),
 		name:      config.Name,
-		id:        check.ID(fmt.Sprintf("%v_%x", config.Name, digest)),
+		id:        check.ID(fmt.Sprintf("%v_%v", config.Name, config.Digest())),
 		source:    source,
 		telemetry: telemetry_utils.IsCheckEnabled("jmx"),
 	}
-	check.Configure(digest, config.InitConfig, config.MetricConfig, source) //nolint:errcheck
+	check.Configure(config.InitConfig, config.MetricConfig, source) //nolint:errcheck
 
 	return check
 }
@@ -97,7 +96,7 @@ func (c *JMXCheck) InstanceConfig() string {
 }
 
 // Configure TODO <agent-core> : IML-199
-func (c *JMXCheck) Configure(integrationConfigDigest uint64, config integration.Data, initConfig integration.Data, source string) error {
+func (c *JMXCheck) Configure(config integration.Data, initConfig integration.Data, source string) error {
 	c.initConfig = string(config)
 	c.instanceConfig = string(initConfig)
 	return nil

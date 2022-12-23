@@ -121,8 +121,8 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 		nmetrics = ntags / 4
 	}
 	// ensure we have enough to pick from
-	if nmetrics > len(spanMetrics) {
-		nmetrics = len(spanMetrics)
+	if nmetrics > len(metrics) {
+		nmetrics = len(metrics)
 	}
 	nmeta := ntags - nmetrics
 	if nmeta > len(metas) {
@@ -139,7 +139,7 @@ func GenerateSpan(c *SpanConfig) *pb.Span {
 	}
 	for i := 0; i < nmetrics; i++ {
 		for {
-			k := pickString(spanMetrics)
+			k := pickString(metrics)
 			if _, ok := s.Metrics[k]; ok {
 				continue
 			}

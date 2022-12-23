@@ -13,7 +13,7 @@ import (
 )
 
 // Signature is a hash representation of trace or a service, used to identify
-// similar signatures.
+// simlar signatures.
 type Signature uint64
 
 // spanHash is the type of the hashes used during the computation of a signature

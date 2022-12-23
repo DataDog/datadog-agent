@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,9 +114,9 @@ func TestConvertKubernetes(t *testing.T) {
 	dst := filepath.Join(dir, "kubelet.yaml")
 	dstEmpty := filepath.Join(dir, "kubelet-empty.yaml")
 
-	err := os.WriteFile(src, []byte(kubernetesLegacyConf), 0640)
+	err := ioutil.WriteFile(src, []byte(kubernetesLegacyConf), 0640)
 	require.NoError(t, err)
-	err = os.WriteFile(srcEmpty, []byte(kubernetesLegacyEmptyConf), 0640)
+	err = ioutil.WriteFile(srcEmpty, []byte(kubernetesLegacyEmptyConf), 0640)
 	require.NoError(t, err)
 
 	configConverter := config.NewConfigConverter()
@@ -123,7 +124,7 @@ func TestConvertKubernetes(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, expectedKubeDeprecations, deprecations)
 
-	newConf, err := os.ReadFile(dst)
+	newConf, err := ioutil.ReadFile(dst)
 	require.NoError(t, err)
 	assert.Equal(t, kubeletNewConf, string(newConf))
 
@@ -148,7 +149,7 @@ func TestConvertKubernetes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, true, config.Datadog.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 0, len(deprecations))
-	newEmptyConf, err := os.ReadFile(dstEmpty)
+	newEmptyConf, err := ioutil.ReadFile(dstEmpty)
 	require.NoError(t, err)
 	assert.Equal(t, kubeletNewEmptyConf, string(newEmptyConf))
 

@@ -6,6 +6,7 @@
 package retry
 
 import (
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -82,7 +83,7 @@ func createRetryFile(a *assert.Assertions, root string, filename string) string 
 func createFile(a *assert.Assertions, root string, filename string) string {
 	a.NoError(os.MkdirAll(root, 0755))
 	fullPath := path.Join(root, filename)
-	a.NoError(os.WriteFile(fullPath, []byte{1, 2, 3}, 0644))
+	a.NoError(ioutil.WriteFile(fullPath, []byte{1, 2, 3}, 0644))
 	return fullPath
 }
 

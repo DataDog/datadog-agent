@@ -46,7 +46,7 @@ func (h *PersistentVolumeClaimHandlers) BuildMessageBody(ctx *processors.Process
 		GroupId:                ctx.MsgGroupID,
 		GroupSize:              int32(groupSize),
 		PersistentVolumeClaims: models,
-		Tags:                   append(ctx.Cfg.ExtraTags, ctx.ApiGroupVersionTag),
+		Tags:                   ctx.Cfg.ExtraTags,
 	}
 }
 
@@ -70,7 +70,7 @@ func (h *PersistentVolumeClaimHandlers) ResourceList(ctx *processors.ProcessorCo
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *PersistentVolumeClaimHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
+func (h *PersistentVolumeClaimHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
 	return resource.(*corev1.PersistentVolumeClaim).UID
 }
 

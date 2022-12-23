@@ -18,14 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/docker/docker/api/types"
 )
-
-func init() {
-	workloadmeta.CreateGlobalStore(nil)
-}
 
 func TestOverrideSourceServiceNameOrder(t *testing.T) {
 	tests := []struct {

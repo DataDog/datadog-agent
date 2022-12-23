@@ -9,7 +9,7 @@ package filehandles
 
 import (
 	"errors"
-	"os"
+	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -28,7 +28,7 @@ type fhCheck struct {
 }
 
 func (c *fhCheck) getFileNrValues(fn string) ([]string, error) {
-	dat, err := os.ReadFile(fn)
+	dat, err := ioutil.ReadFile(fn)
 	if err != nil {
 		log.Error(err.Error())
 		return nil, err

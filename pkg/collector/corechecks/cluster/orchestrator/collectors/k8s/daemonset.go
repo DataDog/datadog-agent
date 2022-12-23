@@ -40,14 +40,11 @@ type DaemonSetCollector struct {
 func NewDaemonSetCollector() *DaemonSetCollector {
 	return &DaemonSetCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "daemonsets",
-			NodeType:                  orchestrator.K8sDaemonSet,
-			Version:                   "apps/v1",
+			IsDefaultVersion: true,
+			IsStable:         true,
+			Name:             "daemonsets",
+			NodeType:         orchestrator.K8sDaemonSet,
+			Version:          "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
 	}
@@ -79,7 +76,13 @@ func (c *DaemonSetCollector) Run(rcfg *collectors.CollectorRunConfig) (*collecto
 		return nil, collectors.NewListingError(err)
 	}
 
-	ctx := collectors.NewProcessorContext(rcfg, c.metadata)
+	ctx := &processors.ProcessorContext{
+		APIClient:  rcfg.APIClient,
+		Cfg:        rcfg.Config,
+		ClusterID:  rcfg.ClusterID,
+		MsgGroupID: rcfg.MsgGroupRef.Inc(),
+		NodeType:   c.metadata.NodeType,
+	}
 
 	processResult, processed := c.processor.Process(ctx, list)
 

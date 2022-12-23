@@ -16,7 +16,7 @@ import (
 
 // PingTCP connects to the provided IP address over TCP/TCPv6, sends the string "ping",
 // reads from the connection, and returns the open connection for further use/inspection.
-func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
+func PingTCP(t *testing.T, ip net.IP, port int) net.Conn {
 	addr := fmt.Sprintf("%s:%d", ip, port)
 	network := "tcp"
 	if isIpv6(ip) {
@@ -25,13 +25,13 @@ func PingTCP(tb testing.TB, ip net.IP, port int) net.Conn {
 	}
 
 	conn, err := net.DialTimeout(network, addr, time.Second)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	_, err = conn.Write([]byte("ping"))
-	require.NoError(tb, err)
+	require.NoError(t, err)
 	bs := make([]byte, 10)
 	_, err = conn.Read(bs)
-	require.NoError(tb, err)
+	require.NoError(t, err)
 
 	return conn
 }

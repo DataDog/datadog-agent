@@ -31,6 +31,8 @@ struct bpf_map_def SEC("maps/pathnames") pathnames = {
     .key_size = sizeof(struct path_key_t),
     .value_size = sizeof(struct path_leaf_t),
     .max_entries = 64000,
+    .pinning = 0,
+    .namespace = "",
 };
 
 #define DR_NO_CALLBACK -1
@@ -128,9 +130,12 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         .ad_state = input->ad_state,
     };
 
-    if (key.ino == 0) {
+    if (key.ino == 0 || key.mount_id == 0) {
         return DENTRY_INVALID;
     }
+
+    /*u64 max_discarder_depth;
+    LOAD_CONSTANT("max_discarder_depth", max_discarder_depth);*/
 
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
@@ -247,6 +252,8 @@ struct bpf_map_def SEC("maps/dr_erpc_state") dr_erpc_state = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct dr_erpc_state_t),
     .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
 };
 
 #define DR_ERPC_BUFFER_LENGTH 8*4096
@@ -256,6 +263,8 @@ struct bpf_map_def SEC("maps/dr_erpc_buffer") dr_erpc_buffer = {
     .key_size = sizeof(u32),
     .value_size = DR_ERPC_BUFFER_LENGTH*2,
     .max_entries = 1,
+    .pinning = 0,
+    .namespace = "",
 };
 
 #define DR_ERPC_OK                0
@@ -275,6 +284,8 @@ struct bpf_map_def SEC("maps/dr_erpc_stats_fb") dr_erpc_stats_fb = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct dr_erpc_stats_t),
     .max_entries = 6,
+    .pinning = 0,
+    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/dr_erpc_stats_bb") dr_erpc_stats_bb = {
@@ -282,6 +293,8 @@ struct bpf_map_def SEC("maps/dr_erpc_stats_bb") dr_erpc_stats_bb = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct dr_erpc_stats_t),
     .max_entries = 6,
+    .pinning = 0,
+    .namespace = "",
 };
 
 int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {

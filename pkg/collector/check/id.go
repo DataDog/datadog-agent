@@ -6,7 +6,6 @@
 package check
 
 import (
-	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"strings"
@@ -17,16 +16,16 @@ import (
 // ID is the representation of the unique ID of a Check instance
 type ID string
 
-// BuildID returns an unique ID for a check name and its configuration
-func BuildID(checkName string, integrationConfigDigest uint64, instance, initConfig integration.Data) ID {
-	// Hash is returned in BigEndian
-	digestBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(digestBytes, integrationConfigDigest)
+// Identify returns an unique ID for a check and its configuration
+func Identify(check Check, instance integration.Data, initConfig integration.Data) ID {
+	return BuildID(check.String(), instance, initConfig)
+}
 
+// BuildID returns an unique ID for a check name and its configuration
+func BuildID(checkName string, instance, initConfig integration.Data) ID {
 	h := fnv.New64()
-	_, _ = h.Write(digestBytes)
-	_, _ = h.Write([]byte(instance))
-	_, _ = h.Write([]byte(initConfig))
+	h.Write([]byte(instance))   //nolint:errcheck
+	h.Write([]byte(initConfig)) //nolint:errcheck
 	name := instance.GetNameForInstance()
 
 	if name != "" {
