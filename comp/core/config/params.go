@@ -28,7 +28,7 @@ type Params struct {
 	// the component's config data.
 	configLoadSysProbe bool
 
-	// securityAgentConfigFilePaths are the paths at which to look for security-aegnt
+	// securityAgentConfigFilePaths are the paths at which to look for security-agent
 	// configuration, usually given by the --cfgpath command-line flag.
 	securityAgentConfigFilePaths []string
 
@@ -40,9 +40,9 @@ type Params struct {
 	// should be evaluated.  This is typically false for one-shot commands.
 	configLoadSecrets bool
 
-	// configMissingOK determines whether it is a fatal error if the config
+	// baseConfigMissingOK determines whether it is a fatal error if the base Datadog config
 	// file does not exist.
-	configMissingOK bool
+	baseConfigMissingOK bool
 
 	// defaultConfPath determines the default configuration path.
 	// if defaultConfPath is empty, then no default configuration path is used.
@@ -82,6 +82,7 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 	params := NewParams("", options...)
 	params.securityAgentConfigFilePaths = securityAgentConfigFilePaths
 	params.configLoadSecurityAgent = true
+	params.baseConfigMissingOK = true
 	return params
 }
 
@@ -93,7 +94,7 @@ func WithConfigName(name string) func(*Params) {
 
 func WithConfigMissingOK(v bool) func(*Params) {
 	return func(b *Params) {
-		b.configMissingOK = v
+		b.baseConfigMissingOK = v
 	}
 }
 
@@ -144,7 +145,7 @@ func (p Params) ConfigLoadSecrets() bool {
 // ConfigMissingOK determines whether it is a fatal error if the config
 // file does not exist.
 func (p Params) ConfigMissingOK() bool {
-	return p.configMissingOK
+	return p.baseConfigMissingOK
 }
 
 // ConfigLoadSysProbe determines whether to read the system-probe.yaml into
