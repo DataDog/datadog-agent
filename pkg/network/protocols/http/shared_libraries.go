@@ -221,18 +221,21 @@ func (w *soWatcher) Start() {
 				}
 
 				lib := toLibPath(event.Data)
-				path := lib.Bytes()
+				var (
+					path    = lib.Bytes()
+					libPath = string(path)
+					procPid = fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
+					root    = procPid + "/root"
+					cwd     = procPid + "/cwd"
+				)
+				if strings.HasPrefix(libPath, "/proc/") { //lib.Pid == uint32(thisPID) { // don't scan ourself when we resolve offsets
+					continue
+				}
+
 				for _, r := range w.rules {
 					if !r.re.Match(path) {
 						continue
 					}
-
-					var (
-						libPath = string(path)
-						procPid = fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
-						root    = procPid + "/root"
-						cwd     = procPid + "/cwd"
-					)
 
 					// use cwd of the process as root if the path is absolute
 					if libPath[0] != '/' {
