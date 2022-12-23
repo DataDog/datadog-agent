@@ -12,12 +12,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -317,53 +315,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	}
 }
 
-func TestProxyEnv(t *testing.T) {
-	assert := assert.New(t)
-	for i, tc := range []struct {
-		host     string
-		port     int
-		user     string
-		pass     string
-		expected string
-	}{
-		{
-			"example.com",
-			1234,
-			"",
-			"",
-			"http://example.com:1234",
-		},
-		{
-			"https://example.com",
-			4567,
-			"foo",
-			"bar",
-			"https://foo:bar@example.com:4567",
-		},
-		{
-			"example.com",
-			0,
-			"foo",
-			"",
-			"http://foo@example.com:3128",
-		},
-	} {
-		t.Setenv("PROXY_HOST", tc.host)
-		if tc.port > 0 {
-			t.Setenv("PROXY_PORT", strconv.Itoa(tc.port))
-		} else {
-			t.Setenv("PROXY_PORT", "")
-		}
-		t.Setenv("PROXY_USER", tc.user)
-		t.Setenv("PROXY_PASSWORD", tc.pass)
-		pf, err := proxyFromEnv(nil)
-		assert.NoError(err, "proxy case %d had error", i)
-		u, err := pf(&http.Request{})
-		assert.NoError(err)
-		assert.Equal(tc.expected, u.String())
-	}
-}
-
 func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
@@ -383,40 +334,6 @@ func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
 	for _, actual := range agentConfig.Orchestrator.OrchestratorEndpoints {
 		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
 	}
-}
-
-func TestNetworkConfig(t *testing.T) {
-	t.Run("yaml", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-NetConfig.yaml")
-
-		assert.True(t, agentConfig.EnableSystemProbe)
-	})
-
-	t.Run("env", func(t *testing.T) {
-		newConfig()
-		defer restoreGlobalConfig()
-
-		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")
-
-		syscfg, err := sysconfig.Merge("")
-		require.NoError(t, err)
-		agentConfig, err := NewAgentConfig("test", "", syscfg)
-		require.NoError(t, err)
-
-		assert.True(t, agentConfig.EnableSystemProbe)
-	})
-}
-
-func TestSystemProbeNoNetwork(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlOnly.yaml", "./testdata/TestDDAgentConfig-OOMKillOnly.yaml")
-
-	assert.True(t, agentConfig.EnableSystemProbe)
 }
 
 func TestGetHostnameFromGRPC(t *testing.T) {

@@ -123,7 +123,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 	if reply.IsUpToDate {
 		log.Tracef("Up to date with change %d", c.lastChange)
 	} else {
-		log.Tracef("Not up to date with change %d", c.lastChange)
+		log.Infof("Not up to date with change %d", c.lastChange)
 	}
 	return reply.IsUpToDate, nil
 }
