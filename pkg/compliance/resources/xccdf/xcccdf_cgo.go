@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var sessionCache = map[string]*xccdfSession{}
+
 type xccdfSession struct {
 	session *C.struct_xccdf_session
 }
@@ -139,11 +141,14 @@ func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
 }
 
 func evalXCCDFRule(xccdf, cpe, profile, rule string) ([]resources.ResolvedInstance, error) {
-	xccdfSession, err := newXCCDFSession(xccdf, cpe)
-	if err != nil {
-		return nil, err
+	var err error
+	xccdfSession := sessionCache[xccdf+":"+cpe]
+	if xccdfSession == nil {
+		if xccdfSession, err = newXCCDFSession(xccdf, cpe); err != nil {
+			return nil, err
+		}
+		sessionCache[xccdf+":"+cpe] = xccdfSession
 	}
-	defer xccdfSession.Close()
 
 	if err := xccdfSession.SetProfile(profile); err != nil {
 		return nil, err
