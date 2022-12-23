@@ -211,7 +211,7 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 		ipAddress := metadata.IPAddressMetadata{
 			InterfaceID: deviceID + ":" + index,
 			IPAddress:   strIndex,
-			Netmask:     Netmask,
+			Prefixlen:   netmaskToPrefixlen(Netmask),
 		}
 		ipAddresses = append(ipAddresses, ipAddress)
 	}
