@@ -9,6 +9,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"google.golang.org/protobuf/proto"
 )
 
 // chunkProcessesBySizeAndWeight chunks `model.Process` payloads by max allowed size and max allowed weight of a chunk
@@ -154,7 +155,7 @@ var (
 		Networks: &model.ProcessNetworks{},
 	}
 	// procSizeofProto is a size of the empty process
-	procSizeofProto = procSizeofSampleProcess.Size()
+	procSizeofProto = proto.Size(procSizeofSampleProcess)
 )
 
 // weighProcess weighs `model.Process` payloads using an approximation of a serialized size of the proto message

@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
@@ -29,7 +29,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	}
 
 	typeTag := "type:" + msgType.String()
-	tlmBytesIn.Add(float64(m.Size()), typeTag)
+	tlmBytesIn.Add(float64(proto.Size(m)), typeTag)
 
 	var encoded []byte
 	if msgType == model.TypeCollectorProcEvent {

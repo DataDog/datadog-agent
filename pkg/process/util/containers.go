@@ -239,15 +239,15 @@ func computeContainerNetworkStats(inStats *metrics.ContainerNetworkStats, previo
 	outStats.NetSentPs = float32(rateValue(outPreviousStats.NetworkSentPackets, previousStats.NetworkSentPackets, inStats.Timestamp, previousStats.NetworkStatsTimestamp))
 }
 
-func computeContainerAddrs(container *workloadmeta.Container) []*model.ContainerAddr {
+func computeContainerAddrs(container *workloadmeta.Container) []*model.ContainerAddrP {
 	if len(container.NetworkIPs) == 0 || len(container.Ports) == 0 {
 		return nil
 	}
 
-	addrs := make([]*model.ContainerAddr, 0, len(container.NetworkIPs)*len(container.Ports))
+	addrs := make([]*model.ContainerAddrP, 0, len(container.NetworkIPs)*len(container.Ports))
 	for _, containerIP := range container.NetworkIPs {
 		for _, port := range container.Ports {
-			addrs = append(addrs, &model.ContainerAddr{
+			addrs = append(addrs, &model.ContainerAddrP{
 				Ip:       containerIP,
 				Port:     int32(port.Port),
 				Protocol: model.ConnectionType(model.ConnectionType_value[port.Protocol]),

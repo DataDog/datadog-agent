@@ -48,7 +48,7 @@ func (l *LocalResolver) LoadAddrs(containers []*model.Container, pidToCid map[in
 			if parsedAddr.IsLoopback() {
 				continue
 			}
-			l.addrToCtrID[*networkAddr] = ctr.Id
+			l.addrToCtrID[networkAddr.Clean()] = ctr.Id
 		}
 	}
 }
