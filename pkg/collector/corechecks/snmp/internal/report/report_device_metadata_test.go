@@ -473,3 +473,62 @@ func Test_batchPayloads(t *testing.T) {
 	assert.Equal(t, 51, len(payloads[5].Links))
 	assert.Equal(t, topologyLinks[49:100], payloads[5].Links)
 }
+
+func TestComputeInterfaceStatus(t *testing.T) {
+	type testCase struct {
+		ifAdminStatus int32
+		ifOperStatus  int32
+		status        string
+	}
+
+	// Test the method with only valid input for ifAdminStatus and ifOperStatus
+	allTests := []testCase{
+		// Valid test cases
+		{1, 1, "up"},
+		{1, 2, "down"},
+		{1, 3, "warning"},
+		{1, 4, "warning"},
+		{1, 5, "warning"},
+		{1, 6, "warning"},
+		{1, 7, "warning"},
+		{2, 1, "down"},
+		{2, 2, "off"},
+		{2, 3, "warning"},
+		{2, 4, "warning"},
+		{2, 5, "warning"},
+		{2, 6, "warning"},
+		{2, 7, "warning"},
+		{3, 1, "warning"},
+		{3, 2, "down"},
+		{3, 3, "warning"},
+		{3, 4, "warning"},
+		{3, 5, "warning"},
+		{3, 6, "warning"},
+		{3, 7, "warning"},
+
+		// Invalid ifOperStatus
+		{1, 0, "warning"},
+		{1, 8, "warning"},
+		{1, 100, "warning"},
+		{2, 0, "warning"},
+		{2, 8, "warning"},
+		{2, 100, "warning"},
+		{3, 0, "warning"},
+		{3, 8, "warning"},
+		{3, 100, "warning"},
+
+		// Invalid ifAdminStatus
+		{0, 4, "down"},
+		{0, 2, "down"},
+		{0, 1, "down"},
+		{4, 1, "down"},
+		{4, 2, "down"},
+		{4, 3, "down"},
+		{100, 1, "down"},
+		{100, 2, "down"},
+		{100, 3, "down"},
+	}
+	for _, test := range allTests {
+		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
+	}
+}

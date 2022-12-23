@@ -7,7 +7,6 @@ package report
 
 import (
 	json "encoding/json"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,13 +52,14 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
-		status := ComputeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
-		interfaceTags := append(tags, fmt.Sprintf("status:%s", status), fmt.Sprintf("interface:%s", interfaceStatus.Name), fmt.Sprintf("interface_alias:%s", interfaceStatus.Alias))
+		status := computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
+		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias}
+		interfaceTags = append(interfaceTags, tags...)
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
 }
 
-func ComputeInterfaceStatus(adminStatus int32, operStatus int32) string {
+func computeInterfaceStatus(adminStatus int32, operStatus int32) string {
 	if adminStatus == 1 {
 		switch {
 		case operStatus == 1:
