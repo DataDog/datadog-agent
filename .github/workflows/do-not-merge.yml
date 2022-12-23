@@ -9,7 +9,7 @@ on:
 
 jobs:
   do-not-merge:
-    if: ${{ contains(github.event.*.labels.*.name, 'do-not-merge/hod') || contains(github.event.*.labels.*.name, 'do-not-merge/WIP') }}
+    if: ${{ contains(github.event.*.labels.*.name, 'do-not-merge/hold') || contains(github.event.*.labels.*.name, 'do-not-merge/WIP') }}
     name: Check Do Not Merge
     runs-on: ubuntu-latest
     steps:
