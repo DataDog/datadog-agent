@@ -149,9 +149,8 @@ func transformIndex(indexes []string, transformRules []checkconfig.MetricIndexTr
 	return newIndex
 }
 
-// TODO: test me
-func netmaskToPrefixlen(netmask string) int32 {
+func netmaskToPrefixlen(netmask string) int {
 	stringMask := net.IPMask(net.ParseIP(netmask).To4())
 	length, _ := stringMask.Size()
-	return int32(length)
+	return length
 }

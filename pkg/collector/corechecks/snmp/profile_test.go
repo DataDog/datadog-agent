@@ -538,12 +538,12 @@ profiles:
     {
       "interface_id": "profile-metadata:1.2.3.4:1",
       "ip_address": "10.0.0.1",
-      "netmask": "255.255.255.0"
+      "prefixlen": 24
     },
     {
       "interface_id": "profile-metadata:1.2.3.4:1",
       "ip_address": "10.0.0.2",
-      "netmask": "255.255.255.0"
+      "prefixlen": 24
     }
   ],
   "links": [
