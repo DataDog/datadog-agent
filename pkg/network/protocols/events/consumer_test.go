@@ -10,6 +10,7 @@ package events
 
 import (
 	"encoding/binary"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,6 +24,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestConsumer(t *testing.T) {
@@ -137,6 +139,10 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		},
 	}
 	options := manager.Options{
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
 		ActivatedProbes: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
