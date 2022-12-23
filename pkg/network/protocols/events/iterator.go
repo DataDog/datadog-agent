@@ -17,10 +17,9 @@ type iterator struct {
 }
 
 func newIterator(b *batch, i, j int) *iterator {
-	// TODO: figure out how to create a byte slice without allocating
-	data := *(*[batchBufferSize]byte)(unsafe.Pointer(&b.Data[0]))
+	data := unsafe.Slice((*byte)(unsafe.Pointer(&b.Data[0])), batchBufferSize)
 	return &iterator{
-		data: data[:],
+		data: data,
 		b:    b,
 		i:    i - 1,
 		j:    j,
