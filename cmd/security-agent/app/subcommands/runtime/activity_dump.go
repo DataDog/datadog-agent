@@ -62,9 +62,8 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(common.LoggerName, "info", true)),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
+					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -85,9 +84,8 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(common.LoggerName, "info", true)),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
+					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -139,9 +137,8 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(common.LoggerName, "info", true)),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
+					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -211,9 +208,8 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					SecurityAgentConfigFilePaths: globalParams.ConfPathArray,
-					ConfigLoadSecurityAgent:      true,
-				}.LogForOneShot(common.LoggerName, "info", true)),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
+					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},

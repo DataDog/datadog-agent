@@ -8,10 +8,10 @@
 
 package flare
 
-func zipDockerSelfInspect(tempDir, hostname string) error {
-	return nil
+func getDockerSelfInspect() ([]byte, error) {
+	return nil, nil
 }
 
-func zipDockerPs(tempDir, hostname string) error {
-	return nil
+func getDockerPs() ([]byte, error) {
+	return nil, nil
 }

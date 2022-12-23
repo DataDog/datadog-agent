@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"go.uber.org/atomic"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -79,7 +80,7 @@ func (cb *ManifestBuffer) flushManifest(sender aggregator.Sender) {
 			MaxWeightPerMessageBytes: cb.Cfg.MaxWeightPerMessageBytes,
 		},
 	}
-	manifestMessages := processors.ChunkManifest(ctx, manifests)
+	manifestMessages := processors.ChunkManifest(ctx, k8s.BaseHandlers{}.BuildManifestMessageBody, manifests)
 	sender.OrchestratorManifest(manifestMessages, cb.Cfg.ClusterID)
 	cb.bufferedManifests = cb.bufferedManifests[:0]
 }

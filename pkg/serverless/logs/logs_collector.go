@@ -46,6 +46,7 @@ type LambdaLogsCollector struct {
 	invocationEndTime      time.Time
 	process_once           *sync.Once
 	executionContext       *executioncontext.ExecutionContext
+	initDurationChan       chan<- float64
 
 	arn string
 
@@ -53,7 +54,7 @@ type LambdaLogsCollector struct {
 	handleRuntimeDone func()
 }
 
-func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func()) *LambdaLogsCollector {
+func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregator.Demultiplexer, extraTags *Tags, logsEnabled bool, enhancedMetricsEnabled bool, executionContext *executioncontext.ExecutionContext, handleRuntimeDone func(), initDurationChan chan<- float64) *LambdaLogsCollector {
 
 	return &LambdaLogsCollector{
 		In:                     make(chan []LambdaLogAPIMessage, maxBufferedLogs), // Buffered, so we can hold start-up logs before first invocation without blocking
@@ -65,6 +66,7 @@ func NewLambdaLogCollector(out chan<- *logConfig.ChannelMessage, demux aggregato
 		executionContext:       executionContext,
 		handleRuntimeDone:      handleRuntimeDone,
 		process_once:           &sync.Once{},
+		initDurationChan:       initDurationChan,
 	}
 }
 
@@ -170,7 +172,7 @@ func (lc *LambdaLogsCollector) processMessage(
 		return
 	}
 	if message.logType == logTypePlatformInitReport {
-		lc.executionContext.SetColdStartDuration(message.objectRecord.reportLogItem.initDurationTelemetry)
+		lc.initDurationChan <- message.objectRecord.reportLogItem.initDurationTelemetry
 	}
 
 	if message.logType == logTypePlatformStart {

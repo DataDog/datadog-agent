@@ -26,7 +26,9 @@ import (
 )
 
 const (
-	agentRateKey = "_dd.agent_psr"
+	deprecatedRateKey = "_sampling_priority_rate_v1"
+	agentRateKey      = "_dd.agent_psr"
+	ruleRateKey       = "_dd.rule_psr"
 )
 
 // PrioritySampler computes priority rates per tracerEnv, service to apply in a feedback loop with trace-agent clients.
@@ -77,6 +79,10 @@ func (s *PrioritySampler) UpdateTargetTPS(targetTPS float64) {
 	s.sampler.updateTargetTPS(targetTPS)
 }
 
+func (s *PrioritySampler) GetTargetTPS() float64 {
+	return s.sampler.targetTPS.Load()
+}
+
 // update sampling rates
 func (s *PrioritySampler) updateRates() {
 	s.rateByService.SetAll(s.ratesByService())
@@ -116,9 +122,35 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	s.countSignature(now, root, signature, clientDroppedP0sWeight)
 
 	if sampled {
+		s.applyRate(root, signature)
 		s.sampler.countSample()
 	}
 	return sampled
+}
+
+func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 {
+	if root.ParentID != 0 {
+		return 1.0
+	}
+	// recent tracers annotate roots with applied priority rate
+	// agentRateKey is set when the agent computed rate is applied
+	if rate, ok := getMetric(root, agentRateKey); ok {
+		return rate
+	}
+	// ruleRateKey is set when a tracer rule rate is applied
+	if rate, ok := getMetric(root, ruleRateKey); ok {
+		return rate
+	}
+	// slow path used by older tracer versions
+	// dd-trace-go used to set the rate in deprecatedRateKey
+	if rate, ok := getMetric(root, deprecatedRateKey); ok {
+		return rate
+	}
+	rate := s.sampler.getSignatureSampleRate(signature)
+
+	setMetric(root, deprecatedRateKey, rate)
+
+	return rate
 }
 
 // countSignature counts all chunks received with local chunk root signature.

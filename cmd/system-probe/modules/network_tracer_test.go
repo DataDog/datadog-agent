@@ -12,12 +12,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDecode(t *testing.T) {
@@ -29,14 +29,10 @@ func TestDecode(t *testing.T) {
 				{
 					Source: util.AddressFromString("10.1.1.1"),
 					Dest:   util.AddressFromString("10.2.2.2"),
-					Monotonic: network.StatCountersByCookie{
-						{
-							StatCounters: network.StatCounters{
-								SentBytes:   1,
-								RecvBytes:   100,
-								Retransmits: 201,
-							},
-						},
+					Monotonic: network.StatCounters{
+						SentBytes:   1,
+						RecvBytes:   100,
+						Retransmits: 201,
 					},
 					Last: network.StatCounters{
 						SentBytes:   2,

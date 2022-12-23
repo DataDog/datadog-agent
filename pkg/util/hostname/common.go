@@ -71,9 +71,9 @@ func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	return hostname, nil
 }
 
-func fromFargate(ctx context.Context, _ string) (string, error) {
+func fromFargate(_ context.Context, _ string) (string, error) {
 	// If we're running on fargate we strip the hostname
-	if isFargateInstance(ctx) {
+	if isFargateInstance() {
 		return "", nil
 	}
 	return "", fmt.Errorf("agent is not runnning on Fargate")

@@ -21,7 +21,7 @@ func TestCommand(t *testing.T) {
 		[]string{"stream-logs", "--type", "foo"},
 		streamLogs,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, "foo", cliParams.filters.Type)
 		})
 }

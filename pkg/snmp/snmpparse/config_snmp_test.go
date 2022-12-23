@@ -6,11 +6,13 @@
 package snmpparse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestOneInstance(t *testing.T) {
@@ -236,4 +238,43 @@ func TestGetSNMPConfigEmpty(t *testing.T) {
 func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedOutput SNMPConfig) {
 	output := GetIPConfig(input, snmpConfigList)
 	assert.Equal(t, expectedOutput, output)
+}
+
+func TestParseConfigSnmpMain(t *testing.T) {
+	config.Datadog.SetConfigType("yaml")
+	// ReadConfig stores the Yaml in the config.Datadog object
+	err := config.Datadog.ReadConfig(strings.NewReader(`
+snmp_listener:
+  configs:
+   - network_address: 127.0.0.1/30
+     snmp_version: 1
+     community_string: public
+   - network_address: 127.0.0.2/30
+     snmp_version: 2
+     community_string: publicX
+   - network_address: 127.0.0.4/30
+     snmp_version: 3
+`))
+	assert.NoError(t, err)
+
+	Output, _ := parseConfigSnmpMain()
+	Exoutput := []SNMPConfig{
+		{
+			Version:         "1",
+			CommunityString: "public",
+			NetAddress:      "127.0.0.1/30",
+		},
+		{
+			Version:         "2",
+			CommunityString: "publicX",
+			NetAddress:      "127.0.0.2/30",
+		},
+		{
+			Version:    "3",
+			NetAddress: "127.0.0.4/30",
+		},
+	}
+
+	assert.Equal(t, Exoutput, Output)
+
 }

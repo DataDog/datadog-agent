@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 func GetInt64(name string) (value int64, err error) {
@@ -23,7 +24,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	getInt64 = GetInt64
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(nil, nil, "test")
+	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 
@@ -35,5 +36,4 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 2)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
-
 }

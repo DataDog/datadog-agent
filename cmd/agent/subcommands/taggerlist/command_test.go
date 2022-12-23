@@ -21,6 +21,6 @@ func TestCommand(t *testing.T) {
 		[]string{"tagger-list"},
 		taggerList,
 		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 		})
 }

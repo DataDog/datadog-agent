@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -21,10 +22,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
@@ -60,9 +62,20 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
+			config := config.NewAgentParamsWithSecrets(globalParams.ConfFilePath,
+				config.WithSecurityAgentConfigFilePaths([]string{
+					path.Join(common.DefaultConfPath, "security-agent.yaml"),
+				}),
+				config.WithConfigLoadSecurityAgent(true),
+				config.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				config.WithConfigLoadSysProbe(true))
+
 			return fxutil.OneShot(makeFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateAgentBundleParams(globalParams.ConfFilePath, true, core.WithLogForOneShot("CORE", "off", false))),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config,
+					LogParams:    log.LogForOneShot("CORE", "off", false),
+				}),
 				core.Bundle,
 			)
 		},
@@ -81,10 +94,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-type profileCollector func(prefix, debugURL string, cpusec int, target *flare.ProfileData) error
-type agentProfileCollector func(cliParams *cliParams, pdata *flare.ProfileData, c profileCollector) error
+type profileCollector func(prefix, debugURL string, cpusec int, target *pkgflare.ProfileData) error
+type agentProfileCollector func(cliParams *cliParams, pdata *pkgflare.ProfileData, c profileCollector) error
 
-func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int, collector profileCollector) error {
+func readProfileData(cliParams *cliParams, pdata *pkgflare.ProfileData, seconds int, collector profileCollector) error {
 	prevSettings, err := setRuntimeProfilingSettings(cliParams)
 	if err != nil {
 		return err
@@ -128,10 +141,15 @@ func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int
 		})
 	}
 
-	if pkgconfig.Datadog.GetBool("runtime_security_config.enabled") || pkgconfig.Datadog.GetBool("compliance_config.enabled") {
+	agentCollectors = append(agentCollectors, agentCollector{
+		name: "security-agent",
+		fn:   serviceProfileCollector("security-agent", "security_agent.expvar_port", seconds),
+	})
+
+	if debugPort := pkgconfig.Datadog.GetInt("system_probe_config.debug_port"); debugPort > 0 {
 		agentCollectors = append(agentCollectors, agentCollector{
-			name: "security-agent",
-			fn:   serviceProfileCollector("security-agent", "security_agent.expvar_port", seconds),
+			name: "system-probe",
+			fn:   serviceProfileCollector("system-probe", "system_probe_config.debug_port", seconds),
 		})
 	}
 
@@ -146,16 +164,16 @@ func readProfileData(cliParams *cliParams, pdata *flare.ProfileData, seconds int
 }
 
 func serviceProfileCollector(service string, portConfig string, seconds int) agentProfileCollector {
-	return func(cliParams *cliParams, pdata *flare.ProfileData, collector profileCollector) error {
+	return func(cliParams *cliParams, pdata *pkgflare.ProfileData, collector profileCollector) error {
 		fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from %s.", seconds, service))
 		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
 		return collector(service, pprofURL, seconds, pdata)
 	}
 }
 
-func makeFlare(log log.Component, config config.Component, cliParams *cliParams) error {
+func makeFlare(flare flare.Component, log log.Component, config config.Component, cliParams *cliParams) error {
 	var (
-		profile flare.ProfileData
+		profile pkgflare.ProfileData
 		err     error
 	)
 
@@ -166,7 +184,6 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 
 	customerEmail := cliParams.customerEmail
 	if customerEmail == "" {
-		var err error
 		customerEmail, err = input.AskForEmail()
 		if err != nil {
 			fmt.Println("Error reading email, please retry or contact support")
@@ -185,7 +202,7 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 	logFiles := []string{logFile, jmxLogFile}
 
 	if cliParams.profiling >= 30 {
-		if err := readProfileData(cliParams, &profile, cliParams.profiling, flare.CreatePerformanceProfile); err != nil {
+		if err := readProfileData(cliParams, &profile, cliParams.profiling, pkgflare.CreatePerformanceProfile); err != nil {
 			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect performance profile data: %s", err)))
 		}
 	} else if cliParams.profiling != -1 {
@@ -195,9 +212,9 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 
 	var filePath string
 	if cliParams.forceLocal {
-		filePath, err = createArchive(logFiles, profile, nil)
+		filePath, err = createArchive(flare, logFiles, profile, nil)
 	} else {
-		filePath, err = requestArchive(logFiles, profile)
+		filePath, err = requestArchive(flare, logFiles, profile)
 	}
 
 	if err != nil {
@@ -219,7 +236,7 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 		}
 	}
 
-	response, e := flare.SendFlare(filePath, caseID, customerEmail)
+	response, e := pkgflare.SendFlare(filePath, caseID, customerEmail)
 	fmt.Println(response)
 	if e != nil {
 		return e
@@ -227,13 +244,13 @@ func makeFlare(log log.Component, config config.Component, cliParams *cliParams)
 	return nil
 }
 
-func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) {
+func requestArchive(flare flare.Component, logFiles []string, pdata pkgflare.ProfileData) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
-		return createArchive(logFiles, pdata, err)
+		return createArchive(flare, logFiles, pdata, err)
 	}
 
 	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
@@ -241,7 +258,7 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 	// Set session token
 	if err = util.SetAuthToken(); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return createArchive(logFiles, pdata, err)
+		return createArchive(flare, logFiles, pdata, err)
 	}
 
 	p, err := json.Marshal(pdata)
@@ -259,15 +276,15 @@ func requestArchive(logFiles []string, pdata flare.ProfileData) (string, error) 
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make the flare. (is it running?)"))
 			err = fmt.Errorf("Error getting flare from running agent: %w", err)
 		}
-		return createArchive(logFiles, pdata, err)
+		return createArchive(flare, logFiles, pdata, err)
 	}
 
 	return string(r), nil
 }
 
-func createArchive(logFiles []string, pdata flare.ProfileData, ipcError error) (string, error) {
+func createArchive(flare flare.Component, logFiles []string, pdata pkgflare.ProfileData, ipcError error) (string, error) {
 	fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally."))
-	filePath, err := flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
+	filePath, err := flare.Create(true, common.GetDistPath(), common.PyChecksPath, logFiles, pdata, ipcError)
 	if err != nil {
 		fmt.Printf("The flare zipfile failed to be created: %s\n", err)
 		return "", err

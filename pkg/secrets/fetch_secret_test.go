@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -35,6 +36,8 @@ func build(m *testing.M, outBin, pkg string) {
 }
 
 func TestMain(m *testing.M) {
+	testCheckRightsStub()
+
 	if runtime.GOOS == "windows" {
 		binExtension = ".exe"
 	}
@@ -86,7 +89,8 @@ func TestExecCommandError(t *testing.T) {
 	defer func() {
 		secretBackendCommand = ""
 		secretBackendArguments = []string{}
-		secretBackendTimeout = 0
+		secretBackendTimeout = defaultSecretBackendTimeout
+		SecretBackendOutputMaxSize = defaultSecretBackendOutputMaxSize
 	}()
 
 	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
@@ -142,6 +146,63 @@ func TestExecCommandError(t *testing.T) {
 	_, err = execCommand(inputPayload)
 	require.NotNil(t, err)
 	assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
+}
+
+func TestExecCommandWithHash(t *testing.T) {
+	prevCheckConfigFilePermissions := checkConfigFilePermissions
+	checkConfigFilePermissions = func(string) error { return nil }
+	defer func() {
+		secretBackendCommand = ""
+		secretBackendArguments = []string{}
+		secretBackendTimeout = defaultSecretBackendTimeout
+		secretBackendCommandSHA256 = ""
+		SecretBackendOutputMaxSize = defaultSecretBackendOutputMaxSize
+		checkConfigFilePermissions = prevCheckConfigFilePermissions
+	}()
+
+	inputPayload := `{"version": ""` + PayloadVersion + `" , "secrets": ["sec1", "sec2"]}`
+
+	// test simple with hash (no error)
+	secretBackendCommand, _ = filepath.Abs("./test/simple/simple" + binExtension)
+	setCorrectRight(secretBackendCommand)
+	f, err := os.Open(secretBackendCommand)
+	require.NoError(t, err)
+	hash, err := fileHashSHA256(f)
+	_ = f.Close()
+	require.NoError(t, err)
+	secretBackendCommandSHA256 = hash
+	resp, err := execCommand(inputPayload)
+	require.NoError(t, err)
+	require.Equal(t, []byte(`{"handle1":{"value":"simple_password"}}`), resp)
+}
+
+func TestExecCommandErrorNotAbsPath(t *testing.T) {
+	secretBackendCommand = "test/simple/simple.go"
+	secretBackendCommandSHA256 = "foo"
+	defer func() {
+		secretBackendCommand = ""
+		secretBackendCommandSHA256 = ""
+	}()
+	resp, err := execCommand("")
+	assert.Nil(t, resp)
+	assert.EqualError(t, err, `error while running 'test/simple/simple.go': absolute path required with SHA256`)
+}
+
+func TestExecCommandErrorHashMismatch(t *testing.T) {
+	var err error
+	secretBackendCommand, err = filepath.Abs("./test/simple/simple.go")
+	require.NoError(t, err)
+	secretBackendCommandSHA256 = "foo"
+	prevCheckConfigFilePermissions := checkConfigFilePermissions
+	checkConfigFilePermissions = func(string) error { return nil }
+	defer func() {
+		secretBackendCommand = ""
+		secretBackendCommandSHA256 = ""
+		checkConfigFilePermissions = prevCheckConfigFilePermissions
+	}()
+	resp, err := execCommand("")
+	assert.Nil(t, resp)
+	assert.EqualError(t, err, `error while running '`+secretBackendCommand+`': SHA256 mismatch, actual '0e47e4f4749aa31a8d0c92607b75c251efdf9602fec15f060a18ad4aabbf0d1f' expected 'foo'`)
 }
 
 func TestFetchSecretExecError(t *testing.T) {
@@ -243,4 +304,13 @@ func TestFetchSecret(t *testing.T) {
 		"handle2": "p2",
 	}, secretCache)
 	assert.Equal(t, map[string]common.StringSet{"handle1": common.NewStringSet("test"), "handle2": common.NewStringSet("test")}, secretOrigin)
+}
+
+func TestCheckHash(t *testing.T) {
+	f, err := os.Open("test/simple/simple.go")
+	assert.NoError(t, err)
+	defer f.Close() //nolint:errcheck
+	hash, err := fileHashSHA256(f)
+	assert.NoError(t, err)
+	assert.Equal(t, "0e47e4f4749aa31a8d0c92607b75c251efdf9602fec15f060a18ad4aabbf0d1f", hash)
 }

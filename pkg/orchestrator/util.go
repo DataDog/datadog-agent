@@ -58,6 +58,10 @@ const (
 	K8sDeployment
 	// K8sNamespace represents a Kubernetes Namespace
 	K8sNamespace
+	// K8sCRD represents a Kubernetes CRD
+	K8sCRD
+	// K8sCR represents a Kubernetes CR
+	K8sCR
 )
 
 // NodeTypes returns the current existing NodesTypes as a slice to iterate over.
@@ -82,6 +86,8 @@ func NodeTypes() []NodeType {
 		K8sServiceAccount,
 		K8sIngress,
 		K8sNamespace,
+		K8sCR,
+		K8sCRD,
 	}
 }
 
@@ -125,10 +131,14 @@ func (n NodeType) String() string {
 		return "Ingress"
 	case K8sNamespace:
 		return "Namespace"
+	case K8sCRD:
+		return "CustomResourceDefinition"
+	case K8sCR:
+		return "CustomResource"
 	case K8sUnsetType:
 		return "UnsetType"
 	default:
-		log.Errorf("Trying to convert unknown NodeType iota: %d", n)
+		_ = log.Errorf("Trying to convert unknown NodeType iota: %d", n)
 		return "Unknown"
 	}
 }
@@ -154,6 +164,8 @@ func (n NodeType) Orchestrator() string {
 		K8sClusterRoleBinding,
 		K8sServiceAccount,
 		K8sIngress,
+		K8sCRD,
+		K8sCR,
 		K8sNamespace,
 		K8sUnsetType:
 		return "k8s"
@@ -178,28 +190,6 @@ func getTelemetryTags(n NodeType) []string {
 		n.Orchestrator(),
 		strings.ToLower(n.String()),
 	}
-}
-
-// ChunkRange returns the chunk start and end for an iteration.
-func ChunkRange(numberOfElements, chunkCount, chunkSize, counter int) (int, int) {
-	var (
-		chunkStart = chunkSize * (counter - 1)
-		chunkEnd   = chunkSize * (counter)
-	)
-	// last chunk may be smaller than the chunk size
-	if counter == chunkCount {
-		chunkEnd = numberOfElements
-	}
-	return chunkStart, chunkEnd
-}
-
-// GroupSize returns the GroupSize/number of chunks.
-func GroupSize(msgs, maxPerMessage int) int {
-	groupSize := msgs / maxPerMessage
-	if msgs%maxPerMessage > 0 {
-		groupSize++
-	}
-	return groupSize
 }
 
 // SetCacheStats sets the cache stats for each resource

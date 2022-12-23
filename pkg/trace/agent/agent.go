@@ -100,7 +100,6 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		RareSampler:           sampler.NewRareSampler(conf),
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf),
 		EventProcessor:        newEventProcessor(conf),
-		TraceWriter:           writer.NewTraceWriter(conf),
 		StatsWriter:           writer.NewStatsWriter(conf, statsChan),
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		cardObfuscator:        newCreditCardsObfuscator(conf.Obfuscation.CreditCards),
@@ -111,6 +110,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
+	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler)
 	return agnt
 }
 
@@ -413,8 +413,12 @@ func (a *Agent) processStats(in pb.ClientStatsPayload, lang, tracerVersion strin
 		in.Env = a.conf.DefaultEnv
 	}
 	in.Env = traceutil.NormalizeTag(in.Env)
-	in.TracerVersion = tracerVersion
-	in.Lang = lang
+	if in.TracerVersion == "" {
+		in.TracerVersion = tracerVersion
+	}
+	if in.Lang == "" {
+		in.Lang = lang
+	}
 	for i, group := range in.Stats {
 		n := 0
 		for _, b := range group.Stats {

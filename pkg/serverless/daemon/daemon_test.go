@@ -16,7 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -81,14 +83,13 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	client := &http.Client{Timeout: 1 * time.Second}
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/flush", port), nil)
 	assert.Nil(err)
-	response, err := client.Do(request)
-	response.Body.Close()
+	response, err := client.Do(request) //nolint:bodyclose
 	if err != nil {
 		// retry once in case the daemon wasn't ready to accept requests
 		time.Sleep(100 * time.Millisecond)
-		response, err = client.Do(request)
-		response.Body.Close()
+		response, err = client.Do(request) //nolint:bodyclose
 	}
+	defer response.Body.Close()
 	assert.Nil(err)
 	select {
 	case <-wrapWait(d.RuntimeWg):
@@ -164,7 +165,7 @@ func TestSetTraceTagOk(t *testing.T) {
 	}
 	var agent = &trace.ServerlessTraceAgent{}
 	t.Setenv("DD_API_KEY", "x")
-	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, nil)
+	agent.Start(true, &trace.LoadConfig{Path: "/does-not-exist.yml"}, make(chan *pb.Span), random.Random.Uint64())
 	defer agent.Stop()
 	d := Daemon{
 		TraceAgent: agent,

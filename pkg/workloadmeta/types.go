@@ -84,6 +84,15 @@ type Store interface {
 
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
+
+	// Reset resets the state of the store so that newEntities are the only
+	// entities stored. This function sends events to the subscribers in the
+	// following cases:
+	// - EventTypeSet: one for each entity in newEntities that doesn't exist in
+	// the store. Also, when the entity exists, but with different values.
+	// - EventTypeUnset: one for each entity that exists in the store but is not
+	// present in newEntities.
+	Reset(newEntities []Entity, source Source)
 }
 
 // Kind is the kind of an entity.
@@ -120,6 +129,10 @@ const (
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
 	SourceClusterOrchestrator Source = "cluster_orchestrator"
+
+	// SourceRemoteWorkloadmeta represents entities detected by the remote
+	// workloadmeta.
+	SourceRemoteWorkloadmeta Source = "remote_workloadmeta"
 )
 
 // ContainerRuntime is the container runtime used by a container.

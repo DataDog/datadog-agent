@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"io"
+	"io/ioutil"
 	"reflect"
 	"runtime"
 	"sync"
@@ -20,6 +21,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
+
+// mock sampler
+type MockSampler struct {
+	TargetTPS float64
+	Enabled   bool
+}
+
+func (s MockSampler) IsEnabled() bool {
+	return s.Enabled
+}
+
+func (s MockSampler) GetTargetTPS() float64 {
+	return s.TargetTPS
+}
+
+var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
 	srv := newTestServer()
@@ -42,7 +59,7 @@ func TestTraceWriter(t *testing.T) {
 		// Use a flush threshold that allows the first two entries to not overflow,
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-		tw := NewTraceWriter(cfg)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 		tw.In = make(chan *SampledChunks)
 		go tw.Run()
 		for _, ss := range testSpans {
@@ -83,7 +100,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(10, 0),
 		randomSampledSpans(40, 5),
 	}
-	tw := NewTraceWriter(cfg)
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
@@ -176,7 +193,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -204,7 +221,7 @@ func TestResetBuffer(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	w := NewTraceWriter(cfg)
+	w := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -245,7 +262,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 			randomSampledSpans(10, 0),
 			randomSampledSpans(40, 5),
 		}
-		tw := NewTraceWriter(cfg)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 		go tw.Run()
 		for _, ss := range testSpans {
 			tw.In <- ss
@@ -273,10 +290,89 @@ func TestTraceWriterSyncNoop(t *testing.T) {
 		SynchronousFlushing: false,
 	}
 	t.Run("ok", func(t *testing.T) {
-		tw := NewTraceWriter(cfg)
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
 		err := tw.FlushSync()
 		assert.NotNil(t, err)
 	})
+}
+
+func TestTraceWriterAgentPayload(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+		SynchronousFlushing: true,
+	}
+
+	// helper function to send a chunk to the writer and force a synchronous flush
+	sendRandomSpanAndFlush := func(t *testing.T, tw *TraceWriter) {
+		tw.In <- randomSampledSpans(20, 8)
+		err := tw.FlushSync()
+		assert.Nil(t, err)
+	}
+	// helper function to parse the received payload and inspect the TPS that were filled by the writer
+	assertExpectedTps := func(t *testing.T, priorityTps float64, errorTps float64, rareEnabled bool) {
+		assert.Len(t, srv.payloads, 1)
+		ap, err := deserializePayload(*srv.payloads[0])
+		assert.Nil(t, err)
+		assert.Equal(t, priorityTps, ap.TargetTPS)
+		assert.Equal(t, errorTps, ap.ErrorTPS)
+		assert.Equal(t, rareEnabled, ap.RareSamplerEnabled)
+		srv.payloads = nil
+	}
+
+	t.Run("static TPS config", func(t *testing.T) {
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler)
+		go tw.Run()
+		defer tw.Stop()
+		sendRandomSpanAndFlush(t, tw)
+		assertExpectedTps(t, 5, 5, true)
+	})
+
+	t.Run("dynamic TPS config", func(t *testing.T) {
+		prioritySampler := &MockSampler{TargetTPS: 5}
+		errorSampler := &MockSampler{TargetTPS: 6}
+		rareSampler := &MockSampler{Enabled: false}
+
+		tw := NewTraceWriter(cfg, prioritySampler, errorSampler, rareSampler)
+		go tw.Run()
+		defer tw.Stop()
+		sendRandomSpanAndFlush(t, tw)
+		assertExpectedTps(t, 5, 6, false)
+
+		// simulate a remote config update
+		prioritySampler.TargetTPS = 42
+		errorSampler.TargetTPS = 15
+		rareSampler.Enabled = true
+
+		sendRandomSpanAndFlush(t, tw)
+		assertExpectedTps(t, 42, 15, true)
+	})
+}
+
+// deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.
+func deserializePayload(p payload) (*pb.AgentPayload, error) {
+	gzipr, err := gzip.NewReader(p.body)
+	if err != nil {
+		return nil, err
+	}
+	defer gzipr.Close()
+	uncompressedBytes, err := ioutil.ReadAll(gzipr)
+	if err != nil {
+		return nil, err
+	}
+	var agentPayload pb.AgentPayload
+	err = proto.Unmarshal(uncompressedBytes, &agentPayload)
+	if err != nil {
+		return nil, err
+	}
+	return &agentPayload, nil
 }
 
 // BenchmarkMapDelete-8   	35125977	        28.85 ns/op	       0 B/op	       0 allocs/op

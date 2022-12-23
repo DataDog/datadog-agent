@@ -9,8 +9,6 @@ struct bpf_map_def SEC("maps/flow_pid") flow_pid = {
     .key_size = sizeof(struct pid_route_t),
     .value_size = sizeof(u32),
     .max_entries = 10240,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) u32 get_flow_pid(struct pid_route_t *key) {
@@ -131,8 +129,6 @@ struct bpf_map_def SEC("maps/conntrack") conntrack = {
     .key_size = sizeof(struct namespaced_flow_t),
     .value_size = sizeof(struct namespaced_flow_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) int trace_nat_manip_pkt(struct pt_regs *ctx, struct nf_conn *ct) {
