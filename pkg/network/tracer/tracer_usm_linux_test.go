@@ -159,6 +159,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpsSupported(t) {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
+	t.Skip("we don't support fast process start/stop yet as /proc/pid/root pass likely doesn't exist when we try to add hook")
 
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
