@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/richardartoul/molecule"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
@@ -281,17 +282,17 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 // Marshal encodes this series list.
 func (sl SketchSeriesList) Marshal() ([]byte, error) {
 	pb := &gogen.SketchPayload{
-		Sketches: make([]gogen.SketchPayload_Sketch, 0),
+		Sketches: make([]*gogen.SketchPayload_Sketch, 0),
 	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
-		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
+		dsl := make([]*gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
 			b := p.Sketch.Basic
 			k, n := p.Sketch.Cols()
-			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
+			dsl = append(dsl, &gogen.SketchPayload_Sketch_Dogsketch{
 				Ts:  p.Ts,
 				Cnt: b.Cnt,
 				Min: b.Min,
@@ -303,14 +304,14 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 			})
 		}
 
-		pb.Sketches = append(pb.Sketches, gogen.SketchPayload_Sketch{
+		pb.Sketches = append(pb.Sketches, &gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
 			Tags:        ss.Tags.UnsafeToReadOnlySliceString(),
 			Dogsketches: dsl,
 		})
 	}
-	return pb.Marshal()
+	return proto.Marshal(pb)
 }
 
 // SplitPayload breaks the payload into times number of pieces
