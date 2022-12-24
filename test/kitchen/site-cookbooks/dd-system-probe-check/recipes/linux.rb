@@ -44,14 +44,6 @@ case node[:platform]
     package 'iptables'
 end
 
-package 'busybox' do
-  case node[:platform]
-  when 'redhat', 'centos'
-  else
-    package_name 'busybox'
-  end
-end
-
 package 'conntrack'
 
 package 'netcat' do
