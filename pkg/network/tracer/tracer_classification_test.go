@@ -356,6 +356,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				})
 				require.NoError(t, err)
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
 				require.NoError(t, client.Publish("test", "my msg"))
 				ctx.extras["client"] = client
 			},
@@ -363,7 +364,6 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				client := ctx.extras["client"].(*amqp.Client)
 				defer client.Terminate()
 
-				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
 				res, err := client.Consume("test", 1)
 				require.NoError(t, err)
 				require.Equal(t, []string{"my msg"}, res)
