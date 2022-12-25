@@ -6,21 +6,18 @@
 package amqp
 
 import (
-	"fmt"
-	"github.com/streadway/amqp"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/stretchr/testify/require"
 )
 
-func Connect(serverAddr, serverPort string) *amqp.Connection {
-	conn, err := amqp.Dial(fmt.Sprintf("amqp://guest:guest@%s:%s/", serverAddr, serverPort))
-	failOnError(err, "Failed to connect to RabbitMQ")
-	//defer conn.Close()
-	return conn
-}
+const (
+	User = "guest"
+	Pass = "guest"
+)
 
 func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 	t.Helper()
@@ -28,12 +25,15 @@ func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
 		"AMQP_PORT=" + serverPort,
+		"USER=" + User,
+		"PASS=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
 	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")
 	cmd.Env = append(cmd.Env, env...)
 	require.NoErrorf(t, cmd.Run(), "could not start amqp with docker-compose")
 
+	time.Sleep(5 * time.Second)
 	t.Cleanup(func() {
 		c := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "down", "--remove-orphans")
 		c.Env = append(c.Env, env...)
