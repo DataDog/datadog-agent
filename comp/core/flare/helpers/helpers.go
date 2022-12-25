@@ -107,7 +107,10 @@ type FlareBuilder interface {
 	PrepareFilePath(path string) (string, error)
 
 	// RegisterFilePerm add the current permissions for a file to the flare's permissions.log.
-	RegisterFilePerm(path string)
+	RegisterFilePerm(srcDir string)
+
+	// RegisterDirPerm add the current permissions for a directory and its content to the flare's permissions.log.
+	RegisterDirPerm(path string)
 
 	// Save archives all the data added to the to the flare, cleanup all the temporary directories and return the path to
 	// the archive file. Upon error the cleanup is still done.

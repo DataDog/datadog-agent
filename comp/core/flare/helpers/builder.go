@@ -255,3 +255,12 @@ func (fb *builder) PrepareFilePath(path string) (string, error) {
 func (fb *builder) RegisterFilePerm(path string) {
 	fb.permsInfos.add(path)
 }
+
+func (fb *builder) RegisterDirPerm(srcDir string) {
+	_ = filepath.Walk(srcDir, func(src string, f os.FileInfo, err error) error {
+		if f != nil && !f.IsDir() {
+			fb.RegisterFilePerm(src)
+		}
+		return nil
+	})
+}
