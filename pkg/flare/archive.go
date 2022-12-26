@@ -157,7 +157,8 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	fb.RegisterDirPerm("/opt/datadog-agent")
+	fb.RegisterDirPerm(filepath.Dir(config.Datadog.GetString("system_probe_config.sysprobe_socket")))
+	fb.RegisterDirPerm(config.Datadog.GetString("system_probe_config.bpf_dir"))
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)
