@@ -41,6 +41,7 @@ ALL_TAGS = {
     "systemd",
     "zk",
     "zlib",
+    "test",  # used for unit-tests
 }
 
 ### Tag inclusion lists
@@ -136,6 +137,9 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 # List of tags to always remove when building on Windows 32-bits
 WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
 
+# Unit test build tags
+UNIT_TEST_TAGS = {"test"}
+
 # Build type: maps flavor to build tags map
 build_tags = {
     AgentFlavor.base: {
@@ -150,22 +154,26 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS,
         # Test setups
         "test": AGENT_TEST_TAGS,
-        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS),
+        "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
-        "unit-tests": AGENT_HEROKU_TAGS,
+        "lint": AGENT_HEROKU_TAGS,
+        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS),
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
-        "unit-tests": IOT_AGENT_TAGS,
+        "lint": IOT_AGENT_TAGS,
+        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
         "system-tests": AGENT_TAGS,
-        "unit-tests": DOGSTATSD_TAGS,
+        "lint": DOGSTATSD_TAGS,
+        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS),
     },
 }
 
