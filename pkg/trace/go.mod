@@ -15,7 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
-	github.com/DataDog/datadog-go/v5 v5.1.1
+	github.com/DataDog/datadog-go/v5 v5.2.0
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
 	github.com/davecgh/go-spew v1.1.1
