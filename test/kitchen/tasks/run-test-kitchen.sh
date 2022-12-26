@@ -156,12 +156,12 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
   # version issue at the start of the verifier.
   # The kitchen verifier uses the latest version of busser (0.8.0). busser detects that we have rspec tests,
   # and therefore installs the latest version of the busser-rspec gem (0.7.6).
-  # The busser-rspec, has a postinstall hook that installs the latest versions of the rspec and bundler gems.
+  # The busser-rspec gem has a postinstall hook that installs the latest versions of the rspec and bundler gems.
   # The rspec install goes fine, but the bundler install fails since December 24, 2022, when 2.4.0 of bundler
   # was released, which drops support for ruby < 2.6.
-  # For most kitchen test suites, running kitchen verify another time does work, because the postinstall hook isn't run again,
-  # and we don't actually need bundler in the test suites (because we don't have custom Gemfile for the verifier tests).
-  # At present, the only test suite this doesn't fix is the system-probe-test suite.
+  # Running kitchen verify another time does work, because the postinstall hook isn't run again,
+  # and we don't actually need bundler in the test suites (for suites that do have depedencies, we install them
+  # manually with lifecycle hooks in the platform definitions).
   bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 || true
 
   bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 | tee -a "/tmp/runlog${attempt}"
