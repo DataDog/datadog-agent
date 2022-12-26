@@ -256,9 +256,9 @@ func (fb *builder) RegisterFilePerm(path string) {
 	fb.permsInfos.add(path)
 }
 
-func (fb *builder) RegisterDirPerm(srcDir string) {
-	_ = filepath.Walk(srcDir, func(src string, f os.FileInfo, err error) error {
-		if f != nil && !f.IsDir() {
+func (fb *builder) RegisterDirPerm(path string) {
+	_ = filepath.Walk(path, func(src string, f os.FileInfo, err error) error {
+		if f != nil {
 			fb.RegisterFilePerm(src)
 		}
 		return nil

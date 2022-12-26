@@ -12,11 +12,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/mholt/archiver/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
 var FromSlash = filepath.FromSlash
@@ -238,4 +240,29 @@ func TestPrepareFilePath(t *testing.T) {
 
 	fb.PrepareFilePath(FromSlash("a/b/c/d/file"))
 	assert.DirExists(t, filepath.Join(fb.flareDir, "a", "b", "c", "d"))
+}
+
+func TestRegisterDirPerm(t *testing.T) {
+	fb := getNewBuilder(t)
+	defer fb.clean()
+
+	root := setupDirWithData(t)
+
+	fb.RegisterDirPerm(root)
+
+	expectedPaths := common.StringSet{
+		fmt.Sprintf("%s", root):                     struct{}{},
+		fmt.Sprintf("%s/test1", root):               struct{}{},
+		fmt.Sprintf("%s/test2", root):               struct{}{},
+		fmt.Sprintf("%s/depth1", root):              struct{}{},
+		fmt.Sprintf("%s/depth1/test3", root):        struct{}{},
+		fmt.Sprintf("%s/depth1/depth2", root):       struct{}{},
+		fmt.Sprintf("%s/depth1/depth2/test4", root): struct{}{},
+	}
+
+	require.Len(t, fb.permsInfos, len(expectedPaths))
+	for path := range expectedPaths {
+		_, exist := fb.permsInfos[path]
+		require.True(t, exist)
+	}
 }
