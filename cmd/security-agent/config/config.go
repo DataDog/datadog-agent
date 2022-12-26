@@ -8,16 +8,27 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
-	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Merge will merge the security-agent configuration into the existing datadog configuration
 func Merge(configPaths []string) error {
+	// TODO: Unify with System Probe config merge fnc
+	// TODO: This code is not actually hit at the moment due to the MergeConfigurationFiles fnc. This will be used post-fx refactor.
 	for _, configPath := range configPaths {
 		if f, err := os.Open(configPath); err == nil {
-			err = aconfig.Datadog.MergeConfig(f)
+			configFileExtension := filepath.Ext(configPath)
+			if !(configFileExtension == ".yaml" || configFileExtension == ".yml") {
+				log.Warnf("Security Agent config file is not a yaml file. May not merge properly.")
+			} else {
+				log.Infof("Security Agent config setup is setting Datadog Agent config type to yaml.")
+				config.Datadog.SetConfigType("yaml")
+			}
+
+			err = config.Datadog.MergeConfig(f)
 			_ = f.Close()
 			if err != nil {
 				return fmt.Errorf("error merging %s config file: %w", configPath, err)
