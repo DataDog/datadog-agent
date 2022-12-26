@@ -176,6 +176,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		opts:              &cfg,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
 		sqlLiteralEscapes: atomic.NewBool(false),
+		log:               cfg.Logger,
 	}
 	if cfg.ES.Enabled {
 		o.es = newJSONObfuscator(&cfg.ES, &o)
