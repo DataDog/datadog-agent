@@ -161,7 +161,7 @@ def test_flavor(
     failed_modules = []
     junit_files = []
 
-    args["go_build_tags"] = " ".join(build_tags + ["test"])
+    args["go_build_tags"] = " ".join(build_tags)
 
     junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
@@ -327,7 +327,13 @@ def test(
 
     modules, flavors = process_input_args(module, targets, flavors)
 
-    flavors_build_tags = {
+    linter_tags = {
+        f: compute_build_tags_for_flavor(
+            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
+        )
+        for f in flavors
+    }
+    unit_tests_tags = {
         f: compute_build_tags_for_flavor(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
@@ -341,7 +347,7 @@ def test(
     if skip_linters:
         print("--- [skipping Go linters]")
     else:
-        for flavor, build_tags in flavors_build_tags.items():
+        for flavor, build_tags in linter_tags.items():
             lint_flavor(
                 ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root
             )
@@ -422,7 +428,7 @@ def test(
 
     failed_modules = {}
     junit_files = []
-    for flavor, build_tags in flavors_build_tags.items():
+    for flavor, build_tags in unit_tests_tags.items():
         junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
             ctx,
             flavor=flavor,
