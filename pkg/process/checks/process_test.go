@@ -6,6 +6,8 @@
 package checks
 
 import (
+	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
@@ -30,7 +33,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	t.Helper()
 	probe := mocks.NewProbe(t)
 	return &ProcessCheck{
-		probe: probe,
+		probe:    probe,
+		scrubber: procutil.NewDefaultDataScrubber(),
 		sysInfo: &model.SystemInfo{
 			Cpus: []*model.CPUInfo{
 				{CoreId: "1"},
@@ -194,4 +198,109 @@ func TestProcessCheckWithRealtime(t *testing.T) {
 	assert.ElementsMatch(t, expectedStats, rt.Stats)
 	assert.Equal(t, int32(1), rt.GroupSize)
 	assert.Equal(t, int32(len(processCheck.sysInfo.Cpus)), rt.NumCpus)
+}
+
+func TestOnlyEnvConfigArgsScrubbingEnabled(t *testing.T) {
+	_ = ddconfig.Mock(t)
+
+	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
+
+	scrubber := procutil.NewDefaultDataScrubber()
+	initScrubber(scrubber)
+
+	assert.True(t, scrubber.Enabled)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--mypasswords=123,456", "consul_token", "1234", "--dd_api_key=1234"},
+			[]string{"spidly", "--mypasswords=********", "consul_token", "********", "--dd_api_key=********"},
+		},
+	}
+
+	for i := range cases {
+		cases[i].cmdline, _ = scrubber.ScrubCommand(cases[i].cmdline)
+		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
+	}
+}
+
+func TestOnlyEnvConfigArgsScrubbingDisabled(t *testing.T) {
+	_ = ddconfig.Mock(t)
+
+	t.Setenv("DD_SCRUB_ARGS", "false")
+	t.Setenv("DD_CUSTOM_SENSITIVE_WORDS", "*password*,consul_token,*api_key")
+
+	scrubber := procutil.NewDefaultDataScrubber()
+	initScrubber(scrubber)
+
+	assert.False(t, scrubber.Enabled)
+
+	cases := []struct {
+		cmdline       []string
+		parsedCmdline []string
+	}{
+		{
+			[]string{"spidly", "--mypasswords=123,456", "consul_token", "1234", "--dd_api_key=1234"},
+			[]string{"spidly", "--mypasswords=123,456", "consul_token", "1234", "--dd_api_key=1234"},
+		},
+	}
+
+	for i := range cases {
+		fp := &procutil.Process{Cmdline: cases[i].cmdline}
+		cases[i].cmdline = scrubber.ScrubProcessCommand(fp)
+		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
+	}
+}
+
+func TestDisallowList(t *testing.T) {
+	testDisallowList := []string{
+		"^getty",
+		"^acpid",
+		"^atd",
+		"^upstart-udev-bridge",
+		"^upstart-socket-bridge",
+		"^upstart-file-bridge",
+		"^dhclient",
+		"^dhclient3",
+		"^rpc",
+		"^dbus-daemon",
+		"udevd",
+		"^/sbin/",
+		"^/usr/sbin/",
+		"^/var/ossec/bin/ossec",
+		"^rsyslogd",
+		"^whoopsie$",
+		"^cron$",
+		"^CRON$",
+		"^/usr/lib/postfix/master$",
+		"^qmgr",
+		"^pickup",
+		"^sleep",
+		"^/lib/systemd/systemd-logind$",
+		"^/usr/local/bin/goshe dnsmasq$",
+	}
+	disallowList := make([]*regexp.Regexp, 0, len(testDisallowList))
+	for _, b := range testDisallowList {
+		r, err := regexp.Compile(b)
+		if err == nil {
+			disallowList = append(disallowList, r)
+		}
+	}
+	cases := []struct {
+		cmdline        []string
+		disallowListed bool
+	}{
+		{[]string{"getty", "-foo", "-bar"}, true},
+		{[]string{"rpcbind", "-x"}, true},
+		{[]string{"my-rpc-app", "-config foo.ini"}, false},
+		{[]string{"rpc.statd", "-L"}, true},
+		{[]string{"/usr/sbin/irqbalance"}, true},
+	}
+
+	for _, c := range cases {
+		assert.Equal(t, c.disallowListed, isDisallowListed(c.cmdline, disallowList),
+			fmt.Sprintf("Case %v failed", c))
+	}
 }

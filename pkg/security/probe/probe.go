@@ -30,7 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -93,7 +93,7 @@ type Probe struct {
 	resolvers   *Resolvers
 	event       *Event
 	eventStream EventStream
-	scrubber    *pconfig.DataScrubber
+	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -1465,7 +1465,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
-	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	resolvers, err := NewResolvers(config, p)
