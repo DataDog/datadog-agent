@@ -34,8 +34,9 @@ func newDefaultConfig() component.Config {
 		Metrics: metricsConfig{
 			DeltaTTL: 3600,
 			ExporterConfig: metricsExporterConfig{
-				ResourceAttributesAsTags:           false,
-				InstrumentationScopeMetadataAsTags: false,
+				ResourceAttributesAsTags:             false,
+				InstrumentationLibraryMetadataAsTags: false,
+				InstrumentationScopeMetadataAsTags:   false,
 			},
 			TagCardinality: collectors.LowCardinalityString,
 			HistConfig: histogramConfig{
@@ -106,8 +107,12 @@ func translatorFromConfig(logger *zap.Logger, cfg *exporterConfig) (*translator.
 		options = append(options, translator.WithResourceAttributesAsTags())
 	}
 
-	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
+	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags && cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
 		return nil, fmt.Errorf("cannot use both instrumentation_library_metadata_as_tags(deprecated) and instrumentation_scope_metadata_as_tags")
+	}
+
+	if cfg.Metrics.ExporterConfig.InstrumentationLibraryMetadataAsTags {
+		options = append(options, translator.WithInstrumentationLibraryMetadataAsTags())
 	}
 
 	if cfg.Metrics.ExporterConfig.InstrumentationScopeMetadataAsTags {
