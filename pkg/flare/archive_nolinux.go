@@ -12,6 +12,8 @@ import (
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 )
 
+func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {}
+
 func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
 	return nil
 }
