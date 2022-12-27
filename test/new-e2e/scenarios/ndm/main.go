@@ -16,12 +16,18 @@ func main() {
 
 	flag.Parse()
 
-	snmpEnv, err := snmp.NewTestEnv(*envNamePtr, *keyPairNamePtr, *apiKeyPtr, *appKeyPtr, *destroyPtr)
+	snmpEnv, err := snmp.NewTestEnv(*envNamePtr, *keyPairNamePtr, *apiKeyPtr, *appKeyPtr)
 	if err != nil {
 		panic(err)
 	}
 
-	if !*destroyPtr {
-		fmt.Println(snmpEnv.InstanceIP)
+	if *destroyPtr {
+		err = snmpEnv.Destroy()
+		if err != nil {
+			panic(err)
+		}
+		return
 	}
+
+	fmt.Println(snmpEnv.InstanceIP)
 }

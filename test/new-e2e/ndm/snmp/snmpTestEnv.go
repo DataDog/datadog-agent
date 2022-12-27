@@ -16,6 +16,10 @@ import (
 )
 
 type TestEnv struct {
+	context context.Context
+	envName string
+	name    string
+
 	InstanceIP  string
 	StackOutput auto.UpResult
 }
@@ -30,27 +34,21 @@ const (
 	composeDataPath = "compose/data"
 )
 
-func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string, shouldDestroy bool) (*TestEnv, error) {
-	ctx := context.Background()
-	snmpTestEnv := &TestEnv{}
+func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string) (*TestEnv, error) {
+	snmpTestEnv := &TestEnv{
+		context: context.Background(),
+		envName: "aws/sandbox",
+		name:    fmt.Sprintf("snmp-agent-%s", name),
+	}
 
 	stackManager := infra.GetStackManager()
-	envName := "aws/sandbox"
-	instanceName := fmt.Sprintf("snmp-agent-%s", name)
-
-	if shouldDestroy {
-		fmt.Println("Starting stack destroy")
-		stackManager.DeleteStack(ctx, envName, instanceName)
-		fmt.Println("Stack successfully destroyed")
-		return snmpTestEnv, nil
-	}
 
 	config := auto.ConfigMap{
 		"ddagent:apiKey":                 auto.ConfigValue{Value: ddAPIKey, Secret: true},
 		"ddinfra:aws/defaultKeyPairName": auto.ConfigValue{Value: keyPairName},
 	}
 
-	upResult, err := infra.GetStackManager().GetStack(ctx, envName, instanceName, config, func(ctx *pulumi.Context) error {
+	upResult, err := stackManager.GetStack(snmpTestEnv.context, snmpTestEnv.envName, snmpTestEnv.name, config, func(ctx *pulumi.Context) error {
 		// setup VM
 		vm, err := ec2.NewVM(ctx)
 		if err != nil {
@@ -115,6 +113,10 @@ func NewTestEnv(name, keyPairName, ddAPIKey, ddAPPKey string, shouldDestroy bool
 	snmpTestEnv.InstanceIP = output.Value.(string)
 
 	return snmpTestEnv, nil
+}
+
+func (testEnv *TestEnv) Destroy() error {
+	return infra.GetStackManager().DeleteStack(testEnv.context, testEnv.envName, testEnv.name)
 }
 
 //go:embed compose/data
