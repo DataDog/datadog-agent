@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -157,7 +158,9 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	fb.RegisterDirPerm(filepath.Dir(config.Datadog.GetString("system_probe_config.sysprobe_socket")))
+	if runtime.GOOS == "linux" {
+		fb.RegisterDirPerm(filepath.Dir(config.Datadog.GetString("system_probe_config.sysprobe_socket")))
+	}
 	fb.RegisterDirPerm(config.Datadog.GetString("system_probe_config.bpf_dir"))
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {

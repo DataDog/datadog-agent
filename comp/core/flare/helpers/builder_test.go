@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
@@ -250,19 +249,18 @@ func TestRegisterDirPerm(t *testing.T) {
 
 	fb.RegisterDirPerm(root)
 
-	expectedPaths := common.StringSet{
-		fmt.Sprintf("%s", root):                     struct{}{},
-		fmt.Sprintf("%s/test1", root):               struct{}{},
-		fmt.Sprintf("%s/test2", root):               struct{}{},
-		fmt.Sprintf("%s/depth1", root):              struct{}{},
-		fmt.Sprintf("%s/depth1/test3", root):        struct{}{},
-		fmt.Sprintf("%s/depth1/depth2", root):       struct{}{},
-		fmt.Sprintf("%s/depth1/depth2/test4", root): struct{}{},
+	expectedPaths := []string{
+		fmt.Sprintf("%s", root),
+		fmt.Sprintf("%s/test1", root),
+		fmt.Sprintf("%s/test2", root),
+		fmt.Sprintf("%s/depth1", root),
+		fmt.Sprintf("%s/depth1/test3", root),
+		fmt.Sprintf("%s/depth1/depth2", root),
+		fmt.Sprintf("%s/depth1/depth2/test4", root),
 	}
 
 	require.Len(t, fb.permsInfos, len(expectedPaths))
-	for path := range expectedPaths {
-		_, exist := fb.permsInfos[path]
-		require.True(t, exist)
+	for _, path := range expectedPaths {
+		assert.Contains(t, fb.permsInfos, path)
 	}
 }
