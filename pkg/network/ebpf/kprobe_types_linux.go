@@ -113,7 +113,7 @@ type StaticTableValue struct {
 type DynamicTableEnumKey = uint8
 
 type DynamicTableEnumValue = struct {
-	Fragment [40]int8
+	Buffer [32]int8
 }
 
 const (

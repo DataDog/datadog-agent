@@ -88,8 +88,6 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
     return true;
 }
 
-
-
 // read_var_int reads an unsigned variable length integer off the
 // beginning of p. n is the parameter as described in
 // https://httpwg.org/specs/rfc7541.html#rfc.section.5.1.
@@ -122,17 +120,32 @@ static __always_inline __u64 read_var_int(http2_transaction_t* http2_transaction
     return -1;
 }
 
+// parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline void parse_field_indexed(http2_transaction_t* http2_transaction){
         log_debug("[http2] parse_field_indexed in");
 
      __u64 index = read_var_int(http2_transaction, 7);
+
+     log_debug("[http2] ************************ the current index at parse_field_indexed is: %d", index);
+
     static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
     if (static_value != NULL) {
         log_debug("[http2] the static name in parse_field_indexed is %d", static_value->name);
         log_debug("[http2] the static value in parse_field_indexed is %d", static_value->value);
     } else {
-        log_debug("[http2] value is null");
+        log_debug("[http2] value is null - unable to find the index at the static table");
     }
+
+    dynamic_table_value *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &index);
+
+    if (dynamic_value_new != NULL) {
+        log_debug("[http2] ************************* the dynamic2 index is %d", dynamic_value_new->index);
+        log_debug("[http2] ************************* the dynamic value in spot 0 is %c", dynamic_value_new->value.path_buffer[0]);
+        log_debug("[http2] ************************* the dynamic value in spot 3 is %c", dynamic_value_new->value.path_buffer[3]);
+    } else {
+        log_debug("[http2] value is null, unable to find the index in the dynamic table");
+    }
+
 }
 
 // readString decoded string an hpack string from payload.
@@ -157,123 +170,132 @@ static __always_inline bool read_string(http2_transaction_t* http2_transaction, 
     return true;
 }
 
-static __always_inline void parse_field_literal(http2_transaction_t* http2_transaction, bool index_type, size_t payload_size){
+// parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
+// which will be stored in the dynamic table.
+static __always_inline void parse_field_literal(http2_transaction_t* http2_transaction, bool index_type, size_t payload_size, uint8_t n){
         log_debug("[http2] parse_field_literal in");
 
-     __u64 index = read_var_int(http2_transaction, 6);
+     __u64 index = read_var_int(http2_transaction, n);
     if (index) {
         log_debug("[http2] the index is parse_field_indexed %llu", index);
     }
 
-        dynamic_table_value dynamic_value = {};
-        static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
-        if (static_value != NULL) {
-            if (index_type){
-                dynamic_value.name = static_value->name;
-                log_debug("[http2] the dynamic name is %d", dynamic_value.name);
-            }
-            __u64 str_len = 0;
-            bool ok = read_string(http2_transaction, 6, &str_len, payload_size);
-            if (!ok && str_len <= 0){
-                return;
-            }
-
-            log_debug("[http2] the string len is %llu", str_len);
-            if (str_len <= 0) {
-                return;
-            }
-
-            if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
-                return ;
-            }
-//                __u8 first_string_char = http2_transaction->request_fragment[http2_transaction->current_offset_in_request_fragment];
-//                if (first_string_char > 0){
-//                    log_debug("[http2] wow");
-//                }
-//                log_debug("[http2] ------------ first char %d", first_string_char);
-
-//
-//                http2_transaction->current_offset_in_request_fragment += str_len;
-                if (http2_transaction->current_offset_in_request_fragment + str_len  > sizeof(http2_transaction->request_fragment)) {
-                    return;
-                }
-
-//                __u8 last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-//                log_debug("[http2] ------------------- last char is is %d", last_string_char);
-//
-//                if (last_string_char > 0){
-//                    log_debug("[http2] wow");
-//                }
-//
-//                http2_transaction->current_offset_in_request_fragment -= 1;
-//                if (http2_transaction->current_offset_in_request_fragment  > sizeof(http2_transaction->request_fragment)) {
-//                    return ;
-//                }
-//
-//                __u8 one_before_last_string_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-//                log_debug("[http2] ------------------- one before last char is is %d", one_before_last_string_char);
-//
-//                if (one_before_last_string_char > 0){
-//                    log_debug("[http2] wow");
-//                }
-//
-//                __u64 index = 1;
-//                __u32 test = 2;
-
-
-//                if ((beginning > http2_transaction->request_fragment + HTTP2_MAX_PATH_LEN ) || (beginning + HTTP2_MAX_PATH_LEN > http2_transaction->request_fragment + HTTP_BUFFER_SIZE)) {
-//                    return;
-//                }
-                char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
-                // TODO: use const __u64 size11 = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
-                bpf_memcpy(http2_transaction->request_fragment_bla, beginning, HTTP2_MAX_PATH_LEN);
-
-                 char test = http2_transaction->request_fragment_bla[0];
-                 log_debug("[http2] ------------ first char bla in 0 spot is %c", http2_transaction->request_fragment_bla[0]);
-                 log_debug("[http2] ------------ first char bla in 1 spot is %c", http2_transaction->request_fragment_bla[1]);
-                 log_debug("[http2] ------------ first char bla in 2 spot is %c", http2_transaction->request_fragment_bla[2]);
-                 log_debug("[http2] ------------ first char bla in 3 spot is %c", http2_transaction->request_fragment_bla[3]);
-                 log_debug("[http2] ------------ first char bla in 4 spot is %c", http2_transaction->request_fragment_bla[4]);
-                 if (test > 0){
-                     log_debug("[http2] wow33333");
-                 }
-
-        } else {
-            log_debug("[http2] value is null");
+    dynamic_table_value dynamic_value = {};
+    static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
+    if (static_value != NULL) {
+        if (index_type) {
+            dynamic_value.index = static_value->name;
+            log_debug("[http2] the dynamic index is %d", dynamic_value.index);
         }
-//    }
-//
-//    log_debug("[http2] the index is: %d in parse_field_literal", index);
-//
-//    static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
-//    if (static_value != NULL) {
-//        log_debug("[http2] the name is %d", static_value->name);
-//        log_debug("[http2] the value is %d", static_value->value);
-//    } else {
-//        log_debug("[http2] value is null");
-//    }
+
+        __u64 str_len = 0;
+        bool ok = read_string(http2_transaction, 6, &str_len, payload_size);
+        if (!ok && str_len <= 0){
+            return;
+        }
+
+        log_debug("[http2] the string len is %llu", str_len);
+        if (str_len <= 0) {
+            return;
+        }
+
+        if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
+            return ;
+        }
+
+        if (http2_transaction->current_offset_in_request_fragment + str_len  > sizeof(http2_transaction->request_fragment)) {
+            return;
+        }
+
+        char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
+        // TODO: use const __u64 size11 = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
+        bpf_memcpy(http2_transaction->request_fragment_bla, beginning, HTTP2_MAX_PATH_LEN);
+
+         log_debug("[http2] ------------ first char bla in 0 spot is %c", http2_transaction->request_fragment_bla[0]);
+         log_debug("[http2] ------------ first char bla in 1 spot is %c", http2_transaction->request_fragment_bla[1]);
+         log_debug("[http2] ------------ first char bla in 2 spot is %c", http2_transaction->request_fragment_bla[2]);
+         log_debug("[http2] ------------ first char bla in 3 spot is %c", http2_transaction->request_fragment_bla[3]);
+         log_debug("[http2] ------------ first char bla in 4 spot is %c", http2_transaction->request_fragment_bla[4]);
+         log_debug("[http2] ------------ first char bla in 5 spot is %c", http2_transaction->request_fragment_bla[5]);
+         log_debug("[http2] ------------ first char bla in 6 spot is %c", http2_transaction->request_fragment_bla[6]);
+         log_debug("[http2] ------------ first char bla in 7 spot is %c", http2_transaction->request_fragment_bla[7]);
+         log_debug("[http2] ------------ first char bla in 8 spot is %c", http2_transaction->request_fragment_bla[8]);
+         log_debug("[http2] ------------ first char bla in 9 spot is %c", http2_transaction->request_fragment_bla[9]);
+         log_debug("[http2] ------------ first char bla in 10 spot is %c", http2_transaction->request_fragment_bla[10]);
+         log_debug("[http2] ------------ first char bla in 11 spot is %c", http2_transaction->request_fragment_bla[11]);
+         log_debug("[http2] ------------ first char bla in 12 spot is %c", http2_transaction->request_fragment_bla[12]);
+         log_debug("[http2] ------------ first char bla in 13 spot is %c", http2_transaction->request_fragment_bla[13]);
+         log_debug("[http2] ------------ first char bla in 14 spot is %c", http2_transaction->request_fragment_bla[14]);
+
+        bpf_memcpy(dynamic_value.value.path_buffer, http2_transaction->request_fragment_bla, HTTP2_MAX_PATH_LEN);
+         log_debug("[http2] ------------ first char blaaaaaaa in 0 spot is %c", dynamic_value.value.path_buffer[0]);
+
+         // static table index starts from index 62
+        __u64 index2 = (__u64)(static_value->name + 62);
+        log_debug("[http2] the index2 is %d", index2);
+
+        bpf_map_update_elem(&http2_dynamic_table, &index2, &dynamic_value, BPF_ANY);
+        dynamic_table_value *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &index2);
+
+        if (dynamic_value_new != NULL) {
+            log_debug("[http2] the dynamic2 index is %d", dynamic_value_new->index);
+            log_debug("[http2] the dynamic value in spot 0 is %c", dynamic_value_new->value.path_buffer[0]);
+            log_debug("[http2] the dynamic value in spot 3 is %c", dynamic_value_new->value.path_buffer[3]);
+        }
+
+        http2_transaction->current_offset_in_request_fragment += str_len;
+
+        if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
+            return ;
+        }
+        __u8 current_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
+        log_debug("[http2] ------------ the current char is  %d", current_char);
+        if (current_char > 0) {
+            log_debug("[http2] blblablalbalblabllba");
+        }
+
+        }
+        else {
+            log_debug("[http2] unable to find the static value in map");
+        }
 }
 
+// parse_header_field_repr is handling the header frame by bit calculation and is storing the needed data for our
+// internal hpack algorithm.
 static __always_inline void parse_header_field_repr(http2_transaction_t* http2_transaction, size_t payload_size, __u8 first_char) {
     log_debug("[http2] parse_header_field_repr is in");
     log_debug("[http2] first char %d", first_char);
 
     if ((first_char&128) != 0) {
+        // Indexed representation.
+        // MSB bit set.
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
         log_debug("[http2]first char %d & 128 != 0; calling parse_field_indexed", first_char);
         parse_field_indexed(http2_transaction);
         }
     if ((first_char&192) == 64) {
-        log_debug("[http2] first char %d & 128 != 0; calling parse_field_literal", first_char);
-        parse_field_literal(http2_transaction, true, payload_size);
+        // 6.2.1 Literal Header Field with Incremental Indexing
+        // top two bits are 10
+        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
+        log_debug("[http2] first char %d & 192 == 64; calling parse_field_literal", first_char);
+        parse_field_literal(http2_transaction, true, payload_size, 6);
     }
+//    if ((first_char&240) == 16) {
+//        // 6.2.2 Literal Header Field without Indexing
+//        // top four bits are 0000
+//        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.2
+//        log_debug("[http2] first char %d & 240 == 0; calling parse_field_literal", first_char);
+//        parse_field_literal(http2_transaction, false, payload_size, 4);
+//    }
 }
 
 // This function reads the http2 headers frame.
 static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http2_transaction, __u32 payload_size) {
     log_debug("[http2] decode_http2_headers_frame is in");
 
+// need to come back and understand how many times I will iterate over the current frame
 //#pragma unroll
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < HTTP2_MAX_FRAME_LEN; i++) {
         if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
                 return false;
         }
@@ -287,7 +309,7 @@ static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http
 
 // This function filters the needed frames from the http2 session.
 static __always_inline void process_http2_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
-    log_debug("http2 process_http2_frames");
+    log_debug("[http2] http2 process_http2_frames");
 
     struct http2_frame current_frame = {};
 

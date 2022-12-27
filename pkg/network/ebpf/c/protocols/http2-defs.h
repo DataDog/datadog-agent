@@ -9,7 +9,7 @@
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_FRAME_LEN 100
+#define HTTP2_MAX_FRAME_LEN 10
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -40,16 +40,16 @@ typedef enum {
 } __attribute__ ((packed)) header_value;
 
 typedef struct {
-    char request_fragment[40] __attribute__ ((aligned (8)));
-} __attribute__ ((packed)) dynamic_string_value;
-
-typedef struct {
     header_key name;
     header_value value;
 } static_table_value;
 
 typedef struct {
-    header_key name;
+    char path_buffer[32] __attribute__ ((aligned (8)));
+} __attribute__ ((packed)) dynamic_string_value;
+
+typedef struct {
+    __u64 index;
     dynamic_string_value value;
 } dynamic_table_value;
 
