@@ -71,11 +71,8 @@ func NewConsumer(proto string, ebpf *manager.Manager, callback func([]byte)) (*C
 		return nil, err
 	}
 
-	handlerMux.Lock()
-	handler, ok := handlerByProtocol[proto]
-	delete(handlerByProtocol, proto)
-	handlerMux.Unlock()
-	if !ok {
+	handler := getHandler(proto)
+	if handler == nil {
 		return nil, fmt.Errorf("unable to detect perf handler. perhaps you forgot to call events.Configure()?")
 	}
 

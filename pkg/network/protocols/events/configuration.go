@@ -19,8 +19,13 @@ import (
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 )
 
-var handlerMux sync.Mutex
+// handlerByProtocol holds a temporary reference to a `ddebpf.PerfHandler`
+// instance for a given protocol. This is done to simplify the usage of this
+// package a little bit, so a call to `events.Configure` can be later linked
+// to a call to `events.NewConsumer` without the need to explicitly propagate
+// any values. The map is guarded by `handlerMux`.
 var handlerByProtocol map[string]*ddebpf.PerfHandler
+var handlerMux sync.Mutex
 
 // Configure event processing
 // Must be called *before* manager.InitWithOptions
@@ -59,4 +64,16 @@ func Configure(proto string, m *manager.Manager, o *manager.Options) {
 		MaxEntries: uint32(len(onlineCPUs) * batchPagesPerCPU),
 		EditorFlag: manager.EditMaxEntries,
 	}
+}
+
+func getHandler(proto string) *ddebpf.PerfHandler {
+	handlerMux.Lock()
+	defer handlerMux.Unlock()
+	if handlerByProtocol == nil {
+		return nil
+	}
+
+	handler := handlerByProtocol[proto]
+	delete(handlerByProtocol, proto)
+	return handler
 }
