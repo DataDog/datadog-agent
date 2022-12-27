@@ -86,13 +86,18 @@ func TestSubscribeLogsSuccess(t *testing.T) {
 
 func TestSubscribeLogsTimeout(t *testing.T) {
 	payload := buildLogRegistrationPayload("myUri", "platform function", 10, 100, 1000)
+	done := make(chan struct{})
 	//fake the register route
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// timeout
-		time.Sleep(registerLogsTimeout + 100*time.Millisecond)
+		select {
+		case <-time.After(registerLogsTimeout + 5*time.Second):
+		case <-done:
+		}
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
+	defer close(done)
 
 	err := subscribeTelemetry("myId", ts.URL, registerLogsTimeout, payload)
 	assert.NotNil(t, err)
