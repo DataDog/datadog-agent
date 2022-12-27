@@ -30,11 +30,13 @@ func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 		"PASS=" + Pass,
 	}
 	dir, _ := testutil.CurDir()
-	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")
+	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	cmd.Env = append(cmd.Env, env...)
-	require.NoErrorf(t, cmd.Run(), "could not start amqp with docker-compose")
+	go func() {
+		require.NoErrorf(t, cmd.Run(), "could not start amqp with docker-compose")
+	}()
 
 	time.Sleep(5 * time.Second)
 	t.Cleanup(func() {
