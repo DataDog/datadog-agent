@@ -6,6 +6,7 @@
 package amqp
 
 import (
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -30,6 +31,8 @@ func RunAmqpServer(t *testing.T, serverAddr, serverPort string) {
 	}
 	dir, _ := testutil.CurDir()
 	cmd := exec.Command("docker-compose", "-f", dir+"/testdata/docker-compose.yml", "up", "-d")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
 	cmd.Env = append(cmd.Env, env...)
 	require.NoErrorf(t, cmd.Run(), "could not start amqp with docker-compose")
 
