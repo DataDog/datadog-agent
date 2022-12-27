@@ -95,13 +95,13 @@ func TestStartPipelineFromConfig(t *testing.T) {
 	}{
 		{
 			path: "receiver/noprotocols.yaml",
-			err:  "receiver \"otlp\" has invalid configuration: must specify at least one protocol when using the OTLP receiver",
+			err:  "invalid configuration: receivers::otlp: must specify at least one protocol when using the OTLP receiver",
 		},
 		{path: "receiver/simple.yaml"},
 		{path: "receiver/advanced.yaml"},
 		{
 			path: "receiver/typo.yaml",
-			err:  "error decoding 'receivers': error reading receivers configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
+			err:  "error decoding 'receivers': error reading configuration for \"otlp\": 1 error(s) decoding:\n\n* 'protocols' has invalid keys: htttp",
 		},
 	}
 
