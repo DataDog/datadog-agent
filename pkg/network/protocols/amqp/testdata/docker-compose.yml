@@ -2,6 +2,8 @@ version: '3'
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: 'rabbitmq'
     ports:
       - ${AMQP_ADDR}:${AMQP_PORT}:5672
+    environment:
+      - "RABBITMQ_DEFAULT_PASS=${PASS}"
+      - "RABBITMQ_DEFAULT_USER=${USER}"
