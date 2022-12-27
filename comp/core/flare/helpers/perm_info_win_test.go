@@ -86,8 +86,6 @@ func TestPermsFileCommit(t *testing.T) {
 	// Success and failiures are recorded
 	res, _ = regexp.Match("\nSuccessfully processed 1 files", b)
 	assert.True(t, res)
-	res, _ = regexp.Match("\nOwner  :", b)
-	assert.True(t, res)
 	res, _ = regexp.Match("\nError:could not find file.+file3", b)
 	assert.True(t, res)
 }

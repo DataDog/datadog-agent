@@ -23,7 +23,6 @@ type filePermsInfo struct {
 	path   string
 	mode   string
 	icacls string
-	getacl string
 	err    error
 }
 
@@ -52,7 +51,14 @@ func (p permissionsInfos) add(filePath string) {
 	}
 	p[filePath] = &info
 
-	// Get basic information
+	// This is a performance sensitive function because it is invoked
+	// directly (via fb.RegisterFilePerm(security.GetAuthTokenFilepath())
+	// and indirectly (via fb.permsInfos.add(srcFile)). For example adding
+	// complementary output of the following
+	//     exec.Command(ps, "get-acl", "-Path", filePathQuoted, "|", "fl")
+	// command adds ~60 seconds for added ~150 flare files. Current overhead
+	// appears to be in seconds. If it is too slow a call to "icacls.exe"
+	// should be replaced using Windows security API invocations.
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		info.err = fmt.Errorf("could not find file %s: %s", filePath, err)
@@ -68,16 +74,6 @@ func (p permissionsInfos) add(filePath string) {
 		execPath := fmt.Sprintf("%s\\icacls.exe", sysDir)
 		// Direct path argument will be quoted by the exec.Command https://pkg.go.dev/os/exec#Command
 		info.icacls = run_cmd(exec.Command(execPath, filePath))
-	}
-
-	// Run Powershell get-acl (to add complimentary information like owner)
-	ps, err := exec.LookPath("powershell.exe")
-	if err != nil {
-		info.getacl = fmt.Sprintf("Error: cannot locate powershell.exe %s", err)
-	} else {
-		// Indirect path argument seems to be not quoted
-		filePathQuoted := fmt.Sprintf("\"%s\"", filePath)
-		info.getacl = run_cmd(exec.Command(ps, "get-acl", "-Path", filePathQuoted, "|", "fl"))
 	}
 }
 
@@ -107,11 +103,10 @@ func (p permissionsInfos) commit() ([]byte, error) {
 		} else {
 			// ... or actual permissions
 			_, err := f.Write([]byte(
-				fmt.Sprintf("File: %s\n\nMode:%s\n\n%s\n%s\n",
+				fmt.Sprintf("File: %s\n\nMode:%s\n\n%s\n",
 					info.path,
 					info.mode,
 					info.icacls,
-					info.getacl,
 				)))
 			if err != nil {
 				return f.Bytes(), err
