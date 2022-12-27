@@ -78,7 +78,7 @@ func FilterFunctionTags(input map[string]string) map[string]string {
 	}
 
 	// filter out DD_TAGS & DD_EXTRA_TAGS
-	ddTags := config.GetConfiguredTags(false)
+	ddTags := config.GetGlobalConfiguredTags(false)
 	for _, tag := range ddTags {
 		tagParts := strings.SplitN(tag, ":", 2)
 		if len(tagParts) != 2 {

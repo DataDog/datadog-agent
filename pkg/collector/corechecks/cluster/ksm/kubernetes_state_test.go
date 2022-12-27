@@ -1419,12 +1419,13 @@ func TestKSMCheckInitTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := config.Mock(t)
+
 			k := &KSMCheck{
 				instance:    tt.fields.instance,
 				clusterName: tt.fields.clusterName,
+				agentConfig: mockConfig,
 			}
-
-			mockConfig := config.Mock(t)
 
 			tt.loadFunc(mockConfig)
 			k.initTags()

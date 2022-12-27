@@ -120,7 +120,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	if err != nil {
 		log.Debug("Unable to restore the state from file")
 	} else {
-		serverlessDaemon.ComputeGlobalTags(config.GetConfiguredTags(true))
+		serverlessDaemon.ComputeGlobalTags(config.GetGlobalConfiguredTags(true))
 		serverlessDaemon.StartLogCollection()
 	}
 	// serverless parts

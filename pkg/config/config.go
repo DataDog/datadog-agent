@@ -2035,13 +2035,13 @@ func getValidHostAliasesWithConfig(config Config) []string {
 //
 // This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
 // if includeDogstatsd is true.
-func GetConfiguredTags(includeDogstatsd bool) []string {
-	tags := Datadog.GetStringSlice("tags")
-	extraTags := Datadog.GetStringSlice("extra_tags")
+func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
+	tags := config.GetStringSlice("tags")
+	extraTags := config.GetStringSlice("extra_tags")
 
 	var dsdTags []string
 	if includeDogstatsd {
-		dsdTags = Datadog.GetStringSlice("dogstatsd_tags")
+		dsdTags = config.GetStringSlice("dogstatsd_tags")
 	}
 
 	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
@@ -2050,6 +2050,14 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+// GetGlobalConfiguredTags returns complete list of user configured tags.
+//
+// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
+// if includeDogstatsd is true.
+func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
+	return GetConfiguredTags(Datadog, includeDogstatsd)
 }
 
 func bindVectorOptions(config Config, datatype DataType) {
@@ -2084,7 +2092,7 @@ func GetTraceAgentDefaultEnv() string {
 		defaultEnv = Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
 	} else {
-		for _, tag := range GetConfiguredTags(false) {
+		for _, tag := range GetConfiguredTags(Datadog, false) {
 			if strings.HasPrefix(tag, "env:") {
 				defaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
