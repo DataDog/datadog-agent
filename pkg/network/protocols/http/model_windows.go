@@ -12,8 +12,6 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	//"encoding/hex"
-
 	"fmt"
 	"strconv"
 	"strings"

@@ -28,6 +28,7 @@ const (
 
 // Consumer provides a standardized abstraction for consuming (batched) events from eBPF
 type Consumer struct {
+	mux         sync.Mutex
 	proto       string
 	syncRequest chan (chan struct{})
 	offsets     *offsetManager
@@ -36,7 +37,6 @@ type Consumer struct {
 	callback    func([]byte)
 
 	// termination
-	mux         sync.Mutex
 	eventLoopWG sync.WaitGroup
 	stopped     bool
 
@@ -177,13 +177,13 @@ func (c *Consumer) Stop() {
 }
 
 func (c *Consumer) process(cpu int, b *batch, syncing bool) {
-	i, j := c.offsets.Get(cpu, b, syncing)
+	begin, end := c.offsets.Get(cpu, b, syncing)
 
 	// telemetry stuff
 	c.batchSize.Store(int64(b.Cap))
-	c.eventsCount.Add(int64(j - i))
+	c.eventsCount.Add(int64(end - begin))
 
-	iter := newIterator(b, i, j)
+	iter := newIterator(b, begin, end)
 	for data := iter.Next(); data != nil; data = iter.Next() {
 		c.callback(data)
 	}

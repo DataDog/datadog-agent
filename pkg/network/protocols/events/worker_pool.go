@@ -8,7 +8,10 @@
 
 package events
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type workerPool struct {
 	size      int
@@ -17,7 +20,11 @@ type workerPool struct {
 	once      sync.Once
 }
 
-func newWorkerPool(size int) *workerPool {
+func newWorkerPool(size int) (*workerPool, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("invalid worker pool size")
+	}
+
 	pool := &workerPool{
 		size: size,
 		jobs: make(chan func()),
@@ -33,7 +40,7 @@ func newWorkerPool(size int) *workerPool {
 		}()
 	}
 
-	return pool
+	return pool, nil
 }
 
 func (wp *workerPool) Do(f func()) {

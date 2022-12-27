@@ -43,11 +43,16 @@ func newBatchReader(offsetManager *offsetManager, batchMap *ebpf.Map, numCPUs in
 		}
 	}
 
+	workerPool, err := newWorkerPool(max(numCPUs, 32))
+	if err != nil {
+		return nil, err
+	}
+
 	return &batchReader{
 		numCPUs:    numCPUs,
 		offsets:    offsetManager,
 		batchMap:   batchMap,
-		workerPool: newWorkerPool(20),
+		workerPool: workerPool,
 	}, nil
 }
 
