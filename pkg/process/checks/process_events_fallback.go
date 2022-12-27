@@ -24,7 +24,8 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
+	return nil
 }
 
 // Name returns the name of the ProcessEventsCheck.

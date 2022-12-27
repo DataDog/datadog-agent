@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAccessContainers bool) (checkCfg []checks.Check) {
+func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []checks.Check) {
 	rtChecksEnabled := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	if ddconfig.Datadog.GetBool("process_config.process_collection.enabled") {
 		checkCfg = append(checkCfg, checks.Process)
@@ -45,8 +45,9 @@ func getChecks(sysCfg *sysconfig.Config, oCfg *oconfig.OrchestratorConfig, canAc
 	}
 
 	// activate the pod collection if enabled and we have the cluster name set
-	if oCfg.OrchestrationCollectionEnabled {
-		if oCfg.KubeClusterName != "" {
+	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	if orchestratorEnabled {
+		if kubeClusterName != "" {
 			checkCfg = append(checkCfg, checks.Pod)
 		} else {
 			_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")

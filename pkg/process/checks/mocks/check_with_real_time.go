@@ -22,8 +22,17 @@ func (_m *CheckWithRealTime) Cleanup() {
 }
 
 // Init provides a mock function with given fields: cfg, info
-func (_m *CheckWithRealTime) Init(cfg *config.AgentConfig, info *process.SystemInfo) {
-	_m.Called(cfg, info)
+func (_m *CheckWithRealTime) Init(cfg *config.AgentConfig, info *process.SystemInfo) error {
+	ret := _m.Called(cfg, info)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *process.SystemInfo) error); ok {
+		r0 = rf(cfg, info)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // Name provides a mock function with given fields:

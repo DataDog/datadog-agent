@@ -16,7 +16,7 @@ import (
 // processed in another way (e.g. printed for debugging).
 // Before checks are used you must called Init.
 type Check interface {
-	Init(cfg *config.AgentConfig, info *model.SystemInfo)
+	Init(cfg *config.AgentConfig, info *model.SystemInfo) error
 	Name() string
 	RealTime() bool
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)

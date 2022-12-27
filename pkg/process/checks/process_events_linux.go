@@ -39,13 +39,12 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInfo) {
+func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInfo) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 
 	if e.store != nil || e.listener != nil {
-		log.Error("process_events check has already been initialized")
-		return
+		return log.Error("process_events check has already been initialized")
 	}
 
 	log.Info("Initializing process_events check")
@@ -55,7 +54,7 @@ func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInf
 	store, err := events.NewRingStore(statsd.Client)
 	if err != nil {
 		log.Errorf("RingStore can't be created: %v", err)
-		return
+		return err
 	}
 	e.store = store
 
@@ -65,12 +64,13 @@ func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInf
 	})
 	if err != nil {
 		log.Errorf("Event Listener can't be created: %v", err)
-		return
+		return err
 	}
 	e.listener = listener
 
 	e.start()
 	log.Info("process_events check correctly set up")
+	return nil
 }
 
 // start kicks off process lifecycle events collection and keep them in memory until they're fetched in the next check run

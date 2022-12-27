@@ -163,7 +163,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	enabledChecks := getChecks(syscfg, cfg.Orchestrator, ddconfig.IsAnyContainerFeaturePresent())
+	enabledChecks := getChecks(syscfg, ddconfig.IsAnyContainerFeaturePresent())
 
 	// Exit if agent is not enabled.
 	if len(enabledChecks) == 0 {

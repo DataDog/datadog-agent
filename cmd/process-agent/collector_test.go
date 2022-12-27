@@ -17,7 +17,6 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
@@ -137,7 +136,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 
-			enabledChecks := getChecks(&sysconfig.Config{}, &oconfig.OrchestratorConfig{}, true)
+			enabledChecks := getChecks(&sysconfig.Config{}, true)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 
 			c, err := NewCollector(cfg, enabledChecks)
