@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
@@ -71,8 +72,9 @@ func defaultTeardown(_ *testing.T, ctx testContext) {
 	close(ctx.done)
 }
 
-//nolint:deadcode,unused
 // skipIfNotLinux skips the test if we are not on a linux machine
+//
+//nolint:deadcode,unused
 func skipIfNotLinux(ctx testContext) (bool, string) {
 	if runtime.GOOS != "linux" {
 		return true, "test is supported on linux machine only"
@@ -81,8 +83,9 @@ func skipIfNotLinux(ctx testContext) (bool, string) {
 	return false, ""
 }
 
-//nolint:deadcode,unused
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
+//
+//nolint:deadcode,unused
 func skipIfUsingNAT(ctx testContext) (bool, string) {
 	if ctx.targetAddress != ctx.serverAddress {
 		return true, "test is not supported when NAT is applied"
@@ -91,8 +94,9 @@ func skipIfUsingNAT(ctx testContext) (bool, string) {
 	return false, ""
 }
 
-//nolint:deadcode,unused
 // composeSkips skips if one of the given filters is matched.
+//
+//nolint:deadcode,unused
 func composeSkips(filters ...func(ctx testContext) (bool, string)) func(ctx testContext) (bool, string) {
 	return func(ctx testContext) (bool, string) {
 		for _, filter := range filters {
@@ -264,6 +268,114 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, c.HandleStream(context.Background(), 5))
 			},
 			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "amqp connect",
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+				})
+				require.NoError(t, err)
+				defer client.Terminate()
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "amqp declare channel",
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolUnknown,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				defer client.Terminate()
+
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "amqp publish",
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+				})
+				require.NoError(t, err)
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				defer client.Terminate()
+
+				require.NoError(t, client.Publish("test", "my msg"))
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "amqp consume",
+			context: testContext{
+				serverPort:       "5672",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolAMQP,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				amqp.RunAmqpServer(t, host, port)
+
+				client, err := amqp.NewClient(amqp.Options{
+					ServerAddress: ctx.serverAddress,
+				})
+				require.NoError(t, err)
+				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
+				require.NoError(t, client.Publish("test", "my msg"))
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				defer client.Terminate()
+
+				res, err := client.Consume("test", 1)
+				require.NoError(t, err)
+				require.Equal(t, []string{"my msg"}, res)
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			validation: validateProtocolConnection,
 		},
 		{

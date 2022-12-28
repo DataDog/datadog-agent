@@ -16,6 +16,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
+	"github.com/skydive-project/go-debouncer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -24,7 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const securityAgentRCPollInterval = time.Second * 1
+const (
+	securityAgentRCPollInterval = time.Second * 1
+	debounceDelay               = 5 * time.Second
+)
 
 // RCPolicyProvider defines a remote config policy provider
 type RCPolicyProvider struct {
@@ -32,40 +36,58 @@ type RCPolicyProvider struct {
 
 	client               *remote.Client
 	onNewPoliciesReadyCb func()
-	lastConfigs          map[string]state.ConfigCWSDD
+	lastDefaults         map[string]state.ConfigCWSDD
+	lastCustoms          map[string]state.ConfigCWSCustom
+	debouncer            *debouncer.Debouncer
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
 func NewRCPolicyProvider(name string, agentVersion *semver.Version) (*RCPolicyProvider, error) {
-	c, err := remote.NewGRPCClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD}, securityAgentRCPollInterval)
+	c, err := remote.NewGRPCClient(name, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}
 
-	return &RCPolicyProvider{
+	r := &RCPolicyProvider{
 		client: c,
-	}, nil
+	}
+	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
+
+	return r, nil
 }
 
 // Start starts the Remote Config policy provider and subscribes to updates
 func (r *RCPolicyProvider) Start() {
 	log.Info("remote-config policies provider started")
 
-	r.client.RegisterCWSDDUpdate(r.rcConfigUpdateCallback)
+	r.debouncer.Start()
+
+	r.client.RegisterCWSDDUpdate(r.rcDefaultsUpdateCallback)
+	r.client.RegisterCWSCustomUpdate(r.rcCustomsUpdateCallback)
 
 	r.client.Start()
 }
 
-func (r *RCPolicyProvider) rcConfigUpdateCallback(configs map[string]state.ConfigCWSDD) {
+func (r *RCPolicyProvider) rcDefaultsUpdateCallback(configs map[string]state.ConfigCWSDD) {
 	r.Lock()
-	r.lastConfigs = configs
+	r.lastDefaults = configs
 	r.Unlock()
 
 	log.Info("new policies from remote-config policy provider")
 
-	r.onNewPoliciesReadyCb()
+	r.debouncer.Call()
+}
+
+func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.ConfigCWSCustom) {
+	r.Lock()
+	r.lastCustoms = configs
+	r.Unlock()
+
+	log.Info("new policies from remote-config policy provider")
+
+	r.debouncer.Call()
 }
 
 func normalize(policy *rules.Policy) {
@@ -84,15 +106,22 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	r.RLock()
 	defer r.RUnlock()
 
-	for _, c := range r.lastConfigs {
-		reader := bytes.NewReader(c.Config)
+	load := func(id string, cfg []byte) {
+		reader := bytes.NewReader(cfg)
 
-		policy, err := rules.LoadPolicy(c.Metadata.ID, "remote-config", reader, macroFilters, ruleFilters)
+		policy, err := rules.LoadPolicy(id, "remote-config", reader, macroFilters, ruleFilters)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
 		normalize(policy)
 		policies = append(policies, policy)
+	}
+
+	for _, c := range r.lastDefaults {
+		load(c.Metadata.ID, c.Config)
+	}
+	for _, c := range r.lastCustoms {
+		load(c.Metadata.ID, c.Config)
 	}
 
 	return policies, errs
@@ -103,8 +132,18 @@ func (r *RCPolicyProvider) SetOnNewPoliciesReadyCb(cb func()) {
 	r.onNewPoliciesReadyCb = cb
 }
 
+func (r *RCPolicyProvider) onNewPoliciesReady() {
+	r.RLock()
+	defer r.RUnlock()
+
+	if r.onNewPoliciesReadyCb != nil {
+		r.onNewPoliciesReadyCb()
+	}
+}
+
 // Close stops the client
 func (r *RCPolicyProvider) Close() error {
+	r.debouncer.Stop()
 	r.client.Close()
 	return nil
 }
