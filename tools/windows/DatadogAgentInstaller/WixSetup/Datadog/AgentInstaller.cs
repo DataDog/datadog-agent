@@ -186,7 +186,11 @@ namespace WixSetup.Datadog
             //.EnableResilientPackage() // Resilient package requires a .Net version newer than what is installed on 2008 R2
             ;
 
-            project.MajorUpgrade.AllowSameVersionUpgrades = true;
+            // Set this explicitly to false so that we're not tempted to set it to true
+            // in the future. This flag causes Wix to ignore the fourth product version,
+            // so 1.0.0.1 will be considered equal to 1.0.0.2998.
+            project.MajorUpgrade.AllowSameVersionUpgrades = false;
+            project.MajorUpgrade.Schedule = UpgradeSchedule.afterInstallInitialize;
             project.ReinstallMode = "amus";
             project.Platform = Platform.x64;
             // MSI 4.0+ required
