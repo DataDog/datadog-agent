@@ -172,6 +172,7 @@ func (n NodeType) Orchestrator() string {
 		K8sCRD,
 		K8sCR,
 		K8sNamespace,
+		K8sVerticalPodAutoscaler,
 		K8sUnsetType:
 		return "k8s"
 	default:
