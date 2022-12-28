@@ -29,7 +29,7 @@ func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *model.SystemInfo)
 }
 
 // Name returns the name of the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Name() string { return config.ProcessEventsCheckName }
+func (e *ProcessEventsCheck) Name() string { return ProcessEventsCheckName }
 
 // RealTime returns a value that says whether this check should be run in real time.
 func (e *ProcessEventsCheck) RealTime() bool { return false }

@@ -104,10 +104,10 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error
 }
 
 // Name returns the name of the ProcessCheck.
-func (p *ProcessCheck) Name() string { return config.ProcessCheckName }
+func (p *ProcessCheck) Name() string { return ProcessCheckName }
 
 // RealTimeName returns the name of the RTProcessCheck
-func (p *ProcessCheck) RealTimeName() string { return config.RTProcessCheckName }
+func (p *ProcessCheck) RealTimeName() string { return RTProcessCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (p *ProcessCheck) RealTime() bool { return false }
@@ -329,7 +329,7 @@ func fmtProcesses(
 	connsByPID map[int32][]*model.Connection,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
-	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
+	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(disallowList, fp, lastProcs) {

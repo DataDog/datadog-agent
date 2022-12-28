@@ -204,7 +204,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	if c.Name() == config.PodCheckName {
+	if c.Name() == checks.PodCheckName {
 		handlePodChecks(l, start, messages, results)
 	} else {
 		l.messagesToResultsQueue(start, c.Name(), messages, results)
@@ -592,11 +592,30 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 
 	rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
 
+	interval := checks.GetInterval(withRealTime.Name())
+	rtInterval := checks.GetInterval(withRealTime.RealTimeName())
+
+	if interval < rtInterval || interval%rtInterval != 0 {
+		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
+		// in order to be run on the same goroutine
+		defaultInterval := checks.GetDefaultInterval(withRealTime.Name())
+		defaultRTInterval := checks.GetDefaultInterval(withRealTime.RealTimeName())
+		log.Warnf(
+			"Invalid %s check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			withRealTime.Name(),
+			interval,
+			rtInterval,
+			defaultInterval,
+			defaultRTInterval,
+		)
+		interval = defaultInterval
+		rtInterval = defaultRTInterval
+	}
+
 	return checks.NewRunnerWithRealTime(
 		checks.RunnerConfig{
-			CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
-			RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
-
+			CheckInterval:  interval,
+			RtInterval:     rtInterval,
 			ExitChan:       exit,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
@@ -616,7 +635,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 			l.runCheck(c, results)
 		}
 
-		ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
+		ticker := time.NewTicker(checks.GetInterval(c.Name()))
 		for {
 			select {
 			case <-ticker.C:
@@ -686,7 +705,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
-			case config.PodCheckManifestName:
+			case checks.PodCheckManifestName:
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
@@ -844,7 +863,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), config.PodCheckManifestName, checks.ProcessEvents.Name():
+	case checks.Pod.Name(), checks.PodCheckManifestName, checks.ProcessEvents.Name():
 		return true
 	default:
 		return false
@@ -855,8 +874,8 @@ func ignoreResponseBody(checkName string) bool {
 // By default we only send pod payloads containing pod metadata and pod manifests (yaml)
 // Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
 func handlePodChecks(l *Collector, start time.Time, messages []model.MessageBody, results *api.WeightedQueue) {
-	l.messagesToResultsQueue(start, config.PodCheckName, messages[:len(messages)/2], results)
+	l.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
 	if l.orchestrator.IsManifestCollectionEnabled {
-		l.messagesToResultsQueue(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+		l.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
 	}
 }

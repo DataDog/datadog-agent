@@ -162,36 +162,30 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 
 	assert := assert.New(t)
 
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "")
+	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
 	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	assert.Equal(5065, config.Datadog.GetInt("process_config.expvar_port"))
 
 	newConfig()
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
+	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
 	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal("server-01", agentConfig.HostName)
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 	if runtime.GOOS != "windows" {
 		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
 	}
 
 	newConfig()
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
+	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
 	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-	assert.Equal(8*time.Second, agentConfig.CheckIntervals[ContainerCheckName])
-	assert.Equal(30*time.Second, agentConfig.CheckIntervals[ProcessCheckName])
 
 	newConfig()
 	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml")
@@ -293,36 +287,6 @@ func TestGetHostnameShellCmd(t *testing.T) {
 	case "agent-empty_hostname":
 		assert.EqualValues(t, []string{"hostname"}, args)
 		fmt.Fprintf(os.Stdout, "")
-	}
-}
-
-// TestProcessDiscoveryInterval tests to make sure that the process discovery interval validation works properly
-func TestProcessDiscoveryInterval(t *testing.T) {
-	for _, tc := range []struct {
-		name             string
-		interval         time.Duration
-		expectedInterval time.Duration
-	}{
-		{
-			name:             "allowed interval",
-			interval:         8 * time.Hour,
-			expectedInterval: 8 * time.Hour,
-		},
-		{
-			name:             "below minimum",
-			interval:         0,
-			expectedInterval: discoveryMinInterval,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Mock(t)
-			cfg.Set("process_config.process_discovery.interval", tc.interval)
-
-			agentCfg := NewDefaultAgentConfig()
-			assert.NoError(t, agentCfg.LoadAgentConfig(""))
-
-			assert.Equal(t, tc.expectedInterval, agentCfg.CheckIntervals[DiscoveryCheckName])
-		})
 	}
 }
 
