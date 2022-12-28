@@ -262,8 +262,8 @@ namespace Datadog.CustomActions
                     securityIdentifier = new SecurityIdentifier(session.Property("DDAGENTUSER_SID"));
                 }
 
-                securityIdentifier.AddToGroup("Performance Monitor Users");
-                securityIdentifier.AddToGroup("Event Log Readers");
+                securityIdentifier.AddToGroup(WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
+                securityIdentifier.AddToGroup(new SecurityIdentifier("S-1-5-32-573")); // Builtin\Event Log Readers
 
                 securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyInteractiveLogonRight);
                 securityIdentifier.AddPrivilege(AccountRightsConstants.SeDenyNetworkLogonRight);

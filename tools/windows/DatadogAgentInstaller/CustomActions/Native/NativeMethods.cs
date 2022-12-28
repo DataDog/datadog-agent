@@ -1,8 +1,10 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
+using static Datadog.CustomActions.Native.NativeMethods;
 
 namespace Datadog.CustomActions.Native
 {
@@ -227,6 +229,43 @@ namespace Datadog.CustomActions.Native
             ref LOCALGROUP_MEMBERS_INFO_0 buf, //Group info structure
             uint totalentries //number of entries
         );
+
+        public static void AddToGroup(this SecurityIdentifier securityIdentifier, WellKnownSidType groupSid)
+        {
+            AddToGroup(securityIdentifier, new SecurityIdentifier(groupSid, null));
+        }
+
+        public static void AddToGroup(this SecurityIdentifier securityIdentifier, SecurityIdentifier groupIdentifier)
+        {
+            var groupSid = new byte[groupIdentifier.BinaryLength];
+            groupIdentifier.GetBinaryForm(groupSid, 0);
+            uint cchName = 0;
+            var name = new StringBuilder();
+            uint cchReferencedDomainName = 0;
+            var referencedDomainName = new StringBuilder();
+            ReturnCodes err = ReturnCodes.ERROR_NONE_MAPPED;
+            if (!LookupAccountSid(null, groupSid, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out _))
+            {
+                err = (ReturnCodes)Marshal.GetLastWin32Error();
+                if (err == ReturnCodes.ERROR_INSUFFICIENT_BUFFER)
+                {
+                    name.EnsureCapacity((int)cchName);
+                    referencedDomainName.EnsureCapacity((int)cchReferencedDomainName);
+                    err = ReturnCodes.NO_ERROR;
+                    if (!LookupAccountSid(null, groupSid, name, ref cchName, referencedDomainName, ref cchReferencedDomainName, out _))
+                    {
+                        err = (ReturnCodes)Marshal.GetLastWin32Error();
+                    }
+                }
+            }
+            if (err == ReturnCodes.NO_ERROR)
+            {
+                AddToGroup(securityIdentifier, name.ToString());
+                return;
+            }
+
+            throw new Exception($"Could not add user to group, failure to lookup group name: {err}");
+        }
 
         public static void AddToGroup(this SecurityIdentifier securityIdentifier, string groupName)
         {
