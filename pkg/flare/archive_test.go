@@ -62,9 +62,20 @@ func TestIncludeConfigFiles(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	mock.AssertFileExists("test.yaml")
-	mock.AssertFileExists("test.Yml")
-	mock.AssertNoFileExists("not_included.conf")
+	mock.AssertFileExists("etc/confd/test.yaml")
+	mock.AssertFileExists("etc/confd/test.Yml")
+	mock.AssertNoFileExists("etc/confd/not_included.conf")
+}
+
+func TestIncludeConfigFilesWithPrefix(t *testing.T) {
+	common.SetupConfig("./test")
+
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getConfigFiles(mock.Fb, SearchPaths{"prefix": "./test/confd"})
+
+	mock.AssertFileExists("etc/confd/prefix/test.yaml")
+	mock.AssertFileExists("etc/confd/prefix/test.Yml")
+	mock.AssertNoFileExists("etc/confd/prefix/not_included.conf")
 }
 
 func createTestFile(t *testing.T, filename string) string {
