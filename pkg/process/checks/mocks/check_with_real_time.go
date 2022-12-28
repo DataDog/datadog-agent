@@ -22,11 +22,11 @@ func (_m *CheckWithRealTime) Cleanup() {
 }
 
 // Init provides a mock function with given fields: cfg, info
-func (_m *CheckWithRealTime) Init(cfg *config.AgentConfig, info *process.SystemInfo) error {
+func (_m *CheckWithRealTime) Init(cfg *config.AgentConfig, info *checks.HostInfo) error {
 	ret := _m.Called(cfg, info)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *process.SystemInfo) error); ok {
+	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *checks.HostInfo) error); ok {
 		r0 = rf(cfg, info)
 	} else {
 		r0 = ret.Error(0)
@@ -77,13 +77,13 @@ func (_m *CheckWithRealTime) RealTimeName() string {
 	return r0
 }
 
-// Run provides a mock function with given fields: cfg, groupID
-func (_m *CheckWithRealTime) Run(cfg *config.AgentConfig, groupID int32) ([]process.MessageBody, error) {
-	ret := _m.Called(cfg, groupID)
+// Run provides a mock function with given fields: groupID
+func (_m *CheckWithRealTime) Run(groupID int32) ([]process.MessageBody, error) {
+	ret := _m.Called(groupID)
 
 	var r0 []process.MessageBody
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, int32) []process.MessageBody); ok {
-		r0 = rf(cfg, groupID)
+	if rf, ok := ret.Get(0).(func(int32) []process.MessageBody); ok {
+		r0 = rf(groupID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]process.MessageBody)
@@ -91,8 +91,8 @@ func (_m *CheckWithRealTime) Run(cfg *config.AgentConfig, groupID int32) ([]proc
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(*config.AgentConfig, int32) error); ok {
-		r1 = rf(cfg, groupID)
+	if rf, ok := ret.Get(1).(func(int32) error); ok {
+		r1 = rf(groupID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -100,13 +100,13 @@ func (_m *CheckWithRealTime) Run(cfg *config.AgentConfig, groupID int32) ([]proc
 	return r0, r1
 }
 
-// RunWithOptions provides a mock function with given fields: cfg, nextGroupID, options
-func (_m *CheckWithRealTime) RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options checks.RunOptions) (*checks.RunResult, error) {
-	ret := _m.Called(cfg, nextGroupID, options)
+// RunWithOptions provides a mock function with given fields: nextGroupID, options
+func (_m *CheckWithRealTime) RunWithOptions(nextGroupID func() int32, options checks.RunOptions) (*checks.RunResult, error) {
+	ret := _m.Called(nextGroupID, options)
 
 	var r0 *checks.RunResult
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, func() int32, checks.RunOptions) *checks.RunResult); ok {
-		r0 = rf(cfg, nextGroupID, options)
+	if rf, ok := ret.Get(0).(func(func() int32, checks.RunOptions) *checks.RunResult); ok {
+		r0 = rf(nextGroupID, options)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*checks.RunResult)
@@ -114,8 +114,8 @@ func (_m *CheckWithRealTime) RunWithOptions(cfg *config.AgentConfig, nextGroupID
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(*config.AgentConfig, func() int32, checks.RunOptions) error); ok {
-		r1 = rf(cfg, nextGroupID, options)
+	if rf, ok := ret.Get(1).(func(func() int32, checks.RunOptions) error); ok {
+		r1 = rf(nextGroupID, options)
 	} else {
 		r1 = ret.Error(1)
 	}

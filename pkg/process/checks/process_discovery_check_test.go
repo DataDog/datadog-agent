@@ -24,13 +24,18 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	getMaxBatchSize = func() int { return maxBatchSize }
 
 	cfg := &config.AgentConfig{}
-	ProcessDiscovery.Init(cfg, &model.SystemInfo{
-		Cpus:        []*model.CPUInfo{{Number: 0}},
-		TotalMemory: 0,
-	})
+	ProcessDiscovery.Init(
+		cfg,
+		&HostInfo{
+			SystemInfo: &model.SystemInfo{
+				Cpus:        []*model.CPUInfo{{Number: 0}},
+				TotalMemory: 0,
+			},
+		},
+	)
 
 	// Test check runs without error
-	result, err := ProcessDiscovery.Run(cfg, 0)
+	result, err := ProcessDiscovery.Run(0)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type

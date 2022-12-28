@@ -101,8 +101,8 @@ func runCheckCmd(cliParams *cliParams) error {
 	defer cancel()
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -136,7 +136,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	sysInfo, err := checks.CollectSystemInfo(cfg)
+	hostInfo, err := checks.CollectHostInfo()
 	if err != nil {
 		log.Errorf("failed to collect system info: %s", err)
 	}
@@ -159,10 +159,10 @@ func runCheckCmd(cliParams *cliParams) error {
 	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		if err := checks.Process.Init(cfg, sysInfo); err != nil {
+		if err := checks.Process.Init(cfg, hostInfo); err != nil {
 			return err
 		}
-		checks.Process.Run(cfg, 0) //nolint:errcheck
+		checks.Process.Run(0) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
@@ -172,7 +172,7 @@ func runCheckCmd(cliParams *cliParams) error {
 		names = append(names, ch.Name())
 
 		if ch.Name() == cliParams.checkName {
-			if err = ch.Init(cfg, sysInfo); err != nil {
+			if err = ch.Init(cfg, hostInfo); err != nil {
 				return err
 			}
 			cleanups = append(cleanups, ch.Cleanup)
@@ -181,7 +181,7 @@ func runCheckCmd(cliParams *cliParams) error {
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == cliParams.checkName {
-			if err = withRealTime.Init(cfg, sysInfo); err != nil {
+			if err = withRealTime.Init(cfg, hostInfo); err != nil {
 				return err
 			}
 			cleanups = append(cleanups, withRealTime.Cleanup)
@@ -193,7 +193,7 @@ func runCheckCmd(cliParams *cliParams) error {
 
 func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) error {
 	// Run the check once to prime the cache.
-	if _, err := ch.Run(cfg, 0); err != nil {
+	if _, err := ch.Run(0); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -204,7 +204,7 @@ func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) er
 		printResultsBanner(ch.Name())
 	}
 
-	msgs, err := ch.Run(cfg, 1)
+	msgs, err := ch.Run(1)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
@@ -226,7 +226,7 @@ func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks
 
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
-	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
+	if _, err := ch.RunWithOptions(nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -237,7 +237,7 @@ func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks
 		printResultsBanner(ch.RealTimeName())
 	}
 
-	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
+	run, err := ch.RunWithOptions(nextGroupID, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}

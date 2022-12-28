@@ -20,9 +20,5 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 		return err
 	}
 
-	if config.Datadog.IsSet("hostname") {
-		a.HostName = config.Datadog.GetString("hostname")
-	}
-
 	return nil
 }

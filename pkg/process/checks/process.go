@@ -54,7 +54,7 @@ type ProcessCheck struct {
 	// disallowList to hide processes
 	disallowList []*regexp.Regexp
 
-	sysInfo                    *model.SystemInfo
+	hostInfo                   *HostInfo
 	lastCPUTime                cpu.TimesStat
 	lastProcs                  map[int32]*procutil.Process
 	lastRun                    time.Time
@@ -81,8 +81,8 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
-	p.sysInfo = info
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *HostInfo) error {
+	p.hostInfo = info
 	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
 
@@ -122,8 +122,8 @@ func (p *ProcessCheck) ShouldSaveLastRun() bool { return true }
 // Processes are split up into a chunks of at most 100 processes per message to
 // limit the message size on intake.
 // See agent.proto for the schema of the message and models used.
-func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	result, err := p.run(cfg, groupID, false)
+func (p *ProcessCheck) Run(groupID int32) ([]model.MessageBody, error) {
+	result, err := p.run(groupID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,7 @@ func (p *ProcessCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Mess
 // Cleanup frees any resource held by the ProcessCheck before the agent exits
 func (p *ProcessCheck) Cleanup() {}
 
-func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTime bool) (*RunResult, error) {
+func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, error) {
 	start := time.Now()
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
@@ -192,8 +192,8 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(cfg, p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
-	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
@@ -209,21 +209,21 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 			messages := make([]model.MessageBody, 0, groupSize)
 			for i := 0; i < groupSize; i++ {
 				messages = append(messages, &model.CollectorRealTime{
-					HostName:          cfg.HostName,
+					HostName:          p.hostInfo.HostName,
 					Stats:             chunkedStats[i],
 					ContainerStats:    chunkedCtrStats[i],
 					GroupId:           groupID,
 					GroupSize:         int32(groupSize),
-					NumCpus:           int32(len(p.sysInfo.Cpus)),
-					TotalMemory:       p.sysInfo.TotalMemory,
-					ContainerHostType: cfg.ContainerHostType,
+					NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+					TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+					ContainerHostType: p.hostInfo.ContainerHostType,
 				})
 			}
 			result.RealTime = messages
@@ -251,26 +251,25 @@ func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
 
 // RunWithOptions collects process data (regular metadata + stats) and/or realtime process data (stats only)
 // Messages are grouped as RunResult instances with CheckName identifying the type
-func (p *ProcessCheck) RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error) {
+func (p *ProcessCheck) RunWithOptions(nextGroupID func() int32, options RunOptions) (*RunResult, error) {
 	if options.RunStandard {
 		log.Tracef("Running process check")
-		return p.run(cfg, nextGroupID(), options.RunRealTime)
+		return p.run(nextGroupID(), options.RunRealTime)
 	}
 
 	if options.RunRealTime {
 		log.Tracef("Running rtprocess check")
-		return p.runRealtime(cfg, nextGroupID())
+		return p.runRealtime(nextGroupID())
 	}
 	return nil, errors.New("invalid run options for check")
 }
 
 func createProcCtrMessages(
+	hostInfo *HostInfo,
 	procsByCtr map[string][]*model.Process,
 	containers []*model.Container,
-	cfg *config.AgentConfig,
 	maxBatchSize int,
 	maxBatchWeight int,
-	sysInfo *model.SystemInfo,
 	groupID int32,
 	networkID string,
 ) ([]model.MessageBody, int, int) {
@@ -280,11 +279,11 @@ func createProcCtrMessages(
 	messages := make([]model.MessageBody, 0, len(collectorProcs))
 	for _, m := range collectorProcs {
 		m.GroupSize = int32(len(collectorProcs))
-		m.HostName = cfg.HostName
+		m.HostName = hostInfo.HostName
 		m.NetworkId = networkID
-		m.Info = sysInfo
+		m.Info = hostInfo.SystemInfo
 		m.GroupId = groupID
-		m.ContainerHostType = cfg.ContainerHostType
+		m.ContainerHostType = hostInfo.ContainerHostType
 
 		messages = append(messages, m)
 	}
@@ -319,7 +318,6 @@ func chunkProcessesAndContainers(
 // fmtProcesses goes through each process, converts them to process object and group them by containers
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
-	cfg *config.AgentConfig,
 	scrubber *procutil.DataScrubber,
 	disallowList []*regexp.Regexp,
 	procs, lastProcs map[int32]*procutil.Process,

@@ -23,6 +23,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -114,8 +115,8 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	}
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -151,12 +152,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		log.Errorf("failed to start the tagger: %s", err)
 	}
 	defer tagger.Stop() //nolint:errcheck
-
-	err = initInfo(cfg)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
-	}
 
 	if err := statsd.Configure(ddconfig.GetBindHost(), ddconfig.Datadog.GetInt("dogstatsd_port")); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
@@ -230,7 +225,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
-		if err := Info(os.Stdout, cfg, url); err != nil {
+		if err := Info(os.Stdout, url); err != nil {
 			cleanupAndExit(1)
 		}
 		return
@@ -253,7 +248,20 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg, enabledChecks)
+	hostInfo, err := checks.CollectHostInfo()
+	if err != nil {
+		log.Criticalf("Error collecting host details: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
+	err = initInfo(hostInfo.HostName)
+	if err != nil {
+		log.Criticalf("Error initializing info: %s", err)
+		cleanupAndExit(1)
+	}
+
+	cl, err := NewCollector(cfg, hostInfo, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)

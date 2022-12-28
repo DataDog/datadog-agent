@@ -3,7 +3,9 @@
 package mocks
 
 import (
+	checks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	config "github.com/DataDog/datadog-agent/pkg/process/config"
+
 	mock "github.com/stretchr/testify/mock"
 
 	process "github.com/DataDog/agent-payload/v5/process"
@@ -20,11 +22,11 @@ func (_m *Check) Cleanup() {
 }
 
 // Init provides a mock function with given fields: cfg, info
-func (_m *Check) Init(cfg *config.AgentConfig, info *process.SystemInfo) error {
+func (_m *Check) Init(cfg *config.AgentConfig, info *checks.HostInfo) error {
 	ret := _m.Called(cfg, info)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *process.SystemInfo) error); ok {
+	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *checks.HostInfo) error); ok {
 		r0 = rf(cfg, info)
 	} else {
 		r0 = ret.Error(0)
@@ -61,13 +63,13 @@ func (_m *Check) RealTime() bool {
 	return r0
 }
 
-// Run provides a mock function with given fields: cfg, groupID
-func (_m *Check) Run(cfg *config.AgentConfig, groupID int32) ([]process.MessageBody, error) {
-	ret := _m.Called(cfg, groupID)
+// Run provides a mock function with given fields: groupID
+func (_m *Check) Run(groupID int32) ([]process.MessageBody, error) {
+	ret := _m.Called(groupID)
 
 	var r0 []process.MessageBody
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, int32) []process.MessageBody); ok {
-		r0 = rf(cfg, groupID)
+	if rf, ok := ret.Get(0).(func(int32) []process.MessageBody); ok {
+		r0 = rf(groupID)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]process.MessageBody)
@@ -75,8 +77,8 @@ func (_m *Check) Run(cfg *config.AgentConfig, groupID int32) ([]process.MessageB
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(*config.AgentConfig, int32) error); ok {
-		r1 = rf(cfg, groupID)
+	if rf, ok := ret.Get(1).(func(int32) error); ok {
+		r1 = rf(groupID)
 	} else {
 		r1 = ret.Error(1)
 	}

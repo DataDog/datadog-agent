@@ -72,7 +72,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/connections", req.uri)
 
-		assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 		apiEps, err := getAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, apiEps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -87,7 +87,7 @@ func TestSendConnectionsMessage(t *testing.T) {
 		cc, ok := reqBody.Body.(*process.CollectorConnections)
 		require.True(t, ok)
 
-		assert.Equal(t, c.cfg.HostName, cc.HostName)
+		assert.Equal(t, testHostName, cc.HostName)
 		assert.Equal(t, int32(1), cc.GroupId)
 	})
 }
@@ -111,7 +111,7 @@ func TestSendContainerMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/container", req.uri)
 
-		assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 		eps, err := getAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -148,7 +148,7 @@ func TestSendProcMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/collector", req.uri)
 
-		assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 		eps, err := getAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -188,7 +188,7 @@ func TestSendProcessDiscoveryMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v1/discovery", req.uri)
 
-		assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 		eps, err := getAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -237,7 +237,7 @@ func TestSendProcessEventMessage(t *testing.T) {
 
 		assert.Equal(t, "/api/v2/proclcycle", req.uri)
 
-		assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+		assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 		eps, err := getEventsAPIEndpoints()
 		assert.NoError(t, err)
 		assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -284,7 +284,7 @@ func TestSendProcMessageWithRetry(t *testing.T) {
 
 		timestamps := make(map[string]struct{})
 		for _, req := range requests {
-			assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+			assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 			eps, err := getAPIEndpoints()
 			assert.NoError(t, err)
 			assert.Equal(t, eps[0].APIKey, req.headers.Get("DD-Api-Key"))
@@ -397,7 +397,7 @@ func testPodMessageMetadata(t *testing.T, clusterID string, c *Collector, ep *mo
 
 	assert.Equal(t, "/api/v2/orch", req.uri)
 
-	assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+	assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 	assert.Equal(t, c.orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
@@ -410,14 +410,14 @@ func testPodMessageMetadata(t *testing.T, clusterID string, c *Collector, ep *mo
 	require.True(t, ok)
 
 	assert.Equal(t, clusterID, req.headers.Get(headers.ClusterIDHeader))
-	assert.Equal(t, c.cfg.HostName, cp.HostName)
+	assert.Equal(t, testHostName, cp.HostName)
 }
 
 func testPodMessageManifest(t *testing.T, clusterID string, c *Collector, ep *mockEndpoint) {
 	req := <-ep.Requests
 
 	assert.Equal(t, "/api/v2/orchmanif", req.uri)
-	assert.Equal(t, c.cfg.HostName, req.headers.Get(headers.HostHeader))
+	assert.Equal(t, testHostName, req.headers.Get(headers.HostHeader))
 	assert.Equal(t, c.orchestrator.OrchestratorEndpoints[0].APIKey, req.headers.Get("DD-Api-Key"))
 	assert.Equal(t, "0", req.headers.Get(headers.ContainerCountHeader))
 	assert.Equal(t, "1", req.headers.Get("X-DD-Agent-Attempts"))
@@ -528,7 +528,7 @@ func runCollectorTest(t *testing.T, check checks.Check, cfg *config.AgentConfig,
 	runCollectorTestWithAPIKeys(t, check, cfg, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, mockConfig, init, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector), tc func(c *Collector, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, _ *config.AgentConfig, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector), tc func(c *Collector, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
@@ -545,11 +545,16 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 	}
 	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
 
-	cfg.HostName = testHostName
+	hostInfo := &checks.HostInfo{
+		HostName: testHostName,
+	}
 
 	exit := make(chan struct{})
 
-	c, err := NewCollectorWithChecks(cfg, []checks.Check{check}, true)
+	c, err := NewCollectorWithChecks(config.NewDefaultAgentConfig(), hostInfo, []checks.Check{check}, true)
+
+	check.Init(nil, hostInfo)
+
 	assert.NoError(t, err)
 	if init != nil {
 		init(c)
@@ -579,7 +584,7 @@ type testCheck struct {
 	data [][]process.MessageBody
 }
 
-func (t *testCheck) Init(_ *config.AgentConfig, _ *process.SystemInfo) error {
+func (t *testCheck) Init(_ *config.AgentConfig, _ *checks.HostInfo) error {
 	return nil
 }
 
@@ -595,7 +600,7 @@ func (t *testCheck) ShouldSaveLastRun() bool {
 	return false
 }
 
-func (t *testCheck) Run(_ *config.AgentConfig, _ int32) ([]process.MessageBody, error) {
+func (t *testCheck) Run(_ int32) ([]process.MessageBody, error) {
 	if len(t.data) > 0 {
 		result := t.data[0]
 		t.data = t.data[1:]
