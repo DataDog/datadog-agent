@@ -176,6 +176,7 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.68.0
+	go.opentelemetry.io/collector/confmap v0.68.0
 	go.opentelemetry.io/collector/component v0.68.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.68.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.68.0
@@ -428,7 +429,6 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
-	go.opentelemetry.io/collector/confmap v0.68.0
 )
 
 require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
