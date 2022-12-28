@@ -207,7 +207,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 }
 
 func getVersionHistory(fb flarehelpers.FlareBuilder) {
-	fb.CopyFileTo(config.Datadog.GetString("run_path"), "version-history.json")
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json"))
 }
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
@@ -217,7 +217,7 @@ func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
 }
 
 func getRegistryJSON(fb flarehelpers.FlareBuilder) {
-	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path")))
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
 }
 
 func getMetadataV5() ([]byte, error) {
