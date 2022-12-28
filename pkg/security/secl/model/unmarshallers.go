@@ -487,8 +487,7 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.Tid = ByteOrder.Uint32(data[4:8])
 	p.NetNS = ByteOrder.Uint32(data[8:12])
 	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
-	p.Revision = ByteOrder.Uint32(data[16:20])
-	// padding
+	p.Inode = ByteOrder.Uint64(data[16:24])
 
 	return 24, nil
 }
