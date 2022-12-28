@@ -160,6 +160,17 @@ platforms:
     username: <%= vm_username %>
     password: <%= vm_password %>
 
+  lifecycle:
+    # HACK: this is needed to install rexml for system-probe tests without using bundler, which cannot be used for now
+    # (see the explanation in tasks/run-test-kitchen.sh).
+    pre_verify:
+      - local: echo 'Installing rexml gem for the system-probe-test suite'
+      <% if windows %>
+      - remote: C:/opscode/chef/embedded/bin/gem.bat install rexml --install-dir C:/Users/<%= vm_username %>/AppData/Local/Temp/verifier/gems
+      <% else %>
+      - remote: /opt/chef/embedded/bin/gem install rexml --install-dir /tmp/verifier/gems
+      <% end %>
+
   transport:
     <% if windows %>
     name: winrm
