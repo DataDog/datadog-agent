@@ -29,6 +29,7 @@ Processes and Containers Agent (v 0.99.0)
   Hostname: ubuntu-1404.vagrantup.com
   Uptime: 3464 seconds
   Mem alloc: 2096792 bytes
+  System Probe Process Module Status: Not running
 
   Last collection time: 2017-09-28 07:10:16
   Docker socket: /var/run/docker.sock
