@@ -110,6 +110,12 @@ spec:
                 env:
                   - name:  DD_USE_V2_API_SERIES
                     value: "false"
+                  - name: REMOTE_CONFIGURATION_ENABLED
+                    value: "true"
+                  - name: REMOTE_CONFIGURATION_KEY
+                    value: $DD_RC_KEY
+                  - name: REMOTE_CONFIGURATION_REFRESH_INTERVAL
+                    value: "5s"
               systemProbe:
                 logLevel: TRACE
                 env:
@@ -117,6 +123,8 @@ spec:
                     value: "module.*"
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
+                  - name: DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED
+                    value: "true"
                 securityContext:
                   capabilities:
                     drop:

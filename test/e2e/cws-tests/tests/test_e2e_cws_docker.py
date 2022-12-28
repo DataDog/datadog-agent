@@ -48,6 +48,7 @@ class TestE2EDocker(unittest.TestCase):
         desc = f"e2e test rule {test_id}"
         data = None
         agent_rule_name = f"e2e_agent_rule_{test_id}"
+        rc_enabled = os.getenv("DD_RC_KEY") != ""
 
         with Step(msg=f"check agent rule({test_id}) creation", emoji=":straight_ruler:"):
             self.agent_rule_id = self.app.create_cws_agent_rule(
@@ -67,9 +68,15 @@ class TestE2EDocker(unittest.TestCase):
             image = os.getenv("DD_AGENT_IMAGE")
             hostname = f"host_{test_id}"
             self.datadog_agent_config = gen_datadog_agent_config(
-                hostname=hostname, log_level="DEBUG", tags=["tag1", "tag2"]
+                hostname=hostname,
+                log_level="DEBUG",
+                tags=["tag1", "tag2"],
+                rc_enabled=rc_enabled,
+                rc_key=os.getenv("DD_RC_KEY"),
             )
-            self.system_probe_config = gen_system_probe_config(log_level="TRACE", log_patterns=["module.APIServer.*"])
+            self.system_probe_config = gen_system_probe_config(
+                log_level="TRACE", log_patterns=["module.APIServer.*"], rc_enabled=rc_enabled
+            )
 
             self.container = self.docker_helper.start_cws_agent(
                 image,
@@ -83,11 +90,18 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded")
+        with Step(msg="check file ruleset_loaded", emoji=":delivery_truck:"):
+            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
+
+        if rc_enabled:
+            with Step(msg="check remote-config ruleset_loaded", emoji=":delivery_truck:"):
+                event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
+                attributes = event["data"][-1]["attributes"]["attributes"]
+                start_date = attributes["date"]
+                self.app.check_for_ignored_policies(self, attributes)
 
         with Step(msg="download policies", emoji=":file_folder:"):
             self.policies = self.docker_helper.download_policies().output.decode()
