@@ -328,12 +328,12 @@ namespace Datadog.CustomActions
                         if (Directory.Exists(filePath))
                         {
                             fileSystemSecurity = Directory.GetAccessControl(filePath, AccessControlSections.All);
-                            sddl = $"O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
+                            sddl = $"D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;{securityIdentifier.Value})";
                         }
                         else
                         {
                             fileSystemSecurity = File.GetAccessControl(filePath, AccessControlSections.All);
-                            sddl = $"O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})";
+                            sddl = $"D:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;{securityIdentifier.Value})";
                         }
                     }
                     catch (Exception e)
@@ -343,7 +343,13 @@ namespace Datadog.CustomActions
                     }
 
                     session.Log($"{filePath} current ACLs: {fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.All)}");
-                    fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
+
+                    // Set owner and group only if necessary
+                    if (fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Owner) != "O:SY" ||
+                        fileSystemSecurity.GetSecurityDescriptorSddlForm(AccessControlSections.Group) != "G:SY")
+                    {
+                        fileSystemSecurity.SetSecurityDescriptorSddlForm($"O:SYG:SY{sddl}");
+                    }
 
                     try
                     {
@@ -358,8 +364,24 @@ namespace Datadog.CustomActions
                     }
                     catch (Exception e)
                     {
-                        session.Log($"Failed to set ACLs on {filePath}: {e}");
-                        throw;
+                        try
+                        {
+                            // Try again but without owner/group
+                            fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
+                            if (Directory.Exists(filePath))
+                            {
+                                Directory.SetAccessControl(filePath, (DirectorySecurity)fileSystemSecurity);
+                            }
+                            else
+                            {
+                                File.SetAccessControl(filePath, (FileSecurity)fileSystemSecurity);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            session.Log($"Failed to set ACLs on {filePath}: {e}");
+                            throw;
+                        }
                     }
 
                     try
