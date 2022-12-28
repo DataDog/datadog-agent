@@ -101,7 +101,6 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error
 
 	p.disallowList = initDisallowList()
 	return nil
-
 }
 
 // Name returns the name of the ProcessCheck.
