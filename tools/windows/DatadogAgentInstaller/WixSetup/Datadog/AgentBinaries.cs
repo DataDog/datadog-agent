@@ -6,7 +6,6 @@ namespace WixSetup.Datadog
         public string Agent => $@"{_binSource}\agent\agent.exe";
         public string Tray => $@"{_binSource}\agent\ddtray.exe";
         public string ProcessAgent => $@"{_binSource}\agent\process-agent.exe";
-        public string SecurityAgent => $@"{_binSource}\agent\security-agent.exe";
         public string SystemProbe => $@"{_binSource}\agent\system-probe.exe";
         public string TraceAgent => $@"{_binSource}\agent\trace-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\agent\libdatadog-agent-three.dll";

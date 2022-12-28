@@ -50,7 +50,6 @@ namespace WixSetup.Datadog
                     _agentBinaries.Agent,
                     _agentBinaries.Tray,
                     _agentBinaries.ProcessAgent,
-                    _agentBinaries.SecurityAgent,
                     _agentBinaries.SystemProbe,
                     _agentBinaries.TraceAgent,
                     _agentBinaries.LibDatadogAgentThree

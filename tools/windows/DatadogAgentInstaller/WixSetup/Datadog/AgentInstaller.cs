@@ -359,7 +359,6 @@ namespace WixSetup.Datadog
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     },
-                    new File(_agentBinaries.SecurityAgent),
                     new File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
                     {
