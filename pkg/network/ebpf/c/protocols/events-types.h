@@ -29,7 +29,7 @@ typedef struct {
     __u64 idx;
     __u16 len;
     __u16 cap;
-    __u16 element_size;
+    __u16 event_size;
     char data[BATCH_BUFFER_SIZE];
 } batch_data_t;
 

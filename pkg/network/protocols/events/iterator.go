@@ -15,7 +15,6 @@ import "unsafe"
 // for example, batch data for an event type of size 4 may look like the
 // following:
 //
-//
 // 0    1    2    3    4    5
 // |aaaa|bbbb|cccc|0000|0000|....|
 // 0    4    8    12   16   20   4096
