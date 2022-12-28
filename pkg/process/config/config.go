@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
@@ -63,8 +62,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // For any other setting, use `pkg/config`.
 type AgentConfig struct {
 	HostName           string
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
 	MaxConnsPerMessage int
 
 	// host type of the agent, used to populate container payload with additional host information
@@ -130,10 +127,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
 		},
-
-		// DataScrubber to hide command line sensitive words
-		Scrubber:  NewDefaultDataScrubber(),
-		Blacklist: make([]*regexp.Regexp, 0),
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -262,17 +255,6 @@ func loadEnvVariables() {
 			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
-}
-
-// IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
-func IsBlacklisted(cmdline []string, blacklist []*regexp.Regexp) bool {
-	cmd := strings.Join(cmdline, " ")
-	for _, b := range blacklist {
-		if b.MatchString(cmd) {
-			return true
-		}
-	}
-	return false
 }
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent

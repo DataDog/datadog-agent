@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.46
+	github.com/DataDog/agent-payload/v5 v5.0.48
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
@@ -176,8 +176,8 @@ require (
 	go.etcd.io/bbolt v1.3.6
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.68.0
-	go.opentelemetry.io/collector/confmap v0.68.0
 	go.opentelemetry.io/collector/component v0.68.0
+	go.opentelemetry.io/collector/confmap v0.68.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.68.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.68.0
 	go.opentelemetry.io/collector/pdata v1.0.0-rc2
@@ -364,7 +364,7 @@ require (
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/skydive-project/go-debouncer v1.0.0 // indirect
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
@@ -429,6 +429,7 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/streadway/amqp v1.0.0
 )
 
 require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect

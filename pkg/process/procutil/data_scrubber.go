@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package procutil
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +26,7 @@ const (
 	defaultCacheMaxCycles = 25
 )
 
-// DataScrubber allows the agent to blacklist cmdline arguments that match
+// DataScrubber allows the agent to disallow-list cmdline arguments that match
 // a list of predefined and custom words
 type DataScrubber struct {
 	Enabled           bool
@@ -87,7 +85,7 @@ func CompileStringsToRegex(words []string) []*regexp.Regexp {
 					valid = false
 					break
 				} else {
-					enhancedWord.WriteString(fmt.Sprintf("[^\\s=:$/]*"))
+					enhancedWord.WriteString("[^\\s=:$/]*")
 				}
 			} else {
 				enhancedWord.WriteString(string(rune))
@@ -111,7 +109,7 @@ func CompileStringsToRegex(words []string) []*regexp.Regexp {
 }
 
 // createProcessKey returns an unique identifier for a given process
-func createProcessKey(p *procutil.Process) string {
+func createProcessKey(p *Process) string {
 	var b bytes.Buffer
 	b.WriteString("p:")
 	b.WriteString(strconv.Itoa(int(p.Pid)))
@@ -123,7 +121,7 @@ func createProcessKey(p *procutil.Process) string {
 
 // ScrubProcessCommand uses a cache memory to avoid scrubbing already known
 // process' cmdlines
-func (ds *DataScrubber) ScrubProcessCommand(p *procutil.Process) []string {
+func (ds *DataScrubber) ScrubProcessCommand(p *Process) []string {
 	if ds.StripAllArguments {
 		return ds.stripArguments(p.Cmdline)
 	}

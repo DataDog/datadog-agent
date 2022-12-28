@@ -46,6 +46,15 @@ func TestFormatProtocols(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "amqp protocol",
+			protocol: network.ProtocolAMQP,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolAMQP,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

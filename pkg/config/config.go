@@ -264,6 +264,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -1229,7 +1230,9 @@ func InitConfig(config Config) {
 	setupProcesses(config)
 }
 
-var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
+// version (see AddAgentVersionToDomain).
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // GetProxies returns the proxy settings from the configuration
 func GetProxies() *Proxy {
