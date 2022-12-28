@@ -44,14 +44,8 @@ func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []c
 		checkCfg = append(checkCfg, checks.ProcessEvents)
 	}
 
-	// activate the pod collection if enabled and we have the cluster name set
-	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
-	if orchestratorEnabled {
-		if kubeClusterName != "" {
-			checkCfg = append(checkCfg, checks.Pod)
-		} else {
-			_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
-		}
+	if isOrchestratorCheckEnabled() {
+		checkCfg = append(checkCfg, checks.Pod)
 	}
 
 	if sysCfg.Enabled {
@@ -64,6 +58,20 @@ func getChecks(sysCfg *sysconfig.Config, canAccessContainers bool) (checkCfg []c
 	}
 
 	return
+}
+
+func isOrchestratorCheckEnabled() bool {
+	// activate the pod collection if enabled and we have the cluster name set
+	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	if !orchestratorEnabled {
+		return false
+	}
+
+	if kubeClusterName == "" {
+		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
+		return false
+	}
+	return true
 }
 
 func getAPIEndpoints() (eps []apicfg.Endpoint, err error) {

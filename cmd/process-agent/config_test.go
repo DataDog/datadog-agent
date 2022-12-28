@@ -175,10 +175,6 @@ func TestPodCheck(t *testing.T) {
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
-		// ocfg := oconfig.NewDefaultOrchestratorConfig()
-		// ocfg.KubeClusterName = "test" // We can't reliably detect a kubernetes cluster in a test
-		// assert.NoError(t, ocfg.Load())
-
 		enabledChecks := getChecks(&sysconfig.Config{}, true)
 		assert.Contains(t, enabledChecks, checks.Pod)
 	})
