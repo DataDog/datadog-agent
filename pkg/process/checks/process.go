@@ -81,7 +81,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
 	p.sysInfo = info
 	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
@@ -100,7 +100,7 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 	initScrubber(p.scrubber)
 
 	p.disallowList = initDisallowList()
-
+	return nil
 }
 
 // Name returns the name of the ProcessCheck.

@@ -25,8 +25,9 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) error {
 	c.sysInfo = info
+	return nil
 }
 
 // Name returns the name of the ProcessCheck.

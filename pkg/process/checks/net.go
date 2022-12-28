@@ -56,7 +56,7 @@ type ConnectionsCheck struct {
 }
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
+func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) error {
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
@@ -87,6 +87,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.serviceExtractor = parser.NewServiceExtractor()
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	return nil
 }
 
 // Name returns the name of the ConnectionsCheck.

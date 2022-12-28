@@ -10,8 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -23,7 +21,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -70,9 +67,6 @@ type AgentConfig struct {
 	// System probe collection configuration
 	SystemProbeAddress string
 
-	// Orchestrator config
-	Orchestrator *oconfig.OrchestratorConfig
-
 	// Check config
 	CheckIntervals map[string]time.Duration
 }
@@ -87,21 +81,6 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 	return d
 }
 
-// NewDefaultTransport provides a http transport configuration with sane default timeouts
-func NewDefaultTransport() *http.Transport {
-	return &http.Transport{
-		MaxIdleConns:    5,
-		IdleConnTimeout: 90 * time.Second,
-		Dial: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 10 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
-}
-
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
 	ac := &AgentConfig{
@@ -112,9 +91,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// System probe collection configuration
 		SystemProbeAddress: defaultSystemProbeAddress,
-
-		// Orchestrator config
-		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
 		CheckIntervals: map[string]time.Duration{
@@ -169,10 +145,6 @@ func LoadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
 	cfg := NewDefaultAgentConfig()
 	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
-		return nil, err
-	}
-
-	if err := cfg.Orchestrator.Load(); err != nil {
 		return nil, err
 	}
 

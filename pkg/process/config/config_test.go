@@ -201,27 +201,6 @@ func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
 	}
 }
 
-func TestEnvOrchestratorAdditionalEndpoints(t *testing.T) {
-	newConfig()
-	defer restoreGlobalConfig()
-
-	assert := assert.New(t)
-
-	expected := make(map[string]string)
-	expected["key1"] = "url1.com"
-	expected["key2"] = "url2.com"
-	expected["key3"] = "url2.com"
-	expected["apikey_20"] = "orchestrator.datadoghq.com" // from config file
-
-	t.Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://url1.com": ["key1"], "https://url2.com": ["key2", "key3"]}`)
-
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
-
-	for _, actual := range agentConfig.Orchestrator.OrchestratorEndpoints {
-		assert.Equal(expected[actual.APIKey], actual.Endpoint.Hostname(), actual)
-	}
-}
-
 func TestGetHostnameFromGRPC(t *testing.T) {
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
