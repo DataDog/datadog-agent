@@ -88,7 +88,7 @@ func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("logs_config.run_path", srcDir)
+	confMock.Set("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getRegistryJSON(mock.Fb)
@@ -186,7 +186,7 @@ func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("run_path", srcDir)
+	confMock.Set("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getVersionHistory(mock.Fb)
