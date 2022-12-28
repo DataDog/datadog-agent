@@ -373,21 +373,19 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 		return nil, p.truncated
 	}
 
-	p.filteredEnvs = make([]string, len(values))
+	p.filteredEnvs = make([]string, 0, len(values))
 
-	var i int
 	for _, value := range values {
 		k, _, found := strings.Cut(value, "=")
-		if !found {
-			continue
-		}
-
-		if envsWithValue[k] {
-			p.filteredEnvs[i] = value
+		if found {
+			if envsWithValue[k] {
+				p.filteredEnvs = append(p.filteredEnvs, value)
+			} else {
+				p.filteredEnvs = append(p.filteredEnvs, k)
+			}
 		} else {
-			p.filteredEnvs[i] = k
+			p.filteredEnvs = append(p.filteredEnvs, value)
 		}
-		i++
 	}
 
 	return p.filteredEnvs, p.truncated
