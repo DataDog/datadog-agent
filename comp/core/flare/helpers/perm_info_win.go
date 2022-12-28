@@ -13,20 +13,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"golang.org/x/sys/windows"
 )
 
 // filePermsInfo represents file rights on windows.
-type filePermsInfo struct {
-	path   string
-	mode   string
-	icacls string
-	err    error
-}
+type filePermsInfo struct{}
 
-func run_cmd(cmd *exec.Cmd) string {
+func runCmd(cmd *exec.Cmd) string {
 	stdout := bytes.Buffer{}
 	stderr := bytes.Buffer{}
 	cmd.Stdout = &stdout
@@ -45,36 +41,37 @@ func run_cmd(cmd *exec.Cmd) string {
 	return output
 }
 
+func getCommitDir() string {
+	// Virtually all files whose permissions we are trying to collect come from
+	// the Datadog configuration directory (at least the one we care about). It
+	// may change in the future.
+	commitDir := filepath.Dir(config.Datadog.ConfigFileUsed())
+
+	// Handle unit test run (to the best of our abilities)
+	if commitDir == "." {
+		commitDir, _ = os.Getwd()
+	}
+
+	return commitDir
+}
+
+func getPermExeFilePath() string {
+	sysDir, _ := windows.GetSystemDirectory()
+	return fmt.Sprintf("%s\\icacls.exe", sysDir)
+}
+
 func (p permissionsInfos) add(filePath string) {
-	info := filePermsInfo{
-		path: filePath,
-	}
-	p[filePath] = &info
-
-	// This is a performance sensitive function because it is invoked
-	// directly (via fb.RegisterFilePerm(security.GetAuthTokenFilepath())
-	// and indirectly (via fb.permsInfos.add(srcFile)). For example adding
-	// complementary output of the following
-	//     exec.Command(ps, "get-acl", "-Path", filePathQuoted, "|", "fl")
-	// command adds ~60 seconds for added ~150 flare files. Current overhead
-	// appears to be in seconds. If it is too slow a call to "icacls.exe"
-	// should be replaced using Windows security API invocations.
-	fi, err := os.Stat(filePath)
-	if err != nil {
-		info.err = fmt.Errorf("could not find file %s: %s", filePath, err)
-		return
-	}
-	info.mode = fi.Mode().String()
-
-	// Run icacls.exe
-	sysDir, err := windows.GetSystemDirectory()
-	if err != nil {
-		info.icacls = fmt.Sprintf("Error: cannot locate icacls.exe %s", err)
-	} else {
-		execPath := fmt.Sprintf("%s\\icacls.exe", sysDir)
-		// Direct path argument will be quoted by the exec.Command https://pkg.go.dev/os/exec#Command
-		info.icacls = run_cmd(exec.Command(execPath, filePath))
-	}
+	// Instead of tracking permissions for an individual file we currently capture
+	// permissions for all the files in the configuration directory in the commit
+	// method below. Because icacls.exe is used for permission collection, it runs
+	// much faster for even large directories than for dozens of individual files.
+	// In the future it is still more efficient to use Windows API to collect
+	// permissions in binary format and translate it to human readable form but
+	// for now it is relatively performance with 0.4 seconds on collecting
+	// permissions for 400 files and saving 150 Kb of output compressed to 7 kb of
+	// the zip file. In contrast, permission collection via icacls.exe for 142
+	// files individually took 5-12 seconds and generated 90 kb of output
+	// compressed to 5 kb.
 }
 
 // Commit resolves the infos of every stacked files in the map
@@ -82,36 +79,13 @@ func (p permissionsInfos) add(filePath string) {
 func (p permissionsInfos) commit() ([]byte, error) {
 	f := &bytes.Buffer{}
 
-	sep := strings.Repeat("-", 48) + "\n"
+	execPath := getPermExeFilePath()
+	dir := getCommitDir()
+	cmdOut := runCmd(exec.Command(execPath, dir, "/T"))
 
-	// write each file permissions infos
-	for _, info := range p {
-		if _, err := f.Write([]byte(sep)); err != nil {
-			return nil, err
-		}
-
-		// Print error and try next item
-		if info.err != nil {
-			_, err := f.Write([]byte(
-				fmt.Sprintf("File: %s\n\nError:%s\n\n",
-					info.path,
-					info.err.Error(),
-				)))
-			if err != nil {
-				return f.Bytes(), err
-			}
-		} else {
-			// ... or actual permissions
-			_, err := f.Write([]byte(
-				fmt.Sprintf("File: %s\n\nMode:%s\n\n%s\n",
-					info.path,
-					info.mode,
-					info.icacls,
-				)))
-			if err != nil {
-				return f.Bytes(), err
-			}
-		}
+	_, err := f.Write([]byte(cmdOut))
+	if err != nil {
+		return f.Bytes(), err
 	}
 
 	return f.Bytes(), nil
