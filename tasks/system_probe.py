@@ -1227,12 +1227,11 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
     if windows:
         return
 
-    docker_compose_paths = (
-        # Add relative docker-compose paths
-        # For example:
-        # "./pkg/network/protocols/dockers/testdata/docker-compose.yml",
-        "./pkg/network/protocols/amqp/testdata/docker-compose.yml",
-    )
+    docker_compose_paths = glob.glob(f"./pkg/network/protocols/*/testdata/docker-compose.yml")
+    # Add relative docker-compose paths
+    # For example:
+    #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
+
     images = set()
     for docker_compose_path in docker_compose_paths:
         with open(docker_compose_path, "r") as f:
