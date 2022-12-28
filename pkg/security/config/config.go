@@ -300,7 +300,7 @@ func (c *Config) globalSanitize() error {
 		c.RuntimeCompiledConstantsEnabled = false
 	}
 
-	serviceName := utils.GetTagValue("service", coreconfig.GetConfiguredTags(true))
+	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}

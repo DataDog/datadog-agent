@@ -240,7 +240,7 @@ func (adm *ActivityDumpManager) prepareContextTags() {
 	adm.contextTags = append(adm.contextTags, fmt.Sprintf("host:%s", adm.hostname))
 
 	// merge tags from config
-	for _, tag := range coreconfig.GetConfiguredTags(true) {
+	for _, tag := range coreconfig.GetGlobalConfiguredTags(true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
