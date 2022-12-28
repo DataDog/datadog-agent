@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package procutil
 
 import (
 	"flag"
@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 func setupDataScrubber(t *testing.T) *DataScrubber {
@@ -58,7 +56,7 @@ type testCase struct {
 }
 
 type testProcess struct {
-	procutil.Process
+	Process
 	parsedCmdline []string
 }
 
@@ -197,9 +195,9 @@ func setupTestProcesses() (fps []testProcess, sensible int) {
 	fps = make([]testProcess, 0, len(cases))
 	for i, c := range cases {
 		fps = append(fps, testProcess{
-			procutil.Process{
+			Process{
 				Pid: int32(i),
-				Stats: &procutil.Stats{
+				Stats: &Stats{
 					CreateTime: time.Now().Unix(),
 				},
 				Cmdline: c.cmdline,
@@ -219,9 +217,9 @@ func setupTestProcessesForBench() []testProcess {
 	fps := make([]testProcess, 0, len(cases))
 	for i := 0; i < nbProcesses; i++ {
 		fps = append(fps, testProcess{
-			procutil.Process{
+			Process{
 				Pid: int32(i),
-				Stats: &procutil.Stats{
+				Stats: &Stats{
 					CreateTime: time.Now().Unix(),
 				},
 				Cmdline: cases[i%len(cases)].cmdline,
@@ -296,7 +294,7 @@ func TestUncompilableWord(t *testing.T) {
 	}
 }
 
-func TestBlacklistedArgs(t *testing.T) {
+func TestDisallowListedArgs(t *testing.T) {
 	cases := setupSensitiveCmdlines()
 	scrubber := setupDataScrubber(t)
 
@@ -306,7 +304,7 @@ func TestBlacklistedArgs(t *testing.T) {
 	}
 }
 
-func TestBlacklistedArgsWhenDisabled(t *testing.T) {
+func TestDisallowListedArgsWhenDisabled(t *testing.T) {
 	cases := []struct {
 		cmdline       []string
 		parsedCmdline []string
@@ -333,7 +331,7 @@ func TestBlacklistedArgsWhenDisabled(t *testing.T) {
 	scrubber.Enabled = false
 
 	for i := range cases {
-		fp := &procutil.Process{Cmdline: cases[i].cmdline}
+		fp := &Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
@@ -368,13 +366,13 @@ func TestScrubberStrippingAllArgument(t *testing.T) {
 	scrubber.StripAllArguments = true
 
 	for i := range cases {
-		fp := &procutil.Process{Cmdline: cases[i].cmdline}
+		fp := &Process{Cmdline: cases[i].cmdline}
 		cases[i].cmdline = scrubber.ScrubProcessCommand(fp)
 		assert.Equal(t, cases[i].parsedCmdline, cases[i].cmdline)
 	}
 }
 
-func TestNoBlacklistedArgs(t *testing.T) {
+func TestNoDisallowListedArgs(t *testing.T) {
 	cases := setupInsensitiveCmdlines()
 	scrubber := setupDataScrubber(t)
 
