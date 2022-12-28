@@ -13,21 +13,24 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/viper"
-
+	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/viper"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(
-	confFilePath string,
-	configName string,
-	withoutSecrets bool,
-	failOnMissingFile bool,
-	defaultConfPath string) (*config.Warnings, error) {
+func setupConfig(deps dependencies) (*config.Warnings, error) {
+	confFilePath := deps.Params.confFilePath
+	configName := deps.Params.configName
+	withoutSecrets := !deps.Params.configLoadSecrets
+	failOnMissingFile := !deps.Params.configMissingOK
+	defaultConfPath := deps.Params.defaultConfPath
+
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
 	}
+
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
@@ -45,6 +48,19 @@ func setupConfig(
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
+
+	if deps.Params.configLoadSysProbe {
+		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if deps.Params.configLoadSecurityAgent {
+		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+			return nil, err
+		}
+	}
 
 	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()
@@ -79,6 +95,7 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 	loadedConfiguration := false
 
 	var warnings *config.Warnings
+	var deps dependencies
 
 	// Load and merge configuration files
 	for _, configurationFilename := range configurationFilesArray {
@@ -89,7 +106,13 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			continue
 		}
 		if !loadedConfiguration {
-			w, err := setupConfig(configurationFilename, "", false, true, "")
+			deps.Params.confFilePath = configurationFilename
+			deps.Params.configName = ""
+			deps.Params.configLoadSecrets = true
+			deps.Params.configMissingOK = false
+			deps.Params.defaultConfPath = ""
+
+			w, err := setupConfig(deps)
 			if err != nil {
 				if userDefined {
 					fmt.Printf("Warning: unable to open %s\n", configurationFilename)
