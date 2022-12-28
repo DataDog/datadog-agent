@@ -320,7 +320,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 	for prefix, filePath := range confSearchPaths {
-		fb.CopyDirTo(filePath, prefix, func(path string) bool {
+		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
 			// ignore .example file
 			if filepath.Ext(path) == ".example" {
 				return false
