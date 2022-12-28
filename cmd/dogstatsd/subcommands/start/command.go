@@ -49,8 +49,8 @@ const (
 	loggerName pkgconfig.LoggerName = "DSD"
 )
 
-// Command returns the start subcommand for the 'dogstatsd' command.
-func Command(defaultLogFile string) *cobra.Command {
+// MakeCommand returns the start subcommand for the 'dogstatsd' command.
+func MakeCommand(defaultLogFile string) *cobra.Command {
 	cliParams := &CLIParams{}
 	startCmd := &cobra.Command{
 		Use:   "start",

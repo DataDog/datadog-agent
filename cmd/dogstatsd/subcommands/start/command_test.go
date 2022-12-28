@@ -16,7 +16,7 @@ import (
 
 func TestStartCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{Command("defaultLogFile")},
+		[]*cobra.Command{MakeCommand("defaultLogFile")},
 		[]string{"start", "--cfgpath", "PATH"},
 		start,
 		func(cliParams *CLIParams, _ config.Params) {

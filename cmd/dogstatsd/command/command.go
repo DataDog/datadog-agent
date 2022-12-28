@@ -40,5 +40,5 @@ extensions for special Datadog features.`,
 }
 
 func makeCommands(defaultLogFile string) []*cobra.Command {
-	return []*cobra.Command{start.Command(defaultLogFile), version.MakeCommand("DogStatsD")}
+	return []*cobra.Command{start.MakeCommand(defaultLogFile), version.MakeCommand("DogStatsD")}
 }
