@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -78,7 +78,7 @@ type Event struct {
 
 	resolvers           *Resolvers
 	pathResolutionError error
-	scrubber            *pconfig.DataScrubber
+	scrubber            *procutil.DataScrubber
 	probe               *Probe
 }
 
@@ -510,8 +510,23 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
+	if ev.PIDContext.IsKworker {
+		return ev.NewEmptyProcessCacheEntry(), false
+	}
+
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -620,7 +635,7 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 }
 
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -989,4 +990,47 @@ func TestLoadEnv(t *testing.T) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
 	})
+}
+
+func TestFargateConfig(t *testing.T) {
+	assert := assert.New(t)
+	type testData struct {
+		name         string
+		envKey       string
+		envValue     string
+		orchestrator config.FargateOrchestratorName
+	}
+	for _, data := range []testData{
+		{
+			name:         "ecs_fargate",
+			envKey:       "ECS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorECS,
+		},
+		{
+			name:         "eks_fargate",
+			envKey:       "DD_EKS_FARGATE",
+			envValue:     "true",
+			orchestrator: config.OrchestratorEKS,
+		},
+		{
+			name:         "unknown",
+			envKey:       "ECS_FARGATE",
+			envValue:     "",
+			orchestrator: config.OrchestratorUnknown,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			defer cleanConfig()()
+			t.Setenv(data.envKey, data.envValue)
+			cfg, err := LoadConfigFile("./testdata/no_apm_config.yaml")
+			assert.NoError(err)
+
+			if runtime.GOOS == "darwin" {
+				assert.Equal(config.OrchestratorUnknown, cfg.FargateOrchestrator)
+			} else {
+				assert.Equal(data.orchestrator, cfg.FargateOrchestrator)
+			}
+		})
+	}
 }

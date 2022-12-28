@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"strconv"
 	"syscall"
 )
 
@@ -100,15 +101,31 @@ var checkConfigFilePermissions = func(path string) error {
 		return fmt.Errorf("unable to check permissions for '%s': can't stat it: %s", path, err)
 	}
 
-	if stat.Uid != 0 || stat.Gid != 0 {
-		return fmt.Errorf("invalid config file permissions for '%s': not owned by root:root", path)
-	}
-
 	if stat.Mode&syscall.S_IWOTH != 0 {
 		return fmt.Errorf("invalid config file permissions for '%s': cannot have o+w permission", path)
 	}
 
-	return nil
+	usr, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("can't query current user: %s", err)
+	}
+
+	groups, err := usr.GroupIds()
+	if err != nil {
+		return fmt.Errorf("can't query user groups: %s", err)
+	}
+
+	if strconv.FormatInt(int64(stat.Uid), 10) != usr.Uid {
+		return fmt.Errorf("invalid config file permissions for '%s': not owned by %s", path, usr.Uid)
+	}
+
+	for _, g := range groups {
+		if strconv.FormatInt(int64(stat.Gid), 10) == g {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid config file permissions for '%s': not owned by any groups for user %s", path, usr.Uid)
 }
 
 // lockOpenFile opens the file and prevents overwrite and delete by another process

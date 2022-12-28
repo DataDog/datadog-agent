@@ -42,16 +42,16 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.46
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/trace v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.1
+	github.com/DataDog/agent-payload/v5 v5.0.48
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.1.0
@@ -194,7 +194,7 @@ require (
 	golang.org/x/sys v0.3.0
 	golang.org/x/text v0.5.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
-	golang.org/x/tools v0.3.0
+	golang.org/x/tools v0.4.0
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
@@ -363,7 +363,7 @@ require (
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/skydive-project/go-debouncer v1.0.0 // indirect
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
@@ -426,7 +426,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+require (
+	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/streadway/amqp v1.0.0
+)
 
 require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 
