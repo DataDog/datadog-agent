@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/viper"
@@ -30,18 +31,8 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 		config.Datadog.SetConfigName(configName)
 	}
 
-	if deps.Params.configLoadSecurityAgent {
-		// TODO: One instance of Viper only supports 1 configuration file, so we should refactor securityAgentConfigFilePaths into just a string instead of a slice of strings
-		if len(deps.Params.securityAgentConfigFilePaths) < 1 {
-			return nil, fmt.Errorf("Security Agent is missing configuration file")
-		}
-		config.Datadog.SetConfigFile(deps.Params.securityAgentConfigFilePaths[0])
-	} else if deps.Params.configLoadSysProbe {
-		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
-		if err != nil {
-			return nil, err
-		}
-	} else if confFilePath != "" {
+	// set the paths where a config file is expected
+	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
 		config.Datadog.AddConfigPath(confFilePath)
@@ -50,7 +41,6 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-
 	if defaultConfPath != "" {
 		config.Datadog.AddConfigPath(defaultConfPath)
 	}
@@ -58,6 +48,19 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
+
+	if deps.Params.configLoadSysProbe {
+		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if deps.Params.configLoadSecurityAgent {
+		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+			return nil, err
+		}
+	}
 
 	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()
@@ -82,8 +85,8 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 	return warnings, nil
 }
 
-// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line.
-// TODO: This is ONLY for SecAgent use! Deleting this once all SecAgent commands have been converted to fx
+// MergeConfigurationFiles reads an array of configuration filenames and attempts to merge them. The userDefined value is used to specify that configurationFilesArray contains filenames defined on the command line
+// TODO(paulcacheux): change this a component method once all security-agent commands have been converted to fx
 func MergeConfigurationFiles(configName string, configurationFilesArray []string, userDefined bool) (*config.Warnings, error) {
 	// we'll search for a config file named `datadog.yaml`
 	config.Datadog.SetConfigName(configName)
@@ -103,7 +106,6 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			continue
 		}
 		if !loadedConfiguration {
-			deps.Params.configLoadSecurityAgent = true
 			deps.Params.confFilePath = configurationFilename
 			deps.Params.configName = ""
 			deps.Params.configLoadSecrets = true
