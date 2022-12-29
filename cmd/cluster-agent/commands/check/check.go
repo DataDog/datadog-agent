@@ -11,16 +11,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -122,11 +121,16 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			previousIntegrationTracing := false
+			previousIntegrationTracingExhaustive := false
 			if generateIntegrationTraces {
 				if config.Datadog.IsSet("integration_tracing") {
 					previousIntegrationTracing = config.Datadog.GetBool("integration_tracing")
 				}
+				if config.Datadog.IsSet("integration_tracing_exhaustive") {
+					previousIntegrationTracingExhaustive = config.Datadog.GetBool("integration_tracing_exhaustive")
+				}
 				config.Datadog.Set("integration_tracing", true)
+				config.Datadog.Set("integration_tracing_exhaustive", true)
 			}
 
 			if len(args) != 0 {
@@ -448,6 +452,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if generateIntegrationTraces {
 				config.Datadog.Set("integration_tracing", previousIntegrationTracing)
+				config.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 			}
 
 			return nil
