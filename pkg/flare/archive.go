@@ -157,7 +157,10 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	fb.RegisterDirPerm(config.Datadog.GetString("system_probe_config.bpf_dir"))
+	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
