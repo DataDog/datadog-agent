@@ -34,7 +34,7 @@ import (
 
 type Submitter interface {
 	Submit(start time.Time, name string, messages []model.MessageBody) error
-	Start() error
+	Start(checkRunner *Collector) error
 	Stop()
 }
 
@@ -173,7 +173,7 @@ func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEnd
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	log.Info("Starting submitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
+	log.Infof("Starting submitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
 func (s *submitter) Submit(start time.Time, name string, messages []model.MessageBody) error {
@@ -190,7 +190,7 @@ func (s *submitter) Submit(start time.Time, name string, messages []model.Messag
 	return nil
 }
 
-func (s *submitter) Start() error {
+func (s *submitter) Start(checkRunner *Collector) error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -216,31 +216,31 @@ func (s *submitter) Start() error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.processResults, s.processForwarder)
+		s.consumePayloads(s.processResults, s.processForwarder, checkRunner)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder)
+		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder, checkRunner)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
+		s.consumePayloads(s.connectionsResults, s.connectionsForwarder, checkRunner)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.podResults, s.podForwarder)
+		s.consumePayloads(s.podResults, s.podForwarder, checkRunner)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.eventResults, s.eventForwarder)
+		s.consumePayloads(s.eventResults, s.eventForwarder, checkRunner)
 	}()
 
 	wg.Add(1)
@@ -298,7 +298,7 @@ func (s *submitter) Stop() {
 	close(s.exit)
 }
 
-func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
+func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, checkRunner *Collector) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -311,7 +311,7 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})
 				responses        chan forwarder.Response
 				err              error
-				//updateRTStatus   = s.runRealTime // TODO: Figure out what we do with this
+				updateRTStatus   bool
 			)
 
 			//if s.shouldDropPayload(result.name) {
@@ -320,29 +320,30 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 
 			switch result.name {
 			case checks.Process.Name():
+				updateRTStatus = true
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
 			case checks.Process.RealTimeName():
+				updateRTStatus = true
 				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
 			case checks.Container.Name():
+				updateRTStatus = true
 				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
 			case checks.RTContainer.Name():
+				updateRTStatus = true
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
 			case checks.Connections.Name():
+				updateRTStatus = true
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
 			case checks.Pod.Name():
-				//updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
 			case config.PodCheckManifestName:
-				//updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
-				//updateRTStatus = false
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
 			case checks.ProcessEvents.Name():
-				//updateRTStatus = false
 				responses, err = fwd.SubmitProcessEventChecks(forwarderPayload, payload.headers)
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
@@ -354,9 +355,9 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			}
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				//if updateRTStatus {
-				//	s.updateRTStatus(statuses)
-				//}
+				if updateRTStatus && checkRunner != nil {
+					checkRunner.UpdateRTStatus(statuses)
+				}
 			}
 		}
 	}
@@ -494,8 +495,4 @@ func (s *submitter) getRequestID(start time.Time, chunkIndex int) string {
 	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
 	chunk := uint64(chunkIndex & chunkMask)
 	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
-}
-
-func runRealTime() bool {
-	return true // TODO: handle this later
 }

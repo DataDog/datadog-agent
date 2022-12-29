@@ -44,7 +44,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 
 	// Validate that we stay that way
@@ -53,7 +53,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 
 	// And that it can turn back off
@@ -62,7 +62,7 @@ func TestUpdateRTStatus(t *testing.T) {
 		{ActiveClients: 0, Interval: 2},
 		{ActiveClients: 0, Interval: 2},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.False(c.realTimeEnabled.Load())
 }
 
@@ -79,7 +79,7 @@ func TestUpdateRTInterval(t *testing.T) {
 		{ActiveClients: 3, Interval: 2},
 		{ActiveClients: 0, Interval: 10},
 	}
-	c.updateRTStatus(statuses)
+	c.UpdateRTStatus(statuses)
 	assert.True(c.realTimeEnabled.Load())
 	assert.Equal(10*time.Second, c.realTimeInterval)
 }

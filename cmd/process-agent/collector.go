@@ -401,7 +401,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	//for _, e := range processEventsAPIEndpoints {
 	//	eventsEps = append(eventsEps, e.Endpoint.String())
 	//}
-	err := l.submitter.Start()
+	err := l.submitter.Start(l)
 	if err != nil {
 		return err
 	}
@@ -742,14 +742,19 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
 				if updateRTStatus {
-					l.updateRTStatus(statuses)
+					l.UpdateRTStatus(statuses)
 				}
 			}
 		}
 	}
 }
 
-func (l *Collector) updateRTStatus(statuses []*model.CollectorStatus) {
+func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
+	// If realtime mode is disabled in the config, do not change the real time status.
+	if !l.runRealTime {
+		return
+	}
+
 	curEnabled := l.realTimeEnabled.Load()
 
 	// If any of the endpoints wants real-time we'll do that.
