@@ -3,17 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package network
+package redis
 
-type ProtocolType uint16
+import (
+	"net"
 
-const (
-	ProtocolUnclassified ProtocolType = iota
-	ProtocolUnknown
-	ProtocolHTTP
-	ProtocolHTTP2
-	ProtocolTLS
-	ProtocolAMQP  = 8
-	ProtocolRedis = 9
-	MaxProtocols  = 10
+	"github.com/go-redis/redis/v9"
 )
+
+func NewClient(serverAddress string, dialer *net.Dialer) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:   serverAddress,
+		Dialer: dialer.DialContext,
+	})
+}

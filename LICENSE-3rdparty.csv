@@ -316,6 +316,7 @@ core,github.com/dgraph-io/ristretto,Apache-2.0,"Copyright (c) 2014 Andreas Bries
 core,github.com/dgraph-io/ristretto/z,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
 core,github.com/dgraph-io/ristretto/z/simd,MIT,"Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt | Copyright (c) 2019 Ewan Chou | Copyright 2019 Dgraph Labs, Inc. and Contributors | Copyright 2020 Dgraph Labs, Inc. and Contributors | Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
+core,github.com/dgryski/go-rendezvous,MIT,Copyright (c) 2017-2020 Damian Gryski <damian@gryski.com>
 core,github.com/docker/distribution/digestset,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/distribution/reference,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker/api,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -380,6 +381,14 @@ core,github.com/go-openapi/jsonpointer,Apache-2.0,Copyright 2013 sigu-399 ( http
 core,github.com/go-openapi/jsonreference,Apache-2.0,Copyright 2013 sigu-399 ( https://github.com/sigu-399 )
 core,github.com/go-openapi/jsonreference/internal,Apache-2.0,Copyright 2013 sigu-399 ( https://github.com/sigu-399 )
 core,github.com/go-openapi/swag,Apache-2.0,Copyright 2015 go-swagger maintainers
+core,github.com/go-redis/redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/hashtag,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/hscan,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/pool,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/proto,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/rand,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
+core,github.com/go-redis/redis/v9/internal/util,BSD-2-Clause,Copyright (c) 2013 The github.com/go-redis/redis Authors
 core,github.com/gobwas/glob,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/compiler,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/match,MIT,Copyright (c) 2016 Sergey Kamardin

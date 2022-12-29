@@ -19,11 +19,13 @@ import (
 	"testing"
 	"time"
 
+	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
@@ -408,6 +410,129 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				// http2 prefix.
 				c.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"))
 				io.ReadAll(c)
+			},
+			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "redis set",
+			context: testContext{
+				serverPort:       "6379",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolRedis,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				redis.RunRedisServer(t, host, port)
+
+				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
+				client.Ping(context.Background())
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				client.Set(context.Background(), "key", "value", time.Minute)
+			},
+			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "redis get",
+			context: testContext{
+				serverPort:       "6379",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolRedis,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				redis.RunRedisServer(t, host, port)
+
+				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
+				client.Set(context.Background(), "key", "value", time.Minute)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				res := client.Get(context.Background(), "key")
+				val, err := res.Result()
+				require.NoError(t, err)
+				require.Equal(t, "value", val)
+			},
+			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "redis get unknown key",
+			context: testContext{
+				serverPort:       "6379",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolRedis,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				redis.RunRedisServer(t, host, port)
+
+				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
+				client.Ping(context.Background())
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				res := client.Get(context.Background(), "unknown")
+				require.Error(t, res.Err())
+			},
+			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "redis err response",
+			context: testContext{
+				serverPort:       "6379",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolRedis,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				redis.RunRedisServer(t, host, port)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				conn, err := ctx.clientDialer.DialContext(context.Background(), "tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				_, err = conn.Write([]byte("+dummy\r\n"))
+				require.NoError(t, err)
+			},
+			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "redis client id",
+			context: testContext{
+				serverPort:       "6379",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolRedis,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				redis.RunRedisServer(t, host, port)
+
+				client := redis.NewClient(ctx.targetAddress, ctx.clientDialer)
+				client.Ping(context.Background())
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*redis2.Client)
+				res := client.ClientID(context.Background())
+				require.NoError(t, res.Err())
 			},
 			teardown:   defaultTeardown,
 			validation: validateProtocolConnection,
