@@ -85,8 +85,9 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 	}
 	params.securityAgentConfigFilePaths = securityAgentConfigFilePaths
 	params.configLoadSecurityAgent = true
-	params.configMissingOK = true
+
 	params.configLoadSecrets = true
+	params.configMissingOK = false
 	return params
 }
 
