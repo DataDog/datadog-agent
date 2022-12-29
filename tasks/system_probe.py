@@ -398,7 +398,7 @@ def build(
     debug=False,
     strip_object_files=False,
     strip_binary=False,
-    with_unit_test=False
+    with_unit_test=False,
 ):
     """
     Build the system-probe
@@ -991,7 +991,9 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(
+        ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1088,7 +1090,13 @@ def build_object_files(
 
 
 def build_cws_object_files(
-    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False, with_unit_test=False
+    ctx,
+    major_version='7',
+    arch=CURRENT_ARCH,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
+    with_unit_test=False,
 ):
     run_ninja(
         ctx,

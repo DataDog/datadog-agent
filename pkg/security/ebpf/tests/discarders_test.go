@@ -29,3 +29,19 @@ func TestDiscarderRetention(t *testing.T) {
 		t.Errorf("unexpected error: %v, %d", err, code)
 	}
 }
+
+func TestDiscarderRevision(t *testing.T) {
+	var ctx baloum.StdContext
+	code, err := newVM(t).RunProgram(&ctx, "test/discarders_revision")
+	if err != nil || code != 0 {
+		t.Errorf("unexpected error: %v, %d", err, code)
+	}
+}
+
+func TestDiscarderMountRevision(t *testing.T) {
+	var ctx baloum.StdContext
+	code, err := newVM(t).RunProgram(&ctx, "test/discarders_mount_revision")
+	if err != nil || code != 0 {
+		t.Errorf("unexpected error: %v, %d", err, code)
+	}
+}

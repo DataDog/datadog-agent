@@ -430,6 +430,7 @@ require (
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
 	github.com/go-redis/redis/v9 v9.0.0-rc.2
+	github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b
 	github.com/streadway/amqp v1.0.0
 	github.com/uptrace/bun v1.1.9
 	github.com/uptrace/bun/dialect/pgdialect v1.1.9
@@ -451,8 +452,6 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	mellium.im/sasl v0.3.1 // indirect
 )
-
-require github.com/safchain/baloum v0.0.0-20221206135539-a3b4d52f28b4
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 

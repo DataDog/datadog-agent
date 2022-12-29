@@ -1528,8 +1528,8 @@ github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQD
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/columnize v2.1.0+incompatible/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
-github.com/safchain/baloum v0.0.0-20221206135539-a3b4d52f28b4 h1:AUa6BxTG3rp0tQFCQ+cfeXJd9jwI2x62S9FaYsybXzU=
-github.com/safchain/baloum v0.0.0-20221206135539-a3b4d52f28b4/go.mod h1:1+GWOH32bsIEAHknYja6/H1efcDs+/Q2XrtYMM200Ho=
+github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b h1:cTiH46CYvPhgOlE0t82N+rgQw44b7vB39ay+P+wiVz8=
+github.com/safchain/baloum v0.0.0-20221229104256-b1fc8f70a86b/go.mod h1:1+GWOH32bsIEAHknYja6/H1efcDs+/Q2XrtYMM200Ho=
 github.com/safchain/ethtool v0.0.0-20190326074333-42ed695e3de8/go.mod h1:Z0q5wiBQGYcxhMZ6gUqHn6pYNLypFAvaL3UvgZLR0U4=
 github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da h1:p3Vo3i64TCLY7gIfzeQaUJ+kppEO5WQG3cL8iE8tGHU=
 github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da/go.mod h1:gi+0XIa01GRL2eRQVjQkKGqKF3SF9vZR/HnPullcV2E=
