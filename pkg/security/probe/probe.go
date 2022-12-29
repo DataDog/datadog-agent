@@ -30,7 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -93,7 +93,7 @@ type Probe struct {
 	resolvers   *Resolvers
 	event       *Event
 	eventStream EventStream
-	scrubber    *pconfig.DataScrubber
+	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -467,6 +467,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.UnshareMountNsEventType:
+		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
+		}
+		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -493,30 +502,8 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		// There could be entries of a previous mount_id in the cache for instance,
-		// runc does the following : it bind mounts itself (using /proc/exe/self),
-		// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
-		// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
-		// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
-		// so we remove all dentry entries belonging to the mountID.
-		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
-
-		// Resolve mount point
-		if err := event.SetMountPoint(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount point: %v", err)
-			return
-		}
-		// Resolve root
-		if err := event.SetMountRoot(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount root: %v", err)
-			return
-		}
-
-		// Insert new mount point in cache. Insert a copy to not corrupt the entry with the next event
-		me := event.Mount
-		if err = p.resolvers.MountResolver.Insert(&me, event.PIDContext.Pid, event.ContainerContext.ID); err != nil {
-			seclog.Errorf("failed to insert mount event: %v", err)
+		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
 
@@ -1264,6 +1251,35 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 	return probesCountNoLazyDeletion
 }
 
+func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
+	// There could be entries of a previous mount_id in the cache for instance,
+	// runc does the following : it bind mounts itself (using /proc/exe/self),
+	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
+	// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
+	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
+	// so we remove all dentry entries belonging to the mountID.
+	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
+
+	// Resolve mount point
+	if err := event.SetMountPoint(m); err != nil {
+		seclog.Debugf("failed to set mount point: %v", err)
+		return err
+	}
+	// Resolve root
+	if err := event.SetMountRoot(m); err != nil {
+		seclog.Debugf("failed to set mount root: %v", err)
+		return err
+	}
+
+	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
+	if err := p.resolvers.MountResolver.Insert(*m, event.PIDContext.Pid, event.ResolveContainerID(&event.ContainerContext)); err != nil {
+		seclog.Errorf("failed to insert mount event: %v", err)
+		return err
+	}
+
+	return nil
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
 	nerpc, err := erpc.NewERPC()
@@ -1449,7 +1465,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
-	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	resolvers, err := NewResolvers(config, p)

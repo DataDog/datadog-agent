@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
@@ -39,6 +40,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -192,6 +196,17 @@ func start(cmd *cobra.Command, args []string) error {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}
 		log.Debugf("Health check listening on port %d", healthPort)
+	}
+
+	// Initialize remote configuration
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		rcClient, err := initializeRemoteConfig(mainCtx)
+		if err != nil {
+			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			rcClient.Start()
+			defer rcClient.Close()
+		}
 	}
 
 	// Starting server early to ease investigations
@@ -415,4 +430,22 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 
 	log.Info("Started cluster check Autodiscovery")
 	return handler, nil
+}
+
+func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
+	configService, err := remoteconfig.NewService()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+	}
+
+	if err := configService.Start(ctx); err != nil {
+		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
+	}
+
+	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{}, time.Second*5)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+	}
+
+	return rcClient, nil
 }

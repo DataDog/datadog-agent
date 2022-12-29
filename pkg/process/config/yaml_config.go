@@ -7,12 +7,10 @@ package config
 
 import (
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,42 +75,6 @@ func (a *AgentConfig) LoadAgentConfig(path string) error {
 		a.CheckIntervals[ProcessCheckName] = ProcessCheckDefaultInterval
 		a.CheckIntervals[RTProcessCheckName] = RTProcessCheckDefaultInterval
 	}
-
-	// A list of regex patterns that will exclude a process if matched.
-	if k := key(ns, "blacklist_patterns"); config.Datadog.IsSet(k) {
-		for _, b := range config.Datadog.GetStringSlice(k) {
-			r, err := regexp.Compile(b)
-			if err != nil {
-				log.Warnf("Ignoring invalid blacklist pattern: %s", b)
-				continue
-			}
-			a.Blacklist = append(a.Blacklist, r)
-		}
-	}
-
-	// Enable/Disable the DataScrubber to obfuscate process args
-	if scrubArgsKey := key(ns, "scrub_args"); config.Datadog.IsSet(scrubArgsKey) {
-		a.Scrubber.Enabled = config.Datadog.GetBool(scrubArgsKey)
-	}
-	if a.Scrubber.Enabled { // Scrubber is enabled by default when it's created
-		log.Debug("Starting process-agent with Scrubber enabled")
-	}
-
-	// A custom word list to enhance the default one used by the DataScrubber
-	if k := key(ns, "custom_sensitive_words"); config.Datadog.IsSet(k) {
-		words := config.Datadog.GetStringSlice(k)
-		a.Scrubber.AddCustomSensitiveWords(words)
-		log.Debug("Adding custom sensitives words to Scrubber:", words)
-	}
-
-	// Strips all process arguments
-	if config.Datadog.GetBool(key(ns, "strip_proc_arguments")) {
-		log.Debug("Strip all process arguments enabled")
-		a.Scrubber.StripAllArguments = true
-	}
-
-	// Build transport (w/ proxy if needed)
-	a.Transport = httputils.CreateHTTPTransport()
 
 	return nil
 }

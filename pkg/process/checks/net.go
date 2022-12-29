@@ -56,7 +56,7 @@ type ConnectionsCheck struct {
 }
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
+func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) error {
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
 
 	// We use the current process PID as the system-probe client ID
@@ -87,6 +87,7 @@ func (c *ConnectionsCheck) Init(cfg *config.AgentConfig, _ *model.SystemInfo) {
 	c.serviceExtractor = parser.NewServiceExtractor()
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+	return nil
 }
 
 // Name returns the name of the ConnectionsCheck.
@@ -128,7 +129,7 @@ func (c *ConnectionsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	c.lastConnsByPID.Store(getConnectionsByPID(conns))
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(cfg, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
+	return batchConnections(cfg, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -251,6 +252,8 @@ func batchConnections(
 	networkID string,
 	connTelemetryMap map[string]int64,
 	compilationTelemetry map[string]*model.RuntimeCompilationTelemetry,
+	kernelHeaderFetchResult model.KernelHeaderFetchResult,
+	coreTelemetry map[string]model.COREResult,
 	domains []string,
 	routes []*model.Route,
 	tags []string,
@@ -302,8 +305,8 @@ func batchConnections(
 			remapDNSStatsByDomainByQueryType(c, namemap, &namedb, domains)
 
 			// tags remap
-			serviceTag := serviceExtractor.GetServiceTag(c.Pid)
-			tagsStr := convertAndEnrichWithServiceTags(tags, c.Tags, serviceTag)
+			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
+			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx)
 
 			if len(tagsStr) > 0 {
 				c.Tags = nil
@@ -386,6 +389,8 @@ func batchConnections(
 		if len(batches) == 0 {
 			cc.ConnTelemetryMap = connTelemetryMap
 			cc.CompilationTelemetryByAsset = compilationTelemetry
+			cc.KernelHeaderFetchResult = kernelHeaderFetchResult
+			cc.CORETelemetryByAsset = coreTelemetry
 		}
 		batches = append(batches, cc)
 
@@ -409,15 +414,15 @@ func groupSize(total, maxBatchSize int) int32 {
 	return int32(groupSize)
 }
 
-// converts the tags based on the tagOffsets for encoding. It also enriches it with service tags if any
-func convertAndEnrichWithServiceTags(tags []string, tagOffsets []uint32, serviceTag string) []string {
-	tagCount := len(tagOffsets) + len(serviceTag)
+// converts the tags based on the tagOffsets for encoding. It also enriches it with service context if any
+func convertAndEnrichWithServiceCtx(tags []string, tagOffsets []uint32, serviceCtx string) []string {
+	tagCount := len(tagOffsets) + len(serviceCtx)
 	tagsStr := make([]string, 0, tagCount)
 	for _, t := range tagOffsets {
 		tagsStr = append(tagsStr, tags[t])
 	}
-	if serviceTag != "" {
-		tagsStr = append(tagsStr, serviceTag)
+	if serviceCtx != "" {
+		tagsStr = append(tagsStr, serviceCtx)
 	}
 
 	return tagsStr

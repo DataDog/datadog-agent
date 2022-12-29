@@ -8,7 +8,7 @@ package main
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestStartCommand(t *testing.T) {
 		makeCommands(),
 		[]string{"start", "--cfgpath", "PATH"},
 		start,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, _ config.Params) {
 			require.Equal(t, "PATH", cliParams.confPath)
 		})
 }

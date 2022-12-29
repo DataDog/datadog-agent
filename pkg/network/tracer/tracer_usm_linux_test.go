@@ -492,19 +492,19 @@ func TestProtocolClassification(t *testing.T) {
 	t.Run("with dnat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
-		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
+		testProtocolClassification(t, cfg, "localhost", "2.2.2.2", "1.1.1.1")
 		testProtocolClassificationMapCleanup(t, cfg, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
 	t.Run("with snat", func(t *testing.T) {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
-		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 		testProtocolClassificationMapCleanup(t, cfg, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
 		testProtocolClassificationMapCleanup(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -78,7 +78,7 @@ type Event struct {
 
 	resolvers           *Resolvers
 	pathResolutionError error
-	scrubber            *pconfig.DataScrubber
+	scrubber            *procutil.DataScrubber
 	probe               *Probe
 }
 
@@ -169,14 +169,14 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) error {
+func (ev *Event) SetMountPoint(e *model.Mount) error {
 	var err error
 	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountPoint(e *model.Mount) (string, error) {
 	if len(e.MountPointStr) == 0 {
 		if err := ev.SetMountPoint(e); err != nil {
 			return "", err
@@ -186,20 +186,49 @@ func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) error {
+func (ev *Event) SetMountRoot(e *model.Mount) error {
 	var err error
 	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountRoot(e *model.Mount) (string, error) {
 	if len(e.RootStr) == 0 {
 		if err := ev.SetMountRoot(e); err != nil {
 			return "", err
 		}
 	}
 	return e.RootStr, nil
+}
+
+func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
+	if len(e.MountPointPath) == 0 {
+		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountPointPathResolutionError = err
+			return ""
+		}
+		e.MountPointPath = mountPointPath
+	}
+	return e.MountPointPath
+}
+
+func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
+	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
+		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		rootStr, err := ev.ResolveMountRoot(&e.Mount)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+	}
+	return e.MountSourcePath
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -481,8 +510,23 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
+	if ev.PIDContext.IsKworker {
+		return ev.NewEmptyProcessCacheEntry(), false
+	}
+
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -591,7 +635,7 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 }
 
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber, probe *Probe) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,

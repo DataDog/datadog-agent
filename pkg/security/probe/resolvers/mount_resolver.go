@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/moby/sys/mountinfo"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
@@ -62,26 +63,26 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	return 0, nil
 }
 
-// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) *model.MountEvent {
+// newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
+func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	// groupID is not use for the path resolution, don't make it critical
 	groupID, _ := parseGroupID(mnt)
 
-	// create a MountEvent out of the parsed MountInfo
-	return &model.MountEvent{
-		ParentMountID: uint32(mnt.Parent),
-		MountPointStr: mnt.Mountpoint,
-		Path:          mnt.Mountpoint,
-		RootStr:       mnt.Root,
+	// create a Mount out of the parsed MountInfo
+	return &model.Mount{
 		MountID:       uint32(mnt.ID),
 		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		ParentMountID: uint32(mnt.Parent),
 		FSType:        mnt.FSType,
+		MountPointStr: mnt.Mountpoint,
+		Path:          mnt.Mountpoint,
+		RootStr:       mnt.Root,
 	}
 }
 
 type deleteRequest struct {
-	mount     *model.MountEvent
+	mount     *model.Mount
 	timeoutAt time.Time
 }
 
@@ -96,10 +97,11 @@ type MountResolver struct {
 	cgroupsResolver *CgroupsResolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
-	mounts          map[uint32]*model.MountEvent
-	devices         map[uint32]map[uint32]*model.MountEvent
+	mounts          map[uint32]*model.Mount
+	devices         map[uint32]map[uint32]*model.Mount
 	deleteQueue     []deleteRequest
 	minMountID      uint32
+	redemption      *simplelru.LRU[uint32, *model.Mount]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -145,6 +147,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
+		mr.cgroupsResolver.DelByPID1(pid)
 		return err
 	}
 
@@ -153,37 +156,37 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 			continue
 		}
 
-		e := newMountEventFromMountInfo(mnt)
-		mr.insert(e)
+		m := newMountFromMountInfo(mnt)
+		mr.insert(m)
 	}
 
 	return nil
 }
 
-func (mr *MountResolver) deleteChildren(parent *model.MountEvent) {
+func (mr *MountResolver) finalizeChildren(parent *model.Mount) {
 	for _, mount := range mr.mounts {
 		if mount.ParentMountID == parent.MountID {
 			if _, exists := mr.mounts[mount.MountID]; exists {
-				mr.delete(mount)
+				mr.finalize(mount)
 			}
 		}
 	}
 }
 
-// deleteDevice deletes MountEvent sharing the same device id for overlay fs mount
-func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
+// finalizeDevice deletes Mount sharing the same device id for overlay fs mount
+func (mr *MountResolver) finalizeDevice(mount *model.Mount) {
 	if !mount.IsOverlayFS() {
 		return
 	}
 
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID {
-			mr.delete(deviceMount)
+			mr.finalize(deviceMount)
 		}
 	}
 }
 
-func (mr *MountResolver) delete(mount *model.MountEvent) {
+func (mr *MountResolver) finalize(mount *model.Mount) {
 	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
@@ -191,8 +194,14 @@ func (mr *MountResolver) delete(mount *model.MountEvent) {
 		delete(mounts, mount.MountID)
 	}
 
-	mr.deleteChildren(mount)
-	mr.deleteDevice(mount)
+	mr.finalizeChildren(mount)
+	mr.finalizeDevice(mount)
+}
+
+func (mr *MountResolver) delete(mount *model.Mount) {
+	if m, exists := mr.mounts[mount.MountID]; exists {
+		mr.redemption.Add(mount.MountID, m)
+	}
 }
 
 // Delete a mount from the cache
@@ -224,7 +233,7 @@ func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32, containerID stri
 }
 
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e *model.MountEvent, pid uint32, containerID string) error {
+func (mr *MountResolver) Insert(e model.Mount, pid uint32, containerID string) error {
 	if e.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -232,33 +241,36 @@ func (mr *MountResolver) Insert(e *model.MountEvent, pid uint32, containerID str
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(e)
+	mr.insert(&e)
 
 	return nil
 }
 
-func (mr *MountResolver) insert(e *model.MountEvent) {
+func (mr *MountResolver) insert(m *model.Mount) {
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[e.MountID]; ok {
-		mr.delete(prev)
+	if prev, ok := mr.mounts[m.MountID]; ok {
+		// if present in the redemption that the evict function that will remove the entry
+		if present := mr.redemption.Remove(prev.MountID); !present {
+			mr.finalize(prev)
+		}
 	}
 
-	// if we're inserting a mountpoint from a mount event (!= procfs) that isn't the root fs
+	// if we're inserting a mountpoint from a kernel event (!= procfs) that isn't the root fs
 	// then remove the leading slash from the mountpoint
-	if len(e.Path) == 0 && e.MountPointStr != "/" {
-		e.MountPointStr = strings.TrimPrefix(e.MountPointStr, "/")
+	if len(m.Path) == 0 && m.MountPointStr != "/" {
+		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
 	}
 
-	deviceMounts := mr.devices[e.Device]
+	deviceMounts := mr.devices[m.Device]
 	if deviceMounts == nil {
-		deviceMounts = make(map[uint32]*model.MountEvent)
-		mr.devices[e.Device] = deviceMounts
+		deviceMounts = make(map[uint32]*model.Mount)
+		mr.devices[m.Device] = deviceMounts
 	}
-	deviceMounts[e.MountID] = e
-	mr.mounts[e.MountID] = e
+	deviceMounts[m.MountID] = m
+	mr.mounts[m.MountID] = m
 
-	if mr.minMountID > e.MountID {
-		mr.minMountID = e.MountID
+	if mr.minMountID > m.MountID {
+		mr.minMountID = m.MountID
 	}
 }
 
@@ -392,6 +404,10 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 	path, err := mr.getMountPath(mountID)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
+
+		// touch the redemption entry to maintain the entry
+		_, _ = mr.redemption.Get(mountID)
+
 		return path, nil
 	}
 	mr.cacheMissStats.Inc()
@@ -415,14 +431,14 @@ func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID strin
 }
 
 // ResolveMount returns the mount
-func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (*model.MountEvent, error) {
+func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMount(mountID, pid, containerID)
 }
 
-func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.MountEvent, error) {
+func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, err
 	}
@@ -435,6 +451,10 @@ func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (
 	mount, exists := mr.mounts[mountID]
 	if exists {
 		mr.cacheHitsStats.Inc()
+
+		// touch the redemption entry to maintain the entry
+		_, _ = mr.redemption.Get(mountID)
+
 		return mount, nil
 	}
 	mr.cacheMissStats.Inc()
@@ -557,16 +577,26 @@ func (mr *MountResolver) SendStats() error {
 
 // NewMountResolver instantiates a new mount resolver
 func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *CgroupsResolver, opts MountResolverOpts) (*MountResolver, error) {
-	return &MountResolver{
+	mr := &MountResolver{
 		opts:            opts,
 		statsdClient:    statsdClient,
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		devices:         make(map[uint32]map[uint32]*model.MountEvent),
-		mounts:          make(map[uint32]*model.MountEvent),
+		devices:         make(map[uint32]map[uint32]*model.Mount),
+		mounts:          make(map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
 		procMissStats:   atomic.NewInt64(0),
-	}, nil
+	}
+
+	redemption, err := simplelru.NewLRU(1024, func(mountID uint32, mount *model.Mount) {
+		mr.finalize(mount)
+	})
+	if err != nil {
+		return nil, err
+	}
+	mr.redemption = redemption
+
+	return mr, nil
 }

@@ -14,18 +14,25 @@ import (
 
 // SecretInfo export troubleshooting information about the decrypted secrets
 type SecretInfo struct {
-	ExecutablePath string
-	Rights         string
-	RightDetails   string
-	UnixOwner      string
-	UnixGroup      string
-	SecretsHandles map[string][]string
+	ExecutablePath       string
+	ExecutablePathSHA256 string
+	Rights               string
+	RightDetails         string
+	UnixOwner            string
+	UnixGroup            string
+	SecretsHandles       map[string][]string
 }
 
 // Print output a SecretInfo to a io.Writer
 func (si *SecretInfo) Print(w io.Writer) {
 	fmt.Fprintf(w, "=== Checking executable rights ===\n")
 	fmt.Fprintf(w, "Executable path: %s\n", si.ExecutablePath)
+
+	sha256 := si.ExecutablePathSHA256
+	if si.ExecutablePathSHA256 == "" {
+		sha256 = "Not configured"
+	}
+	fmt.Fprintf(w, "Executable path SHA256: %s\n", sha256)
 
 	fmt.Fprintf(w, "Check Rights: %s\n", si.Rights)
 

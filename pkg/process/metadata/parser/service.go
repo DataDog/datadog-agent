@@ -18,6 +18,12 @@ import (
 
 type serviceExtractorFn func(args []string) string
 
+const (
+	javaJarFlag      = "-jar"
+	javaJarExtension = ".jar"
+	javaApachePrefix = "org.apache."
+)
+
 // List of binaries that usually have additional process context of whats running
 var binsWithContext = map[string]serviceExtractorFn{
 	"python":    parseCommandContextPython,
@@ -26,7 +32,8 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"python3.7": parseCommandContextPython,
 	"ruby2.3":   parseCommandContext,
 	"ruby":      parseCommandContext,
-	"java":      parseCommandContext,
+	"java":      parseCommandContextJava,
+	"java.exe":  parseCommandContextJava,
 	"sudo":      parseCommandContext,
 }
 
@@ -39,8 +46,8 @@ type ServiceExtractor struct {
 }
 
 type serviceMetadata struct {
-	cmdline    []string
-	serviceTag string
+	cmdline        []string
+	serviceContext string
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
@@ -79,12 +86,12 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
-func (d *ServiceExtractor) GetServiceTag(pid int32) string {
+func (d *ServiceExtractor) GetServiceContext(pid int32) string {
 	if !d.enabled {
 		return ""
 	}
 	if meta, ok := d.serviceByPID[pid]; ok {
-		return meta.serviceTag
+		return meta.serviceContext
 	}
 	return ""
 }
@@ -98,10 +105,15 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 
 	exe := cmd[0]
 	// check if all args are packed into the first argument
-	if idx := strings.IndexRune(exe, ' '); idx != -1 {
-		exe = exe[0:idx]
-		cmd = strings.Split(cmd[0], " ")
+	if len(cmd) == 1 {
+		if idx := strings.IndexRune(exe, ' '); idx != -1 {
+			exe = exe[0:idx]
+			cmd = strings.Split(cmd[0], " ")
+		}
 	}
+
+	// trim any quotes from the executable
+	exe = strings.Trim(exe, "\"")
 
 	// Extract executable from commandline args
 	exe = trimColonRight(removeFilePath(exe))
@@ -112,8 +124,8 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(cmd[1:])
 		return &serviceMetadata{
-			cmdline:    cmd,
-			serviceTag: "service:" + tag,
+			cmdline:        cmd,
+			serviceContext: "process_context:" + tag,
 		}
 	}
 
@@ -123,8 +135,8 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	}
 
 	return &serviceMetadata{
-		cmdline:    cmd,
-		serviceTag: "service:" + exe,
+		cmdline:        cmd,
+		serviceContext: "process_context:" + exe,
 	}
 }
 
@@ -204,6 +216,47 @@ func parseCommandContextPython(args []string) string {
 		}
 
 		prevArgIsFlag = hasFlagPrefix
+	}
+
+	return ""
+}
+
+func parseCommandContextJava(args []string) string {
+	prevArgIsFlag := false
+
+	for _, a := range args {
+		hasFlagPrefix := strings.HasPrefix(a, "-")
+		includesAssignment := strings.ContainsRune(a, '=') ||
+			strings.HasPrefix(a, "-X") ||
+			strings.HasPrefix(a, "-javaagent:") ||
+			strings.HasPrefix(a, "-verbose:")
+		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || includesAssignment
+		if !shouldSkipArg {
+			arg := removeFilePath(a)
+
+			if arg = trimColonRight(arg); isRuneLetterAt(arg, 0) {
+				if strings.HasSuffix(arg, javaJarExtension) {
+					return arg[:len(arg)-len(javaJarExtension)]
+				}
+
+				if strings.HasPrefix(arg, javaApachePrefix) {
+					// take the project name after the package 'org.apache.' while stripping off the remaining package
+					// and class name
+					arg = arg[len(javaApachePrefix):]
+					if idx := strings.Index(arg, "."); idx != -1 {
+						return arg[:idx]
+					}
+				}
+				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {
+					// take just the class name without the package
+					return arg[idx+1:]
+				}
+
+				return arg
+			}
+		}
+
+		prevArgIsFlag = hasFlagPrefix && !includesAssignment && a != javaJarFlag
 	}
 
 	return ""

@@ -41,7 +41,7 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) error {
 	c.containerProvider = util.GetSharedContainerProvider()
 	c.sysInfo = info
 
@@ -53,6 +53,7 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
 
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.maxBatchSize = getMaxBatchSize()
+	return nil
 }
 
 // Name returns the name of the ProcessCheck.
