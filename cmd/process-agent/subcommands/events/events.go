@@ -94,13 +94,13 @@ func bootstrapEventsCmd(cliParams *cliParams) error {
 	}
 
 	// Load system-probe.yaml file and merge it to the global Datadog config
-	sysCfg, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
+	_, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
 	}
 
 	// Set up logger
-	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, sysCfg)
+	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath)
 	if err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}

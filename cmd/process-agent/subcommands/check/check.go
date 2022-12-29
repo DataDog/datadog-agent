@@ -92,7 +92,7 @@ func runCheckCmd(cliParams *cliParams) error {
 		return log.Critical(err)
 	}
 
-	cfg, err := config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, syscfg)
+	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath)
 	if err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
@@ -152,14 +152,14 @@ func runCheckCmd(cliParams *cliParams) error {
 	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
 
 	if checks.Process.SysprobeProcessModuleEnabled {
-		net.SetSystemProbePath(cfg.SystemProbeAddress)
+		net.SetSystemProbePath(syscfg.SocketAddress)
 	}
 
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		if err := checks.Process.Init(cfg, hostInfo); err != nil {
+		if err := checks.Process.Init(nil, hostInfo); err != nil {
 			return err
 		}
 		checks.Process.Run(0) //nolint:errcheck
@@ -171,12 +171,17 @@ func runCheckCmd(cliParams *cliParams) error {
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
 
+		cfg := &checks.SysProbeConfig{
+			MaxConnsPerMessage: syscfg.MaxConnsPerMessage,
+			SystemProbeAddress: syscfg.SocketAddress,
+		}
+
 		if ch.Name() == cliParams.checkName {
 			if err = ch.Init(cfg, hostInfo); err != nil {
 				return err
 			}
 			cleanups = append(cleanups, ch.Cleanup)
-			return runCheck(cliParams, cfg, ch)
+			return runCheck(cliParams, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
@@ -185,13 +190,13 @@ func runCheckCmd(cliParams *cliParams) error {
 				return err
 			}
 			cleanups = append(cleanups, withRealTime.Cleanup)
-			return runCheckAsRealTime(cliParams, cfg, withRealTime)
+			return runCheckAsRealTime(cliParams, withRealTime)
 		}
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) error {
+func runCheck(cliParams *cliParams, ch checks.Check) error {
 	// Run the check once to prime the cache.
 	if _, err := ch.Run(0); err != nil {
 		return fmt.Errorf("collection error: %s", err)
@@ -211,7 +216,7 @@ func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) er
 	return printResults(ch.Name(), msgs, cliParams.checkOutputJSON)
 }
 
-func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
+func runCheckAsRealTime(cliParams *cliParams, ch checks.CheckWithRealTime) error {
 	options := checks.RunOptions{
 		RunStandard: true,
 		RunRealTime: true,

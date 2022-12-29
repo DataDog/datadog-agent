@@ -12,8 +12,6 @@ import (
 	"fmt"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // Pod is a singleton PodCheck.
@@ -24,7 +22,7 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *config.AgentConfig, hostInfo *HostInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	return nil
 }
 

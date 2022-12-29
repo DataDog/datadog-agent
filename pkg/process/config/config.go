@@ -10,32 +10,19 @@ import (
 	"os"
 	"strings"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// AgentConfig is the global config for the process-agent. This information
-// is sourced from config files and the environment variables.
-// AgentConfig is shared across process-agent checks and should only contain shared objects and
-// settings that cannot be read directly from the global Config object.
-// For any other setting, use `pkg/config`.
+// AgentConfig is a legacy config to be removed and replaced by direct uses of `pkg/config`.
 type AgentConfig struct {
-	MaxConnsPerMessage int
-
-	// System probe collection configuration
-	SystemProbeAddress string
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
-	ac := &AgentConfig{
-		MaxConnsPerMessage: 600,
-		// System probe collection configuration
-		SystemProbeAddress: defaultSystemProbeAddress,
-	}
+	ac := &AgentConfig{}
 
 	// Set default values for proc/sys paths if unset.
 	// Don't set this is /host is not mounted to use context within container.
@@ -74,7 +61,7 @@ func LoadConfigIfExists(path string) error {
 
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
-func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
+func NewAgentConfig(loggerName config.LoggerName, yamlPath string) (*AgentConfig, error) {
 	cfg := NewDefaultAgentConfig()
 	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
 		return nil, err
@@ -85,11 +72,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	if err := setupLogger(loggerName, logFile); err != nil {
 		log.Errorf("failed to setup configured logger: %s", err)
 		return nil, err
-	}
-
-	if syscfg.Enabled {
-		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
-		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
 	return cfg, nil

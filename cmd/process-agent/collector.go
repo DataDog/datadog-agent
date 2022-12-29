@@ -16,6 +16,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -66,7 +66,6 @@ type Collector struct {
 	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
-	cfg          *config.AgentConfig
 	hostInfo     *checks.HostInfo
 
 	orchestrator *oconfig.OrchestratorConfig
@@ -101,19 +100,26 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+
+	cfg := &checks.SysProbeConfig{}
+	if syscfg != nil && syscfg.Enabled {
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
+	}
+
 	for _, c := range enabledChecks {
 		if err := c.Init(cfg, hostInfo); err != nil {
 			return nil, err
 		}
 	}
 
-	return NewCollectorWithChecks(cfg, hostInfo, enabledChecks, runRealTime)
+	return NewCollectorWithChecks(hostInfo, enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, hostInfo *checks.HostInfo, checks []checks.Check, runRealTime bool) (*Collector, error) {
+func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, runRealTime bool) (*Collector, error) {
 	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
@@ -160,7 +166,6 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, hostInfo *checks.HostInfo, 
 
 	return &Collector{
 		rtIntervalCh:  make(chan time.Duration),
-		cfg:           cfg,
 		hostInfo:      hostInfo,
 		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
