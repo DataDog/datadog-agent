@@ -38,6 +38,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -61,6 +62,7 @@ stages:
   - binary_build
   - package_deps_build
   - integration_test
+  - benchmarks
   - package_build
   - internal_deploy
   - kitchen_deploy
@@ -765,4 +767,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true

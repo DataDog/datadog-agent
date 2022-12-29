@@ -46,8 +46,8 @@ type ServiceExtractor struct {
 }
 
 type serviceMetadata struct {
-	cmdline    []string
-	serviceTag string
+	cmdline        []string
+	serviceContext string
 }
 
 // NewServiceExtractor instantiates a new service discovery extractor
@@ -86,12 +86,12 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
-func (d *ServiceExtractor) GetServiceTag(pid int32) string {
+func (d *ServiceExtractor) GetServiceContext(pid int32) string {
 	if !d.enabled {
 		return ""
 	}
 	if meta, ok := d.serviceByPID[pid]; ok {
-		return meta.serviceTag
+		return meta.serviceContext
 	}
 	return ""
 }
@@ -124,8 +124,8 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(cmd[1:])
 		return &serviceMetadata{
-			cmdline:    cmd,
-			serviceTag: "service:" + tag,
+			cmdline:        cmd,
+			serviceContext: "process_context:" + tag,
 		}
 	}
 
@@ -135,8 +135,8 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	}
 
 	return &serviceMetadata{
-		cmdline:    cmd,
-		serviceTag: "service:" + exe,
+		cmdline:        cmd,
+		serviceContext: "process_context:" + exe,
 	}
 }
 

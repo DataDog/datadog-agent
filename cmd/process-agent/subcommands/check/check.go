@@ -159,7 +159,9 @@ func runCheckCmd(cliParams *cliParams) error {
 	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		checks.Process.Init(cfg, sysInfo)
+		if err := checks.Process.Init(cfg, sysInfo); err != nil {
+			return err
+		}
 		checks.Process.Run(cfg, 0) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
@@ -170,14 +172,18 @@ func runCheckCmd(cliParams *cliParams) error {
 		names = append(names, ch.Name())
 
 		if ch.Name() == cliParams.checkName {
-			ch.Init(cfg, sysInfo)
+			if err = ch.Init(cfg, sysInfo); err != nil {
+				return err
+			}
 			cleanups = append(cleanups, ch.Cleanup)
 			return runCheck(cliParams, cfg, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == cliParams.checkName {
-			withRealTime.Init(cfg, sysInfo)
+			if err = withRealTime.Init(cfg, sysInfo); err != nil {
+				return err
+			}
 			cleanups = append(cleanups, withRealTime.Cleanup)
 			return runCheckAsRealTime(cliParams, cfg, withRealTime)
 		}

@@ -10,7 +10,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,11 +29,9 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(displayVersion,
-				fx.Supply(core.CreateBundleParams(
-					"",
-					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
-					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray), config.WithConfigLoadSecurityAgent(true)),
+					LogParams:    log.LogForOneShot(common.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

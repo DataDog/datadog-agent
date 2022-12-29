@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import shutil
+import string
 import sys
 import tarfile
 import tempfile
@@ -1217,3 +1218,28 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
+    import yaml
+
+    if windows:
+        return
+
+    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    # Add relative docker-compose paths
+    # For example:
+    #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
+
+    images = set()
+    for docker_compose_path in docker_compose_paths:
+        with open(docker_compose_path, "r") as f:
+            docker_compose = yaml.safe_load(f.read())
+        for component in docker_compose["services"]:
+            images.add(docker_compose["services"][component]["image"])
+
+    for image in images:
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        ctx.run(f"docker pull --platform linux/{arch} {image}")
+        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")

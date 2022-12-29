@@ -10,13 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +21,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -34,10 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// defaultProxyPort is the default port used for proxies.
-// This mirrors the configuration for the infrastructure agent.
-const defaultProxyPort = 3128
 
 // Name for check performed by process-agent or system-probe
 const (
@@ -60,8 +50,6 @@ const (
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
-type proxyFunc func(*http.Request) (*url.URL, error)
-
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // AgentConfig is the global config for the process-agent. This information
@@ -71,26 +59,16 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // For any other setting, use `pkg/config`.
 type AgentConfig struct {
 	HostName           string
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
 	MaxConnsPerMessage int
-	Transport          *http.Transport `json:"-"`
 
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
 	// System probe collection configuration
-	EnableSystemProbe  bool
 	SystemProbeAddress string
-
-	// Orchestrator config
-	Orchestrator *oconfig.OrchestratorConfig
 
 	// Check config
 	CheckIntervals map[string]time.Duration
-
-	// Internal store of a proxy used for generating the Transport
-	proxy proxyFunc
 }
 
 // CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
@@ -103,36 +81,16 @@ func (a AgentConfig) CheckInterval(checkName string) time.Duration {
 	return d
 }
 
-// NewDefaultTransport provides a http transport configuration with sane default timeouts
-func NewDefaultTransport() *http.Transport {
-	return &http.Transport{
-		MaxIdleConns:    5,
-		IdleConnTimeout: 90 * time.Second,
-		Dial: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 10 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
-}
-
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
 func NewDefaultAgentConfig() *AgentConfig {
 	ac := &AgentConfig{
 		MaxConnsPerMessage: 600,
 		HostName:           "",
-		Transport:          NewDefaultTransport(),
 
 		ContainerHostType: model.ContainerHostType_notSpecified,
 
 		// System probe collection configuration
-		EnableSystemProbe:  false,
 		SystemProbeAddress: defaultSystemProbeAddress,
-
-		// Orchestrator config
-		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
 
 		// Check config
 		CheckIntervals: map[string]time.Duration{
@@ -145,10 +103,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
 			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
 		},
-
-		// DataScrubber to hide command line sensitive words
-		Scrubber:  NewDefaultDataScrubber(),
-		Blacklist: make([]*regexp.Regexp, 0),
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -189,14 +143,8 @@ func LoadConfigIfExists(path string) error {
 // NewAgentConfig returns an AgentConfig using a configuration file. It can be nil
 // if there is no file available. In this case we'll configure only via environment.
 func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
-	var err error
-
 	cfg := NewDefaultAgentConfig()
 	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
-		return nil, err
-	}
-
-	if err := cfg.Orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
@@ -208,15 +156,8 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	}
 
 	if syscfg.Enabled {
-		cfg.EnableSystemProbe = true
 		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
 		cfg.SystemProbeAddress = syscfg.SocketAddress
-	}
-
-	// TODO: Once proxies have been moved to common config util, remove this
-	if cfg.proxy, err = proxyFromEnv(cfg.proxy); err != nil {
-		log.Errorf("error parsing environment proxy settings, not using a proxy: %s", err)
-		cfg.proxy = nil
 	}
 
 	if err := validate.ValidHostname(cfg.HostName); err != nil {
@@ -231,10 +172,6 @@ func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysco
 	}
 
 	cfg.ContainerHostType = getContainerHostType()
-
-	if cfg.proxy != nil {
-		cfg.Transport.Proxy = cfg.proxy
-	}
 
 	return cfg, nil
 }
@@ -257,7 +194,7 @@ func InitRuntimeSettings() {
 
 // getContainerHostType uses the fargate library to detect container environment and returns the protobuf version of it
 func getContainerHostType() model.ContainerHostType {
-	switch fargate.GetOrchestrator(context.TODO()) {
+	switch fargate.GetOrchestrator() {
 	case fargate.ECS:
 		return model.ContainerHostType_fargateECS
 	case fargate.EKS:
@@ -292,22 +229,11 @@ func loadEnvVariables() {
 	}
 }
 
-// IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
-func IsBlacklisted(cmdline []string, blacklist []*regexp.Regexp) bool {
-	cmd := strings.Join(cmdline, " ")
-	for _, b := range blacklist {
-		if b.MatchString(cmd) {
-			return true
-		}
-	}
-	return false
-}
-
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration) (string, error) {
 	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	if fargate.IsFargateInstance(ctx) {
+	if fargate.IsFargateInstance() {
 		hostname, err := fargate.GetFargateHost(ctx)
 		if err == nil {
 			return hostname, nil
@@ -374,73 +300,6 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 
 	log.Debugf("retrieved hostname:%s from datadog agent via grpc", reply.Hostname)
 	return reply.Hostname, nil
-}
-
-// proxyFromEnv parses out the proxy configuration from the ENV variables in a
-// similar way to getProxySettings and, if enough values are available, returns
-// a new proxy URL value. If the environment is not set for this then the
-// `defaultVal` is returned.
-func proxyFromEnv(defaultVal proxyFunc) (proxyFunc, error) {
-	var host string
-	scheme := "http"
-	if v := os.Getenv("PROXY_HOST"); v != "" {
-		// accept either http://myproxy.com or myproxy.com
-		if i := strings.Index(v, "://"); i != -1 {
-			// when available, parse the scheme from the url
-			scheme = v[0:i]
-			host = v[i+3:]
-		} else {
-			host = v
-		}
-	}
-
-	if host == "" {
-		return defaultVal, nil
-	}
-
-	port := defaultProxyPort
-	if v := os.Getenv("PROXY_PORT"); v != "" {
-		port, _ = strconv.Atoi(v)
-	}
-	var user, password string
-	if v := os.Getenv("PROXY_USER"); v != "" {
-		user = v
-	}
-	if v := os.Getenv("PROXY_PASSWORD"); v != "" {
-		password = v
-	}
-
-	return constructProxy(host, scheme, port, user, password)
-}
-
-// constructProxy constructs a *url.Url for a proxy given the parts of a
-// Note that we assume we have at least a non-empty host for this call but
-// all other values can be their defaults (empty string or 0).
-func constructProxy(host, scheme string, port int, user, password string) (proxyFunc, error) {
-	var userpass *url.Userinfo
-	if user != "" {
-		if password != "" {
-			userpass = url.UserPassword(user, password)
-		} else {
-			userpass = url.User(user)
-		}
-	}
-
-	var path string
-	if userpass != nil {
-		path = fmt.Sprintf("%s@%s:%v", userpass.String(), host, port)
-	} else {
-		path = fmt.Sprintf("%s:%v", host, port)
-	}
-	if scheme != "" {
-		path = fmt.Sprintf("%s://%s", scheme, path)
-	}
-
-	u, err := url.Parse(path)
-	if err != nil {
-		return nil, err
-	}
-	return http.ProxyURL(u), nil
 }
 
 func setupLogger(loggerName config.LoggerName, logFile string) error {
