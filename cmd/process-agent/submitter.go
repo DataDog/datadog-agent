@@ -362,27 +362,27 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 	}
 }
 
-func (l *submitter) resultsQueueForCheck(name string) *api.WeightedQueue {
+func (s *submitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	switch name {
 	case checks.Pod.Name():
-		return l.podResults
+		return s.podResults
 	case checks.Process.RealTimeName(), checks.RTContainer.Name():
-		return l.rtProcessResults
+		return s.rtProcessResults
 	case checks.Connections.Name():
-		return l.connectionsResults
+		return s.connectionsResults
 	case checks.ProcessEvents.Name():
-		return l.eventResults
+		return s.eventResults
 	}
-	return l.processResults
+	return s.processResults
 }
 
-func (l *submitter) logQueuesSize() {
+func (s *submitter) logQueuesSize() {
 	var (
-		processSize     = l.processResults.Len()
-		rtProcessSize   = l.rtProcessResults.Len()
-		connectionsSize = l.connectionsResults.Len()
-		eventsSize      = l.eventResults.Len()
-		podSize         = l.podResults.Len()
+		processSize     = s.processResults.Len()
+		rtProcessSize   = s.rtProcessResults.Len()
+		connectionsSize = s.connectionsResults.Len()
+		eventsSize      = s.eventResults.Len()
+		podSize         = s.podResults.Len()
 	)
 
 	if processSize == 0 &&
@@ -395,11 +395,11 @@ func (l *submitter) logQueuesSize() {
 
 	log.Infof(
 		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d], pod[size=%d, weight=%d]",
-		processSize, l.processResults.Weight(),
-		rtProcessSize, l.rtProcessResults.Weight(),
-		connectionsSize, l.connectionsResults.Weight(),
-		eventsSize, l.eventResults.Weight(),
-		podSize, l.podResults.Weight(),
+		processSize, s.processResults.Weight(),
+		rtProcessSize, s.rtProcessResults.Weight(),
+		connectionsSize, s.connectionsResults.Weight(),
+		eventsSize, s.eventResults.Weight(),
+		podSize, s.podResults.Weight(),
 	)
 }
 
