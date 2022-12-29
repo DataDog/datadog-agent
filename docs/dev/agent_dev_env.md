@@ -1,4 +1,6 @@
-# Linux and MacOS Development Environments
+# Development Environments
+
+## Linux and MacOS
 
 ## Python
 
@@ -219,14 +221,6 @@ pre-commit run flake8 --all-files  # run flake8 on all files
 
 See `pre-commit run --help` for further options.
 
-## Setting up your Windows development environment
-
-### Code editor
-
-[Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
-
-Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
-
 ## Setting up Visual Studio Code Dev Container
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) with the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) allow to use a container as remote development environment in vscode. It simplify and isolate
@@ -241,3 +235,10 @@ To configure the vscode editor to use a container as remote development environm
 - A pop-up should show-up to propose to "reopen in container" your workspace.
 - The first start, it might propose you to install the golang plugin dependencies/tooling.
 
+## Windows development environment
+
+### Code editor
+
+[Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
+
+Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
