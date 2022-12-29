@@ -474,7 +474,7 @@ def test(
         for flavor in flavors:
             coverage_flavor(ctx, flavor, modules)
 
-    # FIXME(AP-XXXX): this prints nothing in CI. Commenting out the print line
+    # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
     # in the meantime to avoid confusion
     if profile:
         # print("\n--- Top 15 packages sorted by run time:")
@@ -491,7 +491,7 @@ def test(
                 failed_packages = set()
                 failed_tests = defaultdict(set)
 
-                # TODO(AP-XXXX): this logic is now repreated, with some variations, in three places:
+                # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
                 # here, in system-probe.py, and in libs/pipeline_notifications.py
                 # We should have some common result.json parsing lib.
                 with open(module_test_result.result_json_path) as tf:
