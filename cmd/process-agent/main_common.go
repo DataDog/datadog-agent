@@ -267,6 +267,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 		return
 	}
+	cl.submitter, err = NewSubmitter(cfg.HostName)
+	if err != nil {
+		log.Criticalf("Error creating submitter: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
 	if err := cl.run(exit); err != nil {
 		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)

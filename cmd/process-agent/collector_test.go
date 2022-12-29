@@ -3,6 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+/*
+TODO:
+- Plug in NewSubmitter in tests and checks
+- Refactor tests into collector_tests and submitter_tests
+- Mock the submitter (gen_mocks)
+*/
+
 package main
 
 import (
@@ -368,12 +375,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check.On("Name").Return("foo")
 	check.On("RealTimeName").Return("bar")
 
-	c.runCheckWithRealTime(
-		check,
-		results,
-		rtResults,
-		standardOption,
-	)
+	c.runCheckWithRealTime(check, standardOption)
 
 	assert.Equal(t, results.Len(), 1)
 	item, ok := results.Poll()
@@ -394,12 +396,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 	check.On("RunWithOptions", mock.Anything, rtOption).Once().Return(rtResult, nil)
 
-	c.runCheckWithRealTime(
-		check,
-		results,
-		rtResults,
-		rtOption,
-	)
+	c.runCheckWithRealTime(check, rtOption)
 
 	assert.Equal(t, results.Len(), 0)
 	assert.Equal(t, rtResults.Len(), 1)
@@ -425,10 +422,7 @@ func TestCollectorRunCheck(t *testing.T) {
 	check.On("RealTime").Return(false)
 	check.On("ShouldSaveLastRun").Return(true)
 
-	c.runCheck(
-		check,
-		results,
-	)
+	c.runCheck(check)
 
 	assert.Equal(t, results.Len(), 1)
 	item, ok := results.Poll()
