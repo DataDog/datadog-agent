@@ -235,7 +235,7 @@ the dependencies needed to develop in this repository.
 To configure the vscode editor to use a container as remote development environment you need to:
 
 - Install the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) and the [golang language plugin](https://code.visualstudio.com/docs/languages/go).
-- Run the following invoke command `invoke vscode.devcontainer --image "<image name>"`.
+- Run the following invoke command `invoke vscode.setup-devcontainer --image "<image name>"`.
   This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
 - Start or restart your vscode editor.
 - A pop-up should show-up to propose to "reopen in container" your workspace.
