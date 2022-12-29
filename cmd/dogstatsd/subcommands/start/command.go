@@ -13,7 +13,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -82,15 +81,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
 		fx.Supply(params),
-		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewParams(
+		fx.Supply(config.NewParams(
 				defaultConfPath,
 				config.WithConfFilePath(cliParams.confPath),
 				config.WithConfigLoadSecrets(true),
 				config.WithConfigMissingOK(true),
 				config.WithConfigName("dogstatsd")),
-		}),
-		core.Bundle,
+		),
+		config.Module,
 	)
 }
 
