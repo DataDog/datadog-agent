@@ -6,6 +6,7 @@
 package core
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -39,4 +40,11 @@ func TestMockBundleDependencies(t *testing.T) {
 
 		fx.Supply(BundleParams{}),
 		MockBundle))
+}
+
+func TestCreateSecurityAgentBundleParams(t *testing.T) {
+	bundleParams := CreateSecurityAgentBundleParams([]string{})
+
+	require.Equal(t, true, bundleParams.ConfigLoadSecurityAgent, "ConfigLoadSecurityAgent values not matching")
+	require.Equal(t, common.DefaultConfPath, bundleParams.DefaultConfPath, "DefaultConfPath values not matching")
 }
