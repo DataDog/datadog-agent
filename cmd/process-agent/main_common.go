@@ -222,6 +222,19 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		expVarPort = ddconfig.DefaultProcessExpVarPort
 	}
 
+	hostInfo, err := checks.CollectHostInfo()
+	if err != nil {
+		log.Criticalf("Error collecting host details: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
+	err = initInfo(hostInfo.HostName)
+	if err != nil {
+		log.Criticalf("Error initializing info: %s", err)
+		cleanupAndExit(1)
+	}
+
 	if globalParams.Info {
 		// using the debug port to get info to work
 		url := fmt.Sprintf("http://localhost:%d/debug/vars", expVarPort)
@@ -246,19 +259,6 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	err = api.StartServer()
 	if err != nil {
 		_ = log.Error(err)
-	}
-
-	hostInfo, err := checks.CollectHostInfo()
-	if err != nil {
-		log.Criticalf("Error collecting host details: %s", err)
-		cleanupAndExit(1)
-		return
-	}
-
-	err = initInfo(hostInfo.HostName)
-	if err != nil {
-		log.Criticalf("Error initializing info: %s", err)
-		cleanupAndExit(1)
 	}
 
 	cl, err := NewCollector(cfg, hostInfo, enabledChecks)
