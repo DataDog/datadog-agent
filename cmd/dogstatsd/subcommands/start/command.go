@@ -82,11 +82,11 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(cliParams),
 		fx.Supply(params),
 		fx.Supply(config.NewParams(
-				defaultConfPath,
-				config.WithConfFilePath(cliParams.confPath),
-				config.WithConfigLoadSecrets(true),
-				config.WithConfigMissingOK(true),
-				config.WithConfigName("dogstatsd")),
+			defaultConfPath,
+			config.WithConfFilePath(cliParams.confPath),
+			config.WithConfigLoadSecrets(true),
+			config.WithConfigMissingOK(true),
+			config.WithConfigName("dogstatsd")),
 		),
 		config.Module,
 	)
