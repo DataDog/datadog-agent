@@ -138,20 +138,23 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return http;
 }
 
-static __always_inline bool check_ascii_and_crlf(const char* buf, __u32 buf_size, int i) {
+// Checks the buffer represent a standard response (OK) or any of redis commands
+// https://redis.io/commands/
+static __always_inline bool check_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
-    char ch;
+    char current_char;
+    int i = index_to_start_from;
 #pragma unroll(CLASSIFICATION_MAX_BUFFER)
     for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
-        ch = buf[i];
-        if (ch == '\r') {
+        current_char = buf[i];
+        if (current_char == '\r') {
             found_cr = true;
             break;
-        } else if ('A' <= ch && ch <= 'Z') {
+        } else if ('A' <= current_char && current_char <= 'Z') {
             continue;
-        } else if ('a' <= ch && ch <= 'z') {
+        } else if ('a' <= current_char && current_char <= 'z') {
             continue;
-        } else if (ch == '.' || ch == ' ' || ch == '-' || ch == '_') {
+        } else if (current_char == '.' || current_char == ' ' || current_char == '-' || current_char == '_') {
             continue;
         }
         return false;
@@ -163,6 +166,7 @@ static __always_inline bool check_ascii_and_crlf(const char* buf, __u32 buf_size
     return buf[i+1] == '\n';
 }
 
+// Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
 static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define ERR "-ERR "
 #define WRONGTYPE "-WRONGTYPE "
@@ -176,16 +180,17 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
     return match;
 }
 
-static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int i) {
+static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
-    char ch;
+    char current_char;
+    int i = index_to_start_from;
 #pragma unroll(CLASSIFICATION_MAX_BUFFER)
     for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
-        ch = buf[i];
-        if (ch == '\r') {
+        current_char = buf[i];
+        if (current_char == '\r') {
             found_cr = true;
             break;
-        } else if ('0' <= ch && ch <= '9') {
+        } else if ('0' <= current_char && current_char <= '9') {
             continue;
         }
 
