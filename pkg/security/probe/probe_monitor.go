@@ -70,7 +70,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient)
+	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CgroupsResolver)
 
 	return m, nil
 }
@@ -162,9 +162,11 @@ func (m *Monitor) ProcessEvent(event *Event) {
 
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {
-		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, err),
-		)
+		if !errors.Is(err, &ErrPathResolutionNotCritical{}) {
+			m.probe.DispatchCustomEvent(
+				NewAbnormalPathEvent(event, err),
+			)
+		}
 	} else {
 		if m.activityDumpManager != nil {
 			m.activityDumpManager.ProcessEvent(event)

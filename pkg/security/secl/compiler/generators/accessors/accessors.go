@@ -632,6 +632,7 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 var funcMap = map[string]interface{}{
 	"TrimPrefix":       strings.TrimPrefix,
 	"TrimSuffix":       strings.TrimSuffix,
+	"HasPrefix":        strings.HasPrefix,
 	"NewField":         newField,
 	"Override":         override,
 	"GetFieldResolver": getFieldResolver,

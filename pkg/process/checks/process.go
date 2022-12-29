@@ -8,11 +8,14 @@ package checks
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -22,10 +25,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const emptyCtrID = ""
+const (
+	emptyCtrID                 = ""
+	configPrefix               = "process_config."
+	configCustomSensitiveWords = configPrefix + "custom_sensitive_words"
+	configScrubArgs            = configPrefix + "scrub_args"
+	configStripProcArgs        = configPrefix + "strip_proc_arguments"
+	configDisallowList         = configPrefix + "blacklist_patterns"
+)
 
 // Process is a singleton ProcessCheck.
-var Process = &ProcessCheck{}
+var Process = &ProcessCheck{
+	scrubber: procutil.NewDefaultDataScrubber(),
+}
 
 var _ CheckWithRealTime = (*ProcessCheck)(nil)
 
@@ -36,6 +48,11 @@ var errEmptyCPUTime = errors.New("empty CPU time information returned")
 // checks that will be used for rates, cpu calculations, etc.
 type ProcessCheck struct {
 	probe procutil.Probe
+	// scrubber is a DataScrubber to hide command line sensitive words
+	scrubber *procutil.DataScrubber
+
+	// disallowList to hide processes
+	disallowList []*regexp.Regexp
 
 	sysInfo                    *model.SystemInfo
 	lastCPUTime                cpu.TimesStat
@@ -64,7 +81,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
 	p.sysInfo = info
 	p.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 	p.containerProvider = util.GetSharedContainerProvider()
@@ -79,6 +96,11 @@ func (p *ProcessCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
 
 	p.maxBatchSize = getMaxBatchSize()
 	p.maxBatchBytes = getMaxBatchBytes()
+
+	initScrubber(p.scrubber)
+
+	p.disallowList = initDisallowList()
+	return nil
 }
 
 // Name returns the name of the ProcessCheck.
@@ -170,7 +192,7 @@ func (p *ProcessCheck) run(cfg *config.AgentConfig, groupID int32, collectRealTi
 	}
 
 	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(cfg, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+	procsByCtr := fmtProcesses(cfg, p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
 	messages, totalProcs, totalContainers := createProcCtrMessages(procsByCtr, containers, cfg, p.maxBatchSize, p.maxBatchBytes, p.sysInfo, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
@@ -298,6 +320,8 @@ func chunkProcessesAndContainers(
 // non-container processes would be in a single group with key as empty string ""
 func fmtProcesses(
 	cfg *config.AgentConfig,
+	scrubber *procutil.DataScrubber,
+	disallowList []*regexp.Regexp,
 	procs, lastProcs map[int32]*procutil.Process,
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
@@ -308,12 +332,12 @@ func fmtProcesses(
 	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
 
 	for _, fp := range procs {
-		if skipProcess(cfg, fp, lastProcs) {
+		if skipProcess(disallowList, fp, lastProcs) {
 			continue
 		}
 
-		// Hide blacklisted args if the Scrubber is enabled
-		fp.Cmdline = cfg.Scrubber.ScrubProcessCommand(fp)
+		// Hide disallow-listed args if the Scrubber is enabled
+		fp.Cmdline = scrubber.ScrubProcessCommand(fp)
 
 		proc := &model.Process{
 			Pid:                    fp.Pid,
@@ -338,7 +362,7 @@ func fmtProcesses(
 		procsByCtr[proc.ContainerId] = append(procsByCtr[proc.ContainerId], proc)
 	}
 
-	cfg.Scrubber.IncrementCacheAge()
+	scrubber.IncrementCacheAge()
 
 	return procsByCtr
 }
@@ -442,17 +466,17 @@ func formatCPU(statsNow, statsBefore *procutil.Stats, syst2, syst1 cpu.TimesStat
 	return formatCPUTimes(statsNow, statsNow.CPUTime, statsBefore.CPUTime, syst2, syst1)
 }
 
-// skipProcess will skip a given process if it's blacklisted or hasn't existed
+// skipProcess will skip a given process if it's disallow-listed or hasn't existed
 // for multiple collections.
 func skipProcess(
-	cfg *config.AgentConfig,
+	disallowList []*regexp.Regexp,
 	fp *procutil.Process,
 	lastProcs map[int32]*procutil.Process,
 ) bool {
 	if len(fp.Cmdline) == 0 {
 		return true
 	}
-	if config.IsBlacklisted(fp.Cmdline, cfg.Blacklist) {
+	if isDisallowListed(fp.Cmdline, disallowList) {
 		return true
 	}
 	if _, ok := lastProcs[fp.Pid]; !ok {
@@ -496,4 +520,55 @@ func mergeProcWithSysprobeStats(pids []int32, procs map[int32]*procutil.Process,
 	} else {
 		log.Debugf("cannot do GetProcStats from system-probe for process check: %s", err)
 	}
+}
+
+func initScrubber(scrubber *procutil.DataScrubber) {
+	// Enable/Disable the DataScrubber to obfuscate process args
+	if ddconfig.Datadog.IsSet(configScrubArgs) {
+		scrubber.Enabled = ddconfig.Datadog.GetBool(configScrubArgs)
+	}
+
+	if scrubber.Enabled { // Scrubber is enabled by default when it's created
+		log.Debug("Starting process collection with Scrubber enabled")
+	}
+
+	// A custom word list to enhance the default one used by the DataScrubber
+	if ddconfig.Datadog.IsSet(configCustomSensitiveWords) {
+		words := ddconfig.Datadog.GetStringSlice(configCustomSensitiveWords)
+		scrubber.AddCustomSensitiveWords(words)
+		log.Debug("Adding custom sensitives words to Scrubber:", words)
+	}
+
+	// Strips all process arguments
+	if ddconfig.Datadog.GetBool(configStripProcArgs) {
+		log.Debug("Strip all process arguments enabled")
+		scrubber.StripAllArguments = true
+	}
+}
+
+func initDisallowList() []*regexp.Regexp {
+	var disallowList []*regexp.Regexp
+	// A list of regex patterns that will exclude a process if matched.
+	if ddconfig.Datadog.IsSet(configDisallowList) {
+		for _, b := range ddconfig.Datadog.GetStringSlice(configDisallowList) {
+			r, err := regexp.Compile(b)
+			if err != nil {
+				log.Warnf("Ignoring invalid disallow list pattern: %s", b)
+				continue
+			}
+			disallowList = append(disallowList, r)
+		}
+	}
+	return disallowList
+}
+
+// isDisallowListed returns a boolean indicating if the given command is disallow-listed by our config.
+func isDisallowListed(cmdline []string, disallowList []*regexp.Regexp) bool {
+	cmd := strings.Join(cmdline, " ")
+	for _, b := range disallowList {
+		if b.MatchString(cmd) {
+			return true
+		}
+	}
+	return false
 }

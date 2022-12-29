@@ -23,7 +23,6 @@ replace (
 	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
-	github.com/theupdateframework/go-tuf => github.com/DataDog/go-tuf v0.3.0--fix-localmeta
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
 )
 
@@ -43,19 +42,20 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.43
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/quantile v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/secl v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/trace v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3
+	github.com/DataDog/agent-payload/v5 v5.0.48
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/security/secl v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/trace v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
 	github.com/DataDog/ebpf-manager v0.1.0
+	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.10.0
@@ -165,7 +165,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/theupdateframework/go-tuf v0.3.0
 	github.com/tinylib/msgp v1.1.6
 	github.com/twmb/murmur3 v1.1.6
 	github.com/urfave/negroni v1.0.0
@@ -190,12 +189,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4
 	golang.org/x/exp v0.0.0-20221114191408-850992195362
-	golang.org/x/net v0.2.0
+	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.3.0
-	golang.org/x/text v0.4.0
+	golang.org/x/text v0.5.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
-	golang.org/x/tools v0.3.0
+	golang.org/x/tools v0.4.0
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
 	google.golang.org/grpc v1.51.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
@@ -362,9 +361,9 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.3.1
+	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/skydive-project/go-debouncer v1.0.0 // indirect
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
@@ -410,15 +409,14 @@ require (
 	golang.org/x/crypto v0.3.0 // indirect
 	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
-	golang.org/x/term v0.2.0 // indirect
+	golang.org/x/term v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/api v0.103.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/apiextensions-apiserver v0.23.5 // indirect
+	k8s.io/apiextensions-apiserver v0.23.5
 	k8s.io/component-base v0.23.8 // indirect
 	k8s.io/gengo v0.0.0-20210813121822-485abfe95c7c // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30 // indirect
@@ -428,7 +426,12 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-require github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+require (
+	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/streadway/amqp v1.0.0
+)
+
+require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 

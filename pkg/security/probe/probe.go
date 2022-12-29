@@ -30,7 +30,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -93,7 +93,7 @@ type Probe struct {
 	resolvers   *Resolvers
 	event       *Event
 	eventStream EventStream
-	scrubber    *pconfig.DataScrubber
+	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -281,7 +281,6 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.resolvers.ProcessResolver.SetCgroupsMonitor(p.monitor.cgroupsMonitor)
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
@@ -468,6 +467,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.UnshareMountNsEventType:
+		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
+		}
+		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -494,35 +502,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		// There could be entries of a previous mount_id in the cache for instance,
-		// runc does the following : it bind mounts itself (using /proc/exe/self),
-		// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
-		// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
-		// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
-		// so we remove all dentry entries belonging to the mountID.
-		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
-
-		// Resolve mount point
-		if err := event.SetMountPoint(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount point: %v", err)
-			return
-		}
-		// Resolve root
-		if err := event.SetMountRoot(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount root: %v", err)
+		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
 
-		// Insert new mount point in cache
-		if err = p.resolvers.MountResolver.Insert(event.Mount); err != nil {
-			seclog.Errorf("failed to insert mount event: %v", err)
-			return
-		}
-
+		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			mountPath, _, err := p.resolvers.MountResolver.ResolveMountPaths(event.Mount.MountID, event.PIDContext.Pid)
+			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -530,6 +518,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 				_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
 			}
 		}
+
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -537,7 +526,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
+		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -642,8 +631,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
+
+			if errors.Is(err, &ErrPathResolution{}) {
+				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+			}
 		}
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
@@ -655,7 +648,13 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		var exists bool
+		event.ProcessCacheEntry, exists = event.ResolveProcessCacheEntry()
+		if !exists {
+			// no need to dispatch an exit event that don't have the corresponding cache entry
+			return
+		}
+
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
@@ -783,7 +782,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+	event.ProcessCacheEntry, _ = event.ResolveProcessCacheEntry()
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
@@ -1026,31 +1025,40 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	return p.Manager.UpdateActivatedProbes(activatedProbes)
 }
 
-// DumpDiscarders removes all the discarders
-func (p *Probe) DumpDiscarders() (string, error) {
-	seclog.Debugf("Dumping discarders")
-
+// GetDiscarders retrieve the discarders
+func (p *Probe) GetDiscarders() (*DiscardersDump, error) {
 	inodeMap, err := managerhelper.Map(p.Manager, "inode_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsFB, err := managerhelper.Map(p.Manager, "discarder_stats_fb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsBB, err := managerhelper.Map(p.Manager, "discarder_stats_bb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	if err != nil {
+		return nil, err
+	}
+	return &dump, nil
+}
+
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	seclog.Debugf("Dumping discarders")
+
+	dump, err := p.GetDiscarders()
 	if err != nil {
 		return "", err
 	}
@@ -1243,6 +1251,35 @@ func (p *Probe) flushInactiveProbes() map[uint32]int {
 	return probesCountNoLazyDeletion
 }
 
+func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
+	// There could be entries of a previous mount_id in the cache for instance,
+	// runc does the following : it bind mounts itself (using /proc/exe/self),
+	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
+	// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
+	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
+	// so we remove all dentry entries belonging to the mountID.
+	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
+
+	// Resolve mount point
+	if err := event.SetMountPoint(m); err != nil {
+		seclog.Debugf("failed to set mount point: %v", err)
+		return err
+	}
+	// Resolve root
+	if err := event.SetMountRoot(m); err != nil {
+		seclog.Debugf("failed to set mount root: %v", err)
+		return err
+	}
+
+	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
+	if err := p.resolvers.MountResolver.Insert(*m, event.PIDContext.Pid, event.ResolveContainerID(&event.ContainerContext)); err != nil {
+		seclog.Errorf("failed to insert mount event: %v", err)
+		return err
+	}
+
+	return nil
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Probe, error) {
 	nerpc, err := erpc.NewERPC()
@@ -1428,7 +1465,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
-	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	resolvers, err := NewResolvers(config, p)

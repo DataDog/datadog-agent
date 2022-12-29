@@ -30,7 +30,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ]`, executable),
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -86,9 +86,9 @@ func TestSpan(t *testing.T) {
 		var args []string
 		var envs []string
 		if kind == dockerWrapperType {
-			args = []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
+			args = []string{"span-exec", "104", "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
 		} else if kind == stdWrapperType {
-			args = []string{"span-exec", "104", "204", executable, testFile}
+			args = []string{"span-exec", "104", "204", executable, "--reference", "/etc/passwd", testFile}
 		}
 
 		test.WaitSignal(t, func() error {

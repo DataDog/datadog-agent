@@ -23,6 +23,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -62,6 +63,11 @@ const (
   Hostname: {{.Status.Config.HostName}}
   Uptime: {{.Status.Uptime}} seconds
   Mem alloc: {{.Status.MemStats.Alloc}} bytes
+  {{- if .Status.SystemProbeProcessModuleEnabled }}
+  System Probe Process Module Status: Running
+  {{- else}}
+  System Probe Process Module Status: Not running
+  {{- end}}
 
   Last collection time: {{.Status.LastCollectTime}}{{if ne .Status.DockerSocket ""}}
   Docker socket: {{.Status.DockerSocket}}{{end}}
@@ -99,6 +105,10 @@ const (
 
 `
 )
+
+func publishSystemProbeProcessModuleEnabled() interface{} {
+	return checks.Process.SysprobeProcessModuleEnabled
+}
 
 func publishUptime() interface{} {
 	return int(time.Since(infoStart) / time.Second)
@@ -272,29 +282,30 @@ func getProgramBanner(version string) (string, string) {
 
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
-	Pid                   int                    `json:"pid"`
-	Uptime                int                    `json:"uptime"`
-	MemStats              struct{ Alloc uint64 } `json:"memstats"`
-	Version               version.Version        `json:"version"`
-	Config                config.AgentConfig     `json:"config"`
-	DockerSocket          string                 `json:"docker_socket"`
-	LastCollectTime       string                 `json:"last_collect_time"`
-	ProcessCount          int                    `json:"process_count"`
-	ContainerCount        int                    `json:"container_count"`
-	ProcessQueueSize      int                    `json:"process_queue_size"`
-	RTProcessQueueSize    int                    `json:"rtprocess_queue_size"`
-	ConnectionsQueueSize  int                    `json:"connections_queue_size"`
-	EventQueueSize        int                    `json:"event_queue_size"`
-	PodQueueSize          int                    `json:"pod_queue_size"`
-	ProcessQueueBytes     int                    `json:"process_queue_bytes"`
-	RTProcessQueueBytes   int                    `json:"rtprocess_queue_bytes"`
-	ConnectionsQueueBytes int                    `json:"connections_queue_bytes"`
-	EventQueueBytes       int                    `json:"event_queue_bytes"`
-	PodQueueBytes         int                    `json:"pod_queue_bytes"`
-	ContainerID           string                 `json:"container_id"`
-	ProxyURL              string                 `json:"proxy_url"`
-	LogFile               string                 `json:"log_file"`
-	DropCheckPayloads     []string               `json:"drop_check_payloads"`
+	Pid                             int                    `json:"pid"`
+	Uptime                          int                    `json:"uptime"`
+	MemStats                        struct{ Alloc uint64 } `json:"memstats"`
+	Version                         version.Version        `json:"version"`
+	Config                          config.AgentConfig     `json:"config"`
+	DockerSocket                    string                 `json:"docker_socket"`
+	LastCollectTime                 string                 `json:"last_collect_time"`
+	ProcessCount                    int                    `json:"process_count"`
+	ContainerCount                  int                    `json:"container_count"`
+	ProcessQueueSize                int                    `json:"process_queue_size"`
+	RTProcessQueueSize              int                    `json:"rtprocess_queue_size"`
+	ConnectionsQueueSize            int                    `json:"connections_queue_size"`
+	EventQueueSize                  int                    `json:"event_queue_size"`
+	PodQueueSize                    int                    `json:"pod_queue_size"`
+	ProcessQueueBytes               int                    `json:"process_queue_bytes"`
+	RTProcessQueueBytes             int                    `json:"rtprocess_queue_bytes"`
+	ConnectionsQueueBytes           int                    `json:"connections_queue_bytes"`
+	EventQueueBytes                 int                    `json:"event_queue_bytes"`
+	PodQueueBytes                   int                    `json:"pod_queue_bytes"`
+	ContainerID                     string                 `json:"container_id"`
+	ProxyURL                        string                 `json:"proxy_url"`
+	LogFile                         string                 `json:"log_file"`
+	DropCheckPayloads               []string               `json:"drop_check_payloads"`
+	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
 func initInfo(_ *config.AgentConfig) error {
@@ -331,6 +342,7 @@ func initInfo(_ *config.AgentConfig) error {
 		expvar.Publish("enabled_checks", expvar.Func(publishEnabledChecks))
 		expvar.Publish("endpoints", expvar.Func(publishEndpoints))
 		expvar.Publish("drop_check_payloads", expvar.Func(publishDropCheckPayloads))
+		expvar.Publish("system_probe_process_module_enabled", expvar.Func(publishSystemProbeProcessModuleEnabled))
 
 		infoTmpl, err = template.New("info").Funcs(funcMap).Parse(infoTmplSrc)
 		if err != nil {

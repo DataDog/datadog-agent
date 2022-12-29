@@ -232,6 +232,15 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
+	}
+
+	// Start workloadmeta store
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+	store.Start(ctx)
+
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
@@ -245,10 +254,6 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 			}
 		}
 	}
-
-	// Start workloadmeta store
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	store.Start(ctx)
 
 	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {

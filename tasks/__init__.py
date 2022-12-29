@@ -49,6 +49,7 @@ from .test import (
     install_shellcheck,
     install_tools,
     integration_tests,
+    junit_macos_repack,
     junit_upload,
     lint_copyrights,
     lint_filenames,
@@ -94,6 +95,7 @@ ns.add_task(tidy_all)
 ns.add_task(check_go_version)
 ns.add_task(generate_config)
 ns.add_task(junit_upload)
+ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 
 # add namespaced tasks to the root

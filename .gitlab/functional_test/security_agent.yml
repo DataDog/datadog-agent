@@ -45,6 +45,9 @@ kitchen_test_security_agent_x64:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-20-04,ubuntu-20-04-2,ubuntu-22-04"
         KITCHEN_CWS_PLATFORM: [host, docker]
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-22-04"
+        KITCHEN_CWS_PLATFORM: [ad]
       - KITCHEN_PLATFORM: "suse"
         KITCHEN_OSVERS: "sles-12,sles-15"
         KITCHEN_CWS_PLATFORM: [host]

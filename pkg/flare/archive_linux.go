@@ -15,22 +15,25 @@ import (
 	"path/filepath"
 	"regexp"
 	"syscall"
+
+	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func zipLinuxFile(source, tempDir, hostname, filename string) error {
-	return zipFile(source, filepath.Join(tempDir, hostname), filename)
+func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
+	fb.RegisterDirPerm(filepath.Dir(config.Datadog.GetString("system_probe_config.sysprobe_socket")))
 }
 
-func zipLinuxKernelSymbols(tempDir, hostname string) error {
-	return zipLinuxFile("/proc", tempDir, hostname, "kallsyms")
+func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
+	return fb.CopyFile("/proc/kallsyms")
 }
 
-func zipLinuxKprobeEvents(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "kprobe_events")
+func getLinuxKprobeEvents(fb flarehelpers.FlareBuilder) error {
+	return fb.CopyFile("/sys/kernel/debug/tracing/kprobe_events")
 }
 
-func zipLinuxPid1MountInfo(tempDir, hostname string) error {
-	return zipLinuxFile("/proc/1", tempDir, hostname, "mountinfo")
+func getLinuxPid1MountInfo(fb flarehelpers.FlareBuilder) error {
+	return fb.CopyFile("/proc/1/mountinfo")
 }
 
 var klogRegexp = regexp.MustCompile(`<(\d+)>(.*)`)
@@ -77,24 +80,24 @@ func parseDmesg(buffer []byte) (string, error) {
 	return result, nil
 }
 
-func zipLinuxDmesg(tempDir, hostname string) error {
+func getLinuxDmesg(fb flarehelpers.FlareBuilder) error {
 	dmesg, err := readAllDmesg()
 	if err != nil {
 		return err
 	}
 
-	buffer, err := parseDmesg(dmesg)
+	content, err := parseDmesg(dmesg)
 	if err != nil {
 		return err
 	}
 
-	return zipReader(bytes.NewBufferString(buffer), filepath.Join(tempDir, hostname), "dmesg")
+	return fb.AddFile("dmesg", []byte(content))
 }
 
-func zipLinuxTracingAvailableEvents(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_events")
+func getLinuxTracingAvailableEvents(fb flarehelpers.FlareBuilder) error {
+	return fb.CopyFile("/sys/kernel/debug/tracing/available_events")
 }
 
-func zipLinuxTracingAvailableFilterFunctions(tempDir, hostname string) error {
-	return zipLinuxFile("/sys/kernel/debug/tracing", tempDir, hostname, "available_filter_functions")
+func getLinuxTracingAvailableFilterFunctions(fb flarehelpers.FlareBuilder) error {
+	return fb.CopyFile("/sys/kernel/debug/tracing/available_filter_functions")
 }

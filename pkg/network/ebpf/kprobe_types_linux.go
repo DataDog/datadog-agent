@@ -47,6 +47,7 @@ type Batch struct {
 	Id  uint64
 }
 type Telemetry struct {
+	Tcp_failed_connect  uint64
 	Tcp_sent_miscounts  uint64
 	Missed_tcp_close    uint64
 	Missed_udp_close    uint64

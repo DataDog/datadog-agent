@@ -175,6 +175,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
 
 	// process events
 	Exec     ExecEvent     `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
@@ -199,7 +200,6 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Mount            MountEvent            `field:"-" json:"-"`
 	Umount           UmountEvent           `field:"-" json:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
@@ -207,6 +207,7 @@ type Event struct {
 	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
+	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -319,15 +320,17 @@ type Credentials struct {
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
 func (p *Process) GetPathResolutionError() string {
-	if p.FileEvent.PathResolutionError != nil {
-		return p.FileEvent.PathResolutionError.Error()
-	}
-	return ""
+	return p.FileEvent.GetPathResolutionError()
 }
 
 // HasInterpreter returns whether the process uses an interpreter
 func (p *Process) HasInterpreter() bool {
-	return p.LinuxBinprm.FileEvent.Inode != 0 && p.LinuxBinprm.FileEvent.MountID != 0
+	return p.LinuxBinprm.FileEvent.Inode != 0
+}
+
+// IsNotKworker returns true if the process isn't a kworker
+func (p *Process) IsNotKworker() bool {
+	return !p.IsKworker
 }
 
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
@@ -339,7 +342,7 @@ type LinuxBinprm struct {
 type Process struct {
 	PIDContext
 
-	FileEvent FileEvent `field:"file"`
+	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
 	ContainerID   string   `field:"container.id"` // Container ID
 	ContainerTags []string `field:"-"`
@@ -429,6 +432,12 @@ type FileFields struct {
 	Flags  int32  `field:"-" json:"-"`
 }
 
+// IsFileless return whether it is a file less access
+func (f *FileFields) IsFileless() bool {
+	// TODO(safchain) fix this heuristic by add a flag in the event intead of using mount ID 0
+	return f.Inode != 0 && f.MountID == 0
+}
+
 // HasHardLinks returns whether the file has hardlink
 func (f *FileFields) HasHardLinks() bool {
 	return f.NLink > 1
@@ -509,31 +518,46 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
+// Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
+type Mount struct {
+	MountID        uint32 `field:"-"`
+	GroupID        uint32 `field:"-"`
+	Device         uint32 `field:"-"`
+	ParentMountID  uint32 `field:"-"`
+	ParentInode    uint64 `field:"-"`
+	RootMountID    uint32 `field:"-"`
+	RootInode      uint64 `field:"-"`
+	BindSrcMountID uint32 `field:"-"`
+	FSType         string `field:"fs_type"` // Type of the mounted file system
+	MountPointStr  string `field:"-"`
+	RootStr        string `field:"-"`
+	Path           string `field:"-"`
+}
+
 // MountEvent represents a mount event
+//msgp:ignore MountEvent
 type MountEvent struct {
 	SyscallEvent
-	MountID       uint32
-	GroupID       uint32
-	Device        uint32
-	ParentMountID uint32
-	ParentInode   uint64
-	FSType        string
-	MountPointStr string
-	RootMountID   uint32
-	RootInode     uint64
-	RootStr       string
+	Mount
+	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // Path of the mount point
+	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // Source path of a bind mount
+	MountPointPathResolutionError  error  `field:"-"`
+	MountSourcePathResolutionError error  `field:"-"`
+}
 
-	FSTypeRaw [16]byte
+// UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
+type UnshareMountNSEvent struct {
+	Mount
 }
 
 // GetFSType returns the filesystem type of the mountpoint
-func (m *MountEvent) GetFSType() string {
+func (m *Mount) GetFSType() string {
 	return m.FSType
 }
 
 // IsOverlayFS returns whether it is an overlay fs
-func (m *MountEvent) IsOverlayFS() bool {
-	return m.GetFSType() == OverlayFS
+func (m *Mount) IsOverlayFS() bool {
+	return m.GetFSType() == "overlay"
 }
 
 // OpenEvent represents an open event
@@ -655,7 +679,7 @@ type ProcessContext struct {
 	Process
 
 	Parent   *Process           `field:"parent,opts:exposed_at_event_root_only,check:HasParent"`
-	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator"`
+	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
 // PIDContext holds the process context of an kernel event

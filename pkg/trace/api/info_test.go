@@ -6,6 +6,8 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +20,188 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
+// ensureKeys takes 2 maps, expect and result, and ensures that the set of keys in expect and
+// result match. For each key (k) in expect, if expect[k] is of type map[string]interface{}, then
+// ensureKeys recurses on expect[k], result[k], prefix + "." + k.
+//
+// This should ensure that whatever keys and maps are defined in expect are exactly mirrored in
+// result, but without checking for specific values in result.
+func ensureKeys(expect, result map[string]interface{}, prefix string) error {
+	for k, ev := range expect {
+		rv, ok := result[k]
+		if !ok {
+			path := k
+			if prefix != "" {
+				path = prefix + "." + k
+			}
+			return fmt.Errorf("Expected key %s, but it is not present in the output.\n", path)
+		}
+
+		if em, ok := ev.(map[string]interface{}); ok {
+			rm, ok := rv.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("Expected key %s to be a map, but it is '%#v'.\n", k, rv)
+			}
+			if prefix != "" {
+				prefix = prefix + "." + k
+			} else {
+				prefix = k
+			}
+			if err := ensureKeys(em, rm, prefix); err != nil {
+				return err
+			}
+		}
+	}
+	for k := range result {
+		_, ok := expect[k]
+		if !ok {
+			path := k
+			if prefix != "" {
+				path = prefix + "." + k
+			}
+			return fmt.Errorf("Found key %s, but it is not expected in the output. If you've added a new key to the /info endpoint, please add it to the tests.\n", path)
+		}
+	}
+	return nil
+}
+
+func TestEnsureKeys(t *testing.T) {
+	for _, tt := range []struct {
+		expect map[string]interface{}
+		result map[string]interface{}
+		err    bool
+	}{
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one":   nil,
+				"two":   nil,
+				"three": nil,
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+			},
+			result: map[string]interface{}{
+				"one":   1,
+				"two":   "two",
+				"three": 3,
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{}{
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": "two",
+				"sub": map[string]interface{}{
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{}{
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{}{
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{}{
+					"subone":   nil,
+					"subtwo":   nil,
+					"subthree": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{}{
+					"subone": 1,
+					"subtwo": 2,
+				},
+			},
+			err: true,
+		},
+		{
+			expect: map[string]interface{}{
+				"one": nil,
+				"two": nil,
+				"sub": map[string]interface{}{
+					"subone": nil,
+					"subtwo": nil,
+				},
+			},
+			result: map[string]interface{}{
+				"one": 1,
+				"two": map[string]interface{}{ // Map values not described in expect are NOT checked, so this is OK.
+					"subone": 1,
+					"subtwo": 2,
+				},
+				"sub": map[string]interface{}{
+					"subone":   1,
+					"subtwo":   2,
+					"subthree": 3,
+				},
+			},
+			err: true,
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			err := ensureKeys(tt.expect, tt.result, "")
+			if tt.err {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestInfoHandler ensures that the keys returned by the /info handler do not
 // change from one release to another to ensure consistency. Tracing clients
 // depend on these keys to be the same. The chances of them changing are quite
@@ -26,7 +210,6 @@ import (
 // * In case a field name gets modified, the `json:""` struct field tag
 // should be used to ensure the old key is marshalled for this endpoint.
 func TestInfoHandler(t *testing.T) {
-	t.Skip("https://github.com/DataDog/datadog-agent/issues/13569")
 	u, err := url.Parse("http://localhost:8888/proxy")
 	if err != nil {
 		log.Fatal(err)
@@ -109,146 +292,52 @@ func TestInfoHandler(t *testing.T) {
 		},
 	}
 
-	var testCases = []struct {
-		name     string
-		expected string
-	}{
-		{
-			name: "default",
-			expected: `{
-	"version": "0.99.0",
-	"git_commit": "fab047e10",
-	"endpoints": [
-		"/v0.3/traces",
-		"/v0.3/services",
-		"/v0.4/traces",
-		"/v0.4/services",
-		"/v0.5/traces",
-		"/v0.7/traces",
-		"/profiling/v1/input",
-		"/telemetry/proxy/",
-		"/v0.6/stats",
-		"/v0.1/pipeline_stats",
-		"/evp_proxy/v1/",
-		"/evp_proxy/v2/",
-		"/debugger/v1/input"
-		"/dogstatsd/v1/proxy"
-	],
-	"feature_flags": [
-		"feature_flag"
-	],
-	"client_drop_p0s": true,
-	"span_meta_structs": true,
-	"long_running_spans": true,
-	"config": {
-		"default_env": "prod",
-		"target_tps": 11,
-		"max_eps": 12,
-		"receiver_port": 8111,
-		"receiver_socket": "/sock/path",
-		"connection_limit": 12,
-		"receiver_timeout": 100,
-		"max_request_bytes": 123,
-		"statsd_port": 123,
-		"max_memory": 1000000,
-		"max_cpu": 12345,
-		"analyzed_spans_by_service": {
-			"X": {
-				"Y": 2.4
-			}
-		},
-		"obfuscation": {
-			"elastic_search": true,
-			"mongo": true,
-			"sql_exec_plan": true,
-			"sql_exec_plan_normalize": true,
-			"http": {
-				"remove_query_string": true,
-				"remove_path_digits": true
+	expectedKeys := map[string]interface{}{
+		"version":            nil,
+		"git_commit":         nil,
+		"endpoints":          nil,
+		"feature_flags":      nil,
+		"client_drop_p0s":    nil,
+		"span_meta_structs":  nil,
+		"long_running_spans": nil,
+		"config": map[string]interface{}{
+			"default_env":               nil,
+			"target_tps":                nil,
+			"max_eps":                   nil,
+			"receiver_port":             nil,
+			"receiver_socket":           nil,
+			"connection_limit":          nil,
+			"receiver_timeout":          nil,
+			"max_request_bytes":         nil,
+			"statsd_port":               nil,
+			"max_memory":                nil,
+			"max_cpu":                   nil,
+			"analyzed_spans_by_service": nil,
+			"obfuscation": map[string]interface{}{
+				"elastic_search":          nil,
+				"mongo":                   nil,
+				"sql_exec_plan":           nil,
+				"sql_exec_plan_normalize": nil,
+				"http": map[string]interface{}{
+					"remove_query_string": nil,
+					"remove_path_digits":  nil,
+				},
+				"remove_stack_traces": nil,
+				"redis":               nil,
+				"memcached":           nil,
 			},
-			"remove_stack_traces": false,
-			"redis": true,
-			"memcached": false
-		}
-	}
-}`,
-		},
-		{
-			name: "debug",
-			expected: `{
-	"version": "0.99.0",
-	"git_commit": "fab047e10",
-	"endpoints": [
-		"/v0.3/traces",
-		"/v0.3/services",
-		"/v0.4/traces",
-		"/v0.4/services",
-		"/v0.5/traces",
-		"/v0.7/traces",
-		"/profiling/v1/input",
-		"/telemetry/proxy/",
-		"/v0.6/stats",
-		"/v0.1/pipeline_stats",
-		"/evp_proxy/v1/",
-		"/evp_proxy/v2/",
-		"/evp_proxy/v3/",
-		"/debugger/v1/input"
-		"/dogstatsd/v1/proxy"
-	],
-	"feature_flags": [
-		"feature_flag"
-	],
-	"client_drop_p0s": true,
-	"span_meta_structs": true,
-	"long_running_spans": true,
-	"config": {
-		"default_env": "prod",
-		"target_tps": 11,
-		"max_eps": 12,
-		"receiver_port": 8111,
-		"receiver_socket": "/sock/path",
-		"connection_limit": 12,
-		"receiver_timeout": 100,
-		"max_request_bytes": 123,
-		"statsd_port": 123,
-		"max_memory": 1000000,
-		"max_cpu": 12345,
-		"analyzed_spans_by_service": {
-			"X": {
-				"Y": 2.4
-			}
-		},
-		"obfuscation": {
-			"elastic_search": true,
-			"mongo": true,
-			"sql_exec_plan": true,
-			"sql_exec_plan_normalize": true,
-			"http": {
-				"remove_query_string": true,
-				"remove_path_digits": true
-			},
-			"remove_stack_traces": false,
-			"redis": true,
-			"memcached": false
-		}
-	}
-}`,
 		},
 	}
-	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			rcv := newTestReceiverFromConfig(conf)
-			defer testutil.WithFeatures("feature_flag")()
-			_, h := rcv.makeInfoHandler()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/info", nil)
-			h.ServeHTTP(rec, req)
-			assert.Equal(t, tt.expected, rec.Body.String())
-			if rec.Body.String() != tt.expected {
-				t.Fatalf("Output of /info has changed. Changing the keys "+
-					"is not allowed because the client rely on them and "+
-					"is considered a breaking change:\n\n%v", rec.Body.String())
-			}
-		})
+
+	rcv := newTestReceiverFromConfig(conf)
+	defer testutil.WithFeatures("feature_flag")()
+	_, h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
+	var m map[string]interface{}
+	if !assert.NoError(t, json.NewDecoder(rec.Body).Decode(&m)) {
+		return
 	}
+	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
 }

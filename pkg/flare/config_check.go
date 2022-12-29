@@ -103,6 +103,7 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 	if checkName != "" && c.Name != checkName {
 		return
 	}
+	configDigest := c.FastDigest()
 	if !c.ClusterCheck {
 		fmt.Fprintln(w, fmt.Sprintf("\n=== %s check ===", color.GreenString(c.Name)))
 	} else {
@@ -120,7 +121,7 @@ func PrintConfig(w io.Writer, c integration.Config, checkName string) {
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Configuration source"), color.RedString("Unknown configuration source")))
 	}
 	for _, inst := range c.Instances {
-		ID := string(check.BuildID(c.Name, inst, c.InitConfig))
+		ID := string(check.BuildID(c.Name, configDigest, inst, c.InitConfig))
 		fmt.Fprintln(w, fmt.Sprintf("%s: %s", color.BlueString("Instance ID"), color.CyanString(ID)))
 		fmt.Fprint(w, fmt.Sprintf("%s", inst))
 		fmt.Fprintln(w, "~")

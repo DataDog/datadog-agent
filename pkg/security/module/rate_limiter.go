@@ -31,8 +31,8 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.AbnormalPathRuleID:  NewLimiter(rate.Every(time.Second), 1),
 		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		probe.AbnormalPathRuleID:  NewLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
@@ -69,19 +69,29 @@ func NewRateLimiter(client statsd.ClientInterface) *RateLimiter {
 		statsdClient: client,
 	}
 
-	for id, limiter := range defaultPerRuleLimiters {
-		rl.limiters[id] = limiter
-	}
-
 	return rl
 }
 
+func applyBaseLimitersFromDefault(limiters map[string]*Limiter) {
+	for id, limiter := range defaultPerRuleLimiters {
+		limiters[id] = limiter
+	}
+}
+
 // Apply a set of rules
-func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
+func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID) {
 	rl.Lock()
 	defer rl.Unlock()
 
 	newLimiters := make(map[string]*Limiter)
+
+	for _, id := range customRuleIDs {
+		newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
+	}
+
+	// override if there is more specific defs
+	applyBaseLimitersFromDefault(newLimiters)
+
 	for id, rule := range ruleSet.GetRules() {
 		if rule.Definition.Every != 0 {
 			newLimiters[id] = NewLimiter(rate.Every(rule.Definition.Every), 1)
@@ -89,6 +99,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet) {
 			newLimiters[id] = NewLimiter(defaultLimit, defaultBurst)
 		}
 	}
+
 	rl.limiters = newLimiters
 }
 

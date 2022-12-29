@@ -75,23 +75,18 @@ func prepareConfig(path string) (*config.AgentConfig, error) {
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
 	cfg.GitCommit = version.Commit
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	orch := fargate.GetOrchestrator(ctx)
-	cancel()
-	if err := ctx.Err(); err != nil && err != context.Canceled {
-		log.Errorf("Failed to get Fargate orchestrator. This may cause issues if you are in a Fargate instance: %v", err)
-	}
-	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	coreconfig.Datadog.SetConfigFile(path)
 	if _, err := coreconfig.Load(); err != nil {
 		return cfg, err
 	}
+	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
+	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p)
 	}
 	cfg.ConfigPath = path
 	if coreconfig.Datadog.GetBool("remote_configuration.enabled") && coreconfig.Datadog.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
+		client, err := remote.NewGRPCClient(rcClientName, version.AgentVersion, []data.Product{data.ProductAPMSampling}, rcClientPollInterval)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {

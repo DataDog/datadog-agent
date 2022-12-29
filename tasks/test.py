@@ -23,7 +23,7 @@ from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
 from .go import golangci_lint
 from .libs.copyright import CopyrightLinter
-from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar
+from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
@@ -161,7 +161,7 @@ def test_flavor(
     failed_modules = []
     junit_files = []
 
-    args["go_build_tags"] = " ".join(build_tags + ["test"])
+    args["go_build_tags"] = " ".join(build_tags)
 
     junit_file_flag = ""
     junit_file = f"junit-out-{flavor.name}.xml"
@@ -288,6 +288,7 @@ def test(
     targets=None,
     flavors=None,
     coverage=False,
+    print_coverage=False,
     build_include=None,
     build_exclude=None,
     verbose=False,
@@ -332,7 +333,7 @@ def test(
 
     modules, flavors = process_input_args(module, targets, flavors)
 
-    flavors_build_tags = {
+    unit_tests_tags = {
         f: compute_build_tags_for_flavor(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
@@ -417,7 +418,7 @@ def test(
 
     failed_modules = {}
     junit_files = []
-    for flavor, build_tags in flavors_build_tags.items():
+    for flavor, build_tags in unit_tests_tags.items():
         junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
             ctx,
             flavor=flavor,
@@ -441,7 +442,7 @@ def test(
     if junit_tar:
         produce_junit_tar(junit_files, junit_tar)
 
-    if coverage:
+    if coverage and print_coverage:
         for flavor in flavors:
             coverage_flavor(ctx, flavor, modules)
 
@@ -489,16 +490,16 @@ def lint_go(
 
     modules, flavors = process_input_args(module, targets, flavors)
 
-    flavors_build_tags = {
+    linter_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f, build="lint", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
 
     # Lint
 
-    for flavor, build_tags in flavors_build_tags.items():
+    for flavor, build_tags in linter_tags.items():
         lint_flavor(ctx, modules=modules, flavor=flavor, build_tags=build_tags, arch=arch, rtloader_root=rtloader_root)
 
 
@@ -768,3 +769,12 @@ def junit_upload(_, tgz_path):
     """
 
     junit_upload_from_tgz(tgz_path)
+
+
+@task
+def junit_macos_repack(_, infile, outfile):
+    """
+    Repacks JUnit tgz file from macOS Github Action run, so it would
+    containt correct job name and job URL.
+    """
+    repack_macos_junit_tar(infile, outfile)

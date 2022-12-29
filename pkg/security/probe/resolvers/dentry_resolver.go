@@ -372,7 +372,7 @@ func (dr *DentryResolver) ResolveNameFromMap(mountID uint32, inode uint64, pathI
 	return name, nil
 }
 
-// GetName resolves a couple of mountID/inode to a path
+// ResolveName resolves an inode/mount ID pair to a file basename
 func (dr *DentryResolver) ResolveName(mountID uint32, inode uint64, pathID uint32) string {
 	name, err := dr.ResolveNameFromCache(mountID, inode)
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
@@ -543,6 +543,7 @@ func (dr *DentryResolver) ResolveFromMap(mountID uint32, inode uint64, pathID ui
 	return filename, resolutionErr
 }
 
+// preventSegmentMajorPageFault prepares the userspace memory area where the dentry resolver response is written. Used in kernel versions where BPF_F_MMAPABLE array maps are not yet available.
 func (dr *DentryResolver) preventSegmentMajorPageFault() {
 	// if we don't access the segment, the eBPF program can't write to it ... (major page fault)
 	dr.erpcSegment[0] = 0
@@ -629,7 +630,7 @@ func (dr *DentryResolver) ResolveFromERPC(mountID uint32, inode uint64, pathID u
 		resolution:     metrics.PathResolutionTag,
 	}
 
-	// create eRPC request
+	// create eRPC request and send using the ioctl syscall
 	challenge, err := dr.requestResolve(erpc.ResolvePathOp, mountID, inode, pathID)
 	if err != nil {
 		dr.missCounters[entry].Inc()
@@ -833,6 +834,7 @@ func (dr *DentryResolver) Start(manager *manager.Manager) error {
 		return err
 	}
 
+	// Memory map a BPF_F_MMAPABLE array map that ebpf writes to so that userspace can read it
 	if erpcBuffer.Flags()&unix.BPF_F_MMAPABLE != 0 {
 		dr.erpcSegment, err = syscall.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 		if err != nil {
@@ -840,6 +842,8 @@ func (dr *DentryResolver) Start(manager *manager.Manager) error {
 		}
 	}
 
+	// BPF_F_MMAPABLE array maps were introduced in kernel version 5.5, so we need a fallback for older versions.
+	// Allocate memory area in userspace that ebpf programs will write to. Will receive warning because the kernel writing to userspace memory can cause instability.
 	if dr.erpcSegment == nil {
 		// We need at least 7 memory pages for the eRPC segment method to work.
 		// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,10 +48,9 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			// The flare command should not log anything, all errors should be reported directly to the console without the log format
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
-				fx.Supply(core.CreateBundleParams(
-					core.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray),
-					core.WithConfigLoadSecurityAgent(true),
-				).LogForOneShot(common.LoggerName, "off", true)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray), config.WithConfigLoadSecurityAgent(true)),
+					LogParams:    log.LogForOneShot(common.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

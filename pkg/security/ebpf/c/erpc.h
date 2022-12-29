@@ -147,7 +147,7 @@ int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
 
     switch (op) {
         case RESOLVE_SEGMENT_OP:
-            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY);
+            return handle_dr_request(ctx, data, DR_ERPC_SEGMENT_KEY); // func (dr *DentryResolver) ResolveFromERPC in the userspace code side triggers handle_dr_request
         case RESOLVE_PATH_OP:
             return handle_dr_request(ctx, data, DR_ERPC_KEY);
         case RESOLVE_PARENT_OP:
