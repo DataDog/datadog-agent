@@ -15,7 +15,7 @@
 #
 
 name "liblzma"
-default_version "5.0.5"
+default_version "5.2.5"
 
 license "Public-Domain"
 license_file "COPYING"
@@ -49,6 +49,7 @@ build do
     "--disable-lzmadec",
     "--disable-xzdec",
     "--disable-xz",
+    "--enable-symbol-versions",
   ]
 
   config_command << "--disable-nls" if windows?

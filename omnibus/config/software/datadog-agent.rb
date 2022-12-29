@@ -14,7 +14,7 @@ dependency "python3" if with_python_runtime? "3"
 dependency "libarchive" if windows?
 dependency "yaml-cpp" if windows?
 
-dependency "openscap" if linux? && !suse? && !arm?
+dependency "openscap" if linux? && !suse?
 
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'

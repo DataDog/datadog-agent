@@ -50,6 +50,7 @@ build do
   env["CPPFLAGS"] += " -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env
+  patch source: "disable_systemd.patch", env: env
 
   if (!File.exist? '/usr/bin/triehash') && (!File.exist? '/usr/local/bin/triehash')
     patch source: "triehash.patch", env: env, cwd: '/'
