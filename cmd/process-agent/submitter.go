@@ -64,6 +64,7 @@ type submitter struct {
 	// getRequestID method. Must use pointer, to distinguish between uninitialized value and the theoretical but yet
 	// possible 0 value for the hash result.
 	requestIDCachedHash *uint64
+	dropCheckPayloads   []string
 }
 
 func NewSubmitter(hostname string) (*submitter, error) {
@@ -154,6 +155,8 @@ func NewSubmitter(hostname string) (*submitter, error) {
 
 		oCfg:     orchestrator,
 		hostname: hostname,
+
+		dropCheckPayloads: dropCheckPayloads,
 
 		exit: make(chan struct{}),
 	}, nil
@@ -314,9 +317,9 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus   bool
 			)
 
-			//if s.shouldDropPayload(result.name) {
-			//	continue
-			//}
+			if s.shouldDropPayload(result.name) {
+				continue
+			}
 
 			switch result.name {
 			case checks.Process.Name():
@@ -495,4 +498,14 @@ func (s *submitter) getRequestID(start time.Time, chunkIndex int) string {
 	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
 	chunk := uint64(chunkIndex & chunkMask)
 	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
+}
+
+func (s *submitter) shouldDropPayload(check string) bool {
+	for _, d := range s.dropCheckPayloads {
+		if d == check {
+			return true
+		}
+	}
+
+	return false
 }
