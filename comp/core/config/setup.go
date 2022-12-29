@@ -13,8 +13,6 @@ import (
 	"runtime"
 	"strings"
 
-	secconfig "github.com/DataDog/datadog-agent/cmd/security-agent/config"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/viper"
 )
@@ -48,19 +46,6 @@ func setupConfig(deps dependencies) (*config.Warnings, error) {
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
-
-	if deps.Params.configLoadSysProbe {
-		_, err := sysconfig.Merge(deps.Params.sysProbeConfFilePath)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if deps.Params.configLoadSecurityAgent {
-		if err := secconfig.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
-			return nil, err
-		}
-	}
 
 	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()
