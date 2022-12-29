@@ -65,6 +65,8 @@ type submitter struct {
 	// possible 0 value for the hash result.
 	requestIDCachedHash *uint64
 	dropCheckPayloads   []string
+
+	forwarderRetryMaxQueueBytes int
 }
 
 func NewSubmitter(hostname string) (*submitter, error) {
@@ -157,6 +159,8 @@ func NewSubmitter(hostname string) (*submitter, error) {
 		hostname: hostname,
 
 		dropCheckPayloads: dropCheckPayloads,
+
+		forwarderRetryMaxQueueBytes: queueBytes,
 
 		exit: make(chan struct{}),
 	}, nil

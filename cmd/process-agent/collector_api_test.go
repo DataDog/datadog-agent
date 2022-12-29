@@ -553,6 +553,8 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	if init != nil {
 		init(c)
 	}
+	c.submitter, err = NewSubmitter(cfg.HostName)
+	require.NoError(t, err)
 
 	c.orchestrator.OrchestratorEndpoints = make([]apicfg.Endpoint, len(orchAPIKeys))
 	for index, key := range orchAPIKeys {
