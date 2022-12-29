@@ -55,6 +55,15 @@ func TestFormatProtocols(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "redis protocol",
+			protocol: network.ProtocolRedis,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolRedis,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

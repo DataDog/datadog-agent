@@ -138,6 +138,84 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return http;
 }
 
+static __always_inline bool check_ascii_and_crlf(const char* buf, __u32 buf_size, int i) {
+    bool found_cr = false;
+    char ch;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        ch = buf[i];
+        if (ch == '\r') {
+            found_cr = true;
+            break;
+        } else if ('A' <= ch && ch <= 'Z') {
+            continue;
+        } else if ('a' <= ch && ch <= 'z') {
+            continue;
+        } else if (ch == '.' || ch == ' ' || ch == '-' || ch == '_') {
+            continue;
+        }
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
+#define ERR "-ERR "
+#define WRONGTYPE "-WRONGTYPE "
+
+    // memcmp returns
+    // 0 when s1 == s2,
+    // !0 when s1 != s2.
+    bool match = !(bpf_memcmp(buf, ERR, sizeof(ERR)-1)
+        && bpf_memcmp(buf, WRONGTYPE, sizeof(WRONGTYPE)-1));
+
+    return match;
+}
+
+static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int i) {
+    bool found_cr = false;
+    char ch;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        ch = buf[i];
+        if (ch == '\r') {
+            found_cr = true;
+            break;
+        } else if ('0' <= ch && ch <= '9') {
+            continue;
+        }
+
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH)
+
+    char first_char = buf[0];
+    switch (first_char) {
+    case '+':
+        return check_ascii_and_crlf(buf, buf_size, 1);
+    case '-':
+        return check_err_prefix(buf, buf_size);
+    case ':':
+    case '$':
+    case '*':
+        return check_integer_and_crlf(buf, buf_size, 1);
+    default:
+        return false;
+    }
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
@@ -151,6 +229,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_HTTP2;
     } else if (is_amqp(buf, size)) {
         *protocol = PROTOCOL_AMQP;
+    } else if (is_redis(buf, size)) {
+        *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

@@ -33,6 +33,8 @@
 #define AMQP_MIN_FRAME_LENGTH 8
 #define AMQP_MIN_PAYLOAD_LENGTH 11
 
+#define REDIS_MIN_FRAME_LENGTH 3
+
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
 // `__attribute__ ((packed))` to tell the compiler to use as minimum bits as needed. Due to our max
@@ -44,6 +46,7 @@ typedef enum {
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
     PROTOCOL_AMQP = 8,
+    PROTOCOL_REDIS = 9,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,

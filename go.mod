@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.48
+	github.com/DataDog/agent-payload/v5 v5.0.50
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
@@ -428,10 +428,14 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/streadway/amqp v1.0.0
 )
 
-require gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+require (
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+)
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
