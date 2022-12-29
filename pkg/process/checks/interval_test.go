@@ -14,6 +14,94 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+func TestLegacyIntervalDefault(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		checkName        string
+		expectedInterval time.Duration
+	}{
+		{
+			name:             "container default",
+			checkName:        ContainerCheckName,
+			expectedInterval: ContainerCheckDefaultInterval,
+		},
+		{
+			name:             "container rt default",
+			checkName:        RTContainerCheckName,
+			expectedInterval: RTContainerCheckDefaultInterval,
+		},
+		{
+			name:             "process default",
+			checkName:        ProcessCheckName,
+			expectedInterval: ProcessCheckDefaultInterval,
+		},
+		{
+			name:             "process rt default",
+			checkName:        RTProcessCheckName,
+			expectedInterval: RTProcessCheckDefaultInterval,
+		},
+		{
+			name:             "connections default",
+			checkName:        ConnectionsCheckName,
+			expectedInterval: ConnectionsCheckDefaultInterval,
+		},
+		{
+			name:             "pod default",
+			checkName:        PodCheckName,
+			expectedInterval: PodCheckDefaultInterval,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_ = config.Mock(t)
+			assert.Equal(t, tc.expectedInterval, GetInterval(tc.checkName))
+		})
+	}
+}
+
+func TestLegacyIntervalOverride(t *testing.T) {
+	override := 600
+	for _, tc := range []struct {
+		name             string
+		checkName        string
+		setting          string
+		expectedInterval time.Duration
+	}{
+		{
+			name:      "container default",
+			setting:   "process_config.intervals.container",
+			checkName: ContainerCheckName,
+		},
+		{
+			name:      "container rt default",
+			setting:   "process_config.intervals.container_realtime",
+			checkName: RTContainerCheckName,
+		},
+		{
+			name:      "process default",
+			setting:   "process_config.intervals.process",
+			checkName: ProcessCheckName,
+		},
+		{
+			name:      "process rt default",
+			setting:   "process_config.intervals.process_realtime",
+			checkName: RTProcessCheckName,
+		},
+		{
+			name:      "connections default",
+			setting:   "process_config.intervals.connections",
+			checkName: ConnectionsCheckName,
+		},
+		// Note: non-default overridden handling of pod check interval is in pkg/orhestrator/config
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_ = config.Mock(t)
+			cfg := config.Mock(t)
+			cfg.Set(tc.setting, override)
+			assert.Equal(t, time.Duration(override)*time.Second, GetInterval(tc.checkName))
+		})
+	}
+}
+
 // TestProcessDiscoveryInterval tests to make sure that the process discovery interval validation works properly
 func TestProcessDiscoveryInterval(t *testing.T) {
 	for _, tc := range []struct {
@@ -37,6 +125,32 @@ func TestProcessDiscoveryInterval(t *testing.T) {
 			cfg.Set("process_config.process_discovery.interval", tc.interval)
 
 			assert.Equal(t, tc.expectedInterval, GetInterval(DiscoveryCheckName))
+		})
+	}
+}
+
+func TestProcessEventsInterval(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		interval         time.Duration
+		expectedInterval time.Duration
+	}{
+		{
+			name:             "allowed interval",
+			interval:         30 * time.Second,
+			expectedInterval: 30 * time.Second,
+		},
+		{
+			name:             "below minimum",
+			interval:         0,
+			expectedInterval: config.DefaultProcessEventsCheckInterval,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Mock(t)
+			cfg.Set("process_config.event_collection.interval", tc.interval)
+
+			assert.Equal(t, tc.expectedInterval, GetInterval(ProcessEventsCheckName))
 		})
 	}
 }

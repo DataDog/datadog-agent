@@ -23,16 +23,16 @@ const (
 
 	discoveryMinInterval = 10 * time.Minute
 
-	configIntervals = configPrefix + ".intervals"
+	configIntervals = configPrefix + "intervals."
 
 	// The interval, in seconds, at which we will run each check. If you want consistent
 	// behavior between real-time you may set the Container/ProcessRT intervals to 10.
 	// Defaults to 10s for normal checks and 2s for others.
-	configProcessInterval     = configIntervals + ".process"
-	configRTProcessInterval   = configIntervals + ".process_realtime"
-	configContainerInterval   = configIntervals + ".container"
-	configRTContainerInterval = configIntervals + ".container_realtime"
-	configConnectionsInterval = configIntervals + ".connections"
+	configProcessInterval     = configIntervals + "process"
+	configRTProcessInterval   = configIntervals + "process_realtime"
+	configContainerInterval   = configIntervals + "container"
+	configRTContainerInterval = configIntervals + "container_realtime"
+	configConnectionsInterval = configIntervals + "connections"
 )
 
 var (
@@ -63,7 +63,6 @@ func GetDefaultInterval(checkName string) time.Duration {
 
 // GetInterval returns the configured check interval value
 func GetInterval(checkName string) time.Duration {
-
 	switch checkName {
 	case DiscoveryCheckName:
 		// We don't need to check if the key exists since we already bound it to a default in InitConfig.
@@ -71,7 +70,7 @@ func GetInterval(checkName string) time.Duration {
 		discoveryInterval := config.Datadog.GetDuration("process_config.process_discovery.interval")
 		if discoveryInterval < discoveryMinInterval {
 			discoveryInterval = discoveryMinInterval
-			_ = log.Warnf("Invalid interval for process discovery (<= %s) using default value of %[1]s", discoveryMinInterval.String())
+			_ = log.Warnf("Invalid interval for process discovery (< %s) using minimum value of %[1]s", discoveryMinInterval.String())
 		}
 		return discoveryInterval
 
@@ -88,7 +87,6 @@ func GetInterval(checkName string) time.Duration {
 		defaultInterval := defaultIntervals[checkName]
 		configKey, ok := configKeys[checkName]
 		if !ok || !config.Datadog.IsSet(configKey) {
-			_ = log.Errorf("missing check interval for '%s', you must set a default", checkName)
 			return defaultInterval
 		}
 
