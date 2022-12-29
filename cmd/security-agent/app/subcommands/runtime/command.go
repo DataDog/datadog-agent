@@ -37,6 +37,7 @@ import (
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -457,7 +458,7 @@ func checkPoliciesInner(dir string) error {
 	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
-		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithReservedRuleIDs(events.AllCustomRuleIDs()).
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
@@ -597,7 +598,7 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 	opts.
 		WithSupportedDiscarders(sprobe.SupportedDiscarders).
 		WithEventTypeEnabled(enabled).
-		WithReservedRuleIDs(sprobe.AllCustomRuleIDs()).
+		WithReservedRuleIDs(events.AllCustomRuleIDs()).
 		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
