@@ -349,7 +349,7 @@ func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*ru
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": func() rules.VariableProvider {
 			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
 			}, nil)
 		},
 	})
@@ -395,7 +395,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessCacheEntry)
+					return unsafe.Pointer(ctx.Event.(*sprobe.Event).ProcessCacheEntry)
 				}
 				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
 			},

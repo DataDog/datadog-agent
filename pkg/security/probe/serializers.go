@@ -673,7 +673,7 @@ func newDDContextSerializer(e *Event) *DDContextSerializer {
 		return s
 	}
 
-	ctx := eval.NewContext(e.GetPointer())
+	ctx := eval.NewContext(e)
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)
 
@@ -716,7 +716,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
-	ctx := eval.NewContext(e.GetPointer())
+	ctx := eval.NewContext(e)
 
 	it := &model.ProcessAncestorsIterator{}
 	ptr := it.Front(ctx)

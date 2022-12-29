@@ -89,7 +89,7 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	return &SECLRuleFilter{
 		model: model,
 		context: &eval.Context{
-			Object: model.NewEvent().GetPointer(),
+			Event: model.NewEvent(),
 		},
 		parsingContext: ast.NewParsingContext(),
 	}

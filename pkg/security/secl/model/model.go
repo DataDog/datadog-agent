@@ -266,11 +266,6 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetPointer return an unsafe.Pointer of the Event
-func (e *Event) GetPointer() unsafe.Pointer {
-	return unsafe.Pointer(e)
-}
-
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
 	UID    uint32 `field:"uid"`                                // New UID of the process
@@ -651,7 +646,7 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).ProcessContext.Ancestor; front != nil {
+	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}

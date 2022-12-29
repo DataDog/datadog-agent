@@ -474,7 +474,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	return IsDiscarder(ctx, field, bucket.rules)
@@ -521,7 +521,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()

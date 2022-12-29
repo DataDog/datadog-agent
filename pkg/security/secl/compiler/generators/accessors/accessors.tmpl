@@ -97,7 +97,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{if and (ne $Field.Handler "") (not $Mock) }}
 							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-							{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
+							{{$Return = print "ctx.Event.(*Event)." $Handler "(&element" $SubName ")"}}
 						{{end}}
 
 						{{if eq $Field.ReturnType "int"}}
@@ -128,11 +128,11 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
+					{{$Return := $Field.Name | printf "ctx.Event.(*Event).%s"}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 					{{range $Check := $Checks}}
-						{{$Check = $Check | printf "(*Event)(ctx.Object).%s"}}
+						{{$Check = $Check | printf "ctx.Event.(*Event).%s"}}
 						if !{{$Check}}() {
 							return {{$Field.GetDefaultReturnValue}}
 						}
@@ -144,7 +144,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{- if $Parent.IsOrigTypePtr}}
 							{{$Ptr = ""}}
 						{{end}}
-						{{$Return = print "(*Event)(ctx.Object)." $Field.Handler "(" $Ptr "(*Event)(ctx.Object)." $Field.Prefix ")"}}
+						{{$Return = print "ctx.Event.(*Event)." $Field.Handler "(" $Ptr "ctx.Event.(*Event)." $Field.Prefix ")"}}
 					{{end}}
 
 					{{- if eq $ReturnType "int"}}
@@ -207,7 +207,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{if $Field.Iterator}}
 			var values []{{$Field.ReturnType}}
 
-			ctx := eval.NewContext(unsafe.Pointer(e))
+			ctx := eval.NewContext(e)
 
 			iterator := &{{$Field.Iterator.ReturnType}}{}
 			ptr := iterator.Front(ctx)
@@ -226,7 +226,7 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{if and (ne $Field.Handler "") (not $Mock) }}
 					{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-					{{$Return = print "(*Event)(ctx.Object)." $Handler "(&element" $SubName ")"}}
+					{{$Return = print "ctx.Event.(*Event)." $Handler "(&element" $SubName ")"}}
 				{{end}}
 
 				{{if $Field.IsLength}}
