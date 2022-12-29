@@ -32,6 +32,14 @@ import (
 
 var originalConfig = config.Datadog
 
+const (
+	ns = "process_config"
+)
+
+func key(pieces ...string) string {
+	return strings.Join(pieces, ".")
+}
+
 func restoreGlobalConfig() {
 	config.Datadog = originalConfig
 }

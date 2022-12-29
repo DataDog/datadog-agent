@@ -7,18 +7,9 @@ package config
 
 import (
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
-
-const (
-	ns = "process_config"
-)
-
-func key(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
 
 // LoadAgentConfig loads process-agent specific configurations based on the global Config object
 func (a *AgentConfig) LoadAgentConfig(path string) error {
