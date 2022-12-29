@@ -558,7 +558,7 @@ def omnibus_build(
     omnibus_done = datetime.datetime.now()
     omnibus_elapsed = omnibus_done - omnibus_start
 
-    # Now that the build is done we can delete the pip.conf file to hide the API key
+    # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
     print("Build component timing:")
