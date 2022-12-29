@@ -124,8 +124,7 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
-  # If a python_mirror was set, it's passed through a pip config file so that we're not leaking the API key in the CI Output
-  # Else the pip config file so pip will act casually
+  # If a python_mirror is set, it is set in a pip config file so that we do not leak the token in the CI output
   pip_config_file = ENV['PIP_CONFIG_FILE']
   pre_build_env = {
     "PIP_CONFIG_FILE" => "#{pip_config_file}"

@@ -530,13 +530,13 @@ def omnibus_build(
     elif agent_binaries:
         target_project = "agent-binaries"
 
-    # Getting the python_mirror through the env variables if it wasn't pass through the args
+    # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
 
     # If a python_mirror is set then use it for pip by adding it in the pip.conf file
     pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
 
-    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the API key
+    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
