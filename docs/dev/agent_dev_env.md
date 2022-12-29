@@ -2,7 +2,7 @@
 
 ## Linux and MacOS
 
-## Python
+### Python
 
 The Agent embeds a full-fledged CPython interpreter so it requires the
 development files to be available in the dev env. The Agent can embed Python2
@@ -30,7 +30,7 @@ sudo apt-get install python3.8-dev
 
 On Windows, install Python 2.7 and/or 3.8 via the [official installer](https://www.python.org/downloads/).
 
-### Additional Windows Tools
+#### Additional Windows Tools
 You will also need the Visual Studio for [Visual Studio for Python installer](http://aka.ms/vcpython27)
 
 Download the [gcc toolchain](http://win-builds.org/).
@@ -39,9 +39,9 @@ Download the [gcc toolchain](http://win-builds.org/).
 - Add installation folder to the `%PATH%`.
 
 
-### Python Dependencies
+#### Python Dependencies
 
-#### Preface
+##### Preface
 
 To protect and isolate your system-wide python installation, a python virtual
 environment is _highly_ recommended (though optional). It will help keep a
@@ -68,7 +68,7 @@ though).
 PYTHONPATH="./venv/lib/python3.8/site-packages:$PYTHONPATH" ./agent run ...
 ```
 
-### Invoke
+#### Invoke
 
 [Invoke](http://www.pyinvoke.org/) is a task runner written in Python
 that is extensively used in this project to orchestrate builds and test
@@ -93,7 +93,7 @@ are used in the official build. Such values are listed in the `invoke.yaml`
 file at the root of this repo and can be overridden by setting `INVOKE_*` env
 variables (see Invoke docs for more details).
 
-## Golang
+### Golang
 
 You must [install Golang](https://golang.org/doc/install) version `1.18.9` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
@@ -104,18 +104,18 @@ specified in our build images (see e.g. [here](https://github.com/DataDog/datado
 may not be able to build the agent and/or the [rtloader](https://github.com/DataDog/datadog-agent/tree/main/rtloader)
 binary properly.**
 
-## Installing tooling
+### Installing tooling
 
 From the root of `datadog-agent`, run `invoke install-tools` to install go tooling. This uses `go` to install the necessary dependencies.
 
-## System or Embedded?
+### System or Embedded?
 
 When working on the Agent codebase you can choose among two different ways to
 build the binary, informally named _System_ and _Embedded_ builds. For most
 contribution scenarios you should rely on the System build (the default) and use
 the Embedded one only for specific use cases. Let's explore the differences.
 
-### System build
+#### System build
 
 _System_ builds use your operating system's standard system libraries to satisfy
 the Agent's external dependencies. Since, for example, macOS 10.11 may provide a
@@ -128,7 +128,7 @@ sure you have system copies of all the Agent's dependencies, skip the
 _Embedded build_ section below and read on to see how to install them via your
 usual package manager (apt, yum, brew, etc).
 
-### Embedded build
+#### Embedded build
 
 _Embedded_ builds download specifically-versioned dependencies and compile them
 locally from sources. We run Embedded builds to create Datadog's official Agent
@@ -148,7 +148,7 @@ and build dependencies, so you need a recent `ruby` environment with `bundler`
 installed. See [how to build Agent packages with Omnibus][agent-omnibus] for more
 details.
 
-### Systemd
+#### Systemd
 
 The agent is able to collect systemd journal logs using a wrapper on the systemd utility library.
 
@@ -162,7 +162,7 @@ On Redhat/CentOS:
 sudo yum install systemd-devel
 ```
 
-## Docker
+### Docker
 
 If you want to build a Docker image containing the Agent, or if you wan to run
 [system and integration tests][testing] you need to run a recent version of Docker in your
@@ -175,7 +175,7 @@ dev environment.
 [integrations-core]: https://github.com/DataDog/integrations-core
 [datadog_checks_base]: https://github.com/DataDog/integrations-core/tree/master/datadog_checks_base
 
-## Doxygen
+### Doxygen
 
 We use [Doxygen](http://www.doxygen.nl/) to generate the documentation for the `rtloader` part of the Agent.
 
@@ -184,11 +184,11 @@ Alternatively, you can use already-compiled Doxygen binaries from [here](http://
 
 To get the dependency graphs, you may also need to install the `dot` executable from [graphviz](http://www.graphviz.org/) and add it to your `$PATH`.
 
-## Pre-commit hooks
+### Pre-commit hooks
 
 It is optional but recommended to install `pre-commit` to run a number of checks done by the CI locally.
 
-### Installation
+#### Installation
 
 To install it, run:
 
@@ -206,11 +206,11 @@ inv install-shellcheck --destination <path>
 
 (by default, the shellcheck binary is installed in `/usr/local/bin`).
 
-### Skipping `pre-commit`
+#### Skipping `pre-commit`
 
 If you want to skip `pre-commit` for a specific commit you can add `--no-verify` to the `git commit` command.
 
-### Running `pre-commit` manually
+#### Running `pre-commit` manually
 
 If you want to run one of the checks manually, you can run `pre-commit run <check name>`.
 
@@ -221,7 +221,7 @@ pre-commit run flake8 --all-files  # run flake8 on all files
 
 See `pre-commit run --help` for further options.
 
-## Setting up Visual Studio Code Dev Container
+### Setting up Visual Studio Code Dev Container
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) with the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) allow to use a container as remote development environment in vscode. It simplify and isolate
 the dependencies needed to develop in this repository.
