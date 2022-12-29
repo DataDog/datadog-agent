@@ -140,7 +140,7 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
 
 // Checks the buffer represent a standard response (OK) or any of redis commands
 // https://redis.io/commands/
-static __always_inline bool check_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
     char current_char;
     int i = index_to_start_from;
@@ -209,7 +209,7 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     char first_char = buf[0];
     switch (first_char) {
     case '+':
-        return check_ascii_and_crlf(buf, buf_size, 1);
+        return check_supported_ascii_and_crlf(buf, buf_size, 1);
     case '-':
         return check_err_prefix(buf, buf_size);
     case ':':
