@@ -546,7 +546,6 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, cfg *config.A
 	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
 
 	cfg.HostName = testHostName
-	cfg.CheckIntervals[check.Name()] = 500 * time.Millisecond
 
 	exit := make(chan struct{})
 

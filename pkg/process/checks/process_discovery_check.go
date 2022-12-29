@@ -40,7 +40,7 @@ func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemIn
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
-func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
+func (d *ProcessDiscoveryCheck) Name() string { return DiscoveryCheckName }
 
 // RealTime returns a value that says whether this check should be run in real time.
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }

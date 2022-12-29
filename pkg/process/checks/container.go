@@ -57,7 +57,7 @@ func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) e
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *ContainerCheck) Name() string { return config.ContainerCheckName }
+func (c *ContainerCheck) Name() string { return ContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *ContainerCheck) RealTime() bool { return false }

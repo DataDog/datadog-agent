@@ -29,27 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Name for check performed by process-agent or system-probe
-const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	PodCheckManifestName   = "pod_manifest"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
-
-	ProcessCheckDefaultInterval          = 10 * time.Second
-	RTProcessCheckDefaultInterval        = 2 * time.Second
-	ContainerCheckDefaultInterval        = 10 * time.Second
-	RTContainerCheckDefaultInterval      = 2 * time.Second
-	ConnectionsCheckDefaultInterval      = 30 * time.Second
-	PodCheckDefaultInterval              = 10 * time.Second
-	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
-)
-
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
 
 // AgentConfig is the global config for the process-agent. This information
@@ -66,19 +45,6 @@ type AgentConfig struct {
 
 	// System probe collection configuration
 	SystemProbeAddress string
-
-	// Check config
-	CheckIntervals map[string]time.Duration
-}
-
-// CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
-func (a AgentConfig) CheckInterval(checkName string) time.Duration {
-	d, ok := a.CheckIntervals[checkName]
-	if !ok {
-		log.Errorf("missing check interval for '%s', you must set a default", checkName)
-		d = 10 * time.Second
-	}
-	return d
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
@@ -91,18 +57,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// System probe collection configuration
 		SystemProbeAddress: defaultSystemProbeAddress,
-
-		// Check config
-		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:       ProcessCheckDefaultInterval,
-			RTProcessCheckName:     RTProcessCheckDefaultInterval,
-			ContainerCheckName:     ContainerCheckDefaultInterval,
-			RTContainerCheckName:   RTContainerCheckDefaultInterval,
-			ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-			PodCheckName:           PodCheckDefaultInterval,
-			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
-		},
 	}
 
 	// Set default values for proc/sys paths if unset.
