@@ -58,6 +58,7 @@ type submitter struct {
 	hostname     string
 
 	exit chan struct{}
+	wg   *sync.WaitGroup
 
 	// Used to cache the hash result of the host name and the pid of the process agent. Being used as part of
 	// getRequestID method. Must use pointer, to distinguish between uninitialized value and the theoretical but yet
@@ -166,6 +167,7 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 
 		updateRTStatusCallback: enableRealtimeCallback,
 
+		wg:   &sync.WaitGroup{},
 		exit: make(chan struct{}),
 	}, nil
 }
@@ -222,41 +224,39 @@ func (s *submitter) Start() error {
 		return fmt.Errorf("error starting event forwarder: %s", err)
 	}
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.consumePayloads(s.processResults, s.processForwarder)
 	}()
 
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder)
 	}()
 
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
 	}()
 
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.consumePayloads(s.podResults, s.podForwarder)
 	}()
 
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 		s.consumePayloads(s.eventResults, s.eventForwarder)
 	}()
 
-	wg.Add(1)
+	s.wg.Add(1)
 	go func() {
-		defer wg.Done()
+		defer s.wg.Done()
 
 		heartbeat := time.NewTicker(15 * time.Second)
 		defer heartbeat.Stop()
@@ -307,6 +307,7 @@ func (s *submitter) Stop() {
 	s.podResults.Stop()
 	s.eventResults.Stop()
 	close(s.exit)
+	s.wg.Wait()
 }
 
 func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
