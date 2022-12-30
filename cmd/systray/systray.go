@@ -174,7 +174,7 @@ func isUserAnAdmin() (bool, error) {
 }
 
 func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
-	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message); err != nil {
+	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message, nil); err != nil {
 		log.Warnf("Failed to show custom message %v", err)
 	}
 }
@@ -251,7 +251,7 @@ func main() {
 		log.Warnf("Failed to load icon %v", err)
 	}
 	// Create the notify icon and make sure we clean it up on exit.
-	ni, err = walk.NewNotifyIcon()
+	ni, err = walk.NewNotifyIcon(mw)
 	if err != nil {
 		log.Errorf("Failed to create newNotifyIcon %v", err)
 		os.Exit(2)
