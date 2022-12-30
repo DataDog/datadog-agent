@@ -32,7 +32,7 @@ const (
 func NewCustomRule(id eval.RuleID) *rules.Rule {
 	return &rules.Rule{
 		Rule:       &eval.Rule{ID: id},
-		Definition: &rules.RuleDefinition{},
+		Definition: &rules.RuleDefinition{ID: id},
 	}
 }
 
