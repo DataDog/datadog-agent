@@ -40,7 +40,7 @@ func TestAgentOnECS(t *testing.T) {
 		"ddinfra:aws/ecs/windowsLTSCNodeGroup":       auto.ConfigValue{Value: "false"},
 		"ddagent:apiKey":                             auto.ConfigValue{Value: apiKey, Secret: true},
 	}
-	stackOutput, err := infra.GetStackManager().GetStack(context.Background(), "aws/sandbox", "ecs-cluster", parameters, func(ctx *pulumi.Context) error {
+	_, stackOutput, err := infra.GetStackManager().GetStack(context.Background(), "aws/sandbox", "ecs-cluster", parameters, func(ctx *pulumi.Context) error {
 		return ecs.Run(ctx)
 	})
 	require.NoError(t, err)

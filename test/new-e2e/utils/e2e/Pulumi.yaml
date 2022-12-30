@@ -1,0 +1,3 @@
+name: PulumiDestroy
+runtime: go
+description: This file allows to run `pulumi destroy` on environments created with `e2e.Suite`.
