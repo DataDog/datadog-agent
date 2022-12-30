@@ -340,7 +340,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
-		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog-agent.yaml"))
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml"))
 
 		// figure out system-probe file path based on main config path, and use best effort to include
 		// system-probe.yaml to the flare
