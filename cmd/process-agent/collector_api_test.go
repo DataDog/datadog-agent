@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"io"
 	"net"
 	"net/http"
@@ -526,9 +525,8 @@ func TestMultipleAPIKeys(t *testing.T) {
 	}
 
 	apiKeys := []string{"apiKeyI", "apiKeyII", "apiKeyIII"}
-	orchKeys := []string{"orchKey"}
 
-	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, orchKeys, ddconfig.Mock(t), nil, func(_ *Collector, ep *mockEndpoint) {
+	runCollectorTestWithAPIKeys(t, check, &endpointConfig{}, apiKeys, nil, ddconfig.Mock(t), nil, func(_ *Collector, ep *mockEndpoint) {
 		for _, expectedAPIKey := range apiKeys {
 			request := <-ep.Requests
 			assert.Equal(t, expectedAPIKey, request.headers.Get("DD-Api-Key"))
@@ -536,11 +534,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, init func(c *Collector), tc func(c *Collector, ep *mockEndpoint)) {
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, init func(c *Collector, s *submitter), tc func(c *Collector, ep *mockEndpoint)) {
 	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, mockConfig, init, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector), tc func(c *Collector, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector, s *submitter), tc func(c *Collector, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
@@ -565,15 +563,10 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 
 	exit := make(chan struct{})
 
-<<<<<<< HEAD
-	c, err := NewCollectorWithChecks(hostInfo, []checks.Check{check}, true)
-
-=======
 	hostInfo := &checks.HostInfo{
 		HostName: testHostName,
 	}
-	c, err := NewCollectorWithChecks(config.NewDefaultAgentConfig(), hostInfo, []checks.Check{check}, true)
->>>>>>> f3b6d75358 (Fix orchestrator tests)
+	c, err := NewCollectorWithChecks(hostInfo, []checks.Check{check}, true)
 	check.Init(nil, hostInfo)
 
 	assert.NoError(t, err)
