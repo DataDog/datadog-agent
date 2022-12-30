@@ -21,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -40,8 +40,6 @@ import (
 	// register all workloadmeta collectors
 	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
-
-const loggerName ddconfig.LoggerName = "PROCESS"
 
 const (
 	agent6DisabledMessage = `process-agent not enabled.
@@ -86,8 +84,8 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(globalParams.ConfFilePath); err != nil {
-		_ = log.Criticalf("Error parsing config: %s", err)
+	if err := command.BootstrapConfig(globalParams.ConfFilePath, false); err != nil {
+		_ = log.Critical(err)
 		cleanupAndExit(1)
 	}
 
@@ -98,13 +96,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 	}
 
-	config.InitRuntimeSettings()
-
-	_, err = config.NewAgentConfig(loggerName, globalParams.ConfFilePath)
-	if err != nil {
-		log.Criticalf("Error parsing config: %s", err)
-		cleanupAndExit(1)
-	}
+	initRuntimeSettings()
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
@@ -292,5 +284,21 @@ func cleanupAndExitHandler(globalParams *command.GlobalParams) func(int) {
 		}
 
 		os.Exit(status)
+	}
+}
+
+// initRuntimeSettings registers settings to be added to the runtime config.
+func initRuntimeSettings() {
+	// NOTE: Any settings you want to register should simply be added here
+	processRuntimeSettings := []settings.RuntimeSetting{
+		settings.LogLevelRuntimeSetting{},
+	}
+
+	// Before we begin listening, register runtime settings
+	for _, setting := range processRuntimeSettings {
+		err := settings.RegisterRuntimeSetting(setting)
+		if err != nil {
+			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+		}
 	}
 }
