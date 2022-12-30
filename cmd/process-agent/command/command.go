@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/flags"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -157,18 +158,15 @@ func setHostMountEnv() {
 	// Set default values for proc/sys paths if unset.
 	// Don't set this is /host is not mounted to use context within container.
 	// Generally only applicable for container-only cases like Fargate.
-	if !config.IsContainerized() {
+	if !config.IsContainerized() || !util.PathExists("/host") {
 		return
 	}
 
-	_, err := os.Stat("/host")
-	if !os.IsNotExist(err) {
-		if v := os.Getenv("HOST_PROC"); v == "" {
-			os.Setenv("HOST_PROC", "/host/proc")
-		}
-		if v := os.Getenv("HOST_SYS"); v == "" {
-			os.Setenv("HOST_SYS", "/host/sys")
-		}
+	if v := os.Getenv("HOST_PROC"); v == "" {
+		os.Setenv("HOST_PROC", "/host/proc")
+	}
+	if v := os.Getenv("HOST_SYS"); v == "" {
+		os.Setenv("HOST_SYS", "/host/sys")
 	}
 }
 
@@ -179,8 +177,7 @@ func loadConfigIfExists(path string) error {
 		return nil
 	}
 
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
+	if !util.PathExists(path) {
 		log.Infof("no config exists at %s, ignoring...", path)
 		return nil
 	}
@@ -190,9 +187,6 @@ func loadConfigIfExists(path string) error {
 		config.Datadog.SetConfigFile(path)
 	}
 
-	if _, err := config.LoadWithoutSecret(); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := config.LoadWithoutSecret()
+	return err
 }
