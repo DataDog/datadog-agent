@@ -293,8 +293,9 @@ func isNormalizedASCIITag(tag string) bool {
 		b := tag[i]
 		// TODO: Attempt to optimize this check using SIMD/vectorization.
 		if isValidASCIITagChar(b) {
-			// okay!
-		} else if b == '_' {
+			continue
+		} 
+		if b == '_' {
 			// an underscore is only okay if followed by a valid non-underscore character
 			i++
 			if i == len(tag) || !isValidASCIITagChar(tag[i]) {
