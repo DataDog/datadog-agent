@@ -16,11 +16,11 @@ package xccdf
 #include <sys/stat.h>
 #include <errno.h>
 #include <xccdf_session.h>
+#include <oscap_error.h>
 */
 import "C"
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"unsafe"
@@ -69,7 +69,7 @@ func (s *xccdfSession) EvaluateRule(rule string) ([]resources.ResolvedInstance, 
 
 	/* Perform evaluation */
 	if C.xccdf_session_evaluate(s.session) != 0 {
-		return nil, fmt.Errorf("failed to evaluate session")
+		return nil, getFullError("failed to evaluate session")
 	}
 
 	resIt := C.xccdf_session_get_rule_results(s.session)
@@ -121,7 +121,7 @@ func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
 
 	session := C.xccdf_session_new(xccdfCString)
 	if session == nil {
-		return nil, fmt.Errorf("failed to create xccdf session for %s", xccdf)
+		return nil, getFullError(fmt.Sprintf("failed to load session for %s", xccdf))
 	}
 
 	log.Debugf("Created XCCDF session for %s", xccdf)
@@ -137,12 +137,16 @@ func newXCCDFSession(xccdf, cpe string) (*xccdfSession, error) {
 
 	if errorCode := C.xccdf_session_load(session); errorCode != 0 {
 		C.xccdf_session_free(session)
-		return nil, errors.New("failed to load session")
+		return nil, getFullError("failed to load session")
 	}
 
 	return &xccdfSession{
 		session: session,
 	}, nil
+}
+
+func getFullError(errMsg string) error {
+	return fmt.Errorf("%s: %s", errMsg, C.GoString(C.oscap_err_get_full_error()))
 }
 
 func evalXCCDFRule(xccdf, cpe, profile, rule string) ([]resources.ResolvedInstance, error) {
