@@ -11,24 +11,55 @@ package systray
 import "C"
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
-	seelog "github.com/cihub/seelog"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/systray/internal"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"go.uber.org/fx"
 	"github.com/lxn/walk"
+	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 )
+
+type dependencies struct {
+	fx.In
+
+	Lc fx.Lifecycle
+	Shutdowner fx.Shutdowner
+
+	Log log.Component
+	Params internal.BundleParams
+}
+
+type systray struct {
+	// For triggering Shutdown
+	shutdowner fx.Shutdowner
+
+	log log.Component
+	params internal.BundleParams
+
+	isUserAdmin     bool
+
+	// allocated in start, destroyed in stop
+	singletonEventHandle windows.Handle
+
+	// Window management
+	notifyWindowToStop func()
+	routineWaitGroup sync.WaitGroup
+
+}
 
 type menuItem struct {
 	label   string
@@ -37,22 +68,17 @@ type menuItem struct {
 }
 
 const (
+	launchGraceTime       = 2
+	eventname             = "ddtray-event"
 	cmdTextStartService   = "StartService"
 	cmdTextStopService    = "StopService"
 	cmdTextRestartService = "RestartService"
 	cmdTextConfig         = "Config"
+	menuSeparator         = "SEPARATOR"
 )
 
 var (
-	separator       = "SEPARATOR"
-	launchGraceTime = 2
-	ni              *walk.NotifyIcon
-	launchgui       bool
-	launchelev      bool
-	launchcmd       string
-	eventname       = windows.StringToUTF16Ptr("ddtray-event")
-	isUserAdmin     bool
-	cmds            = map[string]func(){
+	cmds                  = map[string]func(){
 		cmdTextStartService:   onStart,
 		cmdTextStopService:    onStop,
 		cmdTextRestartService: onRestart,
@@ -60,27 +86,14 @@ var (
 	}
 )
 
-func init() {
-	enableLoggingToFile()
-
-	isAdmin, err := isUserAnAdmin()
-	isUserAdmin = isAdmin
-
-	if err != nil {
-		log.Warnf("Failed to call isUserAnAdmin %v", err)
-		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
-		isUserAdmin = true
-	}
-}
-
-func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
-	av, _ := version.Agent()
-	verstring := av.GetNumberAndPre()
-
-	menuHandler := func(cmd string) func() {
-		return func() {
-			execCmdOrElevate(cmd)
-		}
+// newSystray creates a new systray component, which will start and stop based on
+// the fx Lifecycle
+func newSystray(deps dependencies) (Component, error) {
+	// fx init
+	s := &systray{
+		log: deps.Log,
+		params: deps.Params,
+		shutdowner: deps.Shutdowner,
 	}
 
 	menuitems := make([]menuItem, 0)
@@ -94,64 +107,113 @@ func createMenuItems(notifyIcon *walk.NotifyIcon) []menuItem {
 	menuitems = append(menuitems, menuItem{label: separator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
 
-	return menuitems
-}
-
-func isUserAnAdmin() (bool, error) {
-	shell32 := windows.NewLazySystemDLL("Shell32.dll")
-	defer windows.FreeLibrary(windows.Handle(shell32.Handle()))
-
-	isUserAnAdminProc := shell32.NewProc("IsUserAnAdmin")
-	ret, _, winError := isUserAnAdminProc.Call()
-
-	if winError != windows.NTE_OP_OK {
-		return false, fmt.Errorf("IsUserAnAdmin returns error code %d", winError)
+	// init vars
+	isAdmin, err := winutil.IsUserAnAdmin()
+	if err != nil {
+		s.log.Warnf("Failed to call IsUserAnAdmin %v", err)
+		// If we cannot determine if the user is admin or not let the user allow to click on the buttons.
+		s.isUserAdmin = true
+	} else {
+		s.isUserAdmin = isAdmin
 	}
-	if ret == 0 {
-		return false, nil
+
+	return s, nil
+}
+
+func (s *systray) start(ctx context.Context) error {
+	var err error
+
+	s.log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", s.params.LaunchGuiFlag, s.params.LaunchElevatedFlag, s.params.LaunchCommand)
+
+	if s.params.LaunchGuiFlag {
+		s.log.Debug("Preparing to launch configuration interface...")
+		onConfigure()
 	}
-	return true, nil
-}
 
-func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
-	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message, nil); err != nil {
-		log.Warnf("Failed to show custom message %v", err)
+	s.singletonEventHandle, err = acquireProcessSingleton(eventname)
+	if err != nil {
+		s.log.Errorf("Failed to acquire singleton %v", err)
+		return err
 	}
+
+	s.routineWaitGroup.Add(1)
+	go windowRoutine(s)
+
+	// If a command is specified in process command line, carry it out.
+	if s.params.LaunchCommand != "" {
+		go execCmdOrElevate(s, s.params.LaunchCommand)
+	}
+
+	return nil
 }
 
-func onExit() {
-	walk.App().Exit(0)
+func (s *systray) stop(ctx context.Context) error {
+	if s.notifyWindowToStop != nil {
+		// Send stop message to window (stops windowRoutine goroutine)
+		s.notifyWindowToStop()
+	}
+
+	// wait for goroutine to finish
+	s.log.Info("starting wait")
+	s.routineWaitGroup.Wait()
+	s.log.Info("routine done!")
+
+	// release our singleton
+	if s.singletonEventHandle != windows.Handle(0) {
+		windows.CloseHandle(s.singletonEventHandle)
+	}
+
+	return nil
 }
 
-func main() {
+// Run window setup and message loop in a single threadlocked goroutine
+// https://github.com/lxn/walk/issues/601
+// Use the notifyWindowToStop function to stop the message loop
+// Use routineWaitGroup to wait until the routine exits
+func windowRoutine(s *systray) {
 	// Following https://github.com/lxn/win/commit/d9566253ae00d0a7dc7e4c9bda651dcfee029001
 	// it's up to the caller to lock OS threads
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	flag.BoolVar(&launchgui, "launch-gui", false, "Launch browser configuration and exit")
+	defer s.routineWaitGroup.Done()
 
-	// launch-elev=true only means the process should have been elevated so that it will not elevate again. If the
-	// parameter is specified but the process is not elevated, some operation will fail due to access denied.
-	flag.BoolVar(&launchelev, "launch-elev", false, "Launch program as elevated, internal use only")
+	// We need either a walk.MainWindow or a walk.Dialog for their message loop.
+	mw, err := walk.NewMainWindow()
+	if err != nil {
+		s.log.Errorf("Failed to create main window %v", err)
+		return
+	}
+	defer mw.Dispose()
 
-	// If this parameter is specified, the process will try to carry out the command before the message loop.
-	flag.StringVar(&launchcmd, "launch-cmd", "", "Carry out a specific command after launch")
-	flag.Parse()
+	ni, err := createNotifyIcon(s, mw)
+	if err != nil {
+		s.log.Errorf("Failed to create notification tray icon %v", err)
+		return
+	}
+	defer ni.Dispose()
 
-	log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", launchgui, launchelev, launchcmd)
-
-	if launchgui {
-		//enableLoggingToConsole()
-		defer log.Flush()
-		log.Debug("Preparing to launch configuration interface...")
-		onConfigure()
+	// Provide a function that will trigger this thread to run PostQuitMessage()
+	// which will cause the message loop to return
+	s.notifyWindowToStop = func() {
+		mw.Synchronize(func() {
+			win.PostQuitMessage(0)
+		})
 	}
 
+	// Run the message loop
+	// use the notifyWindowToStop function to stop the message loop
+	mw.Run()
+	s.log.Info("routine exiting!")
+}
+
+func acquireProcessSingleton(eventname string) (windows.Handle, error) {
+	var utf16EventName = windows.StringToUTF16Ptr(eventname)
+
 	// Check to see if the process is already running
-	h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
+	h, _ := windows.OpenEvent(windows.EVENT_ALL_ACCESS,
 		false,
-		eventname)
+		utf16EventName)
 
 	if h != windows.Handle(0) {
 		// Process already running.
@@ -161,49 +223,55 @@ func main() {
 		time.Sleep(time.Duration(launchGraceTime) * time.Second)
 
 		// Try again
-		h, _ := windows.OpenEvent(0x1F0003, // EVENT_ALL_ACCESS
+		h, _ := windows.OpenEvent(windows.EVENT_ALL_ACCESS,
 			false,
-			eventname)
+			utf16EventName)
 
 		if h != windows.Handle(0) {
 			windows.CloseHandle(h)
-			return
+			return windows.Handle(0), fmt.Errorf("systray is already running")
 		}
 	}
 
 	// otherwise, create the handle so that nobody else will
-	h, _ = windows.CreateEvent(nil, 0, 0, eventname)
-	// should never fail; test just to make sure we don't close unopened handle
-	if h != windows.Handle(0) {
-		defer windows.CloseHandle(h)
-	}
-	// We need either a walk.MainWindow or a walk.Dialog for their message loop.
-	// We will not make it visible in this example, though.
-	mw, err := walk.NewMainWindow()
+	h, err := windows.CreateEvent(nil, 0, 0, utf16EventName)
 	if err != nil {
-		log.Errorf("Failed to create main window %v", err)
-		os.Exit(1)
+		// can fail with ERROR_ALREADY_EXISTS if we lost a race
+		if h != windows.Handle(0) {
+			windows.CloseHandle(h)
+		}
+		return windows.Handle(0), err
 	}
 
+	return h, nil
+}
+
+func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err error) {
+	// Create the notify icon (must be cleaned up)
+	ni, err = walk.NewNotifyIcon(mw)
+	if err != nil {
+		return nil, err
+	}
+	defer func () {
+		if err != nil {
+			ni.Dispose()
+			ni = nil
+		}
+	}()
+
+	// Set the icon and a tool tip text.
 	// 1 is the ID of the MAIN_ICON in systray.rc
 	icon, err := walk.NewIconFromResourceId(1)
 	if err != nil {
-		log.Warnf("Failed to load icon %v", err)
+		pkglog.Warnf("Failed to load icon %v", err)
 	}
-	// Create the notify icon and make sure we clean it up on exit.
-	ni, err = walk.NewNotifyIcon(mw)
-	if err != nil {
-		log.Errorf("Failed to create newNotifyIcon %v", err)
-		os.Exit(2)
-	}
-	defer ni.Dispose()
-
-	// Set the icon and a tool tip text.
 	if err := ni.SetIcon(icon); err != nil {
-		log.Warnf("Failed to set icon %v", err)
+		pkglog.Warnf("Failed to set icon %v", err)
 	}
+
+	// Set mouseover tooltip
 	if err := ni.SetToolTip("Click for info or use the context menu to exit."); err != nil {
-		log.Warnf("Failed to set tooltip text %v", err)
+		pkglog.Warnf("Failed to set tooltip text %v", err)
 	}
 
 	// When the left mouse button is pressed, bring up our balloon.
@@ -214,21 +282,21 @@ func main() {
 		showCustomMessage(ni, "Please right click to display available options.")
 	})
 
-	menuitems := createMenuItems(ni)
+	menuitems := createMenuItems(s, ni)
 
 	for _, item := range menuitems {
 		var action *walk.Action
-		if item.label == separator {
+		if item.label == menuSeparator {
 			action = walk.NewSeparatorAction()
 		} else {
 			action = walk.NewAction()
 			if err := action.SetText(item.label); err != nil {
-				log.Warnf("Failed to set text for item %s %v", item.label, err)
+				pkglog.Warnf("Failed to set text for item %s %v", item.label, err)
 				continue
 			}
 			err = action.SetEnabled(item.enabled)
 			if err != nil {
-				log.Warnf("Failed to set enabled for item %s %v", item.label, err)
+				pkglog.Warnf("Failed to set enabled for item %s %v", item.label, err)
 				continue
 			}
 			if item.handler != nil {
@@ -237,23 +305,59 @@ func main() {
 		}
 		err = ni.ContextMenu().Actions().Add(action)
 		if err != nil {
-			log.Warnf("Failed to add action for item %s to context menu %v", item.label, err)
+			pkglog.Warnf("Failed to add action for item %s to context menu %v", item.label, err)
 			continue
 		}
 	}
 
 	// The notify icon is hidden initially, so we have to make it visible.
 	if err := ni.SetVisible(true); err != nil {
-		log.Warnf("Failed to set window visibility %v", err)
+		pkglog.Warnf("Failed to set window visibility %v", err)
 	}
 
-	// If a command is specified in process command line, carry it out.
-	if launchcmd != "" {
-		execCmdOrElevate(launchcmd)
+
+	return ni, nil
+}
+
+func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
+	if err := notifyIcon.ShowCustom("Datadog Agent Manager", message, nil); err != nil {
+		pkglog.Warnf("Failed to show custom message %v", err)
+	}
+}
+
+func triggerShutdown(s *systray) {
+	if s != nil {
+		// Tell fx to begin shutdown process
+		s.shutdowner.Shutdown()
+	}
+}
+
+func onExit(s *systray) {
+	triggerShutdown(s)
+}
+
+func createMenuItems(s *systray, notifyIcon *walk.NotifyIcon) []menuItem {
+	av, _ := version.Agent()
+	verstring := av.GetNumberAndPre()
+
+	menuHandler := func(cmd string) func() {
+		return func() {
+			execCmdOrElevate(s, cmd)
+		}
 	}
 
-	// Run the message loop.
-	mw.Run()
+	menuitems := make([]menuItem, 0)
+	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
+	menuitems = append(menuitems, menuItem{label: menuSeparator})
+	menuitems = append(menuitems, menuItem{label: "&Start", handler: menuHandler(cmdTextStartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "S&top", handler: menuHandler(cmdTextStopService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
+	menuitems = append(menuitems, menuItem{label: menuSeparator})
+	menuitems = append(menuitems, menuItem{label: "E&xit", handler: func() { onExit(s) }, enabled: true})
+
+	return menuitems
 }
 
 // opens a browser window at the specified URL
@@ -269,35 +373,12 @@ func open(url string) error {
 	return nil
 }
 
-func enableLoggingToFile() {
-	seeConfig := `
-	<seelog minlevel="debug">
-	<outputs>
-		<rollingfile type="size" filename="c:\\ProgramData\\DataDog\\Logs\\ddtray.log" maxsize="1000000" maxrolls="2" />
-	</outputs>
-	</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
-}
-
-//nolint:deadcode // for debugging
-func enableLoggingToConsole() {
-	seeConfig := `
-	<seelog minlevel="debug">
-	<outputs>
-		<console />
-	</outputs>
-	</seelog>`
-	logger, _ := seelog.LoggerFromConfigAsBytes([]byte(seeConfig))
-	log.ReplaceLogger(logger)
-}
-
 // execCmdOrElevate carries out a command. If current process is not elevated and is not supposed to be elevated, it will launch
 // itself as elevated and quit from the current instance.
-func execCmdOrElevate(cmd string) {
-	if !launchelev && !isUserAdmin {
+func execCmdOrElevate(s *systray, cmd string) {
+	if !s.params.LaunchElevatedFlag && !s.isUserAdmin {
 		// If not launched as elevated and user is not admin, relaunch self. Use AND here to prevent from dead loop.
-		relaunchElevated(cmd)
+		relaunchElevated(s, cmd)
 
 		// If elevation failed, just quit to the caller.
 		return
@@ -310,7 +391,7 @@ func execCmdOrElevate(cmd string) {
 
 // relaunchElevated launch another instance of the current process asking it to carry out a command as admin.
 // If the function succeeds, it will quit the process, otherwise the function will return to the caller.
-func relaunchElevated(cmd string) {
+func relaunchElevated(s *systray, cmd string) {
 	verb := "runas"
 	exe, _ := os.Executable()
 	cwd, _ := os.Getwd()
@@ -328,8 +409,8 @@ func relaunchElevated(cmd string) {
 
 	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
 	if err != nil {
-		log.Warnf("Failed to launch self as elevated %v", err)
+		pkglog.Warnf("Failed to launch self as elevated %v", err)
 	} else {
-		onExit()
+		triggerShutdown(s)
 	}
 }

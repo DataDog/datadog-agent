@@ -12,11 +12,15 @@ package systray
 
 import (
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
+	"github.com/DataDog/datadog-agent/comp/systray/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
 // team: agent-windows
+
+// BundleParams defines the parameters for this bundle
+type BundleParams = internal.BundleParams
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(

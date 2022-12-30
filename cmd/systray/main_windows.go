@@ -13,12 +13,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	DefaultConfPath = "c:\\programdata\\datadog"
-)
-
 func main() {
-	defer log.Flush()
-	os.Exit(runcmd.Run(command.MakeCommand()))
+	exitcode := 0
+	defer func() {
+		log.Flush()
+		os.Exit(exitcode)
+	}()
+	exitcode = runcmd.Run(command.MakeCommand())
 }
 
