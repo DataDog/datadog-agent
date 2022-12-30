@@ -7,13 +7,14 @@ package compliance
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -26,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
@@ -39,7 +40,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type eventCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	sourceName string
 	sourceType string
@@ -47,7 +48,7 @@ type eventCliParams struct {
 	data       []string
 }
 
-func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
+func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventArgs := &eventCliParams{
 		GlobalParams: globalParams,
 	}
@@ -59,8 +60,8 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    log.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},

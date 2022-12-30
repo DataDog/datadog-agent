@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"net/http"
 	"os"
 	"path"
@@ -24,7 +25,6 @@ import (
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
 	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
@@ -56,7 +56,7 @@ import (
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = common.LoggerName
+	loggerName coreconfig.LoggerName = command.LoggerName
 )
 
 var (
@@ -66,7 +66,7 @@ var (
 )
 
 func CreateSecurityAgentCmd() *cobra.Command {
-	globalParams := common.GlobalParams{}
+	globalParams := command.GlobalParams{}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -81,7 +81,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
-			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup(flags.CfgPath).Changed)
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfigFilePaths, cmd.Flags().Lookup(flags.CfgPath).Changed)
 			return err
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -89,14 +89,14 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	defaultConfPathArray := []string{
+	defaultConfigFilePaths := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, flags.CfgPath, "c", defaultConfPathArray, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultConfigFilePaths, "path to a yaml configuration file")
 	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
-	factories := []common.SubcommandFactory{
+	factories := []command.SubcommandFactory{
 		status.Commands,
 		flare.Commands,
 		subconfig.Commands,

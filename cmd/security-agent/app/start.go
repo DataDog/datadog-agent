@@ -8,24 +8,24 @@ package app
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type startCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	pidfilePath string
 }
 
-func StartCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func StartCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := startCliParams{
 		GlobalParams: globalParams,
 	}

@@ -10,10 +10,8 @@ package config
 
 import (
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
