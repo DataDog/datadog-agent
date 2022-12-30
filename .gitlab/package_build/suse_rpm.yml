@@ -3,6 +3,7 @@
   script:
     - echo "About to build for $RELEASE_VERSION"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -100,6 +101,7 @@ iot_agent_suse-x64:
   script:
     - echo "About to build iot agent for $RELEASE_VERSION_7"
     - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
