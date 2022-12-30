@@ -52,7 +52,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	mock.AssertFileExists("etc", "datadog-agent.yaml")
+	mock.AssertFileExists("etc", "datadog.yaml")
 	mock.AssertFileExists("etc", "system-probe.yaml")
 }
 
