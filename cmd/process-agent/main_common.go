@@ -267,7 +267,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 		return
 	}
-	cl.submitter, err = NewSubmitter(cfg.HostName)
+	cl.submitter, err = NewSubmitter(cfg.HostName, cl.UpdateRTStatus)
 	if err != nil {
 		log.Criticalf("Error creating submitter: %s", err)
 		cleanupAndExit(1)

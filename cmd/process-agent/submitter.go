@@ -33,7 +33,7 @@ import (
 
 type Submitter interface {
 	Submit(start time.Time, name string, messages []model.MessageBody) error
-	Start(checkRunner *Collector) error
+	Start() error
 	Stop()
 }
 
@@ -66,9 +66,12 @@ type submitter struct {
 	dropCheckPayloads   []string
 
 	forwarderRetryMaxQueueBytes int
+
+	// Callback for setting realtime mode. If this is nil realtime mode is never toggled.
+	updateRTStatusCallback func([]*model.CollectorStatus)
 }
 
-func NewSubmitter(hostname string) (*submitter, error) {
+func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.CollectorStatus)) (*submitter, error) {
 	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
@@ -161,6 +164,8 @@ func NewSubmitter(hostname string) (*submitter, error) {
 
 		forwarderRetryMaxQueueBytes: queueBytes,
 
+		updateRTStatusCallback: enableRealtimeCallback,
+
 		exit: make(chan struct{}),
 	}, nil
 }
@@ -196,7 +201,7 @@ func (s *submitter) Submit(start time.Time, name string, messages []model.Messag
 	return nil
 }
 
-func (s *submitter) Start(checkRunner *Collector) error {
+func (s *submitter) Start() error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -222,31 +227,31 @@ func (s *submitter) Start(checkRunner *Collector) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.processResults, s.processForwarder, checkRunner)
+		s.consumePayloads(s.processResults, s.processForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder, checkRunner)
+		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.connectionsResults, s.connectionsForwarder, checkRunner)
+		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.podResults, s.podForwarder, checkRunner)
+		s.consumePayloads(s.podResults, s.podForwarder)
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		s.consumePayloads(s.eventResults, s.eventForwarder, checkRunner)
+		s.consumePayloads(s.eventResults, s.eventForwarder)
 	}()
 
 	wg.Add(1)
@@ -304,7 +309,7 @@ func (s *submitter) Stop() {
 	close(s.exit)
 }
 
-func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder, checkRunner *Collector) {
+func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -361,8 +366,8 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			}
 
 			if statuses := readResponseStatuses(result.name, responses); len(statuses) > 0 {
-				if updateRTStatus && checkRunner != nil {
-					checkRunner.UpdateRTStatus(statuses)
+				if updateRTStatus && s.updateRTStatusCallback != nil {
+					s.updateRTStatusCallback(statuses)
 				}
 			}
 		}

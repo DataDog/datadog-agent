@@ -58,10 +58,10 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			s, err := NewSubmitter("test")
+			c, err := NewSubmitter(testHostName, nil)
 			assert.NoError(err)
-			assert.Equal(tc.expectedQueueSize, s.processResults.MaxSize())
-			assert.Equal(tc.expectedQueueSize, s.podResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
 		})
 	}
 }
@@ -107,9 +107,9 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewSubmitter("test")
+			c, err := NewSubmitter(testHostName, nil)
 			assert.NoError(err)
-			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
+			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
 	}
 }
@@ -156,23 +156,23 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			s, err := NewSubmitter("test")
+			s, err := NewSubmitter(testHostName, nil)
 			assert.NoError(err)
-			assert.Equal(int64(tc.expectedQueueSize), s.processResults.MaxWeight())
-			assert.Equal(int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
-			assert.Equal(tc.expectedQueueSize, c.forwarderRetryQueueMaxBytes)
+			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
+			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
+			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
 		})
 	}
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
-	c, err := NewSubmitter("host")
+	submitter, err := NewSubmitter(testHostName, nil)
 	assert.NoError(t, err)
 
 	now := time.Now()
 	agentVersion, _ := version.Agent()
 
-	requestID := c.getRequestID(now, 0)
+	requestID := submitter.getRequestID(now, 0)
 
 	tests := []struct {
 		name          string
@@ -271,7 +271,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			messages := []model.MessageBody{
 				test.message,
 			}
-			result := c.messagesToCheckResult(now, test.name, messages)
+			result := submitter.messagesToCheckResult(now, test.name, messages)
 			assert.Equal(t, test.name, result.name)
 			assert.Len(t, result.payloads, 1)
 			payload := result.payloads[0]
@@ -284,7 +284,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 }
 
 func Test_getRequestID(t *testing.T) {
-	s, err := NewSubmitter("host")
+	s, err := NewSubmitter(testHostName, nil)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)

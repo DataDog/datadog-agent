@@ -157,6 +157,7 @@ def gen_mocks(ctx):
         "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
         "./pkg/process/procutil": ["Probe"],
+        "./cmd/process-agent": ["Submitter"],
     }
 
     for path, names in interfaces.items():

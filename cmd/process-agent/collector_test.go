@@ -22,11 +22,11 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	processMocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkmocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 )
 
 func TestUpdateRTStatus(t *testing.T) {
@@ -205,10 +205,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
-	submitter, err := NewSubmitter(testHostName)
-	assert.NoError(t, err)
-	submitter.processResults = api.NewWeightedQueue(1, 1024)
-	submitter.rtProcessResults = api.NewWeightedQueue(1, 1024)
+	submitter := processMocks.NewSubmitter(t)
 	c.submitter = submitter
 
 	standardOption := checks.RunOptions{
@@ -225,14 +222,10 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check.On("Name").Return("foo")
 	check.On("RealTimeName").Return("bar")
 
+	submitStandard := submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
+	submitter.On("Submit", mock.Anything, check.RealTimeName(), mock.Anything).Return(nil).NotBefore(submitStandard)
+
 	c.runCheckWithRealTime(check, standardOption)
-
-	assert.Equal(t, 1, submitter.processResults.Len())
-	item, ok := submitter.processResults.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "foo")
-
-	assert.Equal(t, 0, submitter.rtProcessResults.Len())
 
 	rtResult := &checks.RunResult{
 		RealTime: []model.MessageBody{
@@ -247,12 +240,6 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	check.On("RunWithOptions", mock.Anything, rtOption).Once().Return(rtResult, nil)
 
 	c.runCheckWithRealTime(check, rtOption)
-
-	assert.Equal(t, 0, submitter.processResults.Len())
-	assert.Equal(t, 1, submitter.rtProcessResults.Len())
-	item, ok = submitter.rtProcessResults.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, "bar", item.Type())
 }
 
 func TestCollectorRunCheck(t *testing.T) {
@@ -262,11 +249,10 @@ func TestCollectorRunCheck(t *testing.T) {
 
 	c, err := NewCollector(nil, hostInfo, []checks.Check{})
 	require.NoError(t, err)
-	submitter, err := NewSubmitter(hostInfo.HostName)
+	submitter := processMocks.NewSubmitter(t)
 	require.NoError(t, err)
-	submitter.processResults = api.NewWeightedQueue(1, 1024)
-
 	c.submitter = submitter
+
 	result := []model.MessageBody{
 		&model.CollectorProc{},
 	}
@@ -275,11 +261,7 @@ func TestCollectorRunCheck(t *testing.T) {
 	check.On("Name").Return("foo")
 	check.On("RealTime").Return(false)
 	check.On("ShouldSaveLastRun").Return(true)
+	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 
 	c.runCheck(check)
-
-	assert.Equal(t, submitter.processResults.Len(), 1)
-	item, ok := submitter.processResults.Poll()
-	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "foo")
 }
