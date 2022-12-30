@@ -37,7 +37,15 @@
     - get-childitem ${BUILD_CONTEXT}
     # Docker setup
     - cat ci-scripts/docker-login.ps1
-    - docker run --rm -w C:\mnt -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -v "$(Get-Location):C:\mnt" -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES} powershell -C C:\mnt\ci-scripts\docker-login.ps1
+    - >-
+      docker run --rm
+      -w C:\mnt
+      -e AWS_NETWORKING=true
+      -e SIGN_WINDOWS=true
+      -v "$(Get-Location):C:\mnt"
+      -v \\.\pipe\docker_engine:\\.\pipe\docker_engine 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_${Env:VARIANT}_x64:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      powershell
+      -C C:\mnt\ci-scripts\docker-login.ps1
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "docker build --no-cache --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} ${BUILD_ARG} --pull --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile --tag ${TARGET_TAG} ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
