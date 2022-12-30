@@ -227,12 +227,12 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 	c.runCheckWithRealTime(check, standardOption)
 
-	assert.Equal(t, submitter.processResults.Len(), 1)
+	assert.Equal(t, 1, submitter.processResults.Len())
 	item, ok := submitter.processResults.Poll()
 	assert.True(t, ok)
 	assert.Equal(t, item.Type(), "foo")
 
-	assert.Equal(t, submitter.rtProcessResults.Len(), 0)
+	assert.Equal(t, 0, submitter.rtProcessResults.Len())
 
 	rtResult := &checks.RunResult{
 		RealTime: []model.MessageBody{
@@ -248,11 +248,11 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 	c.runCheckWithRealTime(check, rtOption)
 
-	assert.Equal(t, submitter.processResults.Len(), 0)
-	assert.Equal(t, submitter.rtProcessResults.Len(), 1)
+	assert.Equal(t, 0, submitter.processResults.Len())
+	assert.Equal(t, 1, submitter.rtProcessResults.Len())
 	item, ok = submitter.rtProcessResults.Poll()
 	assert.True(t, ok)
-	assert.Equal(t, item.Type(), "bar")
+	assert.Equal(t, "bar", item.Type())
 }
 
 func TestCollectorRunCheck(t *testing.T) {

@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -55,8 +54,8 @@ type submitter struct {
 	podForwarder         *forwarder.DefaultForwarder
 	eventForwarder       *forwarder.DefaultForwarder
 
-	oCfg     *oconfig.OrchestratorConfig
-	hostname string
+	orchestrator *oconfig.OrchestratorConfig
+	hostname     string
 
 	exit chan struct{}
 
@@ -155,8 +154,8 @@ func NewSubmitter(hostname string) (*submitter, error) {
 		podForwarder:         podForwarder,
 		eventForwarder:       eventForwarder,
 
-		oCfg:     orchestrator,
-		hostname: hostname,
+		orchestrator: orchestrator,
+		hostname:     hostname,
 
 		dropCheckPayloads: dropCheckPayloads,
 
@@ -185,10 +184,10 @@ func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEnd
 
 func (s *submitter) Submit(start time.Time, name string, messages []model.MessageBody) error {
 	results := s.resultsQueueForCheck(name)
-	if name == config.PodCheckName {
-		s.messagesToResultsQueue(start, config.PodCheckName, messages[:len(messages)/2], results)
-		if s.oCfg.IsManifestCollectionEnabled {
-			s.messagesToResultsQueue(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+	if name == checks.PodCheckName {
+		s.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
+		if s.orchestrator.IsManifestCollectionEnabled {
+			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
 		}
 		return nil
 	}
@@ -345,7 +344,7 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 			case checks.Pod.Name():
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
-			case config.PodCheckManifestName:
+			case checks.PodCheckManifestName:
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
@@ -444,7 +443,7 @@ func (s *submitter) messagesToCheckResult(start time.Time, name string, messages
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
-		if s.oCfg.OrchestrationCollectionEnabled {
+		if s.orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}

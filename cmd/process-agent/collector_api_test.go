@@ -7,6 +7,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"io"
 	"net"
 	"net/http"
@@ -53,6 +54,19 @@ func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endp
 		}
 	}
 	config.Set("process_config.events_additional_endpoints", additionalEps)
+}
+
+func setOrchestratorEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
+	additionalEps := make(map[string][]string)
+	for i, ep := range eps {
+		if i == 0 {
+			config.Set("api_key", ep.APIKey)
+			config.Set("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
+		} else {
+			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
+		}
+	}
+	config.Set("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
 }
 
 func TestSendConnectionsMessage(t *testing.T) {
@@ -337,9 +351,12 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	init := func(c *Collector) {
+	init := func(c *Collector, s *submitter) {
 		c.orchestrator.OrchestrationCollectionEnabled = true
 		c.orchestrator.IsManifestCollectionEnabled = true
+
+		s.orchestrator.OrchestrationCollectionEnabled = true
+		s.orchestrator.IsManifestCollectionEnabled = true
 	}
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), init, func(c *Collector, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, c, ep)
@@ -350,8 +367,9 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	init := func(c *Collector) {
+	init := func(c *Collector, s *submitter) {
 		c.orchestrator.OrchestrationCollectionEnabled = true
+		s.orchestrator.OrchestrationCollectionEnabled = true
 	}
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), init, func(c *Collector, ep *mockEndpoint) {
@@ -539,26 +557,31 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	}
 	setProcessEventsEndpointsForTest(mockConfig, eventsEps...)
 
-	hostInfo := &checks.HostInfo{
-		HostName: testHostName,
+	orchestratorEndpoints := make([]apicfg.Endpoint, 0, len(orchAPIKeys))
+	for _, key := range orchAPIKeys {
+		orchestratorEndpoints = append(orchestratorEndpoints, apicfg.Endpoint{APIKey: key, Endpoint: orchestratorAddr})
 	}
+	setOrchestratorEndpointsForTest(mockConfig, orchestratorEndpoints...)
 
 	exit := make(chan struct{})
 
+<<<<<<< HEAD
 	c, err := NewCollectorWithChecks(hostInfo, []checks.Check{check}, true)
 
+=======
+	hostInfo := &checks.HostInfo{
+		HostName: testHostName,
+	}
+	c, err := NewCollectorWithChecks(config.NewDefaultAgentConfig(), hostInfo, []checks.Check{check}, true)
+>>>>>>> f3b6d75358 (Fix orchestrator tests)
 	check.Init(nil, hostInfo)
 
 	assert.NoError(t, err)
-	if init != nil {
-		init(c)
-	}
-	c.submitter, err = NewSubmitter(cfg.HostName)
+	s, err := NewSubmitter(hostInfo.HostName)
 	require.NoError(t, err)
-
-	c.orchestrator.OrchestratorEndpoints = make([]apicfg.Endpoint, len(orchAPIKeys))
-	for index, key := range orchAPIKeys {
-		c.orchestrator.OrchestratorEndpoints[index] = apicfg.Endpoint{APIKey: key, Endpoint: orchestratorAddr}
+	c.submitter = s
+	if init != nil {
+		init(c, s)
 	}
 
 	var wg sync.WaitGroup
