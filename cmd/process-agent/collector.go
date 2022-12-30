@@ -92,29 +92,11 @@ func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledCh
 		}
 	}
 
-	return NewCollectorWithChecks(hostInfo, enabledChecks, runRealTime)
+	return NewCollectorWithChecks(enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, runRealTime bool) (*Collector, error) {
-	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
-	if queueSize <= 0 {
-		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
-		queueSize = ddconfig.DefaultProcessQueueSize
-	}
-
-	rtQueueSize := ddconfig.Datadog.GetInt("process_config.rt_queue_size")
-	if rtQueueSize <= 0 {
-		log.Warnf("Invalid rt check queue size: %d. Using default value: %d", rtQueueSize, ddconfig.DefaultProcessRTQueueSize)
-		rtQueueSize = ddconfig.DefaultProcessRTQueueSize
-	}
-
-	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
-	if queueBytes <= 0 {
-		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
-		queueBytes = ddconfig.DefaultProcessQueueBytes
-	}
-
+func NewCollectorWithChecks(checks []checks.Check, runRealTime bool) (*Collector, error) {
 	orchestrator := oconfig.NewDefaultOrchestratorConfig()
 	if err := orchestrator.Load(); err != nil {
 		return nil, err
@@ -122,7 +104,6 @@ func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, ru
 
 	return &Collector{
 		rtIntervalCh:  make(chan time.Duration),
-		hostInfo:      hostInfo,
 		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
@@ -130,8 +111,6 @@ func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, ru
 		// Defaults for real-time on start
 		realTimeInterval: 2 * time.Second,
 		realTimeEnabled:  atomic.NewBool(false),
-
-		forwarderRetryQueueMaxBytes: queueBytes,
 
 		runRealTime: runRealTime,
 	}, nil
@@ -365,16 +344,6 @@ func (l *Collector) basicRunner(c checks.Check, exit chan struct{}) func() {
 			}
 		}
 	}
-}
-
-func (l *Collector) shouldDropPayload(check string) bool {
-	for _, d := range l.dropCheckPayloads {
-		if d == check {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (l *Collector) UpdateRTStatus(statuses []*model.CollectorStatus) {
