@@ -306,6 +306,13 @@ func (s *submitter) Stop() {
 	s.connectionsResults.Stop()
 	s.podResults.Stop()
 	s.eventResults.Stop()
+
+	s.processForwarder.Stop()
+	s.rtProcessForwarder.Stop()
+	s.connectionsForwarder.Stop()
+	s.podForwarder.Stop()
+	s.eventForwarder.Stop()
+
 	close(s.exit)
 	s.wg.Wait()
 }

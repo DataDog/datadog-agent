@@ -241,12 +241,15 @@ func (l *Collector) run(exit chan struct{}) error {
 
 	go util.HandleSignals(exit)
 
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		<-exit
 		l.submitter.Stop()
 	}()
 
-	var wg sync.WaitGroup
 	for _, c := range l.enabledChecks {
 		runner, err := l.runnerForCheck(c, exit)
 		if err != nil {
