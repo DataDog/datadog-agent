@@ -20,7 +20,6 @@ replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
 	github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
 	github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
-	github.com/lxn/walk => github.com/lxn/walk v0.0.0-20180521183810-02935bac0ab8
 	github.com/mholt/archiver => github.com/mholt/archiver v2.0.1-0.20171012052341-26cf5bb32d07+incompatible
 	github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
 	github.com/ugorji/go => github.com/ugorji/go v1.1.7
@@ -131,8 +130,8 @@ require (
 	github.com/itchyny/gojq v0.12.10
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/lxn/walk v0.0.0-20191128110447-55ccb3a9f5c1
-	github.com/lxn/win v0.0.0-20191128105842-2da648fda5b4
+	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
+	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.7.7
 	github.com/mdlayher/netlink v1.6.2
 	github.com/mholt/archiver/v3 v3.5.1
