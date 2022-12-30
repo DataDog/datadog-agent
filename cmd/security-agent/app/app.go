@@ -29,9 +29,9 @@ import (
 	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
-	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -47,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
@@ -102,7 +102,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		subconfig.Commands,
 		compliance.Commands,
 		runtime.Commands,
-		subversion.Commands,
+		version.Commands,
 		StartCommands,
 	}
 
@@ -218,7 +218,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
-	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", pkgversion.AgentVersion))
 
 	stopper = startstop.NewSerialStopper()
 
@@ -332,7 +332,7 @@ func StopAgent(cancel context.CancelFunc) {
 func setupInternalProfiling() error {
 	cfg := coreconfig.Datadog
 	if cfg.GetBool(secAgentKey("internal_profiling.enabled")) {
-		v, _ := version.Agent()
+		v, _ := pkgversion.Agent()
 
 		cfgSite := cfg.GetString(secAgentKey("internal_profiling.site"))
 		cfgURL := cfg.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))
