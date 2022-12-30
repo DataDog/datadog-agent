@@ -189,7 +189,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, options che
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
-	err = l.submitter.Submit(start, c.Name(), run.RealTime)
+	err = l.submitter.Submit(start, c.RealTimeName(), run.RealTime)
 	if err != nil {
 		log.Errorf("Unable to submit check '%s': %s", c.Name(), err)
 		return
@@ -293,8 +293,6 @@ func (l *Collector) run(exit chan struct{}) error {
 }
 
 func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), error) {
-	//results := l.resultsQueueForCheck(c.Name())
-
 	withRealTime, ok := c.(checks.CheckWithRealTime)
 	if !l.runRealTime || !ok {
 		return l.basicRunner(c, exit), nil

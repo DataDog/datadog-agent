@@ -7,17 +7,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
-	"github.com/DataDog/datadog-agent/pkg/forwarder"
-	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"hash/fnv"
 	"net/http"
 	"os"
@@ -27,9 +16,20 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/resolver"
+	"github.com/DataDog/datadog-agent/pkg/forwarder"
+	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
+	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type Submitter interface {
