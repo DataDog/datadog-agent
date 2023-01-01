@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 	"io"
 	"os"
 	"path"
@@ -20,19 +22,17 @@ import (
 	"time"
 	"unsafe"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/config"
+	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -49,16 +49,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
-	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
+	cwsIntakeOrigin logsconfig.IntakeOrigin = "cloud-workload-security"
 )
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -67,14 +65,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "runtime Agent utility commands",
 	}
 
-	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
-	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
 	runtimeCmd.AddCommand(commonPolicyCommands(globalParams)...)
 	runtimeCmd.AddCommand(selfTestCommands(globalParams)...)
 	runtimeCmd.AddCommand(activityDumpCommands(globalParams)...)
 	runtimeCmd.AddCommand(processCacheCommands(globalParams)...)
 	runtimeCmd.AddCommand(networkNamespaceCommands(globalParams)...)
 	runtimeCmd.AddCommand(discardersCommands(globalParams)...)
+
+	// Deprecated
+	runtimeCmd.AddCommand(checkPoliciesCommands(globalParams)...)
+	runtimeCmd.AddCommand(reloadPoliciesCommands(globalParams)...)
 
 	return []*cobra.Command{runtimeCmd}
 }
@@ -85,6 +85,7 @@ type checkPoliciesCliParams struct {
 	dir string
 }
 
+// checkPoliciesCommands is deprecated
 func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
@@ -97,19 +98,20 @@ func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
+// reloadPoliciesCommands is deprecated
 func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
@@ -117,8 +119,8 @@ func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -162,14 +164,14 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 	evalCmd.Flags().StringVar(&evalArgs.ruleID, flags.RuleID, "", "Rule ID to evaluate")
 	_ = evalCmd.MarkFlagRequired(flags.RuleID)
 	evalCmd.Flags().StringVar(&evalArgs.eventFile, flags.EventFile, "", "File of the event data")
@@ -191,14 +193,14 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, pkgconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -210,8 +212,8 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -226,8 +228,8 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -255,8 +257,8 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
@@ -286,8 +288,8 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -321,8 +323,8 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -346,8 +348,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -362,7 +364,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-func dumpProcessCache(log complog.Component, config compconfig.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+func dumpProcessCache(log log.Component, config config.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -379,7 +381,7 @@ func dumpProcessCache(log complog.Component, config compconfig.Component, proces
 	return nil
 }
 
-func dumpNetworkNamespace(log complog.Component, config compconfig.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+func dumpNetworkNamespace(log log.Component, config config.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -515,7 +517,7 @@ func checkPoliciesInner(dir string) error {
 	return nil
 }
 
-func checkPolicies(log complog.Component, config compconfig.Component, args *checkPoliciesCliParams) error {
+func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
 	return checkPoliciesInner(args.dir)
 }
 
@@ -577,7 +579,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	return event, nil
 }
 
-func evalRule(log complog.Component, config compconfig.Component, evalArgs *evalCliParams) error {
+func evalRule(log log.Component, config config.Component, evalArgs *evalCliParams) error {
 	cfg := &secconfig.Config{
 		PoliciesDir:         evalArgs.dir,
 		EnableKernelFilters: true,
@@ -662,7 +664,7 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 	return nil
 }
 
-func runRuntimeSelfTest(log complog.Component, config compconfig.Component) error {
+func runRuntimeSelfTest(log log.Component, config config.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -682,7 +684,7 @@ func runRuntimeSelfTest(log complog.Component, config compconfig.Component) erro
 	return nil
 }
 
-func reloadRuntimePolicies(log complog.Component, config compconfig.Component) error {
+func reloadRuntimePolicies(log log.Component, config config.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -697,22 +699,22 @@ func reloadRuntimePolicies(log complog.Component, config compconfig.Component) e
 	return nil
 }
 
-func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string, endpoints *config.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
+func newRuntimeReporter(log log.Component, config config.Component, stopper startstop.Stopper, sourceName, sourceType string, endpoints *logsconfig.Endpoints, context *client.DestinationsContext) (event.Reporter, error) {
 	health := health.RegisterLiveness("runtime-security")
 
 	// setup the auditor
-	auditor := auditor.New(coreconfig.Datadog.GetString("runtime_security_config.run_path"), "runtime-security-registry.json", coreconfig.DefaultAuditorTTL, health)
+	auditor := auditor.New(config.GetString("runtime_security_config.run_path"), "runtime-security-registry.json", pkgconfig.DefaultAuditorTTL, health)
 	auditor.Start()
 	stopper.Add(auditor)
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
+	pipelineProvider := pipeline.NewProvider(logsconfig.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, context)
 	pipelineProvider.Start()
 	stopper.Add(pipelineProvider)
 
 	logSource := sources.NewLogSource(
 		sourceName,
-		&config.LogsConfig{
+		&logsconfig.LogsConfig{
 			Type:   sourceType,
 			Source: sourceName,
 		},
@@ -720,14 +722,13 @@ func newRuntimeReporter(stopper startstop.Stopper, sourceName, sourceType string
 	return event.NewReporter(logSource, pipelineProvider.NextPipelineChan()), nil
 }
 
-// This function will only be used on Linux. The only platforms where the runtime agent runs
-func newLogContextRuntime() (*config.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
-	logsConfigComplianceKeys := config.NewLogsConfigKeys("runtime_security_config.endpoints.", coreconfig.Datadog)
-	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, config.DefaultIntakeProtocol)
+func newLogContextRuntime() (*logsconfig.Endpoints, *client.DestinationsContext, error) { // nolint: deadcode, unused
+	logsConfigComplianceKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfig.Datadog)
+	return common.NewLogContext(logsConfigComplianceKeys, "runtime-security-http-intake.logs.", "logs", cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
-func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
-	enabled := coreconfig.Datadog.GetBool("runtime_security_config.enabled")
+func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*secagent.RuntimeSecurityAgent, error) {
+	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
 		log.Info("Datadog runtime security agent disabled by config")
 		return nil, nil
@@ -747,19 +748,20 @@ func StartRuntimeSecurity(hostname string, stopper startstop.Stopper, statsdClie
 	}
 	stopper.Add(context)
 
-	reporter, err := newRuntimeReporter(stopper, "runtime-security-agent", "runtime-security", endpoints, context)
+	reporter, err := newRuntimeReporter(log, config, stopper, "runtime-security-agent", "runtime-security", endpoints, context)
 	if err != nil {
 		return nil, err
 	}
 
 	agent.Start(reporter, endpoints)
 
-	log.Info("Datadog runtime security agent is now running")
+	// TODO: Use log component instead
+	pkglog.Info("Datadog runtime security agent is now running")
 
 	return agent, nil
 }
 
-func downloadPolicy(log complog.Component, config compconfig.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
+func downloadPolicy(log log.Component, config config.Component, downloadPolicyArgs *downloadPolicyCliParams) error {
 	apiKey := config.GetString("api_key")
 	appKey := config.GetString("app_key")
 
@@ -829,7 +831,7 @@ func downloadPolicy(log complog.Component, config compconfig.Component, download
 	return err
 }
 
-func dumpDiscarders(log complog.Component, config compconfig.Component) error {
+func dumpDiscarders(log log.Component, config config.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
