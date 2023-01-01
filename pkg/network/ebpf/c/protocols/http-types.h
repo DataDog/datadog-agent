@@ -84,8 +84,13 @@ typedef struct {
     __u16 owned_by_src_port;
 
     char request_fragment_bla[32] __attribute__ ((aligned (8)));
+    __u64 internal_dynamic_counter;
 
     __u8  request_method;
+    __u8  packet_type;
+    __u8  schema;
+    char path[32] __attribute__ ((aligned (8)));
+    char authority[32] __attribute__ ((aligned (8)));
 } http2_transaction_t;
 
 typedef struct {
