@@ -39,7 +39,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{complianceCmd}
 }
 
-type eventCliParams struct {
+type cliParams struct {
 	*command.GlobalParams
 
 	sourceName string
@@ -49,7 +49,7 @@ type eventCliParams struct {
 }
 
 func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
-	eventArgs := &eventCliParams{
+	eventArgs := &cliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -61,7 +61,8 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -79,7 +80,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log complog.Component, config compconfig.Component, eventArgs *eventCliParams) error {
+func eventRun(log complog.Component, config compconfig.Component, eventArgs *cliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 
