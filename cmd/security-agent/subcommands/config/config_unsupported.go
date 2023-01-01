@@ -13,6 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }
