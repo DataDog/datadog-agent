@@ -10,11 +10,12 @@ package http
 
 import (
 	"fmt"
+	"math"
+	"os"
+
 	"github.com/cilium/ebpf"
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
-	"math"
-	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 
