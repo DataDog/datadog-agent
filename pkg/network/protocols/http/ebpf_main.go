@@ -56,17 +56,17 @@ const (
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg                        *config.Config
-	bytecode                   bytecode.AssetReader
-	offsets                    []manager.ConstantEditor
-	subprograms                []subprogram
-	subprogramsProbesResolvers []probeResolvers
-	mapCleaner                 *ddebpf.MapCleaner
+	cfg             *config.Config
+	bytecode        bytecode.AssetReader
+	offsets         []manager.ConstantEditor
+	subprograms     []subprogram
+	probesResolvers []probeResolver
+	mapCleaner      *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
 
-type probeResolvers interface {
+type probeResolver interface {
 	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
@@ -167,7 +167,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	subprogramProbesResolvers := make([]probeResolvers, 0, 2)
+	subprogramProbesResolvers := make([]probeResolver, 0, 2)
 	subprograms := make([]subprogram, 0, 2)
 
 	goTLSProg := newGoTLSProgram(c)
@@ -182,13 +182,13 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 
 	program := &ebpfProgram{
-		Manager:                    errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:                   bc,
-		cfg:                        c,
-		offsets:                    offsets,
-		batchCompletionHandler:     batchCompletionHandler,
-		subprograms:                subprograms,
-		subprogramsProbesResolvers: subprogramProbesResolvers,
+		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
+		bytecode:               bc,
+		cfg:                    c,
+		offsets:                offsets,
+		batchCompletionHandler: batchCompletionHandler,
+		subprograms:            subprograms,
+		probesResolvers:        subprogramProbesResolvers,
 	}
 
 	return program, nil
@@ -203,7 +203,7 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 
-	for _, s := range e.subprogramsProbesResolvers {
+	for _, s := range e.probesResolvers {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 
