@@ -10,13 +10,11 @@ package http
 
 import (
 	"fmt"
-	"math"
-	"os"
-	"reflect"
-
 	"github.com/cilium/ebpf"
 	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
+	"math"
+	"os"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -57,19 +55,17 @@ const (
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg         *config.Config
-	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-	subprograms []subprogram
-	mapCleaner  *ddebpf.MapCleaner
+	cfg                        *config.Config
+	bytecode                   bytecode.AssetReader
+	offsets                    []manager.ConstantEditor
+	subprograms                []subprogram
+	subprogramsProbesResolvers []probeResolvers
+	mapCleaner                 *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
 
-type subprogram interface {
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-
+type probeResolvers interface {
 	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
@@ -93,6 +89,11 @@ type subprogram interface {
 	// To reiterate, this is necessary due to the fact that the cilium loader loads
 	// all programs defined in an ELF file regardless if they are later attached or not.
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
+}
+
+type subprogram interface {
+	ConfigureManager(*errtelemetry.Manager)
+	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
 }
@@ -165,21 +166,28 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	// Add the subprograms even if nil, so that the manager can get the
-	// undefined probes from them when they are not enabled. Subprograms
-	// functions do checks for nil before doing anything.
-	ebpfSubprograms := []subprogram{
-		newGoTLSProgram(c),
-		newSSLProgram(c, sockFD),
+	subprogramProbesResolvers := make([]probeResolvers, 0, 2)
+	subprograms := make([]subprogram, 0, 2)
+
+	goTLSProg := newGoTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
+	if goTLSProg != nil {
+		subprograms = append(subprograms, goTLSProg)
+	}
+	openSSLProg := newSSLProgram(c, sockFD)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
+	if openSSLProg != nil {
+		subprograms = append(subprograms, openSSLProg)
 	}
 
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:               bc,
-		cfg:                    c,
-		offsets:                offsets,
-		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            ebpfSubprograms,
+		Manager:                    errtelemetry.NewManager(mgr, bpfTelemetry),
+		bytecode:                   bc,
+		cfg:                        c,
+		offsets:                    offsets,
+		batchCompletionHandler:     batchCompletionHandler,
+		subprograms:                subprograms,
+		subprogramsProbesResolvers: subprogramProbesResolvers,
 	}
 
 	return program, nil
@@ -194,16 +202,9 @@ func (e *ebpfProgram) Init() error {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 
-	enabledSubPrograms := make([]subprogram, 0, len(e.subprograms))
-	for _, s := range e.subprograms {
+	for _, s := range e.subprogramsProbesResolvers {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
-
-		if !reflect.ValueOf(s).IsNil() {
-			enabledSubPrograms = append(enabledSubPrograms, s)
-		}
 	}
-
-	e.subprograms = enabledSubPrograms
 
 	e.DumpHandler = dumpMapsHandler
 	e.InstructionPatcher = func(m *manager.Manager) error {

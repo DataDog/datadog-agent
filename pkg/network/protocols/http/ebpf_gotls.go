@@ -197,7 +197,8 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 
 func (p *GoTLSProgram) ConfigureOptions(_ *manager.Options) {}
 
-func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
+func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	probeList := make([]manager.ProbeIdentificationPair, 0)
 	for _, probeInfo := range functionToProbes {
 		if probeInfo.functionInfo != nil {
 			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
@@ -208,11 +209,10 @@ func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentif
 		}
 	}
 
-	return
+	return probeList
 }
 
 func (p *GoTLSProgram) Start() {
-
 	var err error
 	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
@@ -247,7 +247,6 @@ failed:
 	if p.procMonitor.cleanupExit != nil {
 		p.procMonitor.cleanupExit()
 	}
-	return
 }
 
 func (p *GoTLSProgram) Stop() {
