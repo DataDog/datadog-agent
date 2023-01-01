@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"net/http"
 	"os"
 	"path"
@@ -27,13 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
 	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/flare"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -50,8 +51,6 @@ import (
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
