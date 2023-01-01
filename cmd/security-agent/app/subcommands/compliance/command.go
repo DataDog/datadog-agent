@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
@@ -34,7 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	}
 
 	complianceCmd.AddCommand(complianceEventCommand(globalParams))
-	complianceCmd.AddCommand(check.SecAgentCommands(globalParams)...)
+	complianceCmd.AddCommand(check.Commands(globalParams)...)
 
 	return []*cobra.Command{complianceCmd}
 }

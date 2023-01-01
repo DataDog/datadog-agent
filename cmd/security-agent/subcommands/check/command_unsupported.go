@@ -12,6 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }

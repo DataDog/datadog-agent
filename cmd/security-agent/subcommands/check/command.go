@@ -11,14 +11,14 @@ package check
 import (
 	"context"
 	"errors"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -31,7 +31,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-type checkCliParams struct {
+type cliParams struct {
+	*command.GlobalParams
+
 	args []string
 
 	framework         string
@@ -44,16 +46,9 @@ type checkCliParams struct {
 	skipRegoEval      bool
 }
 
-func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	bp := core.BundleParams{
-		ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-		LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}
-	return Commands(bp)
-}
-
 // Commands returns a cobra command to run security agent checks
-func Commands(bundleParams core.BundleParams) []*cobra.Command {
-	checkArgs := &checkCliParams{}
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	checkArgs := &cliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -61,10 +56,13 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			checkArgs.args = args
+			bundleParams := core.BundleParams{
+				ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+				LogParams:    log.LogForOneShot(command.LoggerName, "info", true),
+			}
 			if checkArgs.verbose {
 				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
-
 			return fxutil.OneShot(runCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
@@ -85,7 +83,7 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func runCheck(log log.Component, config config.Component, checkArgs *checkCliParams) error {
+func runCheck(log log.Component, config config.Component, checkArgs *cliParams) error {
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}
