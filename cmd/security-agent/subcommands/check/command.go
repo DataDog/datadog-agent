@@ -31,7 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-type cliParams struct {
+// CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
+type CliParams struct {
 	*command.GlobalParams
 
 	args []string
@@ -48,7 +49,7 @@ type cliParams struct {
 
 // Commands returns a cobra command to run security agent checks
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	checkArgs := &cliParams{}
+	checkArgs := &CliParams{}
 
 	cmd := &cobra.Command{
 		Use:   "check",
@@ -63,7 +64,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			if checkArgs.verbose {
 				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
-			return fxutil.OneShot(runCheck,
+
+			return fxutil.OneShot(RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle,
@@ -83,7 +85,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func runCheck(log log.Component, config config.Component, checkArgs *cliParams) error {
+func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
 	if checkArgs.skipRegoEval && checkArgs.dumpReports != "" {
 		return errors.New("skipping the rego evaluation does not allow the generation of reports")
 	}

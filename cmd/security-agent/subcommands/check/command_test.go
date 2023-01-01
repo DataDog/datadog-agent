@@ -22,12 +22,12 @@ func TestCommands(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *cliParams, params core.BundleParams)
+		check    func(cliParams *CliParams, params core.BundleParams)
 	}{
 		{
 			name:     "check",
 			cliInput: []string{"check"},
-			check: func(cliParams *cliParams, params core.BundleParams) {
+			check: func(cliParams *CliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},
@@ -35,7 +35,7 @@ func TestCommands(t *testing.T) {
 		{
 			name:     "verbose",
 			cliInput: []string{"check", "--verbose"},
-			check: func(cliParams *cliParams, params core.BundleParams) {
+			check: func(cliParams *CliParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "trace", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},
@@ -46,7 +46,7 @@ func TestCommands(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
 			Commands(&command.GlobalParams{}),
 			test.cliInput,
-			runCheck,
+			RunCheck,
 			test.check,
 		)
 	}
