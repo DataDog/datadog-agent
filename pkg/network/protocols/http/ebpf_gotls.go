@@ -186,10 +186,6 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 }
 
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
-	if p == nil {
-		return
-	}
-
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		{Name: offsetsDataMap},
@@ -199,7 +195,7 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
-func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *GoTLSProgram) ConfigureOptions(_ *manager.Options) {}
 
 func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
 	for _, probeInfo := range functionToProbes {
@@ -216,9 +212,6 @@ func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentif
 }
 
 func (p *GoTLSProgram) Start() {
-	if p == nil {
-		return
-	}
 
 	var err error
 	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
@@ -258,9 +251,6 @@ failed:
 }
 
 func (p *GoTLSProgram) Stop() {
-	if p == nil {
-		return
-	}
 	p.procMonitor.cleanupExec()
 	p.procMonitor.cleanupExit()
 }

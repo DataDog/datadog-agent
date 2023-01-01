@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"reflect"
 
 	"github.com/cilium/ebpf"
 	"github.com/iovisor/gobpf/pkg/cpupossible"
@@ -69,6 +70,7 @@ type subprogram interface {
 	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
 
+	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
 	// in an ELF file in to the kernel. Therefore, these programs may be
@@ -191,9 +193,17 @@ func (e *ebpfProgram) Init() error {
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
+
+	enabledSubPrograms := make([]subprogram, 0, len(e.subprograms))
 	for _, s := range e.subprograms {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+
+		if !reflect.ValueOf(s).IsNil() {
+			enabledSubPrograms = append(enabledSubPrograms, s)
+		}
 	}
+
+	e.subprograms = enabledSubPrograms
 
 	e.DumpHandler = dumpMapsHandler
 	e.InstructionPatcher = func(m *manager.Manager) error {
