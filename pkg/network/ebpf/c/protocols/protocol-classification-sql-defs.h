@@ -3,6 +3,8 @@
 
 #include "bpf_builtins.h"
 
+#define SQL_COMMAND_MAX_SIZE 6
+
 #define SQL_ALTER "ALTER"
 #define SQL_CREATE "CREATE"
 #define SQL_DELETE "DELETE"
@@ -19,6 +21,17 @@
     && !bpf_memcmp((buf), &(command), sizeof(command) - 1))
 
 static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
+    char tmp[SQL_COMMAND_MAX_SIZE];
+
+#pragma unroll (SQL_COMMAND_MAX_SIZE)
+    for (int i = 0; i < SQL_COMMAND_MAX_SIZE; i++) {
+        if ('a' <= buf[i] && buf[i] <= 'z') {
+            tmp[i] = buf[i] - 'a' +'A';
+        } else {
+            tmp[i] = buf[i];
+        }
+    }
+
     return check_command(buf, SQL_ALTER, buf_size)
         || check_command(buf, SQL_CREATE, buf_size)
         || check_command(buf, SQL_DELETE, buf_size)
