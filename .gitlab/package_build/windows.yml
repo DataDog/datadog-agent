@@ -10,7 +10,7 @@
     - mkdir omnibus\pkg
     - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name ci.datadog-agent-buildimages.vcpkg_blob_sas_url --with-decryption --query "Parameter.Value" --out text)
     - !reference [.setup_ruby_mirror_win]
-    - >-
+    - >
       docker run --rm
       -m 4096M
       -v "$(Get-Location):c:\mnt"
@@ -94,7 +94,7 @@ windows_zip_agent_binaries_x64-a7:
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
     - !reference [.setup_ruby_mirror_win]
-    - >-
+    - >
       docker run --rm
       -m 4096M
       -v "$(Get-Location):c:\mnt"

@@ -37,7 +37,7 @@
     - get-childitem ${BUILD_CONTEXT}
     # Docker setup
     - cat ci-scripts/docker-login.ps1
-    - >-
+    - >
       docker run --rm
       -w C:\mnt
       -e AWS_NETWORKING=true
