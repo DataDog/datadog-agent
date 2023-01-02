@@ -16,6 +16,7 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 )
@@ -222,7 +223,7 @@ func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 }
 
 //nolint:deadcode,unused
-func validateRuleSetLoadedSchema(t *testing.T, event *sprobe.CustomEvent) bool {
+func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 	t.Helper()
 	return validateStringSchema(t, event.String(), "file:///schemas/ruleset_loaded.schema.json")
 }
