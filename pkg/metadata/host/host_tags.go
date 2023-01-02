@@ -82,7 +82,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 		return appendAndSplitTags(old, new, splits)
 	}
 
-	rawHostTags := config.GetConfiguredTags(false)
+	rawHostTags := config.GetGlobalConfiguredTags(false)
 	hostTags := make([]string, 0, len(rawHostTags))
 	gceTags := []string{}
 	hostTags = appendToHostTags(hostTags, rawHostTags)

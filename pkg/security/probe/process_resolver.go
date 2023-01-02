@@ -29,7 +29,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -103,7 +103,7 @@ type ProcessResolver struct {
 	manager      *manager.Manager
 	config       *config.Config
 	statsdClient statsd.ClientInterface
-	scrubber     *pconfig.DataScrubber
+	scrubber     *procutil.DataScrubber
 
 	resolvers        *Resolvers
 	execFileCacheMap *lib.Map
@@ -447,10 +447,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		entry.ArgsEntry.SetValues(filledProc.Cmdline)
 	}
 
-	if envs, truncated, err := utils.EnvVars(proc.Pid); err == nil {
+	if envs, err := utils.EnvVars(proc.Pid); err == nil {
 		entry.EnvsEntry = &model.EnvsEntry{}
 		entry.EnvsEntry.SetValues(envs)
-		entry.EnvsTruncated = truncated
 	}
 
 	if parent := p.entryCache[entry.PPid]; parent != nil {
@@ -1290,7 +1289,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *pconfig.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err

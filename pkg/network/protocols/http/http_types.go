@@ -34,9 +34,9 @@ const (
 	ProtocolHTTP     ProtocolType = C.PROTOCOL_HTTP
 	ProtocolHTTP2    ProtocolType = C.PROTOCOL_HTTP2
 	ProtocolTLS      ProtocolType = C.PROTOCOL_TLS
-	ProtocolKafka    ProtocolType = C.PROTOCOL_KAFKA
-	ProtocolMongo    ProtocolType = C.PROTOCOL_MONGO
 	ProtocolPostgres ProtocolType = C.PROTOCOL_POSTGRES
+	ProtocolAMQP     ProtocolType = C.PROTOCOL_AMQP
+	ProtocolRedis    ProtocolType = C.PROTOCOL_REDIS
 	ProtocolMax      ProtocolType = C.MAX_PROTOCOLS
 )
 

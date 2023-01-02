@@ -32,14 +32,15 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) {
+func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) error {
 	r.maxBatchSize = getMaxBatchSize()
 	r.sysInfo = sysInfo
 	r.containerProvider = util.GetSharedContainerProvider()
+	return nil
 }
 
 // Name returns the name of the RTContainerCheck.
-func (r *RTContainerCheck) Name() string { return config.RTContainerCheckName }
+func (r *RTContainerCheck) Name() string { return RTContainerCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (r *RTContainerCheck) RealTime() bool { return true }

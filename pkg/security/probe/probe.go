@@ -30,13 +30,14 @@ import (
 	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -58,7 +59,7 @@ type ActivityDumpHandler interface {
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *Event)
-	HandleCustomEvent(rule *rules.Rule, event *CustomEvent)
+	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -93,7 +94,7 @@ type Probe struct {
 	resolvers   *Resolvers
 	event       *Event
 	eventStream EventStream
-	scrubber    *pconfig.DataScrubber
+	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -341,7 +342,7 @@ func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
-func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
+func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	// send specific event
@@ -1465,7 +1466,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
-	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	resolvers, err := NewResolvers(config, p)

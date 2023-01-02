@@ -64,6 +64,56 @@ static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
     return is_http2_preface(buf, buf_size) || is_http2_server_settings(buf, buf_size);
 }
 
+// The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH);
+
+#define AMQP_PREFACE "AMQP"
+
+    bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
+
+    return match;
+}
+
+// The method checks if the given buffer is an AMQP message.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
+    // New connection should start with protocol header of AMQP.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    if (is_amqp_protocol_header(buf, buf_size)) {
+        return true;
+    }
+
+    // Validate that we will be able to get from the buffer the class and method ids.
+    if (buf_size < AMQP_MIN_PAYLOAD_LENGTH) {
+       return false;
+    }
+
+    uint8_t frame_type = buf[0];
+    // Check only for method frame type.
+    if (frame_type != AMQP_FRAME_METHOD_TYPE) {
+        return false;
+    }
+
+    // We extract the class id and method id by big indian from the buffer.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    __u16 class_id = buf[7] << 8 | buf[8];
+    __u16 method_id = buf[9] << 8 | buf[10];
+
+    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
+    // consider for the classification.
+    if (class_id == AMQP_CONNECTION_CLASS) {
+        return  method_id == AMQP_METHOD_CONNECTION_START || method_id == AMQP_METHOD_CONNECTION_START_OK;
+    }
+
+    if (class_id == AMQP_BASIC_CLASS) {
+        return method_id == AMQP_METHOD_PUBLISH || method_id == AMQP_METHOD_DELIVER || method_id == AMQP_METHOD_CONSUME;
+    }
+
+    return false;
+}
+
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
 // a request, where <method> is one of: GET, POST, PUT, DELETE, HEAD, OPTIONS, or PATCH.
 static __always_inline bool is_http(const char *buf, __u32 size) {
@@ -146,6 +196,89 @@ static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
     return is_postgres_query(buf, buf_size) || is_postgres_connect(buf, buf_size);
 }
 
+// Checks the buffer represent a standard response (OK) or any of redis commands
+// https://redis.io/commands/
+static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+    bool found_cr = false;
+    char current_char;
+    int i = index_to_start_from;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        current_char = buf[i];
+        if (current_char == '\r') {
+            found_cr = true;
+            break;
+        } else if ('A' <= current_char && current_char <= 'Z') {
+            continue;
+        } else if ('a' <= current_char && current_char <= 'z') {
+            continue;
+        } else if (current_char == '.' || current_char == ' ' || current_char == '-' || current_char == '_') {
+            continue;
+        }
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+// Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
+static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
+#define ERR "-ERR "
+#define WRONGTYPE "-WRONGTYPE "
+
+    // memcmp returns
+    // 0 when s1 == s2,
+    // !0 when s1 != s2.
+    bool match = !(bpf_memcmp(buf, ERR, sizeof(ERR)-1)
+        && bpf_memcmp(buf, WRONGTYPE, sizeof(WRONGTYPE)-1));
+
+    return match;
+}
+
+static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+    bool found_cr = false;
+    char current_char;
+    int i = index_to_start_from;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        current_char = buf[i];
+        if (current_char == '\r') {
+            found_cr = true;
+            break;
+        } else if ('0' <= current_char && current_char <= '9') {
+            continue;
+        }
+
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH);
+
+    char first_char = buf[0];
+    switch (first_char) {
+    case '+':
+        return check_supported_ascii_and_crlf(buf, buf_size, 1);
+    case '-':
+        return check_err_prefix(buf, buf_size);
+    case ':':
+    case '$':
+    case '*':
+        return check_integer_and_crlf(buf, buf_size, 1);
+    default:
+        return false;
+    }
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
@@ -159,6 +292,10 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_HTTP2;
     } else if (is_postgres(buf, size)) {
         *protocol = PROTOCOL_POSTGRES;
+    } else if (is_amqp(buf, size)) {
+        *protocol = PROTOCOL_AMQP;
+    } else if (is_redis(buf, size)) {
+        *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

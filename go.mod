@@ -42,7 +42,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.46
+	github.com/DataDog/agent-payload/v5 v5.0.50
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
@@ -359,11 +359,12 @@ require (
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/sassoftware/go-rpmutils v0.2.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0
 	github.com/shopspring/decimal v1.2.0 // indirect
-	github.com/skydive-project/go-debouncer v1.0.0 // indirect
+	github.com/skydive-project/go-debouncer v1.0.0
 	github.com/smira/go-ftp-protocol v0.0.0-20140829150050-066b75c2b70d // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
@@ -428,12 +429,15 @@ require (
 
 require (
 	github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+	github.com/go-redis/redis/v9 v9.0.0-rc.2
+	github.com/streadway/amqp v1.0.0
 	github.com/uptrace/bun v1.1.9
 	github.com/uptrace/bun/dialect/pgdialect v1.1.9
 	github.com/uptrace/bun/driver/pgdriver v1.1.9
 )
 
 require (
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect

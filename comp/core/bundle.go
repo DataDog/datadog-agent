@@ -14,6 +14,7 @@ package core
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -28,6 +29,7 @@ var Bundle = fxutil.Bundle(
 	config.Module,
 	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 	log.Module,
+	flare.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.

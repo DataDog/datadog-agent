@@ -13,5 +13,8 @@ const (
 	ProtocolHTTP
 	ProtocolHTTP2
 	ProtocolTLS
-	MaxProtocols
+	ProtocolPostgres = 7
+	ProtocolAMQP     = 8
+	ProtocolRedis    = 9
+	MaxProtocols     = 10
 )

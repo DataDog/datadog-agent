@@ -149,8 +149,24 @@ set +o pipefail
 test_suites=".*"
 # This for loop retries kitchen tests failing because of infrastructure/networking issues
 for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
-  bundle exec kitchen verify "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
-  result=${PIPESTATUS[0]}
+  bundle exec kitchen converge "$test_suites" -c -d always 2>&1 | tee "/tmp/runlog${attempt}"
+  converge_result=${PIPESTATUS[0]}
+
+  # HACK: Since December 24, 2022, the first verify attempt always fails, due to a bundler <-> ruby
+  # version issue at the start of the verifier.
+  # The kitchen verifier uses the latest version of busser (0.8.0). busser detects that we have rspec tests,
+  # and therefore installs the latest version of the busser-rspec gem (0.7.6).
+  # The busser-rspec gem has a postinstall hook that installs the latest versions of the rspec and bundler gems.
+  # The rspec install goes fine, but the bundler install fails since December 24, 2022, when 2.4.0 of bundler
+  # was released, which drops support for ruby < 2.6.
+  # Running kitchen verify another time does work, because the postinstall hook isn't run again,
+  # and we don't actually need bundler in the test suites (for suites that do have depedencies, we install them
+  # manually with lifecycle hooks in the platform definitions).
+  bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 || true
+
+  bundle exec kitchen verify "$test_suites" --no-log-overwrite -c -d always 2>&1 | tee -a "/tmp/runlog${attempt}"
+  verify_result=${PIPESTATUS[0]}
+
   # Before destroying the kitchen machines, get the list of failed suites,
   # as their status will be reset to non-failing once they're destroyed.
   # failing_test_suites is a newline-separated list of the failing test suite names.
@@ -170,7 +186,7 @@ for attempt in $(seq 0 "${KITCHEN_INFRASTRUCTURE_FLAKES_RETRY:-2}"); do
     break
   fi
 
-  if [ "$result" -eq 0 ]; then
+  if [ "$converge_result" -eq 0 ] && [ "$verify_result" -eq 0 ]; then
       # if kitchen test succeeded, exit with 0
       exit 0
   else

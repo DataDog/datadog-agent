@@ -103,7 +103,7 @@ func fmtProcessStats(
 	lastRun time.Time,
 	connsByPID map[int32][]*model.Connection,
 ) [][]*model.ProcessStat {
-	connCheckIntervalS := int(cfg.CheckIntervals[config.ConnectionsCheckName] / time.Second)
+	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, maxBatchSize)

@@ -15,6 +15,26 @@
 // The minimal HTTP request has 16 characters: GET x HTTP/1.1\r\n
 #define HTTP_MIN_SIZE 16
 
+// RabbitMQ supported classes.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+#define AMQP_CONNECTION_CLASS 10
+#define AMQP_BASIC_CLASS 60
+
+// RabbitMQ supported connections.
+#define AMQP_METHOD_CONNECTION_START 10
+#define AMQP_METHOD_CONNECTION_START_OK 11
+
+// RabbitMQ supported methods types.
+#define AMQP_METHOD_CONSUME 20
+#define AMQP_METHOD_PUBLISH 40
+#define AMQP_METHOD_DELIVER 60
+#define AMQP_FRAME_METHOD_TYPE 1
+
+#define AMQP_MIN_FRAME_LENGTH 8
+#define AMQP_MIN_PAYLOAD_LENGTH 11
+
+#define REDIS_MIN_FRAME_LENGTH 3
+
 // Postgres
 
 // The minimum size we want to be able to check for a startup message. This size includes:
@@ -51,9 +71,9 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
-    PROTOCOL_KAFKA,
-    PROTOCOL_MONGO,
-    PROTOCOL_POSTGRES,
+    PROTOCOL_POSTGRES = 7,
+    PROTOCOL_AMQP = 8,
+    PROTOCOL_REDIS = 9,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,

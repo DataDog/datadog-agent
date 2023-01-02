@@ -8,7 +8,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"runtime"
 	"testing"
 	"time"
 
@@ -23,14 +22,6 @@ type DummyTable struct {
 
 	ID  int64 `bun:",pk,autoincrement"`
 	Foo string
-}
-
-func PostgresTestsSupported() (bool, string) {
-	if runtime.GOOS != "linux" {
-		return true, "Postgres tests supported only on Linux"
-	}
-
-	return false, ""
 }
 
 // GetPGHandle returns a handle on the test Postgres DB. This does not initiate

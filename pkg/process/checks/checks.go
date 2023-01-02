@@ -11,12 +11,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
+// Name for check performed by process-agent or system-probe
+const (
+	ProcessCheckName       = "process"
+	RTProcessCheckName     = "rtprocess"
+	ContainerCheckName     = "container"
+	RTContainerCheckName   = "rtcontainer"
+	ConnectionsCheckName   = "connections"
+	PodCheckName           = "pod"
+	PodCheckManifestName   = "pod_manifest"
+	DiscoveryCheckName     = "process_discovery"
+	ProcessEventsCheckName = "process_events"
+)
+
 // Check is an interface for Agent checks that collect data. Each check returns
 // a specific MessageBody type that will be published to the intake endpoint or
 // processed in another way (e.g. printed for debugging).
 // Before checks are used you must called Init.
 type Check interface {
-	Init(cfg *config.AgentConfig, info *model.SystemInfo)
+	Init(cfg *config.AgentConfig, info *model.SystemInfo) error
 	Name() string
 	RealTime() bool
 	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)

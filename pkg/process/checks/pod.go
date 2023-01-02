@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
@@ -25,24 +26,28 @@ import (
 )
 
 // Pod is a singleton PodCheck.
-var Pod = &PodCheck{}
+var Pod = &PodCheck{
+	config: oconfig.NewDefaultOrchestratorConfig(),
+}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
 	sysInfo                 *model.SystemInfo
 	containerFailedLogLimit *util.LogLimit
 	processor               *processors.Processor
+	config                  *oconfig.OrchestratorConfig
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) {
+func (c *PodCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
 	c.sysInfo = info
+	return c.config.Load()
 }
 
 // Name returns the name of the ProcessCheck.
-func (c *PodCheck) Name() string { return config.PodCheckName }
+func (c *PodCheck) Name() string { return PodCheckName }
 
 // RealTime indicates if this check only runs in real-time mode.
 func (c *PodCheck) RealTime() bool { return false }
@@ -69,7 +74,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	ctx := &processors.ProcessorContext{
 		ClusterID:          clusterID,
-		Cfg:                cfg.Orchestrator,
+		Cfg:                c.config,
 		HostName:           cfg.HostName,
 		MsgGroupID:         groupID,
 		NodeType:           orchestrator.K8sPod,
