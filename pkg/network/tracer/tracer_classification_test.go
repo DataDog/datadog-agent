@@ -22,6 +22,8 @@ import (
 
 	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kversion"
 	"github.com/uptrace/bun"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
@@ -110,6 +113,7 @@ const (
 	httpPort     = "8080"
 	tcpPort      = "9999"
 	http2Port    = "9090"
+	kafkaPort    = "9092"
 )
 
 func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
@@ -117,6 +121,10 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 		name     string
 		testFunc func(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string)
 	}{
+		{
+			name:     "kafka",
+			testFunc: testKafkaProtocolClassification,
+		},
 		{
 			name:     "mysql",
 			testFunc: testMySQLProtocolClassification,
@@ -153,6 +161,197 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, cfg, clientHost, targetHost, serverHost)
+		})
+	}
+}
+
+func testKafkaProtocolClassification(t *testing.T, cfg *config.Config, clientHost, targetHost, serverHost string) {
+	const topicName = "franz-kafka"
+	testIndex := 0
+	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
+	// per a test.
+	getTopicName := func() string {
+		testIndex++
+		return fmt.Sprintf("%s-%d", topicName, testIndex)
+	}
+
+	cfg.BPFDebug = true
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    kafkaPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	kafkaTeardown := func(t *testing.T, ctx testContext) {
+		if _, ok := ctx.extras["client"]; !ok {
+			return
+		}
+		client := ctx.extras["client"].(*kafka.Client)
+		defer client.Client.Close()
+		if _, ok := ctx.extras["topic_name"]; !ok {
+			return
+		}
+		require.NoError(t, client.DeleteTopic(ctx.extras["topic_name"].(string)))
+	}
+
+	// Setting one instance of postgres server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
+	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
+	kafka.RunServer(t, serverHost, kafkaPort)
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "connect",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			validation: validateProtocolConnection(network.ProtocolUnknown),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "create topic",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			validation: validateProtocolConnection(network.ProtocolUnknown),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "produce - version V0_10_1",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection(network.ProtocolKafka),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "produce - empty string client id",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection(network.ProtocolKafka),
+			teardown:   kafkaTeardown,
+		},
+		{
+			name: "fetch - sanity",
+			context: testContext{
+				serverPort:    kafkaPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras: map[string]interface{}{
+					"topic_name": getTopicName(),
+				},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := kafka.NewClient(kafka.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1()), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kafka.Client)
+				fetches := client.Client.PollFetches(context.Background())
+				require.Empty(t, fetches.Errors())
+				records := fetches.Records()
+				require.Len(t, records, 1)
+				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
+			},
+			validation: validateProtocolConnection(network.ProtocolKafka),
+			teardown:   kafkaTeardown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, cfg)
 		})
 	}
 }

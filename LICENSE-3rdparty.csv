@@ -973,6 +973,7 @@ core,github.com/klauspost/compress/gzip,BSD-3-Clause,Copyright (c) 2011 The Snap
 core,github.com/klauspost/compress/huff0,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/cpuinfo,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
+core,github.com/klauspost/compress/s2,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
@@ -1275,6 +1276,15 @@ core,github.com/tmthrgd/go-hex,BSD-3-Clause,"Copyright (c) 2005-2016, Wojciech M
 core,github.com/twitchtv/twirp,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
 core,github.com/twitchtv/twirp/ctxsetters,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
 core,github.com/twitchtv/twirp/internal/contextkeys,Apache-2.0,"Copyright 2018 Twitch Interactive, Inc.  All Rights Reserved"
+core,github.com/twmb/franz-go/pkg/kadm,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kbin,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kerr,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kgo,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kgo/internal/sticky,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kmsg,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kmsg/internal/kbin,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/kversion,BSD-3-Clause,"Copyright 2020, Travis Bischel"
+core,github.com/twmb/franz-go/pkg/sasl,BSD-3-Clause,"Copyright 2020, Travis Bischel"
 core,github.com/twmb/murmur3,BSD-3-Clause,"Copyright 2013, Sébastien Paolacci | Copyright 2018, Travis Bischel"
 core,github.com/ugorji/go/codec,MIT,Copyright (c) 2012-2020 Ugorji Nwoke
 core,github.com/ulikunitz/xz,BSD-3-Clause,Copyright (c) 2014-2021  Ulrich Kunitz

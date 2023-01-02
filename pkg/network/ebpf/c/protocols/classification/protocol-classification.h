@@ -12,6 +12,7 @@
 #include "protocols/classification/structs.h"
 #include "protocols/http/classification-helpers.h"
 #include "protocols/http2/helpers.h"
+#include "protocols/kafka/helpers.h"
 #include "protocols/mongo/helpers.h"
 #include "protocols/mysql/helpers.h"
 #include "protocols/redis/helpers.h"
@@ -19,7 +20,7 @@
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
-static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size) {
+static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size, struct __sk_buff *skb, skb_info_t *skb_info) {
     if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
         return;
     }
@@ -28,6 +29,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (is_kafka(skb, skb_info, buf, size)) {
+        *protocol = PROTOCOL_KAFKA;
     } else if (is_amqp(buf, size)) {
         *protocol = PROTOCOL_AMQP;
     } else if (is_redis(buf, size)) {
@@ -81,7 +84,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-    classify_protocol(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
+    classify_protocol(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size, skb, &skb_info);
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         bpf_map_update_with_telemetry(connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);

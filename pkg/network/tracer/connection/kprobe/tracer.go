@@ -132,9 +132,11 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOpts.MapSpecEditors[probes.ProtocolClassificationBufMap] = manager.MapSpecEditor{
-			Type:       ebpf.Array,
-			EditorFlag: manager.EditType,
+		for _, mapName := range []string{probes.ProtocolClassificationBufMap, probes.KafkaClientIDBufMap, probes.KafkaTopicNameBufMap} {
+			mgrOpts.MapSpecEditors[mapName] = manager.MapSpecEditor{
+				Type:       ebpf.Array,
+				EditorFlag: manager.EditType,
+			}
 		}
 	}
 
