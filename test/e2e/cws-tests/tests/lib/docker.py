@@ -110,7 +110,7 @@ class DockerHelper(LogGetter):
         temppolicy.write(policies)
         temppolicy.close()
         temppolicy_path = temppolicy.name
-        self.cp_file(temppolicy_path, "/etc/datadog-agent/runtime-security.d/default.policy")
+        self.cp_file(temppolicy_path, "/etc/datadog-agent/runtime-security.d/test.policy")
         os.remove(temppolicy_path)
 
     def cp_file(self, src, dst):

@@ -76,7 +76,7 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="check file ruleset_loaded", emoji=":delivery_truck:"):
+        with Step(msg="create ", emoji=":delivery_truck:"):
             event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
@@ -84,12 +84,6 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="check remote-config ruleset_loaded", emoji=":delivery_truck:"):
             event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
-            attributes = event["data"][-1]["attributes"]["attributes"]
-            start_date = attributes["date"]
-            self.app.check_for_ignored_policies(self, attributes)
-
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded")
             attributes = event["data"][-1]["attributes"]["attributes"]
             start_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
@@ -116,7 +110,7 @@ class TestE2EKubernetes(unittest.TestCase):
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
             for _i in range(60):  # retry 60 times
-                event = self.app.wait_app_log("rule_id:ruleset_loaded")
+                event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
                 attributes = event["data"][-1]["attributes"]["attributes"]
                 restart_date = attributes["date"]
                 # search for restart log until the timestamp differs

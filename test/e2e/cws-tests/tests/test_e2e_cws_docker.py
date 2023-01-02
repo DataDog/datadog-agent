@@ -90,12 +90,6 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("security-agent", self.docker_helper, SECURITY_START_LOG)
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="check file ruleset_loaded", emoji=":delivery_truck:"):
-            event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file")
-            attributes = event["data"][-1]["attributes"]["attributes"]
-            start_date = attributes["date"]
-            self.app.check_for_ignored_policies(self, attributes)
-
         if rc_enabled:
             with Step(msg="check remote-config ruleset_loaded", emoji=":delivery_truck:"):
                 event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
@@ -122,7 +116,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
             for _i in range(60):  # retry 60 times
-                event = self.app.wait_app_log("rule_id:ruleset_loaded")
+                event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
                 attributes = event["data"][-1]["attributes"]["attributes"]
                 restart_date = attributes["date"]
                 # search for restart log until the timestamp differs
