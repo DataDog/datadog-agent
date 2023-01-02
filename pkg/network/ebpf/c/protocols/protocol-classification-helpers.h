@@ -173,6 +173,8 @@ static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size)
         return false;
     }
 
+    // Check if we can find the user param. Postgres uses C-style strings, so
+    // we also check for the terminating null byte.
     return !bpf_memcmp(buf + sizeof(*hdr), PG_STARTUP_USER_PARAM, sizeof(PG_STARTUP_USER_PARAM));
 }
 
