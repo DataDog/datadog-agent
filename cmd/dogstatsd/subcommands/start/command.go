@@ -3,33 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
-
-package main
+package start
 
 import (
 	"context"
-	_ "expvar"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metadata"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -39,9 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 )
 
 var (
@@ -50,7 +39,7 @@ var (
 	dogstatsdStats *http.Server
 )
 
-type cliParams struct {
+type CLIParams struct {
 	confPath string
 }
 
@@ -59,85 +48,59 @@ const (
 	loggerName pkgconfig.LoggerName = "DSD"
 )
 
-func MakeRootCommand() *cobra.Command {
-	// dogstatsdCmd is the root command
-	dogstatsdCmd := &cobra.Command{
-		Use:   "dogstatsd [command]",
-		Short: "Datadog dogstatsd at your service.",
-		Long: `
-DogStatsD accepts custom application metrics points over UDP, and then
-periodically aggregates and forwards them to Datadog, where they can be graphed
-on dashboards. DogStatsD implements the StatsD protocol, along with a few
-extensions for special Datadog features.`,
-	}
-
-	for _, cmd := range makeCommands() {
-		dogstatsdCmd.AddCommand(cmd)
-	}
-
-	return dogstatsdCmd
-}
-
-func makeCommands() []*cobra.Command {
-	cliParams := &cliParams{}
+// MakeCommand returns the start subcommand for the 'dogstatsd' command.
+func MakeCommand(defaultLogFile string) *cobra.Command {
+	cliParams := &CLIParams{}
 	startCmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start DogStatsD",
 		Long:  `Runs DogStatsD in the foreground`,
 		RunE: func(*cobra.Command, []string) error {
-			return runDogstatsdFct(cliParams, "", start)
-		},
-	}
-
-	versionCmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print the version number",
-		Long:  ``,
-		Run: func(cmd *cobra.Command, args []string) {
-			av, _ := version.Agent()
-			fmt.Println(fmt.Sprintf("DogStatsD from Agent %s - Codename: %s - Commit: %s - Serialization version: %s - Go version: %s",
-				av.GetNumber(), av.Meta, av.Commit, serializer.AgentPayloadVersion, runtime.Version()))
+			return RunDogstatsdFct(cliParams, "", defaultLogFile, start)
 		},
 	}
 
 	// local flags
-	startCmd.Flags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to folder containing dogstatsd.yaml")
-	pkgconfig.Datadog.BindPFlag("conf_path", startCmd.Flags().Lookup("cfgpath")) //nolint:errcheck
+	startCmd.PersistentFlags().StringVarP(&cliParams.confPath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+
 	var socketPath string
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
 	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 
-	return []*cobra.Command{startCmd, versionCmd}
+	return startCmd
 }
 
-func runDogstatsdFct(cliParams *cliParams, defaultConfPath string, fct interface{}) error {
+type Params struct {
+	DefaultLogFile string
+}
+
+func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFile string, fct interface{}) error {
+	params := &Params{
+		DefaultLogFile: defaultLogFile,
+	}
 	return fxutil.OneShot(fct,
 		fx.Supply(cliParams),
-		// We want to minimize the size of the dogstatsd binary as much as possible. The 'flare' component which
-		// is part of the 'core' bundle adds 20MB to the binary size (it links to the pkg/flare package which
-		// pulls a lot of side dependencies). As a result we don't use the core.Bundle but manually pick which
-		// components we need (in our case only 'config' and 'log').
+		fx.Supply(params),
 		fx.Supply(config.NewParams(
 			defaultConfPath,
 			config.WithConfFilePath(cliParams.confPath),
 			config.WithConfigLoadSecrets(true),
 			config.WithConfigMissingOK(true),
-			config.WithConfigName("dogstatsd"),
-		)),
+			config.WithConfigName("dogstatsd")),
+		),
 		config.Module,
-		logComp.Module,
 	)
 }
 
-func start(cliParams *cliParams, config config.Component) error {
+func start(cliParams *CLIParams, config config.Component, params *Params) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
-	defer stopAgent(cancel)
+	defer StopAgent(cancel)
 
 	stopCh := make(chan struct{})
 	go handleSignals(stopCh)
 
-	err := runAgent(ctx, cliParams, config)
+	err := RunAgent(ctx, cliParams, config, params)
 	if err != nil {
 		return err
 	}
@@ -148,7 +111,7 @@ func start(cliParams *cliParams, config config.Component) error {
 	return nil
 }
 
-func runAgent(ctx context.Context, cliParams *cliParams, config config.Component) (err error) {
+func RunAgent(ctx context.Context, cliParams *CLIParams, config config.Component, params *Params) (err error) {
 	if len(cliParams.confPath) == 0 {
 		log.Infof("Config will be read from env variables")
 	}
@@ -169,7 +132,7 @@ func runAgent(ctx context.Context, cliParams *cliParams, config config.Component
 	syslogURI := pkgconfig.GetSyslogURI()
 	logFile := config.GetString("log_file")
 	if logFile == "" {
-		logFile = defaultLogFile
+		logFile = params.DefaultLogFile
 	}
 
 	if config.GetBool("disable_file_logging") {
@@ -284,7 +247,7 @@ func handleSignals(stopCh chan struct{}) {
 	}
 }
 
-func stopAgent(cancel context.CancelFunc) {
+func StopAgent(cancel context.CancelFunc) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
