@@ -66,7 +66,7 @@ class TestE2EDocker(unittest.TestCase):
 
         with Step(msg="check agent start", emoji=":man_running:"):
             image = os.getenv("DD_AGENT_IMAGE")
-            hostname = f"host_{test_id}"
+            hostname = f"host-{test_id}"
             self.datadog_agent_config = gen_datadog_agent_config(
                 hostname=hostname,
                 log_level="DEBUG",
