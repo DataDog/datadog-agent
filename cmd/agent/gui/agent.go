@@ -132,6 +132,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	} else if payload.Email == "" || payload.CaseID == "" {
 		w.Write([]byte("Error creating flare: missing information"))
 		return
@@ -191,6 +192,7 @@ func getConfigSetting(w http.ResponseWriter, r *http.Request) {
 	}[setting]; !ok {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprintf(w, `"error": "requested setting is not whitelisted"`)
+		return
 	}
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		setting: config.Datadog.Get(setting),
@@ -218,6 +220,7 @@ func setConfigFile(w http.ResponseWriter, r *http.Request) {
 	payload, e := parseBody(r)
 	if e != nil {
 		w.Write([]byte(e.Error()))
+		return
 	}
 	data := []byte(payload.Config)
 

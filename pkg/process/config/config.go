@@ -10,11 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
@@ -24,34 +21,12 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-)
-
-// Name for check performed by process-agent or system-probe
-const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	PodCheckName           = "pod"
-	PodCheckManifestName   = "pod_manifest"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
-
-	ProcessCheckDefaultInterval          = 10 * time.Second
-	RTProcessCheckDefaultInterval        = 2 * time.Second
-	ContainerCheckDefaultInterval        = 10 * time.Second
-	RTContainerCheckDefaultInterval      = 2 * time.Second
-	ConnectionsCheckDefaultInterval      = 30 * time.Second
-	PodCheckDefaultInterval              = 10 * time.Second
-	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 type cmdFunc = func(name string, arg ...string) *exec.Cmd
@@ -63,8 +38,6 @@ type cmdFunc = func(name string, arg ...string) *exec.Cmd
 // For any other setting, use `pkg/config`.
 type AgentConfig struct {
 	HostName           string
-	Blacklist          []*regexp.Regexp
-	Scrubber           *DataScrubber
 	MaxConnsPerMessage int
 
 	// host type of the agent, used to populate container payload with additional host information
@@ -72,37 +45,6 @@ type AgentConfig struct {
 
 	// System probe collection configuration
 	SystemProbeAddress string
-
-	// Orchestrator config
-	Orchestrator *oconfig.OrchestratorConfig
-
-	// Check config
-	CheckIntervals map[string]time.Duration
-}
-
-// CheckInterval returns the interval for the given check name, defaulting to 10s if not found.
-func (a AgentConfig) CheckInterval(checkName string) time.Duration {
-	d, ok := a.CheckIntervals[checkName]
-	if !ok {
-		log.Errorf("missing check interval for '%s', you must set a default", checkName)
-		d = 10 * time.Second
-	}
-	return d
-}
-
-// NewDefaultTransport provides a http transport configuration with sane default timeouts
-func NewDefaultTransport() *http.Transport {
-	return &http.Transport{
-		MaxIdleConns:    5,
-		IdleConnTimeout: 90 * time.Second,
-		Dial: (&net.Dialer{
-			Timeout:   10 * time.Second,
-			KeepAlive: 10 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
 }
 
 // NewDefaultAgentConfig returns an AgentConfig with defaults initialized
@@ -115,25 +57,6 @@ func NewDefaultAgentConfig() *AgentConfig {
 
 		// System probe collection configuration
 		SystemProbeAddress: defaultSystemProbeAddress,
-
-		// Orchestrator config
-		Orchestrator: oconfig.NewDefaultOrchestratorConfig(),
-
-		// Check config
-		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:       ProcessCheckDefaultInterval,
-			RTProcessCheckName:     RTProcessCheckDefaultInterval,
-			ContainerCheckName:     ContainerCheckDefaultInterval,
-			RTContainerCheckName:   RTContainerCheckDefaultInterval,
-			ConnectionsCheckName:   ConnectionsCheckDefaultInterval,
-			PodCheckName:           PodCheckDefaultInterval,
-			DiscoveryCheckName:     ProcessDiscoveryCheckDefaultInterval,
-			ProcessEventsCheckName: config.DefaultProcessEventsCheckInterval,
-		},
-
-		// DataScrubber to hide command line sensitive words
-		Scrubber:  NewDefaultDataScrubber(),
-		Blacklist: make([]*regexp.Regexp, 0),
 	}
 
 	// Set default values for proc/sys paths if unset.
@@ -176,10 +99,6 @@ func LoadConfigIfExists(path string) error {
 func NewAgentConfig(loggerName config.LoggerName, yamlPath string, syscfg *sysconfig.Config) (*AgentConfig, error) {
 	cfg := NewDefaultAgentConfig()
 	if err := cfg.LoadAgentConfig(yamlPath); err != nil {
-		return nil, err
-	}
-
-	if err := cfg.Orchestrator.Load(); err != nil {
 		return nil, err
 	}
 
@@ -262,17 +181,6 @@ func loadEnvVariables() {
 			config.Datadog.Set("orchestrator_explorer.orchestrator_additional_endpoints", endpoints)
 		}
 	}
-}
-
-// IsBlacklisted returns a boolean indicating if the given command is blacklisted by our config.
-func IsBlacklisted(cmdline []string, blacklist []*regexp.Regexp) bool {
-	cmd := strings.Join(cmdline, " ")
-	for _, b := range blacklist {
-		if b.MatchString(cmd) {
-			return true
-		}
-	}
-	return false
 }
 
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent

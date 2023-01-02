@@ -12,11 +12,20 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path/filepath"
 	"regexp"
 	"syscall"
 
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
+
+func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
+	sysprobeSocketLocation := config.Datadog.GetString("system_probe_config.sysprobe_socket")
+	if sysprobeSocketLocation != "" {
+		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
+	}
+}
 
 func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {
 	return fb.CopyFile("/proc/kallsyms")

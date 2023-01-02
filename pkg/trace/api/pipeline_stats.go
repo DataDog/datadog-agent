@@ -62,7 +62,7 @@ func pipelineStatsErrorHandler(err error) http.Handler {
 // newPipelineStatsProxy creates an http.ReverseProxy which forwards requests to the pipeline stats intake.
 // The tags will be added as a header to all proxied requests.
 func newPipelineStatsProxy(conf *config.AgentConfig, target *url.URL, key string, tags string) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider("/proc")
+	cidProvider := NewIDProvider(conf.ContainerProcRoot)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
