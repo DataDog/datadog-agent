@@ -142,7 +142,7 @@ build do
     #
     command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
     command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools2.rb
-    command "#{pip} install wheel==0.34.1", :env => pre_build_env
+    command "#{pip} install wheel==0.37.1", :env => pre_build_env # Pin to the last version that supports Python 2
     command "#{pip} install setuptools-scm==5.0.2", :env => pre_build_env # Pin to the last version that supports Python 2
     command "#{pip} install pip-tools==5.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
