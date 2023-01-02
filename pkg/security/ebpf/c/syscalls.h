@@ -13,7 +13,6 @@ enum {
 };
 
 struct args_envs_t {
-    const char **array;
     u32 count;          // argc/envc retrieved from the kernel
     u32 counter;        // counter incremented while parsing args/envs
     u32 id;

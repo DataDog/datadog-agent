@@ -106,6 +106,13 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/security_bprm_committed_creds",
+			EBPFFuncName: "kprobe_security_bprm_committed_creds",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/setup_new_exec",
 			EBPFFuncName: "kprobe_setup_new_exec_interp",
 		},
