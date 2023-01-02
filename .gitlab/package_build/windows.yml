@@ -97,7 +97,11 @@ windows_zip_agent_binaries_x64-a7:
     - mkdir omnibus\pkg
     - !reference [.setup_ruby_mirror_win]
 <<<<<<< HEAD
+<<<<<<< HEAD
     - >
+=======
+    - >-
+>>>>>>> b04bb632363a002a108173586ef36942dd22084f
       docker run --rm
       -m 4096M
       -v "$(Get-Location):c:\mnt"
@@ -117,12 +121,16 @@ windows_zip_agent_binaries_x64-a7:
       -e USE_S3_CACHING="$USE_S3_CACHING"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildwin.bat
+<<<<<<< HEAD
 =======
     - !reference [.setup_python_mirror_win]
     - docker run --rm -m 4096M -v "$(Get-Location):c:\mnt" -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH} -e OMNIBUS_TARGET=${OMNIBUS_TARGET} -e WINDOWS_BUILDER=true -e RELEASE_VERSION="$RELEASE_VERSION" -e MAJOR_VERSION="$AGENT_MAJOR_VERSION" -e INTEGRATIONS_CORE_VERSION="$INTEGRATIONS_CORE_VERSION" -e PY_RUNTIMES="$PYTHON_RUNTIMES" -e GOMODCACHE="c:\modcache" -e AWS_NETWORKING=true -e SIGN_WINDOWS=true -e BUCKET_BRANCH="$BUCKET_BRANCH" -e INTEGRATION_WHEELS_CACHE_BUCKET="$INTEGRATION_WHEELS_CACHE_BUCKET" -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET" -e USE_S3_CACHING="$USE_S3_CACHING" -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}" -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG} -e PIP_INDEX_URL=${PIP_INDEX_URL} 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:${Env:DATADOG_AGENT_WINBUILDIMAGES} c:\mnt\tasks\winbuildscripts\buildwin.bat
 >>>>>>> main
+=======
+>>>>>>> b04bb632363a002a108173586ef36942dd22084f
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - get-childitem omnibus\pkg
     - !reference [.upload_sbom_artifacts_windows]
