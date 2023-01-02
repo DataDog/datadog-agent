@@ -23,25 +23,18 @@ typedef enum {
 // Struct which represent the http2 frame by its fields.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540#section-4.1 for frame format.
 struct http2_frame {
-    uint32_t length;
+    uint32_t length : 24;
     frame_type_t type;
     uint8_t flags;
-    uint32_t stream_id;
-};
-
-static __always_inline uint32_t as_uint32_t(unsigned char input) {
-    return (uint32_t)input;
-}
+    uint8_t reserved : 1;
+    uint32_t stream_id : 31;
+} __attribute__ ((packed));
 
 // This function checks if the http2 frame header is empty.
 static __always_inline bool is_empty_frame_header(const char *frame) {
-#pragma unroll
-    for (uint32_t i = 0; i < HTTP2_FRAME_HEADER_SIZE; i++) {
-        if (frame[i] != 0) {
-            return false;
-        }
-    }
-    return true;
+#define EMPTY_FRAME_HEADER "\0\0\0\0\0\0\0\0\0"
+
+    return !bpf_memcmp(frame, EMPTY_FRAME_HEADER, sizeof(EMPTY_FRAME_HEADER) - 1);
 }
 
 // This function reads the http2 frame header and validate the frame.
@@ -58,15 +51,11 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
         return false;
     }
 
-// We extract the frame by its shape to fields.
-// See: https://datatracker.ietf.org/doc/html/rfc7540#section-4.1
-    out->length = as_uint32_t(buf[0])<<16 | as_uint32_t(buf[1])<<8 | as_uint32_t(buf[2]);
-    out->type = (frame_type_t)buf[3];
-    out->flags = (uint8_t)buf[4];
-    out->stream_id = (as_uint32_t(buf[5]) << 24 |
-                      as_uint32_t(buf[6]) << 16 |
-                      as_uint32_t(buf[7]) << 8 |
-                      as_uint32_t(buf[8])) & 2147483647;
+    // We extract the frame by its shape to fields.
+    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-4.1
+    *out = *((struct http2_frame*)buf);
+    out->length = bpf_ntohl(out->length << 8);
+    out->stream_id = bpf_ntohl(out->stream_id << 1);
 
     return true;
 }
