@@ -32,13 +32,13 @@ static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
         }
     }
 
-    return check_command(buf, SQL_ALTER, buf_size)
-        || check_command(buf, SQL_CREATE, buf_size)
-        || check_command(buf, SQL_DELETE, buf_size)
-        || check_command(buf, SQL_DROP, buf_size)
-        || check_command(buf, SQL_INSERT, buf_size)
-        || check_command(buf, SQL_SELECT, buf_size)
-        || check_command(buf, SQL_UPDATE, buf_size);
+    return check_command(tmp, SQL_ALTER, buf_size)
+        || check_command(tmp, SQL_CREATE, buf_size)
+        || check_command(tmp, SQL_DELETE, buf_size)
+        || check_command(tmp, SQL_DROP, buf_size)
+        || check_command(tmp, SQL_INSERT, buf_size)
+        || check_command(tmp, SQL_SELECT, buf_size)
+        || check_command(tmp, SQL_UPDATE, buf_size);
 }
 
 #endif /*__PROTOCOL_CLASSIFICATION_SQL_DEFS_H*/
