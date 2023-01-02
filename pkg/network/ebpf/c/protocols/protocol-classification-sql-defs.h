@@ -18,7 +18,7 @@
 // the strings.
 #define check_command(buf, command, buf_size) ( \
     ((sizeof(command) - 1) <= buf_size)         \
-    && !bpf_memcmp((buf), &(command), sizeof(command) - 1))
+    && !bpf_memcmp((buf), &(command)[0], sizeof(command) - 1))
 
 static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
     char tmp[SQL_COMMAND_MAX_SIZE];
