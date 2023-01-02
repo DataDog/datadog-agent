@@ -470,8 +470,8 @@ func initPymemTelemetry() {
 
 	// "Requested" here means requested from the OS, not allocated to Python objects.
 	// "alloc" for consistency with go memstats and mallochook metrics.
-	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes requested by pymalloc since process start.")
-	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently requested by pymalloc.")
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated since the start of the agent.")
+	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
 		t := time.NewTicker(1 * time.Second)

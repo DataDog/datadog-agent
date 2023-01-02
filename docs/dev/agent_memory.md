@@ -140,9 +140,35 @@ Datadog offers two tools with the Agent that can help you identify memory issues
 - Trracemalloc
 - Pympler
 
-Python memory telemetry (Python 3 only) tracks total amount of memory
-allocated by python interpreter as a telemetry metrics (`pymem.inuse`
-and `pymem.alloc`).
+### Python memory telemetry
+
+Python memory telemetry hooks into low-level allocator routines, to
+provide a coarse view of the total memory allocated by the Python
+memory manager.
+
+Python memory telemetry is only available when using Python 3 (Python
+2 lacks the hooks necessary to implement this).
+
+Python memory telemetry is part of the agent internal telemetry and is
+enabled by default. Set `telemetry.python_memory: false` to disable.
+
+| Internal name  | Default metric name         | Description                                                    |
+|----------------|-----------------------------|----------------------------------------------------------------|
+| `pymem__alloc` | `datadog.agent.pymem.alloc` | Total number of bytes allocated since the start of the agent.  |
+| `pymem__inuse` | `datadog.agent.pymem.inuse` | Number of bytes currently allocated by the python interpreter. |
+
+The Python memory manager internally maintains a small reserve of
+unused memory, so the numbers provided by this tool may be slightly
+larger than the memory actually used by the Python code.
+
+This telemetry represents memory allocated by pymalloc and the raw
+allocator (See [Memory management] in the Python manual). It does not
+include memory allocated by native extensions and libraries directly
+via libc.
+
+[Memory management]: https://docs.python.org/3/c-api/memory.html
+
+### Tracemalloc
 
 Tracemalloc is part of the CPython interpreter, and tracks allocations and
 frees. It's implemented efficiently and runs with relatively low overhead.
