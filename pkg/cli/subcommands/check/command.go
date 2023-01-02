@@ -150,11 +150,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	previousIntegrationTracing := false
+	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
 		if pkgconfig.Datadog.IsSet("integration_tracing") {
 			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
 		pkgconfig.Datadog.Set("integration_tracing", true)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -477,6 +480,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	if cliParams.generateIntegrationTraces {
 		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 	}
 
 	return nil

@@ -30,16 +30,17 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
 	d.info = info
 	d.initCalled = true
 	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize()
+	return nil
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
-func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
+func (d *ProcessDiscoveryCheck) Name() string { return DiscoveryCheckName }
 
 // RealTime returns a value that says whether this check should be run in real time.
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }

@@ -63,8 +63,9 @@ type Client struct {
 	state *state.Repository
 
 	// Listeners
-	apmListeners []func(update map[string]state.APMSamplingConfig)
-	cwsListeners []func(update map[string]state.ConfigCWSDD)
+	apmListeners       []func(update map[string]state.APMSamplingConfig)
+	cwsListeners       []func(update map[string]state.ConfigCWSDD)
+	cwsCustomListeners []func(update map[string]state.ConfigCWSCustom)
 }
 
 // agentGRPCConfigFetcher defines how to retrieve config updates over a
@@ -153,19 +154,20 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
-		ID:            generateID(),
-		startupSync:   sync.Once{},
-		ctx:           ctx,
-		close:         close,
-		agentName:     agentName,
-		agentVersion:  agentVersion,
-		products:      data.ProductListToString(products),
-		state:         repository,
-		pollInterval:  pollInterval,
-		backoffPolicy: backoffPolicy,
-		apmListeners:  make([]func(update map[string]state.APMSamplingConfig), 0),
-		cwsListeners:  make([]func(update map[string]state.ConfigCWSDD), 0),
-		updater:       updater,
+		ID:                 generateID(),
+		startupSync:        sync.Once{},
+		ctx:                ctx,
+		close:              close,
+		agentName:          agentName,
+		agentVersion:       agentVersion,
+		products:           data.ProductListToString(products),
+		state:              repository,
+		pollInterval:       pollInterval,
+		backoffPolicy:      backoffPolicy,
+		apmListeners:       make([]func(update map[string]state.APMSamplingConfig), 0),
+		cwsListeners:       make([]func(update map[string]state.ConfigCWSDD), 0),
+		cwsCustomListeners: make([]func(update map[string]state.ConfigCWSCustom), 0),
+		updater:            updater,
 	}, nil
 }
 
@@ -251,6 +253,11 @@ func (c *Client) update() error {
 			listener(c.state.CWSDDConfigs())
 		}
 	}
+	if containsProduct(changedProducts, state.ProductCWSCustom) {
+		for _, listener := range c.cwsCustomListeners {
+			listener(c.state.CWSCustomConfigs())
+		}
+	}
 
 	return nil
 }
@@ -281,6 +288,15 @@ func (c *Client) RegisterCWSDDUpdate(fn func(update map[string]state.ConfigCWSDD
 	defer c.m.Unlock()
 	c.cwsListeners = append(c.cwsListeners, fn)
 	fn(c.state.CWSDDConfigs())
+}
+
+// RegisterCWSCustomUpdate registers a callback function to be called after a successful client update that will
+// contain the current state of the CWS_CUSTOM product.
+func (c *Client) RegisterCWSCustomUpdate(fn func(update map[string]state.ConfigCWSCustom)) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.cwsCustomListeners = append(c.cwsCustomListeners, fn)
+	fn(c.state.CWSCustomConfigs())
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
