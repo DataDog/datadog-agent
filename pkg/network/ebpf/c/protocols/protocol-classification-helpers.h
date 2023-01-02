@@ -260,7 +260,7 @@ static __always_inline bool is_mongo(conn_tuple_t *tup, const char *buf, __u32 s
     case MONGO_OP_UPDATE:
     case MONGO_OP_INSERT:
     case MONGO_OP_DELETE:
-        // If the response_to is not 0, than it is not a valid mongo request by the RFC.
+        // If the response_to is not 0, then it is not a valid mongo request by the RFC.
         return header.response_to == 0;
     case MONGO_OP_REPLY:
         // If the message is a reply, make sure we've seen the request of the response.
@@ -275,7 +275,7 @@ static __always_inline bool is_mongo(conn_tuple_t *tup, const char *buf, __u32 s
         return false;
     case MONGO_OP_COMPRESSED:
     case MONGO_OP_MSG:
-        // If the response_to is not 0, than it is not a valid mongo request by the RFC.
+        // If the response_to is not 0, then it is not a valid mongo request by the RFC.
         if (header.response_to == 0) {
             mongo_handle_request(tup, header.request_id);
             return true;
