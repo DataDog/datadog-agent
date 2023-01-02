@@ -632,7 +632,7 @@ int __attribute__((always_inline)) fill_exec_context(struct pt_regs *ctx) {
         return 0;
     }
 
-    // avoid getting the envs offset if we already got it from a previously called kprobe
+    // avoid getting the env vars offset if we already got it from a previous kprobe
     if (syscall->exec.args_envs_ctx.args_count == 0) {
         // call it here before the memory get replaced
         fill_span_context(&syscall->exec.span_context);
@@ -696,7 +696,7 @@ int kprobe_get_envs_offset(struct pt_regs *ctx) {
     return 0;
 }
 
-void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs, u64 event_type) {
+void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct args_envs_parsing_context_t *args_envs_ctx, struct args_envs_t *args_envs) {
     const char *args_start = args_envs_ctx->args_start;
     int offset = args_envs_ctx->parsing_offset;
 
@@ -740,7 +740,7 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
                     offset += bytes_read + 1; // count trailing 0
                 }
 
-                send_event(ctx, event_type, event);
+                send_event(ctx, EVENT_ARGS_ENVS, event);
                 event.size = 0;
             } else {
                 event.size += data_length;
@@ -762,7 +762,7 @@ void __attribute__((always_inline)) parse_args_envs(struct pt_regs *ctx, struct 
     if (event.size > 0) {
         bpf_probe_read(&event.value, MAX_PERF_STR_BUFF_LEN, buff_ptr);
 
-        send_event(ctx, event_type, event);
+        send_event(ctx, EVENT_ARGS_ENVS, event);
     }
 }
 
@@ -786,7 +786,7 @@ int kprobe_parse_args_envs_split(struct pt_regs *ctx) {
         return 0;
     }
 
-    parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs, EVENT_ARGS_ENVS);
+    parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs);
 
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
 
@@ -812,7 +812,7 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
         return 0;
     }
 
-    parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs, EVENT_ARGS_ENVS);
+    parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs);
 
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS);
 
