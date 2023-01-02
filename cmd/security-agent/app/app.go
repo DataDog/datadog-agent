@@ -84,6 +84,9 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
 			return err
 		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			log.Flush()
+		},
 	}
 
 	defaultConfPathArray := []string{
@@ -164,7 +167,12 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 	if !coreconfig.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
-		return nil
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		return errAllComponentsDisabled
 	}
 
 	err = manager.ConfigureAutoExit(ctx)
@@ -229,18 +237,28 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	// Initialize the remote tagger
-	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init(ctx)
-		if err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	}
 
 	// Start workloadmeta store
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 	store.Start(ctx)
+
+	// Initialize the remote tagger
+	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			tagger.SetDefaultTagger(remote.NewTagger(options))
+			err := tagger.Init(ctx)
+			if err != nil {
+				log.Errorf("failed to start the tagger: %s", err)
+			}
+		}
+	}
 
 	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {

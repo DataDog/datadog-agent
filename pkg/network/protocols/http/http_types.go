@@ -34,6 +34,8 @@ const (
 	ProtocolHTTP    ProtocolType = C.PROTOCOL_HTTP
 	ProtocolHTTP2   ProtocolType = C.PROTOCOL_HTTP2
 	ProtocolTLS     ProtocolType = C.PROTOCOL_TLS
+	ProtocolAMQP    ProtocolType = C.PROTOCOL_AMQP
+	ProtocolRedis   ProtocolType = C.PROTOCOL_REDIS
 	ProtocolMax     ProtocolType = C.MAX_PROTOCOLS
 )
 

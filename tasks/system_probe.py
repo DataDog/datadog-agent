@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import shutil
+import string
 import sys
 import tarfile
 import tempfile
@@ -226,12 +227,12 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
 
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
-    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "co-re")
+    container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
     container_integrations_co_re_programs = ["oom-kill"]
 
     for prog in container_integrations_co_re_programs:
-        infile = os.path.join(container_integrations_co_re_dir, f"{prog}.c")
+        infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
         ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": container_integrations_co_re_flags})
 
@@ -895,6 +896,7 @@ def get_ebpf_build_flags():
             '-DCONFIG_64BIT',
             '-D__BPF_TRACING__',
             '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
+            '-DCOMPILE_PREBUILT',
         ]
     )
     flags.extend(
@@ -927,18 +929,17 @@ def get_ebpf_build_flags():
 def get_co_re_build_flags():
     flags = get_ebpf_build_flags()
 
+    flags.remove('-DCOMPILE_PREBUILT')
     flags.remove('-DCONFIG_64BIT')
     flags.remove('-include pkg/ebpf/c/asm_goto_workaround.h')
-    flags.remove('-Ipkg/ebpf/c')
 
     arch = get_kernel_arch()
-    co_re_dir = os.path.join(".", "pkg", "ebpf", "c", "co-re")
     flags.extend(
         [
             f"-D__TARGET_ARCH_{arch}",
+            "-DCOMPILE_CORE",
             '-emit-llvm',
             '-g',
-            f"-I{co_re_dir}",
         ]
     )
 
@@ -953,8 +954,12 @@ def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None):
 
 
 def check_for_inline(ctx):
-    for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f) for f in get_ebpf_targets()]:
-        p.join()
+    for f in get_ebpf_targets():
+        if os.path.basename(f) == "bpf_helpers.h":
+            continue
+
+        for p in [ebpf_check_source_file(ctx, parallel_build=True, src_file=f)]:
+            p.join()
 
 
 def ebpf_check_source_file(ctx, parallel_build, src_file):
@@ -1213,3 +1218,28 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
+    import yaml
+
+    if windows:
+        return
+
+    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    # Add relative docker-compose paths
+    # For example:
+    #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
+
+    images = set()
+    for docker_compose_path in docker_compose_paths:
+        with open(docker_compose_path, "r") as f:
+            docker_compose = yaml.safe_load(f.read())
+        for component in docker_compose["services"]:
+            images.add(docker_compose["services"][component]["image"])
+
+    for image in images:
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        ctx.run(f"docker pull --platform linux/{arch} {image}")
+        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")

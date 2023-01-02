@@ -109,6 +109,7 @@ system-probe-msg.h
 **/.ninja_deps
 *.ninja
 pkg/ebpf/bytecode/build/**/*.d
+pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts
 cmd/dogstatsd/windows_resources/dogstatsd-msg.rc
@@ -175,3 +176,6 @@ TAGS
 
 # cscope
 cscope.out
+
+# Go workspace until we have proper support in the tooling
+go.work*

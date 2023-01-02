@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/viper"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -25,7 +24,6 @@ func setupConfig(
 	configName string,
 	withoutSecrets bool,
 	failOnMissingFile bool,
-	useDefaultConfigPath bool,
 	defaultConfPath string) (*config.Warnings, error) {
 	if configName != "" {
 		config.Datadog.SetConfigName(configName)
@@ -40,10 +38,7 @@ func setupConfig(
 			config.Datadog.SetConfigFile(confFilePath)
 		}
 	}
-	if useDefaultConfigPath {
-		if len(defaultConfPath) == 0 {
-			defaultConfPath = common.DefaultConfPath
-		}
+	if defaultConfPath != "" {
 		config.Datadog.AddConfigPath(defaultConfPath)
 	}
 
@@ -94,7 +89,7 @@ func MergeConfigurationFiles(configName string, configurationFilesArray []string
 			continue
 		}
 		if !loadedConfiguration {
-			w, err := setupConfig(configurationFilename, "", false, true, true, "")
+			w, err := setupConfig(configurationFilename, "", false, true, "")
 			if err != nil {
 				if userDefined {
 					fmt.Printf("Warning: unable to open %s\n", configurationFilename)

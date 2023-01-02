@@ -451,6 +451,7 @@ func (t *kprobeTracer) GetTelemetry() map[string]int64 {
 		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
+		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
 		"tcp_sent_miscounts":  int64(telemetry.Tcp_sent_miscounts),
 		"missed_tcp_close":    int64(telemetry.Missed_tcp_close),
 		"missed_udp_close":    int64(telemetry.Missed_udp_close),
@@ -516,11 +517,9 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 		return
 	}
 
-	m, _ := conn.Monotonic.Get(cookie)
-	m.Retransmits = tcpStats.Retransmits
-	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.Monotonic.Put(cookie, m)
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -561,9 +560,9 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic:        make(network.StatCountersByCookie, 0, 3),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
+		Cookie:           s.Cookie,
 	}
 
 	if s.Protocol < uint8(network.MaxProtocols) {
@@ -572,12 +571,12 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
 	}
 
-	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+	stats.Monotonic = network.StatCounters{
 		SentBytes:   s.Sent_bytes,
 		RecvBytes:   s.Recv_bytes,
 		SentPackets: s.Sent_packets,
 		RecvPackets: s.Recv_packets,
-	})
+	}
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

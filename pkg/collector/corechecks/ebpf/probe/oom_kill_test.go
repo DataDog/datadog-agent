@@ -127,12 +127,12 @@ func TestOOMKillProbe(t *testing.T) {
 		if result.TPid == uint32(cmd.Process.Pid) {
 			found = true
 
-			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName)
-			assert.Equal(t, result.TPid, result.Pid)
-			assert.Equal(t, "python3", result.FComm)
-			assert.Equal(t, "python3", result.TComm)
-			assert.NotZero(t, result.Pages)
-			assert.Equal(t, uint32(1), result.MemCgOOM)
+			assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
+			assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+			assert.Equal(t, "python3", result.FComm, "fcomm")
+			assert.Equal(t, "python3", result.TComm, "tcomm")
+			assert.NotZero(t, result.Pages, "pages")
+			assert.Equal(t, uint32(1), result.MemCgOOM, "memcg oom")
 			break
 		}
 	}

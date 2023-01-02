@@ -36,7 +36,7 @@ if ($rawAgentVersion -match $releaseCandidatePattern) {
     $agentVersion = "{0}-rc-{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2].Value
     # We don't have release notes for RCs but this way the user can always see what commits are included in this RC
     $releaseNotes = "https://github.com/DataDog/datadog-agent/releases/tag/{0}-rc.{1}" -f $agentVersionMatches.Matches.Groups[1], $agentVersionMatches.Matches.Groups[2]
-    $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/datadog-agent-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2])-1-x86_64.msi"
+    $url = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-$($agentVersionMatches.Matches.Groups[1])-rc.$($agentVersionMatches.Matches.Groups[2]).msi"
 } elseif ($rawAgentVersion -match $develPattern) {
     if ($installMethod -eq "online") {
         # We don't publish online chocolatey packages for dev branches, error out
@@ -61,6 +61,10 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DataDog/datadog-agent/
 
 Write-Host "Generating Chocolatey $installMethod package version $agentVersion in $outputDirectory"
 
+if ([System.Net.WebRequest]::Create($url).GetResponse().StatusCode -ne 200) {
+    Write-Error "Package $($url) doesn't exists, cannot continue publishing process."
+}
+
 if (!(Test-Path $outputDirectory)) {
     New-Item -ItemType Directory -Path $outputDirectory
 }
@@ -71,3 +75,6 @@ if ($installMethod -eq "online") {
 }
 
 choco pack --out=$outputDirectory $nuspecFile package_version=$agentVersion release_notes=$releaseNotes copyright=$copyright
+
+# restore installScript (useful for local testing/deployment)
+git checkout $installScript

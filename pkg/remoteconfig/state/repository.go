@@ -13,7 +13,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/theupdateframework/go-tuf/data"
+	"github.com/DataDog/go-tuf/data"
 )
 
 var (

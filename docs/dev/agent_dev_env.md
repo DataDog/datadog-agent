@@ -93,7 +93,7 @@ variables (see Invoke docs for more details).
 
 ## Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.18.8` or
+You must [install Golang](https://golang.org/doc/install) version `1.18.9` or
 higher. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
@@ -219,10 +219,25 @@ pre-commit run flake8 --all-files  # run flake8 on all files
 
 See `pre-commit run --help` for further options.
 
-# Setting up your Windows development environment
+## Setting up your Windows development environment
 
-## Code editor
+### Code editor
 
 [Microsoft Visual Studio Code](https://code.visualstudio.com/download) is recommended as it's lightweight and versatile.
 
 Building on Windows would require multiple 3rd-party softwares to be installed. To avoid the complexity, it is recommended to make the code change in VS Code then do the build in Docker image. For complete information, see [Build the Agent packages](https://github.com/DataDog/datadog-agent/blob/main/docs/dev/agent_omnibus.md)
+
+## Setting up Visual Studio Code Dev Container
+
+[Microsoft Visual Studio Code](https://code.visualstudio.com/download) with the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) allow to use a container as remote development environment in vscode. It simplify and isolate
+the dependencies needed to develop in this repository.
+
+To configure the vscode editor to use a container as remote development environment you need to:
+
+- Install the [devcontainer plugin](https://code.visualstudio.com/docs/remote/containers) and the [golang language plugin](https://code.visualstudio.com/docs/languages/go).
+- Run the following invoke command `invoke vscode.setup-devcontainer --image "<image name>"`.
+  This command will create the devcontainer configuration file `./devcontainer/devcontainer.json`.
+- Start or restart your vscode editor.
+- A pop-up should show-up to propose to "reopen in container" your workspace.
+- The first start, it might propose you to install the golang plugin dependencies/tooling.
+

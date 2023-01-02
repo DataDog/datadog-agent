@@ -34,26 +34,25 @@ const (
 	perfEventOutput
 )
 
+var ebpfMapOpsErrorsGauge = telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error.")
+var ebpfHelperErrorsGauge = telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe.")
+
 var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
-	MapErrMap             *ebpf.Map
-	HelperErrMap          *ebpf.Map
-	mapKeys               map[string]uint64
-	probeKeys             map[string]uint64
-	ebpfMapOpsErrorsGauge telemetry.Gauge
-	ebpfHelperErrorsGauge telemetry.Gauge
+	MapErrMap    *ebpf.Map
+	HelperErrMap *ebpf.Map
+	mapKeys      map[string]uint64
+	probeKeys    map[string]uint64
 }
 
 // NewEBPFTelemetry initializes a new EBPFTelemetry object
 func NewEBPFTelemetry() *EBPFTelemetry {
 	return &EBPFTelemetry{
-		mapKeys:               make(map[string]uint64),
-		probeKeys:             make(map[string]uint64),
-		ebpfMapOpsErrorsGauge: telemetry.NewGauge("ebpf_map_ops", "errors", []string{"map_name", "error"}, "Failures of map operations for a specific ebpf map reported per error."),
-		ebpfHelperErrorsGauge: telemetry.NewGauge("ebpf_helpers", "errors", []string{"helper", "probe_name", "error"}, "Failures of bpf helper operations reported per helper per error for each probe."),
+		mapKeys:   make(map[string]uint64),
+		probeKeys: make(map[string]uint64),
 	}
 }
 
@@ -91,7 +90,7 @@ func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
 		if count := getMapErrCount(&val); len(count) > 0 {
 			t[m] = count
 			for errStr, errCount := range count {
-				b.ebpfMapOpsErrorsGauge.Set(float64(errCount), m, errStr)
+				ebpfMapOpsErrorsGauge.Set(float64(errCount), m, errStr)
 			}
 		}
 	}
@@ -115,7 +114,7 @@ func (b *EBPFTelemetry) GetHelperTelemetry() map[string]interface{} {
 			continue
 		}
 
-		if t := getHelperTelemetry(&val, probeName, b.ebpfHelperErrorsGauge); len(t) > 0 {
+		if t := getHelperTelemetry(&val, probeName, ebpfHelperErrorsGauge); len(t) > 0 {
 			helperTelemMap[probeName] = t
 		}
 	}

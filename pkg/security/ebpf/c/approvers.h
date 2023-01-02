@@ -18,8 +18,6 @@ struct bpf_map_def SEC("maps/basename_approvers") basename_approvers = {
     .key_size = BASENAME_FILTER_SIZE,
     .value_size = sizeof(struct basename_filter_t),
     .max_entries = 255,
-    .pinning = 0,
-    .namespace = "",
 };
 
 void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"sort"
 	"strings"
@@ -21,7 +22,7 @@ import (
 const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
 
 var (
-	ipv6SpecialNetworks = []*netaddrIPPrefix{
+	ipv6SpecialNetworks = []*netip.Prefix{
 		ippref("fec0::/10"), // site local
 	}
 	clientIPHeader string
@@ -133,8 +134,8 @@ func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]st
 }
 
 // ippref returns the IP network from an IP address string s. If not possible, it returns nil.
-func ippref(s string) *netaddrIPPrefix {
-	if prefix, err := netaddrParseIPPrefix(s); err == nil {
+func ippref(s string) *netip.Prefix {
+	if prefix, err := netip.ParsePrefix(s); err == nil {
 		return &prefix
 	}
 	return nil
@@ -161,7 +162,7 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 		}
 	}
 
-	var remoteIP netaddrIP
+	var remoteIP netip.Addr
 	if remoteAddr != "" {
 		remoteIP = parseIP(remoteAddr)
 		if remoteIP.IsValid() {
@@ -191,19 +192,19 @@ func setClientIPTags(span span, remoteAddr string, reqHeaders map[string][]strin
 	}
 }
 
-func parseIP(s string) netaddrIP {
-	if ip, err := netaddrParseIP(s); err == nil {
+func parseIP(s string) netip.Addr {
+	if ip, err := netip.ParseAddr(s); err == nil {
 		return ip
 	}
 	if h, _, err := net.SplitHostPort(s); err == nil {
-		if ip, err := netaddrParseIP(h); err == nil {
+		if ip, err := netip.ParseAddr(h); err == nil {
 			return ip
 		}
 	}
-	return netaddrIP{}
+	return netip.Addr{}
 }
 
-func isGlobal(ip netaddrIP) bool {
+func isGlobal(ip netip.Addr) bool {
 	// IsPrivate also checks for ipv6 ULA.
 	// We care to check for these addresses are not considered public, hence not global.
 	// See https://www.rfc-editor.org/rfc/rfc4193.txt for more details.

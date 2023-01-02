@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -530,6 +531,20 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 	)
 }
 
+func TestMapAPMStats(t *testing.T) {
+	consumer := &mockFullConsumer{}
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	tr := newTranslator(t, logger)
+	md := tr.StatsPayloadToMetrics(pb.StatsPayload{
+		Stats: []pb.ClientStatsPayload{statsPayloads[0], statsPayloads[1]},
+	})
+
+	ctx := context.Background()
+	tr.MapMetrics(ctx, md, consumer)
+	require.Equal(t, consumer.apmstats, statsPayloads)
+}
+
 func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -580,6 +595,11 @@ var _ SketchConsumer = (*mockFullConsumer)(nil)
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []sketch
+	apmstats []pb.ClientStatsPayload
+}
+
+func (c *mockFullConsumer) ConsumeAPMStats(p pb.ClientStatsPayload) {
+	c.apmstats = append(c.apmstats, p)
 }
 
 func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
@@ -708,4 +728,75 @@ func newSketchWithHostname(name string, summary summary.Summary, tags []string) 
 	s := newSketch(dims.AddTags(tags...), 0, summary)
 	s.host = testHostname
 	return s
+}
+
+var statsPayloads = []pb.ClientStatsPayload{
+	{
+		Hostname:         "host",
+		Env:              "prod",
+		Version:          "v1.2",
+		Lang:             "go",
+		TracerVersion:    "v44",
+		RuntimeID:        "123jkl",
+		Sequence:         2,
+		AgentAggregation: "blah",
+		Service:          "mysql",
+		ContainerID:      "abcdef123456",
+		Tags:             []string{"a:b", "c:d"},
+		Stats: []pb.ClientStatsBucket{
+			{
+				Start:    10,
+				Duration: 1,
+				Stats: []pb.ClientGroupedStats{
+					{
+						Service:        "kafka",
+						Name:           "queue.add",
+						Resource:       "append",
+						HTTPStatusCode: 220,
+						Type:           "queue",
+						Hits:           15,
+						Errors:         3,
+						Duration:       143,
+						OkSummary:      testSketchBytes(1, 4, 5),
+						ErrorSummary:   testSketchBytes(2, 3, 9),
+						TopLevelHits:   5,
+					},
+				},
+			},
+		},
+	},
+	{
+		Hostname:         "host2",
+		Env:              "prod2",
+		Version:          "v1.22",
+		Lang:             "go2",
+		TracerVersion:    "v442",
+		RuntimeID:        "123jkl2",
+		Sequence:         22,
+		AgentAggregation: "blah2",
+		Service:          "mysql2",
+		ContainerID:      "abcdef1234562",
+		Tags:             []string{"a:b2", "c:d2"},
+		Stats: []pb.ClientStatsBucket{
+			{
+				Start:    102,
+				Duration: 12,
+				Stats: []pb.ClientGroupedStats{
+					{
+						Service:        "kafka2",
+						Name:           "queue.add2",
+						Resource:       "append2",
+						HTTPStatusCode: 2202,
+						Type:           "queue2",
+						Hits:           152,
+						Errors:         32,
+						Duration:       1432,
+						OkSummary:      testSketchBytes(10, 11, 12),
+						ErrorSummary:   testSketchBytes(14, 15, 16),
+						TopLevelHits:   52,
+					},
+				},
+			},
+		},
+	},
 }

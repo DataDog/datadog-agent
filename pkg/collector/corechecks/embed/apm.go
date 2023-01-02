@@ -142,7 +142,7 @@ func (c *APMCheck) run() error {
 }
 
 // Configure the APMCheck
-func (c *APMCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *APMCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	var checkConf apmCheckConf
 	if err := yaml.Unmarshal(data, &checkConf); err != nil {
 		return err

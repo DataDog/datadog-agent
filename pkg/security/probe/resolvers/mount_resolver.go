@@ -11,7 +11,7 @@ package resolvers
 import (
 	"context"
 	"errors"
-	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,6 +36,10 @@ var (
 	ErrMountUndefined = errors.New("undefined mountID")
 	// ErrMountLoop is returned when there is a resolution loop
 	ErrMountLoop = errors.New("mount resolution loop")
+	// ErrMountPathEmpty is returned when the resolved mount path is empty
+	ErrMountPathEmpty = errors.New("mount resolution return empty path")
+	// ErrMountKernelID
+	ErrMountKernelID = errors.New("not a critical error")
 )
 
 const (
@@ -59,38 +63,45 @@ func parseGroupID(mnt *mountinfo.Info) (uint32, error) {
 	return 0, nil
 }
 
-// newMountEventFromMountInfo - Creates a new MountEvent from parsed MountInfo data
-func newMountEventFromMountInfo(mnt *mountinfo.Info) (*model.MountEvent, error) {
-	groupID, err := parseGroupID(mnt)
-	if err != nil {
-		return nil, err
-	}
+// newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
+func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
+	// groupID is not use for the path resolution, don't make it critical
+	groupID, _ := parseGroupID(mnt)
 
-	// create a MountEvent out of the parsed MountInfo
-	return &model.MountEvent{
-		ParentMountID: uint32(mnt.Parent),
-		MountPointStr: mnt.Mountpoint,
-		RootStr:       mnt.Root,
+	// create a Mount out of the parsed MountInfo
+	return &model.Mount{
 		MountID:       uint32(mnt.ID),
 		GroupID:       groupID,
 		Device:        uint32(unix.Mkdev(uint32(mnt.Major), uint32(mnt.Minor))),
+		ParentMountID: uint32(mnt.Parent),
 		FSType:        mnt.FSType,
-	}, nil
+		MountPointStr: mnt.Mountpoint,
+		Path:          mnt.Mountpoint,
+		RootStr:       mnt.Root,
+	}
 }
 
 type deleteRequest struct {
-	mount     *model.MountEvent
+	mount     *model.Mount
 	timeoutAt time.Time
+}
+
+// MountResolverOpts defines mount resolver options
+type MountResolverOpts struct {
+	UseProcFS bool
 }
 
 // MountResolver represents a cache for mountpoints and the corresponding file systems
 type MountResolver struct {
+	opts            MountResolverOpts
+	cgroupsResolver *CgroupsResolver
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
-	mounts          map[uint32]*model.MountEvent
-	devices         map[uint32]map[uint32]*model.MountEvent
+	mounts          map[uint32]*model.Mount
+	devices         map[uint32]map[uint32]*model.Mount
 	deleteQueue     []deleteRequest
-	parentPathCache *simplelru.LRU[uint32, string]
+	minMountID      uint32
+	redemption      *simplelru.LRU[uint32, *model.Mount]
 
 	// stats
 	cacheHitsStats *atomic.Int64
@@ -99,22 +110,45 @@ type MountResolver struct {
 	procMissStats  *atomic.Int64
 }
 
+// IsMountIDValid returns whether the mountID is valid
+func (mr *MountResolver) IsMountIDValid(mountID uint32) (bool, error) {
+	if mountID == 0 {
+		return false, ErrMountUndefined
+	}
+
+	if mountID < mr.minMountID {
+		return false, ErrMountKernelID
+	}
+
+	return true, nil
+}
+
 // SyncCache - Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
 func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.syncCache(pid)
+	if err := mr.syncCache(pid); err != nil {
+		return err
+	}
+
+	// store the minimal mount ID found to use it a reference
+	if pid == 1 {
+		for mountID := range mr.mounts {
+			if mr.minMountID == 0 || mr.minMountID > mountID {
+				mr.minMountID = mountID
+			}
+		}
+	}
+
+	return nil
 }
 
 func (mr *MountResolver) syncCache(pid uint32) error {
 	mnts, err := kernel.ParseMountInfoFile(int32(pid))
 	if err != nil {
-		pErr, ok := err.(*os.PathError)
-		if !ok {
-			return err
-		}
-		return pErr
+		mr.cgroupsResolver.DelByPID1(pid)
+		return err
 	}
 
 	for _, mnt := range mnts {
@@ -122,42 +156,37 @@ func (mr *MountResolver) syncCache(pid uint32) error {
 			continue
 		}
 
-		e, err := newMountEventFromMountInfo(mnt)
-		if err != nil {
-			return err
-		}
-
-		mr.insert(*e)
+		m := newMountFromMountInfo(mnt)
+		mr.insert(m)
 	}
 
 	return nil
 }
 
-func (mr *MountResolver) deleteChildren(parent *model.MountEvent) {
+func (mr *MountResolver) finalizeChildren(parent *model.Mount) {
 	for _, mount := range mr.mounts {
 		if mount.ParentMountID == parent.MountID {
 			if _, exists := mr.mounts[mount.MountID]; exists {
-				mr.delete(mount)
+				mr.finalize(mount)
 			}
 		}
 	}
 }
 
-// deleteDevice deletes MountEvent sharing the same device id for overlay fs mount
-func (mr *MountResolver) deleteDevice(mount *model.MountEvent) {
+// finalizeDevice deletes Mount sharing the same device id for overlay fs mount
+func (mr *MountResolver) finalizeDevice(mount *model.Mount) {
 	if !mount.IsOverlayFS() {
 		return
 	}
 
 	for _, deviceMount := range mr.devices[mount.Device] {
 		if mount.Device == deviceMount.Device && mount.MountID != deviceMount.MountID {
-			mr.delete(deviceMount)
+			mr.finalize(deviceMount)
 		}
 	}
 }
 
-func (mr *MountResolver) delete(mount *model.MountEvent) {
-	mr.clearCacheForMountID(mount.MountID)
+func (mr *MountResolver) finalize(mount *model.Mount) {
 	delete(mr.mounts, mount.MountID)
 
 	mounts, exists := mr.devices[mount.Device]
@@ -165,16 +194,20 @@ func (mr *MountResolver) delete(mount *model.MountEvent) {
 		delete(mounts, mount.MountID)
 	}
 
-	mr.deleteChildren(mount)
-	mr.deleteDevice(mount)
+	mr.finalizeChildren(mount)
+	mr.finalizeDevice(mount)
+}
+
+func (mr *MountResolver) delete(mount *model.Mount) {
+	if m, exists := mr.mounts[mount.MountID]; exists {
+		mr.redemption.Add(mount.MountID, m)
+	}
 }
 
 // Delete a mount from the cache
 func (mr *MountResolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
-
-	mr.clearCacheForMountID(mountID)
 
 	mount, exists := mr.mounts[mountID]
 	if !exists {
@@ -186,12 +219,12 @@ func (mr *MountResolver) Delete(mountID uint32) error {
 	return nil
 }
 
-// GetFilesystem returns the name of the filesystem
-func (mr *MountResolver) GetFilesystem(mountID, pid uint32) (string, error) {
+// ResolveFilesystem returns the name of the filesystem
+func (mr *MountResolver) ResolveFilesystem(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, pid)
+	mount, err := mr.resolveMount(mountID, pid, containerID)
 	if err != nil {
 		return "", err
 	}
@@ -199,57 +232,60 @@ func (mr *MountResolver) GetFilesystem(mountID, pid uint32) (string, error) {
 	return mount.GetFSType(), nil
 }
 
-// Get returns a mount event from the mount id
-func (mr *MountResolver) Get(mountID, pid uint32) (*model.MountEvent, error) {
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-
-	return mr.resolveMount(mountID, pid)
-}
-
 // Insert a new mount point in the cache
-func (mr *MountResolver) Insert(e model.MountEvent) error {
+func (mr *MountResolver) Insert(e model.Mount, pid uint32, containerID string) error {
+	if e.MountID == 0 {
+		return ErrMountUndefined
+	}
+
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(e)
+	mr.insert(&e)
 
 	return nil
 }
 
-func (mr *MountResolver) insert(e model.MountEvent) {
+func (mr *MountResolver) insert(m *model.Mount) {
 	// umount the previous one if exists
-	if prev, ok := mr.mounts[e.MountID]; ok {
-		mr.delete(prev)
-	}
-
-	// Retrieve the parent paths and strip it from the event
-	p, ok := mr.mounts[e.ParentMountID]
-	if ok {
-		prefix, err := mr.getParentPath(p.MountID)
-		if err != nil {
-			// do not log error here. it will be report during the next path resolution
-			return
-		}
-		if len(prefix) > 0 && prefix != "/" {
-			e.MountPointStr = strings.TrimPrefix(e.MountPointStr, prefix)
+	if prev, ok := mr.mounts[m.MountID]; ok {
+		// if present in the redemption that the evict function that will remove the entry
+		if present := mr.redemption.Remove(prev.MountID); !present {
+			mr.finalize(prev)
 		}
 	}
 
-	deviceMounts := mr.devices[e.Device]
+	// if we're inserting a mountpoint from a kernel event (!= procfs) that isn't the root fs
+	// then remove the leading slash from the mountpoint
+	if len(m.Path) == 0 && m.MountPointStr != "/" {
+		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
+	}
+
+	deviceMounts := mr.devices[m.Device]
 	if deviceMounts == nil {
-		deviceMounts = make(map[uint32]*model.MountEvent)
-		mr.devices[e.Device] = deviceMounts
+		deviceMounts = make(map[uint32]*model.Mount)
+		mr.devices[m.Device] = deviceMounts
 	}
-	deviceMounts[e.MountID] = &e
+	deviceMounts[m.MountID] = m
+	mr.mounts[m.MountID] = m
 
-	mr.mounts[e.MountID] = &e
+	if mr.minMountID > m.MountID {
+		mr.minMountID = m.MountID
+	}
 }
 
-func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (string, error) {
+func (mr *MountResolver) _getMountPath(mountID uint32, cache map[uint32]bool) (string, error) {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", err
+	}
+
 	mount, exists := mr.mounts[mountID]
 	if !exists {
 		return "", ErrMountNotFound
+	}
+
+	if len(mount.Path) > 0 {
+		return mount.Path, nil
 	}
 
 	mountPointStr := mount.MountPointStr
@@ -263,31 +299,27 @@ func (mr *MountResolver) _getParentPath(mountID uint32, cache map[uint32]bool) (
 	}
 	cache[mountID] = true
 
-	if mount.ParentMountID != 0 {
-		p, err := mr._getParentPath(mount.ParentMountID, cache)
-		if err != nil {
-			return "", err
-		}
-
-		if p != "/" && !strings.HasPrefix(mount.MountPointStr, p) {
-			mountPointStr = p + mount.MountPointStr
-		}
+	if mount.ParentMountID == 0 {
+		return "", ErrMountUndefined
 	}
+
+	parentMountPath, err := mr._getMountPath(mount.ParentMountID, cache)
+	if err != nil {
+		return "", err
+	}
+	mountPointStr = path.Join(parentMountPath, mountPointStr)
+
+	if len(mountPointStr) == 0 {
+		return "", ErrMountPathEmpty
+	}
+
+	mount.Path = mountPointStr
 
 	return mountPointStr, nil
 }
 
-func (mr *MountResolver) getParentPath(mountID uint32) (string, error) {
-	if entry, found := mr.parentPathCache.Get(mountID); found {
-		return entry, nil
-	}
-
-	path, err := mr._getParentPath(mountID, map[uint32]bool{})
-	if err != nil {
-		return "", err
-	}
-	mr.parentPathCache.Add(mountID, path)
-	return path, nil
+func (mr *MountResolver) getMountPath(mountID uint32) (string, error) {
+	return mr._getMountPath(mountID, map[uint32]bool{})
 }
 
 func (mr *MountResolver) dequeue(now time.Time) {
@@ -307,9 +339,6 @@ func (mr *MountResolver) dequeue(now time.Time) {
 			mr.delete(req.mount)
 		}
 
-		// clear cache anyway
-		mr.clearCacheForMountID(req.mount.MountID)
-
 		i++
 	}
 
@@ -320,10 +349,6 @@ func (mr *MountResolver) dequeue(now time.Time) {
 	}
 
 	mr.lock.Unlock()
-}
-
-func (mr *MountResolver) clearCacheForMountID(mountID uint32) {
-	mr.parentPathCache.Remove(mountID)
 }
 
 // Start starts the resolver
@@ -343,57 +368,116 @@ func (mr *MountResolver) Start(ctx context.Context) {
 	}()
 }
 
-func (mr *MountResolver) resolveMount(mountID, pid uint32) (*model.MountEvent, error) {
-	if mountID == 0 {
-		return nil, ErrMountUndefined
-	}
-
-	mount, ok := mr.mounts[mountID]
-
-	if !ok {
-		mr.cacheMissStats.Inc()
-		if pid != 0 {
-			if err := mr.syncCache(pid); err != nil {
-				return nil, err
-			}
-			mount = mr.mounts[mountID]
-			if mount != nil {
-				mr.procHitsStats.Inc()
-			} else {
-				mr.procMissStats.Inc()
-			}
-		}
-	} else {
-		// stats
-		mr.cacheHitsStats.Inc()
-	}
-
-	if mount == nil {
-		return nil, ErrMountNotFound
-	}
-
-	return mount, nil
-}
-
-// ResolveMountPaths returns the path of a mount identified by its mount ID.
-// The first parameter is the mount point path, and the third parameter is the root path.
-func (mr *MountResolver) ResolveMountPaths(mountID, pid uint32) (string, string, error) {
+// ResolveMountPath returns the root of a mount identified by its mount ID.
+func (mr *MountResolver) ResolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, pid)
-	if err != nil {
-		return "", "", ErrMountNotFound
-	}
-
-	parentPath, err := mr.getParentPath(mountID)
-	if err != nil {
-		return "", "", err
-	}
-
-	return parentPath, mount.RootStr, nil
+	return mr.resolveMountRoot(mountID, pid, containerID)
 }
 
+func (mr *MountResolver) resolveMountRoot(mountID, pid uint32, containerID string) (string, error) {
+	mount, err := mr.resolveMount(mountID, pid, containerID)
+	if err != nil {
+		return "", err
+	}
+	return mount.RootStr, nil
+}
+
+// ResolveMountRoot returns the root of a mount identified by its mount ID.
+func (mr *MountResolver) ResolveMountPath(mountID, pid uint32, containerID string) (string, error) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	return mr.resolveMountPath(mountID, pid, containerID)
+}
+
+func (mr *MountResolver) resolveMountPath(mountID, pid uint32, containerID string) (string, error) {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return "", err
+	}
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		pid = pid1
+	}
+
+	path, err := mr.getMountPath(mountID)
+	if err == nil {
+		mr.cacheHitsStats.Inc()
+
+		// touch the redemption entry to maintain the entry
+		_, _ = mr.redemption.Get(mountID)
+
+		return path, nil
+	}
+	mr.cacheMissStats.Inc()
+
+	if !mr.opts.UseProcFS {
+		return "", ErrMountNotFound
+	}
+
+	if err := mr.syncCache(pid); err != nil {
+		mr.procMissStats.Inc()
+		return "", err
+	}
+	path, err = mr.getMountPath(mountID)
+	if err == nil {
+		mr.procHitsStats.Inc()
+		return path, nil
+	}
+	mr.procMissStats.Inc()
+
+	return "", err
+}
+
+// ResolveMount returns the mount
+func (mr *MountResolver) ResolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	return mr.resolveMount(mountID, pid, containerID)
+}
+
+func (mr *MountResolver) resolveMount(mountID, pid uint32, containerID string) (*model.Mount, error) {
+	if _, err := mr.IsMountIDValid(mountID); err != nil {
+		return nil, err
+	}
+
+	// force pid1 resolution here to keep the LRU doing his job and not evicting important entries
+	if pid1, exists := mr.cgroupsResolver.GetPID1(containerID); exists {
+		pid = pid1
+	}
+
+	mount, exists := mr.mounts[mountID]
+	if exists {
+		mr.cacheHitsStats.Inc()
+
+		// touch the redemption entry to maintain the entry
+		_, _ = mr.redemption.Get(mountID)
+
+		return mount, nil
+	}
+	mr.cacheMissStats.Inc()
+
+	if !mr.opts.UseProcFS {
+		return nil, ErrMountNotFound
+	}
+
+	if err := mr.syncCache(pid); err != nil {
+		mr.procMissStats.Inc()
+		return nil, err
+	}
+	mount, exists = mr.mounts[mountID]
+	if exists {
+		mr.procMissStats.Inc()
+		return mount, nil
+	}
+	mr.procMissStats.Inc()
+
+	return nil, ErrMountNotFound
+}
+
+// GetMountIDOffset returns the mount id offset
 func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
 	offset := uint64(284)
 
@@ -492,21 +576,27 @@ func (mr *MountResolver) SendStats() error {
 }
 
 // NewMountResolver instantiates a new mount resolver
-func NewMountResolver(statsdClient statsd.ClientInterface) (*MountResolver, error) {
-	parentPathCache, err := simplelru.NewLRU[uint32, string](256, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &MountResolver{
+func NewMountResolver(statsdClient statsd.ClientInterface, cgroupsResolver *CgroupsResolver, opts MountResolverOpts) (*MountResolver, error) {
+	mr := &MountResolver{
+		opts:            opts,
 		statsdClient:    statsdClient,
+		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
-		devices:         make(map[uint32]map[uint32]*model.MountEvent),
-		mounts:          make(map[uint32]*model.MountEvent),
-		parentPathCache: parentPathCache,
+		devices:         make(map[uint32]map[uint32]*model.Mount),
+		mounts:          make(map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
 		procMissStats:   atomic.NewInt64(0),
-	}, nil
+	}
+
+	redemption, err := simplelru.NewLRU(1024, func(mountID uint32, mount *model.Mount) {
+		mr.finalize(mount)
+	})
+	if err != nil {
+		return nil, err
+	}
+	mr.redemption = redemption
+
+	return mr, nil
 }

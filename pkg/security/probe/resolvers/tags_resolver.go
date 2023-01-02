@@ -83,14 +83,18 @@ func (t *TagsResolver) Stop() error {
 
 // NewTagsResolver returns a new tags resolver
 func NewTagsResolver(config *config.Config) *TagsResolver {
-	var tagger Tagger
 	if config.RemoteTaggerEnabled {
-		tagger = remote.NewTagger()
-	} else {
-		tagger = &nullTagger{}
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			return &TagsResolver{
+				tagger: remote.NewTagger(options),
+			}
+		}
 	}
 
 	return &TagsResolver{
-		tagger: tagger,
+		tagger: &nullTagger{},
 	}
 }

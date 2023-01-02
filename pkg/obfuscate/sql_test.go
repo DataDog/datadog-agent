@@ -89,7 +89,7 @@ func TestDollarQuotedFunc(t *testing.T) {
 			`CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text) AS $func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();`,
 		)
 		assert.NoError(t, err)
-		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO school ( id, organization_id, name, created_at, updated_at ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE school SET id = ? organization_id = ? name = ? updated_at = ? WHERE ( id = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
+		assert.Equal(t, `CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert ( OUT created boolean, OUT primary_key text ) AS $func$BEGIN INSERT INTO "school" ( "id", "organization_id", "name", "created_at", "updated_at" ) VALUES ( ? ) created := ? EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id" = ? "organization_id" = ? "name" = ? "updated_at" = ? WHERE ( "id" = ? ) created := ? END$func$ LANGUAGE plpgsql SELECT * FROM pg_temp.sequelize_upsert ( )`, oq.Query)
 	})
 }
 
@@ -99,11 +99,12 @@ func TestScanDollarQuotedString(t *testing.T) {
 		out string
 		err bool
 	}{
-		{`$tag$abc$tag$`, `abc`, false},
-		{`$func$abc$func$`, `abc`, false},
-		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `textwith\n\rnewlinesand\r\\\`, false},
-		{`$tag$ab$tactac$tx$tag$`, `ab$tactac$tx`, false},
-		{`$$abc$$`, `abc`, false},
+		{`$tag$abc$tag$`, `$tag$abc$tag$`, false},
+		{`$func$abc$func$`, `$func$abc$func$`, false},
+		{`$tag$textwith\n\rnewlinesand\r\\\$tag$`, `$tag$textwith\n\rnewlinesand\r\\\$tag$`, false},
+		{`$tag$ab$tactac$tx$tag$`, `$tag$ab$tactac$tx$tag$`, false},
+		{`$$abc$$`, `$$abc$$`, false},
+		{`$$$$`, `$$$$`, false},
 		{`$$abc`, `abc`, true},
 		{`$$abc$`, `abc`, true},
 	} {
@@ -116,7 +117,10 @@ func TestScanDollarQuotedString(t *testing.T) {
 				}
 				return
 			}
-			assert.Equal(t, string(str), tt.out)
+			if kind == LexError {
+				t.Fatalf("Failed to Tokenize %v: %v\n", tt.in, tok.err)
+			}
+			assert.Equal(t, tt.out, string(str))
 			assert.Equal(t, DollarQuotedString, kind)
 		})
 	}
@@ -129,7 +133,7 @@ func TestScanDollarQuotedString(t *testing.T) {
 		})
 
 		t.Run("on", func(t *testing.T) {
-			tok := NewSQLTokenizer("$func$abc$func$", false, &SQLConfig{
+			tok := NewSQLTokenizer(`$func$ BEGIN INSERT INTO "school" ("id","organization_id","name","created_at","updated_at") VALUES ('dc4e9444-d7c9-40a9-bcef-68e4cc594e61','ec647f56-f27a-49a1-84af-021ad0a19f21','Test','2021-03-31 16:30:43.915 +00:00','2021-03-31 16:30:43.915 +00:00'); created := true; EXCEPTION WHEN unique_violation THEN UPDATE "school" SET "id"='dc4e9444-d7c9-40a9-bcef-68e4cc594e61',"organization_id"='ec647f56-f27a-49a1-84af-021ad0a19f21',"name"='Test',"updated_at"='2021-03-31 16:30:43.915 +00:00' WHERE ("id" = 'dc4e9444-d7c9-40a9-bcef-68e4cc594e61'); created := false; END; $func$`, false, &SQLConfig{
 				DollarQuotedFunc: true,
 			})
 			kind, _ := tok.Scan()
@@ -385,8 +389,12 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 		{
+			`select * from dollarField$ as df from some$dollar$filled_thing$$;`,
+			`select * from dollarField$ from some$dollar$filled_thing$$`,
+		},
+		{
 			"select * from `構わない`;",
-			"select * from 構わない",
+			"select * from `構わない`",
 		},
 		{
 			"select * from names where name like '�����';",
@@ -417,7 +425,7 @@ func TestSQLReplaceDigits(t *testing.T) {
 		}{
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
+				"REPLACE INTO sales_?_?_? ( `itemID`, `date`, `qty`, `price` ) VALUES ( ( SELECT itemID FROM item? WHERE `sku` = [sku] ), CURDATE ( ), [qty], ? )",
 			},
 			{
 				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
@@ -483,7 +491,7 @@ GROUP BY sales1828.product_key`,
 		}{
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
-				"REPLACE INTO sales_2019_07_01 ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item1001 WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
+				"REPLACE INTO sales_2019_07_01 ( `itemID`, `date`, `qty`, `price` ) VALUES ( ( SELECT itemID FROM item1001 WHERE `sku` = [sku] ), CURDATE ( ), [qty], ? )",
 			},
 			{
 				"SELECT ddh19.name, ddt.tags FROM dd91219.host ddh19, dd21916.host_tags ddt WHERE ddh19.id = ddt.host_id AND ddh19.org_id = 2 AND ddh19.name = 'datadog'",
@@ -555,14 +563,24 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 				"select * from users where id = ?",
 			},
 			{
-				"select * from `backslashes` where id = 42",
-				"backslashes",
-				"select * from backslashes where id = ?",
+				"select * from `backticks` where id = 42",
+				"`backticks`",
+				"select * from `backticks` where id = ?",
 			},
 			{
 				`select * from "double-quotes" where id = 42`,
-				"double-quotes",
-				`select * from double-quotes where id = ?`,
+				`"double-quotes"`,
+				`select * from "double-quotes" where id = ?`,
+			},
+			{
+				"select * from `backticks_20` where id = 42",
+				"`backticks_?`",
+				"select * from `backticks_?` where id = ?",
+			},
+			{
+				`select * from "double-quotes-30" where id = 42`,
+				`"double-quotes-?"`,
+				`select * from "double-quotes-?" where id = ?`,
 			},
 			{
 				"SELECT host, status FROM ec2_status WHERE org_id = 42",
@@ -617,7 +635,7 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			{
 				"REPLACE INTO sales_2019_07_01 (`itemID`, `date`, `qty`, `price`) VALUES ((SELECT itemID FROM item1001 WHERE `sku` = [sku]), CURDATE(), [qty], 0.00)",
 				"sales_?_?_?,item?",
-				"REPLACE INTO sales_?_?_? ( itemID, date, qty, price ) VALUES ( ( SELECT itemID FROM item? WHERE sku = [ sku ] ), CURDATE ( ), [ qty ], ? )",
+				"REPLACE INTO sales_?_?_? ( `itemID`, `date`, `qty`, `price` ) VALUES ( ( SELECT itemID FROM item? WHERE `sku` = [sku] ), CURDATE ( ), [qty], ? )",
 			},
 			{
 				"SELECT name FROM people WHERE person_id = -1",
@@ -652,12 +670,12 @@ func TestSQLTableFinderAndReplaceDigits(t *testing.T) {
 			{
 				"select * from test where !\"weird_query\"",
 				"test",
-				"select * from test where ! weird_query",
+				"select * from test where ! \"weird_query\"",
 			},
 			{
 				"select * from test where !`weird_query`",
 				"test",
-				"select * from test where ! weird_query",
+				"select * from test where ! `weird_query`",
 			},
 			{
 				"select !- 2",
@@ -749,15 +767,15 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SELECT * FROM `host` WHERE `id` IN (42, 43) /*comment with parameters,host:localhost,url:controller#home,id:FF005:00CAA*/",
-			"SELECT * FROM host WHERE id IN ( ? )",
+			"SELECT * FROM `host` WHERE `id` IN ( ? )",
 		},
 		{
 			"SELECT `host`.`address` FROM `host` WHERE org_id=42",
-			"SELECT host . address FROM host WHERE org_id = ?",
+			"SELECT `host`.`address` FROM `host` WHERE org_id = ?",
 		},
 		{
 			`SELECT "host"."address" FROM "host" WHERE org_id=42`,
-			`SELECT host . address FROM host WHERE org_id = ?`,
+			`SELECT "host"."address" FROM "host" WHERE org_id = ?`,
 		},
 		{
 			`SELECT * FROM host WHERE id IN (42, 43) /*
@@ -775,11 +793,11 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = %(org_id)s AND metric_key = ANY(array[75])",
-			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
+			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [?] )",
 		},
 		{
 			"SELECT org_id, metric_key   FROM metrics_metadata   WHERE org_id = %(org_id)s AND metric_key = ANY(array[21, 25, 32])",
-			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [ ? ] )",
+			"SELECT org_id, metric_key FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( array [?] )",
 		},
 		{
 			"SELECT articles.* FROM articles WHERE articles.id = 1 LIMIT 1",
@@ -868,7 +886,7 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			`SELECT "webcore_page"."id" FROM "webcore_page" WHERE "webcore_page"."slug" = %s ORDER BY "webcore_page"."path" ASC LIMIT 1`,
-			"SELECT webcore_page . id FROM webcore_page WHERE webcore_page . slug = ? ORDER BY webcore_page . path ASC LIMIT ?",
+			`SELECT "webcore_page"."id" FROM "webcore_page" WHERE "webcore_page"."slug" = ? ORDER BY "webcore_page"."path" ASC LIMIT ?`,
 		},
 		{
 			"SELECT server_table.host AS host_id FROM table#.host_tags as server_table WHERE server_table.host_id = 50",
@@ -892,7 +910,7 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"SELECT * FROM public.table ( array [ ROW ( array [ 'magic', 'foo',",
-			"SELECT * FROM public.table ( array [ ROW ( array [ ?",
+			"SELECT * FROM public.table ( array [ROW ( array [?",
 		},
 		{
 			"SELECT pg_try_advisory_lock (123) AS t46eef3f025cc27feb31ca5a2d668a09a",
@@ -900,7 +918,7 @@ func TestSQLQuantizer(t *testing.T) {
 		},
 		{
 			"INSERT INTO `qual-aa`.issues (alert0 , alert1) VALUES (NULL, NULL)",
-			"INSERT INTO qual-aa . issues ( alert0, alert1 ) VALUES ( ? )",
+			"INSERT INTO `qual-aa`.issues ( alert0, alert1 ) VALUES ( ? )",
 		},
 		{
 			"INSERT INTO user (id, email, name) VALUES (null, ?, ?)",
@@ -941,7 +959,7 @@ func TestSQLQuantizer(t *testing.T) {
 			`SELECT daily_values.*,
                     LEAST((5040000 - @runtot), value) AS value,
                     ` + "(@runtot := @runtot + daily_values.value) AS total FROM (SELECT @runtot:=0) AS n, `daily_values`  WHERE `daily_values`.`subject_id` = 12345 AND `daily_values`.`subject_type` = 'Skippity' AND (daily_values.date BETWEEN '2018-05-09' AND '2018-06-19') HAVING value >= 0 ORDER BY date",
-			`SELECT daily_values.*, LEAST ( ( ? - @runtot ), value ), ( @runtot := @runtot + daily_values.value ) FROM ( SELECT @runtot := ? ), daily_values WHERE daily_values . subject_id = ? AND daily_values . subject_type = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date`,
+			"SELECT daily_values.*, LEAST ( ( ? - @runtot ), value ), ( @runtot := @runtot + daily_values.value ) FROM ( SELECT @runtot := ? ), `daily_values` WHERE `daily_values`.`subject_id` = ? AND `daily_values`.`subject_type` = ? AND ( daily_values.date BETWEEN ? AND ? ) HAVING value >= ? ORDER BY date",
 		},
 		{
 			`    SELECT
@@ -974,13 +992,13 @@ func TestSQLQuantizer(t *testing.T) {
       t1.userid = 'jstein'
 
   `,
-			`SELECT t1.userid, t1.fullname, t1.firm_id, t2.firmname, t1.email, t1.location, t1.state, t1.phone, t1.url, DATE_FORMAT ( t1.lastmod, %m/%d/%Y %h:%i:%s ), t1.lastmod, t1.user_status, t1.pw_expire, DATE_FORMAT ( t1.pw_expire, %m/%d/%Y ), t1.addr1, t1.addr2, t1.zipcode, t1.office_id, t1.default_group, t3.firm_status, t1.title FROM userdata LEFT JOIN lawfirm_names ON t1.firm_id = t2.firm_id LEFT JOIN lawfirms ON t1.firm_id = t3.firm_id WHERE t1.userid = ?`,
+			`SELECT t1.userid, t1.fullname, t1.firm_id, t2.firmname, t1.email, t1.location, t1.state, t1.phone, t1.url, DATE_FORMAT ( t1.lastmod, "%m/%d/%Y %h:%i:%s" ), t1.lastmod, t1.user_status, t1.pw_expire, DATE_FORMAT ( t1.pw_expire, "%m/%d/%Y" ), t1.addr1, t1.addr2, t1.zipcode, t1.office_id, t1.default_group, t3.firm_status, t1.title FROM userdata LEFT JOIN lawfirm_names ON t1.firm_id = t2.firm_id LEFT JOIN lawfirms ON t1.firm_id = t3.firm_id WHERE t1.userid = ?`,
 		},
 		{
 			`SELECT [b].[BlogId], [b].[Name]
 FROM [Blogs] AS [b]
 ORDER BY [b].[Name]`,
-			`SELECT [ b ] . [ BlogId ], [ b ] . [ Name ] FROM [ Blogs ] ORDER BY [ b ] . [ Name ]`,
+			`SELECT [b].[BlogId], [b].[Name] FROM [Blogs] ORDER BY [b].[Name]`,
 		},
 		{
 			`SELECT * FROM users WHERE firstname=''`,
@@ -1036,7 +1054,7 @@ ORDER BY [b].[Name]`,
 		},
 		{
 			"SELECT org_id,metric_key,metric_type,interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY(ARRAY[?,?,?,?,?])",
-			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [ ? ] )",
+			"SELECT org_id, metric_key, metric_type, interval FROM metrics_metadata WHERE org_id = ? AND metric_key = ANY ( ARRAY [?] )",
 		},
 		{
 			`SELECT wp_woocommerce_order_items.order_id As No_Commande
@@ -1057,7 +1075,7 @@ ORDER BY [b].[Name]`,
 		},
 		{
 			"SELECT MIN(`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_8720d2c0e0824ec2910ab9479085839c`) AS `MIN_BECR_DATE_CREATED` FROM (SELECT `49a39c4cc9ae4fdda07bcf49e99f8224`.`submittedOn` AS `scoped_8720d2c0e0824ec2910ab9479085839c`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`domain` AS `scoped_847e4dcfa1c54d72aad6dbeb231c46de`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventConsumer` AS `scoped_7b2f7b8da15646d1b75aa03901460eb2`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventType` AS `scoped_77a1b9308b384a9391b69d24335ba058` FROM (`SorDesignTime`.`businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e` AS `49a39c4cc9ae4fdda07bcf49e99f8224`) WHERE (`49a39c4cc9ae4fdda07bcf49e99f8224`.`systemData.ClientID`) = ('35c1ccc0-a83c-4812-a189-895e9d4dd223')) AS `scoped_49a39c4cc9ae4fdda07bcf49e99f8224` WHERE ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_847e4dcfa1c54d72aad6dbeb231c46de`) = ('Benefits') AND ((`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_7b2f7b8da15646d1b75aa03901460eb2`) = ('benefits') AND (`scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_77a1b9308b384a9391b69d24335ba058`) = ('DMXSync'))); ",
-			"SELECT MIN ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_8720d2c0e0824ec2910ab9479085839c ) FROM ( SELECT 49a39c4cc9ae4fdda07bcf49e99f8224 . submittedOn, 49a39c4cc9ae4fdda07bcf49e99f8224 . domain, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventConsumer, 49a39c4cc9ae4fdda07bcf49e99f8224 . eventType FROM ( SorDesignTime . businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e ) WHERE ( 49a39c4cc9ae4fdda07bcf49e99f8224 . systemData.ClientID ) = ( ? ) ) WHERE ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_847e4dcfa1c54d72aad6dbeb231c46de ) = ( ? ) AND ( ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_7b2f7b8da15646d1b75aa03901460eb2 ) = ( ? ) AND ( scoped_49a39c4cc9ae4fdda07bcf49e99f8224 . scoped_77a1b9308b384a9391b69d24335ba058 ) = ( ? ) ) )",
+			"SELECT MIN ( `scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_8720d2c0e0824ec2910ab9479085839c` ) FROM ( SELECT `49a39c4cc9ae4fdda07bcf49e99f8224`.`submittedOn`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`domain`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventConsumer`, `49a39c4cc9ae4fdda07bcf49e99f8224`.`eventType` FROM ( `SorDesignTime`.`businessEventConsumerRegistry_947a74dad4b64be9847d67f466d26f5e` ) WHERE ( `49a39c4cc9ae4fdda07bcf49e99f8224`.`systemData.ClientID` ) = ( ? ) ) WHERE ( ( `scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_847e4dcfa1c54d72aad6dbeb231c46de` ) = ( ? ) AND ( ( `scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_7b2f7b8da15646d1b75aa03901460eb2` ) = ( ? ) AND ( `scoped_49a39c4cc9ae4fdda07bcf49e99f8224`.`scoped_77a1b9308b384a9391b69d24335ba058` ) = ( ? ) ) )",
 		},
 		{
 			"{call px_cu_se_security_pg.sps_get_my_accounts_count(?, ?, ?, ?)}",
@@ -1172,6 +1190,14 @@ LIMIT 1
 			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
 			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
 		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1222,11 +1248,11 @@ func TestPGJSONOperators(t *testing.T) {
 		},
 		{
 			"select * from users where user.custom ?| array [ '1', '2' ]",
-			"select * from users where user.custom ?| array [ ? ]",
+			"select * from users where user.custom ?| array [?]",
 		},
 		{
 			"select * from users where user.custom ?& array [ '1', '2' ]",
-			"select * from users where user.custom ?& array [ ? ]",
+			"select * from users where user.custom ?& array [?]",
 		},
 	} {
 		t.Run("", func(t *testing.T) {
@@ -1274,109 +1300,109 @@ func TestSQLTokenizerIgnoreEscapeFalse(t *testing.T) {
 	cases := []sqlTokenizerTestCase{
 		{
 			`'Simple string'`,
-			"Simple string",
+			"'Simple string'",
 			String,
 		},
 		{
 			`'String with backslash at end \'`,
-			"String with backslash at end '",
+			"'String with backslash at end \\'",
 			LexError,
 		},
 		{
 			`'String with backslash \ in the middle'`,
-			"String with backslash  in the middle",
+			"'String with backslash \\ in the middle'",
 			String,
 		},
 		{
 			`'String with double-backslash at end \\'`,
-			"String with double-backslash at end \\",
+			"'String with double-backslash at end \\\\'",
 			String,
 		},
 		{
 			`'String with double-backslash \\ in the middle'`,
-			"String with double-backslash \\ in the middle",
+			"'String with double-backslash \\\\ in the middle'",
 			String,
 		},
 		{
 			`'String with backslash-escaped quote at end \''`,
-			"String with backslash-escaped quote at end '",
+			"'String with backslash-escaped quote at end \\''",
 			String,
 		},
 		{
 			`'String with backslash-escaped quote \' in middle'`,
-			"String with backslash-escaped quote ' in middle",
+			"'String with backslash-escaped quote \\' in middle'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
-			"String with backslash-escaped embedded string 'foo' in the middle",
+			"'String with backslash-escaped embedded string \\'foo\\' in the middle'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string at end \'foo\''`,
-			"String with backslash-escaped embedded string at end 'foo'",
+			"'String with backslash-escaped embedded string at end \\'foo\\''",
 			String,
 		},
 		{
 			`'String with double-backslash-escaped embedded string at the end \\'foo\\''`,
-			"String with double-backslash-escaped embedded string at the end \\",
+			"'String with double-backslash-escaped embedded string at the end \\\\'",
 			String,
 		},
 		{
 			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
-			"String with double-backslash-escaped embedded string \\",
+			"'String with double-backslash-escaped embedded string \\\\'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
-			"String with backslash-escaped embedded string 'foo' in the middle followed by one at the end '",
+			"'String with backslash-escaped embedded string \\'foo\\' in the middle followed by one at the end \\'",
 			LexError,
 		},
 		{
 			`'String with embedded string at end ''foo'''`,
-			"String with embedded string at end 'foo'",
+			"'String with embedded string at end ''foo'''",
 			String,
 		},
 		{
 			`'String with embedded string ''foo'' in the middle'`,
-			"String with embedded string 'foo' in the middle",
+			"'String with embedded string ''foo'' in the middle'",
 			String,
 		},
 		{
 			`'String with tab at end	'`,
-			"String with tab at end\t",
+			"'String with tab at end\t'",
 			String,
 		},
 		{
 			`'String with tab	in the middle'`,
-			"String with tab\tin the middle",
+			"'String with tab\tin the middle'",
 			String,
 		},
 		{
 			`'String with newline at the end
 '`,
-			"String with newline at the end\n",
+			"'String with newline at the end\n'",
 			String,
 		},
 		{
 			`'String with newline
 in the middle'`,
-			"String with newline\nin the middle",
+			"'String with newline\nin the middle'",
 			String,
 		},
 		{
 			`'Simple string missing closing quote`,
-			"Simple string missing closing quote",
+			"'Simple string missing closing quote",
 			LexError,
 		},
 		{
 			`'String missing closing quote with backslash at end \`,
-			"String missing closing quote with backslash at end ",
+			"'String missing closing quote with backslash at end \\",
 			LexError,
 		},
 		{
 			`'String with backslash \ in the middle missing closing quote`,
-			"String with backslash  in the middle missing closing quote",
+			"'String with backslash \\ in the middle missing closing quote",
 			LexError,
 		},
 		{
@@ -1387,7 +1413,7 @@ in the middle'`,
 		// The following case will treat the final quote as unescaped
 		{
 			`'String missing closing quote with backslash-escaped quote at end \'`,
-			"String missing closing quote with backslash-escaped quote at end '",
+			"'String missing closing quote with backslash-escaped quote at end \\'",
 			LexError,
 		},
 	}
@@ -1406,117 +1432,117 @@ func TestSQLTokenizerIgnoreEscapeTrue(t *testing.T) {
 	cases := []sqlTokenizerTestCase{
 		{
 			`'Simple string'`,
-			"Simple string",
+			"'Simple string'",
 			String,
 		},
 		{
 			`'String with backslash at end \'`,
-			"String with backslash at end \\",
+			"'String with backslash at end \\'",
 			String,
 		},
 		{
 			`'String with backslash \ in the middle'`,
-			"String with backslash \\ in the middle",
+			"'String with backslash \\ in the middle'",
 			String,
 		},
 		{
 			`'String with double-backslash at end \\'`,
-			"String with double-backslash at end \\\\",
+			"'String with double-backslash at end \\\\'",
 			String,
 		},
 		{
 			`'String with double-backslash \\ in the middle'`,
-			"String with double-backslash \\\\ in the middle",
+			"'String with double-backslash \\\\ in the middle'",
 			String,
 		},
 		// The following case will treat backslash as literal and double single quote as a single quote
 		// thus missing the final single quote
 		{
-			`'String with backslash-escaped quote at end \''`,
-			"String with backslash-escaped quote at end \\'",
+			`'String with backslash followed by double-delimiter \''`,
+			"'String with backslash followed by double-delimiter \\''",
 			LexError,
 		},
 		{
 			`'String with backslash-escaped quote \' in middle'`,
-			"String with backslash-escaped quote \\",
+			"'String with backslash-escaped quote \\'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string at the end \'foo\''`,
-			"String with backslash-escaped embedded string at the end \\",
+			"'String with backslash-escaped embedded string at the end \\'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle'`,
-			"String with backslash-escaped embedded string \\",
+			"'String with backslash-escaped embedded string \\'",
 			String,
 		},
 		{
 			`'String with double-backslash-escaped embedded string at end \\'foo\\''`,
-			"String with double-backslash-escaped embedded string at end \\\\",
+			"'String with double-backslash-escaped embedded string at end \\\\'",
 			String,
 		},
 		{
 			`'String with double-backslash-escaped embedded string \\'foo\\' in the middle'`,
-			"String with double-backslash-escaped embedded string \\\\",
+			"'String with double-backslash-escaped embedded string \\\\'",
 			String,
 		},
 		{
 			`'String with backslash-escaped embedded string \'foo\' in the middle followed by one at the end \'`,
-			"String with backslash-escaped embedded string \\",
+			"'String with backslash-escaped embedded string \\'",
 			String,
 		},
 		{
 			`'String with embedded string at end ''foo'''`,
-			"String with embedded string at end 'foo'",
+			"'String with embedded string at end ''foo'''",
 			String,
 		},
 		{
 			`'String with embedded string ''foo'' in the middle'`,
-			"String with embedded string 'foo' in the middle",
+			"'String with embedded string ''foo'' in the middle'",
 			String,
 		},
 		{
 			`'String with tab at end	'`,
-			"String with tab at end\t",
+			"'String with tab at end\t'",
 			String,
 		},
 		{
 			`'String with tab	in the middle'`,
-			"String with tab\tin the middle",
+			"'String with tab\tin the middle'",
 			String,
 		},
 		{
 			`'String with newline at the end
 '`,
-			"String with newline at the end\n",
+			"'String with newline at the end\n'",
 			String,
 		},
 		{
 			`'String with newline
 in the middle'`,
-			"String with newline\nin the middle",
+			"'String with newline\nin the middle'",
 			String,
 		},
 		{
 			`'Simple string missing closing quote`,
-			"Simple string missing closing quote",
+			`'Simple string missing closing quote`,
 			LexError,
 		},
 		{
 			`'String missing closing quote with backslash at end \`,
-			"String missing closing quote with backslash at end \\",
+			`'String missing closing quote with backslash at end \`,
 			LexError,
 		},
 		{
 			`'String with backslash \ in the middle missing closing quote`,
-			"String with backslash \\ in the middle missing closing quote",
+			`'String with backslash \ in the middle missing closing quote`,
 			LexError,
 		},
 		// The following case will treat the final quote as unescaped
 		{
 			`'String missing closing quote with backslash-escaped quote at end \'`,
-			"String missing closing quote with backslash-escaped quote at end \\",
+			`'String missing closing quote with backslash-escaped quote at end \'`,
 			String,
 		},
 	}
@@ -1609,11 +1635,6 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
@@ -1667,7 +1688,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1924,8 +1945,9 @@ func TestCassQuantizer(t *testing.T) {
 			"SELECT timestamp, processes FROM process_snapshot.minutely WHERE org_id = ? AND host = ? AND timestamp >= ? AND timestamp <= ?",
 		},
 		{
-			"SELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )\nSELECT count(*) AS totcount FROM (SELECT \"c1\", \"c2\",\"c3\",\"c4\",\"c5\",\"c6\",\"c7\",\"c8\", \"c9\", \"c10\",\"c11\",\"c12\",\"c13\",\"c14\", \"c15\",\"c16\",\"c17\",\"c18\", \"c19\",\"c20\",\"c21\",\"c22\",\"c23\", \"c24\",\"c25\",\"c26\", \"c27\" FROM (SELECT bar.y AS \"c2\", foo.x AS \"c3\", foo.z AS \"c4\", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS \"c5\" , foo.c AS \"c6\", bar.d AS \"c1\", bar.e AS \"c7\", bar.f AS \"c8\", bar.g AS \"c9\", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS \"c10\", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS \"c11\", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS \"c12\", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as \"c13\", bar.k AS \"c14\", bar.l ||?||bar.m AS \"c15\", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS \"c16\", bar.p AS \"c17\", bar.q AS \"c18\", bar.r AS \"c19\", bar.s AS \"c20\", qux.a AS \"c21\", TO_CHAR(TO_DATE(qux.b,?),?) AS \"c22\", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS \"c23\", bar.a AS \"c24\", TO_CHAR(TO_DATE(bar.j,?),?) AS \"c25\", DECODE(bar.c , ?,?,?, ?, bar.c ) AS \"c26\", bar.y AS y, bar.d, bar.d AS \"c27\" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )",
-			"SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) ) SELECT count ( * ) FROM ( SELECT c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27 FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) )",
+			`SELECT count(*) AS totcount FROM (SELECT "c1", "c2","c3","c4","c5","c6","c7","c8", "c9", "c10","c11","c12","c13","c14", "c15","c16","c17","c18", "c19","c20","c21","c22","c23", "c24","c25","c26", "c27" FROM (SELECT bar.y AS "c2", foo.x AS "c3", foo.z AS "c4", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS "c5" , foo.c AS "c6", bar.d AS "c1", bar.e AS "c7", bar.f AS "c8", bar.g AS "c9", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS "c10", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS "c11", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS "c12", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as "c13", bar.k AS "c14", bar.l ||?||bar.m AS "c15", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS "c16", bar.p AS "c17", bar.q AS "c18", bar.r AS "c19", bar.s AS "c20", qux.a AS "c21", TO_CHAR(TO_DATE(qux.b,?),?) AS "c22", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS "c23", bar.a AS "c24", TO_CHAR(TO_DATE(bar.j,?),?) AS "c25", DECODE(bar.c , ?,?,?, ?, bar.c ) AS "c26", bar.y AS y, bar.d, bar.d AS "c27" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )
+SELECT count(*) AS totcount FROM (SELECT "c1", "c2","c3","c4","c5","c6","c7","c8", "c9", "c10","c11","c12","c13","c14", "c15","c16","c17","c18", "c19","c20","c21","c22","c23", "c24","c25","c26", "c27" FROM (SELECT bar.y AS "c2", foo.x AS "c3", foo.z AS "c4", DECODE(foo.a, NULL,NULL, foo.a ||?|| foo.b) AS "c5" , foo.c AS "c6", bar.d AS "c1", bar.e AS "c7", bar.f AS "c8", bar.g AS "c9", TO_DATE(TO_CHAR(TO_DATE(bar.h,?),?),?) AS "c10", TO_DATE(TO_CHAR(TO_DATE(bar.i,?),?),?) AS "c11", CASE WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? WHEN DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?))) > ? THEN ? ELSE NULL END AS "c12", DECODE(bar.j, NULL, TRUNC(SYSDATE) - TRUNC(TO_DATE(bar.h,?)),NULL) as "c13", bar.k AS "c14", bar.l ||?||bar.m AS "c15", DECODE(bar.n, NULL, NULL,bar.n ||?||bar.o) AS "c16", bar.p AS "c17", bar.q AS "c18", bar.r AS "c19", bar.s AS "c20", qux.a AS "c21", TO_CHAR(TO_DATE(qux.b,?),?) AS "c22", DECODE(qux.l,NULL,NULL, qux.l ||?||qux.m) AS "c23", bar.a AS "c24", TO_CHAR(TO_DATE(bar.j,?),?) AS "c25", DECODE(bar.c , ?,?,?, ?, bar.c ) AS "c26", bar.y AS y, bar.d, bar.d AS "c27" FROM blort.bar , ( SELECT * FROM (SELECT a,a,l,m,b,c, RANK() OVER (PARTITION BY c ORDER BY b DESC) RNK FROM blort.d WHERE y IN (:p)) WHERE RNK = ?) qux, blort.foo WHERE bar.c = qux.c(+) AND bar.x = foo.x AND bar.y IN (:p) and bar.x IN (:x)) )`,
+			`SELECT count ( * ) FROM ( SELECT "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18", "c19", "c20", "c21", "c22", "c23", "c24", "c25", "c26", "c27" FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) ) SELECT count ( * ) FROM ( SELECT "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13", "c14", "c15", "c16", "c17", "c18", "c19", "c20", "c21", "c22", "c23", "c24", "c25", "c26", "c27" FROM ( SELECT bar.y, foo.x, foo.z, DECODE ( foo.a, ? foo.a | | ? | | foo.b ), foo.c, bar.d, bar.e, bar.f, bar.g, TO_DATE ( TO_CHAR ( TO_DATE ( bar.h, ? ) ) ), TO_DATE ( TO_CHAR ( TO_DATE ( bar.i, ? ) ) ), CASE WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? WHEN DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ) > ? THEN ? ELSE ? END, DECODE ( bar.j, ? TRUNC ( SYSDATE ) - TRUNC ( TO_DATE ( bar.h, ? ) ) ), bar.k, bar.l | | ? | | bar.m, DECODE ( bar.n, ? bar.n | | ? | | bar.o ), bar.p, bar.q, bar.r, bar.s, qux.a, TO_CHAR ( TO_DATE ( qux.b, ? ) ), DECODE ( qux.l, ? qux.l | | ? | | qux.m ), bar.a, TO_CHAR ( TO_DATE ( bar.j, ? ) ), DECODE ( bar.c, ? bar.c ), bar.y, bar.d, bar.d FROM blort.bar, ( SELECT * FROM ( SELECT a, a, l, m, b, c, RANK ( ) OVER ( PARTITION BY c ORDER BY b DESC ) RNK FROM blort.d WHERE y IN ( :p ) ) WHERE RNK = ? ) qux, blort.foo WHERE bar.c = qux.c ( + ) AND bar.x = foo.x AND bar.y IN ( :p ) and bar.x IN ( :x ) ) )`,
 		},
 	}
 
@@ -1941,6 +1963,32 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test

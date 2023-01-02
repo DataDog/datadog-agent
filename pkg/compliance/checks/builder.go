@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/open-policy-agent/opa/metrics"
-	"github.com/open-policy-agent/opa/rego"
+
 	cache "github.com/patrickmn/go-cache"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -26,6 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks/env"
 	"github.com/DataDog/datadog-agent/pkg/compliance/eval"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
+	"github.com/DataDog/datadog-agent/pkg/compliance/rego"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/audit"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/file"
+	"github.com/DataDog/datadog-agent/pkg/compliance/resources/process"
+	commandutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/command"
+	dockerutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/docker"
+	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
+	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,10 +102,13 @@ func WithHostname(hostname string) BuilderOption {
 // WithHostRootMount defines host root filesystem mount location
 func WithHostRootMount(hostRootMount string) BuilderOption {
 	return func(b *builder) error {
-		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
-		b.pathMapper = &pathMapper{
-			hostMountPath: hostRootMount,
+		if hostRootMount == "" {
+			hostRootMount = "/"
 		}
+		log.Infof("Host root filesystem will be remapped to %s", hostRootMount)
+		b.pathMapper = fileutils.NewPathMapper(
+			hostRootMount,
+		)
 		return nil
 	}
 }
@@ -105,7 +116,7 @@ func WithHostRootMount(hostRootMount string) BuilderOption {
 // WithDocker configures using docker
 func WithDocker() BuilderOption {
 	return func(b *builder) error {
-		cli, err := newDockerClient()
+		cli, err := dockerutils.NewDockerClient()
 		if err == nil {
 			b.dockerClient = cli
 		}
@@ -124,7 +135,7 @@ func WithDockerClient(cli env.DockerClient) BuilderOption {
 // WithAudit configures using audit checks
 func WithAudit() BuilderOption {
 	return func(b *builder) error {
-		cli, err := newAuditClient()
+		cli, err := audit.NewAuditClient()
 		if err == nil {
 			b.auditClient = cli
 		}
@@ -159,7 +170,7 @@ func (c *kubeClient) ClusterID() (string, error) {
 		Version:  "v1",
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), compliance.DefaultTimeout)
 	defer cancel()
 	resource, err := resourceDef.Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
@@ -305,7 +316,7 @@ type builder struct {
 	statsdClient statsd.ClientInterface
 
 	hostname     string
-	pathMapper   *pathMapper
+	pathMapper   *fileutils.PathMapper
 	etcGroupPath string
 	nodeLabels   map[string]string
 
@@ -396,27 +407,6 @@ func (b *builder) ChecksFromFile(file string, onCheck compliance.CheckVisitor) e
 	log.Infof("%s/%s: loading suite from %s", suite.Meta.Name, suite.Meta.Version, file)
 
 	matchedCount := 0
-	for _, r := range suite.Rules {
-		if b.checkMatchingRule(file, suite, &r) {
-			matchedCount++
-		} else {
-			continue
-		}
-
-		log.Debugf("%s/%s: loading rule %s", suite.Meta.Name, suite.Meta.Version, r.ID)
-		check, err := b.checkFromRule(&suite.Meta, &r)
-		if err != nil {
-			if err != ErrRuleDoesNotApply {
-				log.Warnf("%s/%s: failed to load rule %s: %v", suite.Meta.Name, suite.Meta.Version, r.ID, err)
-			}
-			log.Infof("%s/%s: skipped rule %s - does not apply to this system", suite.Meta.Name, suite.Meta.Version, r.ID)
-		}
-
-		if err := b.addCheckAndRun(suite, r.Common(), check, onCheck, err); err != nil {
-			return err
-		}
-	}
-
 	for _, r := range suite.RegoRules {
 		if b.checkMatchingRule(file, suite, &r) {
 			matchedCount++
@@ -450,26 +440,6 @@ func (b *builder) GetCheckStatus() compliance.CheckStatusList {
 		return b.status.getChecksStatus()
 	}
 	return compliance.CheckStatusList{}
-}
-
-func (b *builder) checkFromRule(meta *compliance.SuiteMeta, rule *compliance.ConditionFallbackRule) (compliance.Check, error) {
-	ruleScope, err := getRuleScope(meta, rule.Scope)
-	if err != nil {
-		return nil, err
-	}
-
-	eligible, err := b.hostMatcher(ruleScope, rule.ID, rule.HostSelector, rule.SkipOnK8s)
-	if err != nil {
-		return nil, err
-	}
-
-	if !eligible {
-		log.Debugf("rule %s/%s discarded by hostMatcher", meta.Framework, rule.ID)
-		return nil, ErrRuleDoesNotApply
-	}
-
-	resourceReporter := b.getRuleResourceReporter(ruleScope, *rule)
-	return b.newCheck(meta, ruleScope, rule, resourceReporter)
 }
 
 func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance.RegoRule) (compliance.Check, error) {
@@ -506,80 +476,10 @@ func getRuleScope(meta *compliance.SuiteMeta, scopeList compliance.RuleScopeList
 		return compliance.KubernetesNodeScope, nil
 	case scopeList.Includes(compliance.KubernetesClusterScope):
 		return compliance.KubernetesClusterScope, nil
+	case scopeList.Includes(compliance.Unscoped):
+		return compliance.Unscoped, nil
 	default:
 		return "", ErrRuleScopeNotSupported
-	}
-}
-
-func (b *builder) kubeResourceReporter(rule compliance.ConditionFallbackRule, resourceType string) resourceReporter {
-	return func(report *compliance.Report) compliance.ReportResource {
-		var clusterID string
-		var err error
-
-		if b.kubeClient != nil {
-			clusterID, err = b.kubeClient.ClusterID()
-			if err != nil {
-				log.Debugf("failed to retrieve cluster id, defaulting to hostname")
-			}
-		}
-
-		if clusterID == "" {
-			clusterID = b.Hostname()
-		}
-
-		if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "kube_") {
-			return compliance.ReportResource{
-				ID:   clusterID + "_" + report.Resource.ID,
-				Type: report.Resource.Type,
-			}
-		}
-
-		if rule.ResourceType != "" {
-			resourceType = rule.ResourceType
-		}
-
-		return compliance.ReportResource{
-			ID:   clusterID + "_" + resourceType,
-			Type: resourceType,
-		}
-	}
-}
-
-func (b *builder) getRuleResourceReporter(scope compliance.RuleScope, rule compliance.ConditionFallbackRule) resourceReporter {
-	switch scope {
-	case compliance.DockerScope:
-		return func(report *compliance.Report) compliance.ReportResource {
-			if !report.Aggregated && rule.ResourceType == "" && strings.HasPrefix(report.Resource.Type, "docker_") {
-				return compliance.ReportResource{
-					ID:   b.Hostname() + "_" + report.Resource.ID,
-					Type: report.Resource.Type,
-				}
-			}
-
-			resourceType := rule.ResourceType
-			if resourceType == "" {
-				resourceType = "docker_daemon"
-			}
-
-			return compliance.ReportResource{
-				ID:   b.Hostname() + "_daemon",
-				Type: resourceType,
-			}
-		}
-
-	case compliance.KubernetesNodeScope:
-		return b.kubeResourceReporter(rule, "kubernetes_node")
-
-	case compliance.KubernetesClusterScope:
-		return b.kubeResourceReporter(rule, "kubernetes_cluster")
-
-	default:
-		return func(report *compliance.Report) compliance.ReportResource {
-			return compliance.ReportResource{
-				ID:   b.Hostname(),
-				Type: string(scope),
-			}
-		}
 	}
 }
 
@@ -685,35 +585,6 @@ func (b *builder) nodeLabelKeys() []string {
 	return keys
 }
 
-func (b *builder) newCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.ConditionFallbackRule, handler resourceReporter) (compliance.Check, error) {
-	checkable, err := newResourceCheckList(b, rule.ID, rule.Resources)
-	if err != nil {
-		return nil, err
-	}
-
-	var notify eventNotify
-	if b.status != nil {
-		notify = b.status.updateCheck
-	}
-
-	// We capture err as configuration error but do not prevent check creation
-	return &complianceCheck{
-		Env: b,
-
-		ruleID:      rule.ID,
-		description: rule.Description,
-		interval:    b.checkInterval,
-
-		suiteMeta: meta,
-
-		resourceHandler: handler,
-		scope:           ruleScope,
-		checkable:       checkable,
-
-		eventNotify: notify,
-	}, nil
-}
-
 func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.RuleScope, rule *compliance.RegoRule, handler resourceReporter) (compliance.Check, error) {
 	var m metrics.Metrics
 
@@ -722,20 +593,9 @@ func (b *builder) newRegoCheck(meta *compliance.SuiteMeta, ruleScope compliance.
 		m = newRegoMetrics(m, b.statsdClient)
 	}
 
-	regoCheck := &regoCheck{
-		ruleID:    rule.ID,
-		inputs:    rule.Inputs,
-		ruleScope: ruleScope,
-		metrics:   m,
-	}
+	regoCheck := rego.NewCheck(rule)
 
-	regoOptions := append([]func(r *rego.Rego){
-		rego.EnablePrintStatements(true),
-		rego.PrintHook(&regoPrintHook{}),
-		rego.Metrics(m),
-	}, regoBuiltins...)
-
-	if err := regoCheck.compileRule(rule, regoOptions, meta); err != nil {
+	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
 		return nil, err
 	}
 
@@ -806,14 +666,14 @@ func (b *builder) NormalizeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
 	}
-	return b.pathMapper.normalizeToHostRoot(path)
+	return b.pathMapper.NormalizeToHostRoot(path)
 }
 
 func (b *builder) RelativeToHostRoot(path string) string {
 	if b.pathMapper == nil {
 		return path
 	}
-	return b.pathMapper.relativeToHostRoot(path)
+	return b.pathMapper.RelativeToHostRoot(path)
 }
 
 func (b *builder) IsLeader() bool {
@@ -834,8 +694,8 @@ func (b *builder) EvaluateFromCache(ev eval.Evaluatable) (interface{}, error) {
 			builderFuncShell:       b.withValueCache(builderFuncShell, evalCommandShell),
 			builderFuncExec:        b.withValueCache(builderFuncExec, evalCommandExec),
 			builderFuncProcessFlag: b.withValueCache(builderFuncProcessFlag, evalProcessFlag),
-			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(jsonGetter)),
-			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(yamlGetter)),
+			builderFuncJSON:        b.withValueCache(builderFuncJSON, b.evalValueFromFile(fileutils.JSONGetter)),
+			builderFuncYAML:        b.withValueCache(builderFuncYAML, b.evalValueFromFile(fileutils.YAMLGetter)),
 		},
 		nil,
 	)
@@ -861,11 +721,44 @@ func (b *builder) withValueCache(funcName string, fn eval.Function) eval.Functio
 	}
 }
 
+func valueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
+	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
+
+	shellCmd := &compliance.ShellCmd{
+		Run: command,
+	}
+	if len(shellAndArgs) > 0 {
+		shellCmd.Shell = &compliance.BinaryCmd{
+			Name: shellAndArgs[0],
+			Args: shellAndArgs[1:],
+		}
+	}
+	execCommand := commandutils.ShellCmdToBinaryCmd(shellCmd)
+	exitCode, stdout, err := commandutils.RunBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
+	}
+	return stdout, nil
+}
+
+func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
+	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
+	execCommand := &compliance.BinaryCmd{
+		Name: name,
+		Args: args,
+	}
+	exitCode, stdout, err := commandutils.RunBinaryCmd(execCommand, compliance.DefaultTimeout)
+	if exitCode != 0 || err != nil {
+		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
+	}
+	return stdout, nil
+}
+
 func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, errors.New(`expecting at least one argument`)
 	}
-	command, ok := args[0].(string)
+	cmd, ok := args[0].(string)
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for command argument`)
 	}
@@ -881,27 +774,8 @@ func evalCommandShell(_ eval.Instance, args ...interface{}) (interface{}, error)
 			shellAndArgs = append(shellAndArgs, s)
 		}
 	}
-	return valueFromShellCommand(command, shellAndArgs...)
-}
 
-func valueFromShellCommand(command string, shellAndArgs ...string) (interface{}, error) {
-	log.Debugf("Resolving value from shell command: %s, args [%s]", command, strings.Join(shellAndArgs, ","))
-
-	shellCmd := &compliance.ShellCmd{
-		Run: command,
-	}
-	if len(shellAndArgs) > 0 {
-		shellCmd.Shell = &compliance.BinaryCmd{
-			Name: shellAndArgs[0],
-			Args: shellAndArgs[1:],
-		}
-	}
-	execCommand := shellCmdToBinaryCmd(shellCmd)
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", command, err)
-	}
-	return stdout, nil
+	return valueFromShellCommand(cmd, shellAndArgs...)
 }
 
 func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) {
@@ -922,19 +796,6 @@ func evalCommandExec(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	return valueFromBinaryCommand(cmdArgs[0], cmdArgs[1:]...)
 }
 
-func valueFromBinaryCommand(name string, args ...string) (interface{}, error) {
-	log.Debugf("Resolving value from command: %s, args [%s]", name, strings.Join(args, ","))
-	execCommand := &compliance.BinaryCmd{
-		Name: name,
-		Args: args,
-	}
-	exitCode, stdout, err := runBinaryCmd(execCommand, defaultTimeout)
-	if exitCode != 0 || err != nil {
-		return nil, fmt.Errorf("command '%v' execution failed, error: %v", execCommand, err)
-	}
-	return stdout, nil
-}
-
 func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) {
 	if len(args) != 2 {
 		return nil, errors.New(`expecting two arguments`)
@@ -947,28 +808,10 @@ func evalProcessFlag(_ eval.Instance, args ...interface{}) (interface{}, error) 
 	if !ok {
 		return nil, fmt.Errorf(`expecting string value for process flag argument`)
 	}
-	return valueFromProcessFlag(name, flag)
+	return processutils.ValueFromProcessFlag(name, flag, process.CacheValidity)
 }
 
-func valueFromProcessFlag(name string, flag string) (interface{}, error) {
-	log.Debugf("Resolving value from process: %s, flag %s", name, flag)
-
-	processes, err := getProcesses(cacheValidity)
-	if err != nil {
-		return "", fmt.Errorf("unable to fetch processes: %w", err)
-	}
-
-	matchedProcesses := processes.findProcessesByName(name)
-	if len(matchedProcesses) != 0 {
-		cmdLine := matchedProcesses[0].CmdlineSlice()
-		flagValues := parseProcessCmdLine(cmdLine)
-		return flagValues[flag], nil
-	}
-
-	return "", fmt.Errorf("failed to find process: %s", name)
-}
-
-func (b *builder) evalValueFromFile(get getter) eval.Function {
+func (b *builder) evalValueFromFile(get fileutils.Getter) eval.Function {
 	return func(_ eval.Instance, args ...interface{}) (interface{}, error) {
 		if len(args) != 2 {
 			return nil, fmt.Errorf(`invalid number of arguments, expecting 1 got %d`, len(args))
@@ -984,6 +827,6 @@ func (b *builder) evalValueFromFile(get getter) eval.Function {
 		if !ok {
 			return nil, fmt.Errorf(`expecting string value for query argument`)
 		}
-		return queryValueFromFile(path, query, get)
+		return file.QueryValueFromFile(path, query, get)
 	}
 }

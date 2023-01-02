@@ -735,7 +735,7 @@ func TestTriggerTypesLifecycleEventForKinesis(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:601427279990:stream/kinesisStream",
+		"function_trigger.event_source_arn": "arn:aws:kinesis:sa-east-1:425362996713:stream/kinesisStream",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "kinesis",
 	}, testProcessor.GetTags())
@@ -779,7 +779,7 @@ func TestTriggerTypesLifecycleEventForSNS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:601427279990:serverlessTracingTopicPy",
+		"function_trigger.event_source_arn": "arn:aws:sns:sa-east-1:425362996713:serverlessTracingTopicPy",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sns",
 	}, testProcessor.GetTags())
@@ -801,7 +801,7 @@ func TestTriggerTypesLifecycleEventForSQS(t *testing.T) {
 		RequestID: "test-request-id",
 	})
 	assert.Equal(t, map[string]string{
-		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:601427279990:InferredSpansQueueNode",
+		"function_trigger.event_source_arn": "arn:aws:sqs:sa-east-1:425362996713:InferredSpansQueueNode",
 		"request_id":                        "test-request-id",
 		"function_trigger.event_source":     "sqs",
 	}, testProcessor.GetTags())

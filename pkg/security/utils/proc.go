@@ -272,7 +272,10 @@ func EnvVars(pid int32) ([]string, error) {
 
 	var envs []string
 	for scanner.Scan() {
-		envs = append(envs, scanner.Text())
+		text := scanner.Text()
+		if len(text) > 0 {
+			envs = append(envs, text)
+		}
 	}
 
 	return envs, nil

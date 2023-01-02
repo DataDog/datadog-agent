@@ -17,10 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/unix"
 )
 
 type CompiledOutput interface {
@@ -30,6 +31,7 @@ type CompiledOutput interface {
 }
 
 var defaultFlags = []string{
+	"-DCOMPILE_RUNTIME",
 	"-D__KERNEL__",
 	"-DCONFIG_64BIT",
 	"-D__BPF_TRACING__",

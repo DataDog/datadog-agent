@@ -8,6 +8,7 @@
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
+#include "http2.h"
 
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -15,24 +16,95 @@ long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u3
 #endif
 
 #define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size)   \
-        if (buf_size < min_buff_size) {                                     \
-            return false;                                                   \
-        }                                                                   \
+    if (buf_size < min_buff_size) {                                         \
+        return false;                                                       \
+    }                                                                       \
                                                                             \
-        if (buf == NULL) {                                                  \
-            return false;                                                   \
-        }                                                                   \
+    if (buf == NULL) {                                                      \
+        return false;                                                       \
+    }                                                                       \
+
+// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
+// We check that the given buffer is not empty and its size is at least 24 bytes.
+static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
+
+#define HTTP2_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+
+    bool match = !bpf_memcmp(buf, HTTP2_PREFACE, sizeof(HTTP2_PREFACE)-1);
+
+    return match;
+}
+
+// According to the https://www.rfc-editor.org/rfc/rfc7540#section-3.5
+// an HTTP2 server must reply with a settings frame to the preface of HTTP2.
+// The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
+// of 6 bytes.
+static __always_inline bool is_http2_server_settings(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE)
+
+    struct http2_frame frame_header;
+    if (!read_http2_frame_header(buf, buf_size, &frame_header)) {
+        return false;
+    }
+
+    return frame_header.type == kSettingsFrame && frame_header.stream_id == 0 && frame_header.length % HTTP2_SETTINGS_SIZE == 0;
+}
 
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
+    return is_http2_preface(buf, buf_size) || is_http2_server_settings(buf, buf_size);
+}
 
-#define HTTP2_SIGNATURE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+// The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
 
-    bool match = !bpf_memcmp(buf, HTTP2_SIGNATURE, sizeof(HTTP2_SIGNATURE)-1);
+#define AMQP_PREFACE "AMQP"
+
+    bool match = !bpf_memcmp(buf, AMQP_PREFACE, sizeof(AMQP_PREFACE)-1);
 
     return match;
+}
+
+// The method checks if the given buffer is an AMQP message.
+// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
+static __always_inline bool is_amqp(const char* buf, __u32 buf_size) {
+    // New connection should start with protocol header of AMQP.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    if (is_amqp_protocol_header(buf, buf_size)) {
+        return true;
+    }
+
+    // Validate that we will be able to get from the buffer the class and method ids.
+    if (buf_size < AMQP_MIN_PAYLOAD_LENGTH) {
+       return false;
+    }
+
+    uint8_t frame_type = buf[0];
+    // Check only for method frame type.
+    if (frame_type != AMQP_FRAME_METHOD_TYPE) {
+        return false;
+    }
+
+    // We extract the class id and method id by big indian from the buffer.
+    // Ref https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf.
+    __u16 class_id = buf[7] << 8 | buf[8];
+    __u16 method_id = buf[9] << 8 | buf[10];
+
+    // ConnectionStart, ConnectionStartOk, BasicPublish, BasicDeliver, BasicConsume are the most likely methods to
+    // consider for the classification.
+    if (class_id == AMQP_CONNECTION_CLASS) {
+        return  method_id == AMQP_METHOD_CONNECTION_START || method_id == AMQP_METHOD_CONNECTION_START_OK;
+    }
+
+    if (class_id == AMQP_BASIC_CLASS) {
+        return method_id == AMQP_METHOD_PUBLISH || method_id == AMQP_METHOD_DELIVER || method_id == AMQP_METHOD_CONSUME;
+    }
+
+    return false;
 }
 
 // Checks if the given buffers start with `HTTP` prefix (represents a response) or starts with `<method> /` which represents
@@ -66,6 +138,89 @@ static __always_inline bool is_http(const char *buf, __u32 size) {
     return http;
 }
 
+// Checks the buffer represent a standard response (OK) or any of redis commands
+// https://redis.io/commands/
+static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+    bool found_cr = false;
+    char current_char;
+    int i = index_to_start_from;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        current_char = buf[i];
+        if (current_char == '\r') {
+            found_cr = true;
+            break;
+        } else if ('A' <= current_char && current_char <= 'Z') {
+            continue;
+        } else if ('a' <= current_char && current_char <= 'z') {
+            continue;
+        } else if (current_char == '.' || current_char == ' ' || current_char == '-' || current_char == '_') {
+            continue;
+        }
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+// Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
+static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
+#define ERR "-ERR "
+#define WRONGTYPE "-WRONGTYPE "
+
+    // memcmp returns
+    // 0 when s1 == s2,
+    // !0 when s1 != s2.
+    bool match = !(bpf_memcmp(buf, ERR, sizeof(ERR)-1)
+        && bpf_memcmp(buf, WRONGTYPE, sizeof(WRONGTYPE)-1));
+
+    return match;
+}
+
+static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+    bool found_cr = false;
+    char current_char;
+    int i = index_to_start_from;
+#pragma unroll(CLASSIFICATION_MAX_BUFFER)
+    for (; i < CLASSIFICATION_MAX_BUFFER; i++) {
+        current_char = buf[i];
+        if (current_char == '\r') {
+            found_cr = true;
+            break;
+        } else if ('0' <= current_char && current_char <= '9') {
+            continue;
+        }
+
+        return false;
+    }
+
+    if (!found_cr || i+1 >= buf_size) {
+        return false;
+    }
+    return buf[i+1] == '\n';
+}
+
+static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH)
+
+    char first_char = buf[0];
+    switch (first_char) {
+    case '+':
+        return check_supported_ascii_and_crlf(buf, buf_size, 1);
+    case '-':
+        return check_err_prefix(buf, buf_size);
+    case ':':
+    case '$':
+    case '*':
+        return check_integer_and_crlf(buf, buf_size, 1);
+    default:
+        return false;
+    }
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
 static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
@@ -77,6 +232,10 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (is_amqp(buf, size)) {
+        *protocol = PROTOCOL_AMQP;
+    } else if (is_redis(buf, size)) {
+        *protocol = PROTOCOL_REDIS;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

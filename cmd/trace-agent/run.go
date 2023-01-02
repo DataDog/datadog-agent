@@ -155,17 +155,23 @@ func Run(ctx context.Context) {
 
 	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
 	if remoteTagger {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		if err := tagger.Init(ctx); err != nil {
-			log.Infof("starting remote tagger failed. falling back to local tagger: %s", err)
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("Unable to configure the remote tagger: %s", err)
 			remoteTagger = false
+		} else {
+			tagger.SetDefaultTagger(remote.NewTagger(options))
+			if err := tagger.Init(ctx); err != nil {
+				log.Infof("Starting remote tagger failed. Falling back to local tagger: %s", err)
+				remoteTagger = false
+			}
 		}
 	}
 
 	// starts the local tagger if apm_config says so, or if starting the
 	// remote tagger has failed.
 	if !remoteTagger {
-		store := workloadmeta.GetGlobalStore()
+		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
 		store.Start(ctx)
 
 		tagger.SetDefaultTagger(local.NewTagger(store))

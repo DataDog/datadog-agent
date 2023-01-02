@@ -300,7 +300,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
 	mockConfig.Set("cluster_agent.url", "")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
 
-	_, err := getClusterAgentEndpoint()
+	_, err := GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err)
 }
 
@@ -364,20 +364,20 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrl() {
 	mockConfig.Set("cluster_agent.url", "https://127.0.0.1:8080")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-	_, err := getClusterAgentEndpoint()
+	_, err := GetClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	mockConfig.Set("cluster_agent.url", "https://127.0.0.1")
-	_, err = getClusterAgentEndpoint()
+	_, err = GetClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	mockConfig.Set("cluster_agent.url", "127.0.0.1")
-	endpoint, err := getClusterAgentEndpoint()
+	endpoint, err := GetClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), "https://127.0.0.1", endpoint)
 
 	mockConfig.Set("cluster_agent.url", "127.0.0.1:1234")
-	endpoint, err = getClusterAgentEndpoint()
+	endpoint, err = GetClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), "https://127.0.0.1:1234", endpoint)
 }
@@ -385,11 +385,11 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrl() {
 func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrlInvalid() {
 	mockConfig.Set("cluster_agent.url", "http://127.0.0.1:8080")
 	mockConfig.Set("cluster_agent.kubernetes_service_name", "")
-	_, err := getClusterAgentEndpoint()
+	_, err := GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err)
 
 	mockConfig.Set("cluster_agent.url", "tcp://127.0.0.1:8080")
-	_, err = getClusterAgentEndpoint()
+	_, err = GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err)
 }
 
@@ -399,7 +399,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
 	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
 	suite.T().Setenv(clusterAgentServicePort, "443")
 
-	endpoint, err := getClusterAgentEndpoint()
+	endpoint, err := GetClusterAgentEndpoint()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), "https://127.0.0.1:443", endpoint)
 }
@@ -410,12 +410,12 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpt
 	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
 	suite.T().Setenv(clusterAgentServicePort, "")
 
-	_, err := getClusterAgentEndpoint()
+	_, err := GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	suite.T().Setenv(clusterAgentServiceHost, "")
 	suite.T().Setenv(clusterAgentServicePort, "443")
-	_, err = getClusterAgentEndpoint()
+	_, err = GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 

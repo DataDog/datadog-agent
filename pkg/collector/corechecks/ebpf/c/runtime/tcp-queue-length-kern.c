@@ -1,18 +1,10 @@
 #include "kconfig.h"
-#include <linux/types.h>
-#include <linux/version.h>
+#include "ktypes.h"
 #include <linux/tcp.h>
-
-#define bpf_printk(fmt, ...)                       \
-    ({                                             \
-        char ____fmt[] = fmt;                      \
-        bpf_trace_printk(____fmt, sizeof(____fmt), \
-            ##__VA_ARGS__);                        \
-    })
 
 #include "bpf_helpers.h"
 #include "map-defs.h"
-#include "bpf-common.h"
+#include "cgroup.h"
 #include "tcp-queue-length-kern-user.h"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
@@ -31,9 +23,9 @@ BPF_PERCPU_HASH_MAP(tcp_queue_stats, struct stats_key, struct stats_value, 1024)
  * received as input parameter when we are in the kretprobe of tcp_recvmsg and tcp_sendmsg.
  */
 BPF_HASH_MAP(who_recvmsg, u64, struct sock *, 100)
-    
+
 BPF_HASH_MAP(who_sendmsg, u64, struct sock *, 100)
-    
+
 // TODO: replace all `bpf_probe_read` by `bpf_probe_read_kernel` once we can assume that we have at least kernel 5.5
 static __always_inline int check_sock(struct sock *sk) {
     struct stats_value zero = {
