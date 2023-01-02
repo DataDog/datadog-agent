@@ -237,6 +237,7 @@ static __always_inline bool mongo_have_seen_request(conn_tuple_t *tup, __s32 res
     key.tup = *tup;
     key.req_id = response_to;
     void *exists = bpf_map_lookup_elem(&mongo_request_id, &key);
+    bpf_map_delete_elem(&mongo_request_id, &key);
     return exists != NULL;
 }
 
