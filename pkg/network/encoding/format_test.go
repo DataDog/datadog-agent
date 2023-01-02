@@ -9,8 +9,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/require"
 
