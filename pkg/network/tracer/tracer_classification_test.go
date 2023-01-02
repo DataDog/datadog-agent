@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build linux_bpf || (windows && npm)
-// +build linux_bpf windows,npm
 
 package tracer
 
@@ -23,11 +22,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
@@ -671,6 +673,52 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				client.Stop()
 			},
 			validation: validateProtocolConnection,
+		},
+		{
+			name: "Kafka produce",
+			context: testContext{
+				expectedProtocol: network.ProtocolKafka,
+				serverPort:       "9092",
+				clientDialer:     defaultDialer,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				kafka.RunKafkaServer(t, host, port)
+				topicName := "franz-kafka"
+				seeds := []string{ctx.serverAddress}
+				client, err := kgo.NewClient(
+					kgo.SeedBrokers(seeds...),
+					kgo.DefaultProduceTopic(topicName),
+				)
+				require.NoError(t, err)
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				err = client.Ping(ctxTimeout)
+				cancel()
+				require.NoError(t, err)
+
+				// Create the topic
+				adminClient := kadm.NewClient(client)
+				ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+				_, err = adminClient.CreateTopics(ctxTimeout, 1, 1, nil, topicName)
+				cancel()
+				require.NoError(t, err)
+
+				ctx.extras["client"] = client
+				ctx.extras["topic_name"] = topicName
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*kgo.Client)
+				defer client.Close()
+				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
+				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				err := client.ProduceSync(ctxTimeout, record).FirstErr()
+				require.NoError(t, err, "record had a produce error while synchronously producing")
+			},
+			validation: validateProtocolConnection,
+			teardown:   nil,
 		},
 	}
 	for _, tt := range tests {
