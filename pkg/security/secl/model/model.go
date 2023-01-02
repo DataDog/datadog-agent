@@ -208,6 +208,9 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+
+	// User Context, here we hold resolvers, etc.
+	UserCtx interface{}
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
