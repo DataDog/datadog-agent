@@ -10,6 +10,7 @@
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
+    - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
       -m 8192M
@@ -22,6 +23,7 @@
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

@@ -264,6 +264,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
@@ -1017,6 +1018,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1601,7 +1603,8 @@ func setupFipsEndpoints(config Config) error {
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles))
+	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
 
 	// Processes

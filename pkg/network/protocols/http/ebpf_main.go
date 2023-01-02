@@ -56,19 +56,18 @@ const (
 
 type ebpfProgram struct {
 	*errtelemetry.Manager
-	cfg         *config.Config
-	bytecode    bytecode.AssetReader
-	offsets     []manager.ConstantEditor
-	subprograms []subprogram
-	mapCleaner  *ddebpf.MapCleaner
+	cfg             *config.Config
+	bytecode        bytecode.AssetReader
+	offsets         []manager.ConstantEditor
+	subprograms     []subprogram
+	probesResolvers []probeResolver
+	mapCleaner      *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
 
-type subprogram interface {
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-
+type probeResolver interface {
+	// GetAllUndefinedProbes returns all undefined probes.
 	// Subprogram probes maybe defined in the same ELF file as the probes
 	// of the main program. The cilium loader loads all programs defined
 	// in an ELF file in to the kernel. Therefore, these programs may be
@@ -91,6 +90,11 @@ type subprogram interface {
 	// To reiterate, this is necessary due to the fact that the cilium loader loads
 	// all programs defined in an ELF file regardless if they are later attached or not.
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
+}
+
+type subprogram interface {
+	ConfigureManager(*errtelemetry.Manager)
+	ConfigureOptions(*manager.Options)
 	Start()
 	Stop()
 }
@@ -163,12 +167,18 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		},
 	}
 
-	// Add the subprograms even if nil, so that the manager can get the
-	// undefined probes from them when they are not enabled. Subprograms
-	// functions do checks for nil before doing anything.
-	ebpfSubprograms := []subprogram{
-		newGoTLSProgram(c),
-		newSSLProgram(c, sockFD),
+	subprogramProbesResolvers := make([]probeResolver, 0, 2)
+	subprograms := make([]subprogram, 0, 2)
+
+	goTLSProg := newGoTLSProgram(c)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
+	if goTLSProg != nil {
+		subprograms = append(subprograms, goTLSProg)
+	}
+	openSSLProg := newSSLProgram(c, sockFD)
+	subprogramProbesResolvers = append(subprogramProbesResolvers, openSSLProg)
+	if openSSLProg != nil {
+		subprograms = append(subprograms, openSSLProg)
 	}
 
 	program := &ebpfProgram{
@@ -177,7 +187,8 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		cfg:                    c,
 		offsets:                offsets,
 		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            ebpfSubprograms,
+		subprograms:            subprograms,
+		probesResolvers:        subprogramProbesResolvers,
 	}
 
 	return program, nil
@@ -191,7 +202,8 @@ func (e *ebpfProgram) Init() error {
 	for _, tc := range tailCalls {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
-	for _, s := range e.subprograms {
+
+	for _, s := range e.probesResolvers {
 		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
 	}
 

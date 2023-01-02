@@ -58,6 +58,7 @@
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
+    - !reference [.setup_python_mirror_win]
     - >
       docker run --rm
       -m 8192M
@@ -66,6 +67,7 @@
       -e SIGN_WINDOWS=true
       -e PY_RUNTIMES="$PYTHON_RUNTIMES"
       -e GOMODCACHE="c:\modcache"
+      -e PIP_INDEX_URL=${PIP_INDEX_URL}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}:$Env:DATADOG_AGENT_WINBUILDIMAGES
       c:\mnt\tasks\winbuildscripts\sysprobe.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
