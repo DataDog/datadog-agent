@@ -3,6 +3,9 @@
 
 #include <linux/types.h>
 
+#include "amqp-defs.h"
+#include "mongo-defs.h"
+
 // Represents the max buffer size required to classify protocols .
 // We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
 // ATM, it is HTTP2_MARKER_SIZE + 8 bytes for padding,
@@ -15,42 +18,7 @@
 // The minimal HTTP request has 16 characters: GET x HTTP/1.1\r\n
 #define HTTP_MIN_SIZE 16
 
-// RabbitMQ supported classes.
-// Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
-#define AMQP_CONNECTION_CLASS 10
-#define AMQP_BASIC_CLASS 60
-
-// RabbitMQ supported connections.
-#define AMQP_METHOD_CONNECTION_START 10
-#define AMQP_METHOD_CONNECTION_START_OK 11
-
-// RabbitMQ supported methods types.
-#define AMQP_METHOD_CONSUME 20
-#define AMQP_METHOD_PUBLISH 40
-#define AMQP_METHOD_DELIVER 60
-#define AMQP_FRAME_METHOD_TYPE 1
-
-#define AMQP_MIN_FRAME_LENGTH 8
-#define AMQP_MIN_PAYLOAD_LENGTH 11
-
 #define REDIS_MIN_FRAME_LENGTH 3
-
-// Reference:
-// https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#std-label-wp-request-opcodes.
-// Note: Response side inference for Mongo is not robust, and is not attempted to avoid
-// confusion with other protocols, especially MySQL.
-#define MONGO_OP_REPLY 1
-#define MONGO_OP_UPDATE 2001
-#define MONGO_OP_INSERT 2002
-#define MONGO_OP_RESERVED 2003
-#define MONGO_OP_QUERY 2004
-#define MONGO_OP_GET_MORE 2005
-#define MONGO_OP_DELETE 2006
-#define MONGO_OP_KILL_CURSORS 2007
-#define MONGO_OP_COMPRESSED 2012
-#define MONGO_OP_MSG 2013
-
-#define MONGO_HEADER_LENGTH 16
 
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
