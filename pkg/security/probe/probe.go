@@ -1357,8 +1357,9 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 
 	p.event = NewEvent(p.resolvers, p.scrubber)
 
-	eventZero.resolvers = p.resolvers
-	eventZero.scrubber = p.scrubber
+	//eventZero.resolvers = p.resolvers
+	//eventZero.scrubber = p.scrubber
+	eventZero.JSONMarshaler = MarshalJSONEvent
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)

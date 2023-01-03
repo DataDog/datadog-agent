@@ -9,6 +9,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"sigs.k8s.io/json/internal/golang/encoding/json"
 )
 
 const (
@@ -200,17 +202,21 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
-	VethPair         VethPairEvent         `field:"-" json:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	Umount              UmountEvent           `field:"-" json:"-"`
+	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-"`
+	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-"`
+	MountReleased       MountReleasedEvent    `field:"-" json:"-"`
+	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-"`
+	NetDevice           NetDeviceEvent        `field:"-" json:"-"`
+	VethPair            VethPairEvent         `field:"-" json:"-"`
+	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-"`
+	PathResolutionError error                 `field:"-" json:"-"` // hold one of the path resolution error
 
 	// User Context, here we hold resolvers, etc.
 	UserCtx interface{}
+
+	// Serializer
+	JSONMarshaler func(ev *Event) ([]byte, error)
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -267,6 +273,54 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
+}
+
+func (ev *Event) String() string {
+	d, err := ev.MarshalJSON()
+	if err != nil {
+		return err.Error()
+	}
+	return string(d)
+}
+
+// MarshalJSON returns the JSON encoding of the event
+func (ev *Event) MarshalJSON() ([]byte, error) {
+	if ev.JSONMarshaler != nil {
+		return ev.JSONMarshaler(ev)
+	}
+	return json.Marshal(ev)
+}
+
+// Retain the event
+func (ev *Event) Retain() Event {
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
+	}
+	return *ev
+}
+
+// Release the event
+func (ev *Event) Release() {
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
+	}
+}
+
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
+// SetPathResolutionError sets the Event.pathResolutionError
+func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
+	fileFields.PathResolutionError = err
+	ev.PathResolutionError = err
 }
 
 // SetuidEvent represents a setuid event
