@@ -128,7 +128,7 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 		log.Debug("Remote configuration service not initialized")
 		return nil, errors.New("remote configuration service not initialized")
 	}
-	return s.configService.ClientGetConfigs(in)
+	return s.configService.ClientGetConfigs(ctx, in)
 }
 
 func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {

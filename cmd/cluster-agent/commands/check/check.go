@@ -122,11 +122,16 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 			}
 
 			previousIntegrationTracing := false
+			previousIntegrationTracingExhaustive := false
 			if generateIntegrationTraces {
 				if config.Datadog.IsSet("integration_tracing") {
 					previousIntegrationTracing = config.Datadog.GetBool("integration_tracing")
 				}
+				if config.Datadog.IsSet("integration_tracing_exhaustive") {
+					previousIntegrationTracingExhaustive = config.Datadog.GetBool("integration_tracing_exhaustive")
+				}
 				config.Datadog.Set("integration_tracing", true)
+				config.Datadog.Set("integration_tracing_exhaustive", true)
 			}
 
 			if len(args) != 0 {
@@ -448,6 +453,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			if generateIntegrationTraces {
 				config.Datadog.Set("integration_tracing", previousIntegrationTracing)
+				config.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 			}
 
 			return nil

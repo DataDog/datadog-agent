@@ -10,6 +10,7 @@ package module
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,7 +27,7 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 	event.ResolveFields(false)
 	event.ResolveEventTimestamp()
 
-	entry := event.ResolveProcessCacheEntry()
+	entry, _ := event.ResolveProcessCacheEntry()
 	if entry == nil {
 		return
 	}
@@ -65,7 +66,7 @@ func (p *ProcessMonitoring) HandleEvent(event *sprobe.Event) {
 }
 
 // HandleCustomEvent implement the EventHandler interface
-func (p *ProcessMonitoring) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (p *ProcessMonitoring) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
 // NewProcessMonitoring returns a new ProcessMonitoring instance

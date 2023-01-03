@@ -23,21 +23,20 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
 	"gopkg.in/yaml.v3"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -58,7 +57,7 @@ type ActivityDumpHandler interface {
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *Event)
-	HandleCustomEvent(rule *rules.Rule, event *CustomEvent)
+	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -93,7 +92,7 @@ type Probe struct {
 	resolvers   *Resolvers
 	event       *Event
 	eventStream EventStream
-	scrubber    *pconfig.DataScrubber
+	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -110,10 +109,6 @@ type Probe struct {
 
 	constantOffsets map[string]uint64
 	runtimeCompiled bool
-
-	// network section
-	tcProgramsLock sync.RWMutex
-	tcPrograms     map[NetDeviceKey]*manager.Probe
 
 	isRuntimeDiscarded bool
 }
@@ -281,7 +276,6 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	p.resolvers.ProcessResolver.SetCgroupsMonitor(p.monitor.cgroupsMonitor)
 	p.eventStream.SetMonitor(p.monitor.perfBufferMonitor)
 
 	return nil
@@ -342,7 +336,7 @@ func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
-func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
+func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
 
 	// send specific event
@@ -359,18 +353,9 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *CustomEvent) {
 	}
 }
 
-func (p *Probe) sendTCProgramsStats() {
-	p.tcProgramsLock.RLock()
-	defer p.tcProgramsLock.RUnlock()
-
-	if val := float64(len(p.tcPrograms)); val > 0 {
-		_ = p.StatsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
-	}
-}
-
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
-	p.sendTCProgramsStats()
+	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
 	return p.monitor.SendStats()
 }
@@ -468,6 +453,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 
 		p.monitor.activityDumpManager.HandleCgroupTracingEvent(&event.CgroupTracing)
 		return
+	case model.UnshareMountNsEventType:
+		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
+		}
+		return
 	}
 
 	read, err = p.unmarshalContexts(data[offset:], event)
@@ -494,35 +488,15 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-
-		// There could be entries of a previous mount_id in the cache for instance,
-		// runc does the following : it bind mounts itself (using /proc/exe/self),
-		// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
-		// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
-		// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
-		// so we remove all dentry entries belonging to the mountID.
-		p.resolvers.DentryResolver.DelCacheEntries(event.Mount.MountID)
-
-		// Resolve mount point
-		if err := event.SetMountPoint(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount point: %v", err)
-			return
-		}
-		// Resolve root
-		if err := event.SetMountRoot(&event.Mount); err != nil {
-			seclog.Debugf("failed to set mount root: %v", err)
+		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
+			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
 
-		// Insert new mount point in cache
-		if err = p.resolvers.MountResolver.Insert(event.Mount); err != nil {
-			seclog.Errorf("failed to insert mount event: %v", err)
-			return
-		}
-
+		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootInode)
-			mountPath, _, err := p.resolvers.MountResolver.ResolveMountPaths(event.Mount.MountID, event.PIDContext.Pid)
+			mountPath, err := p.resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -530,6 +504,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 				_, _ = p.resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
 			}
 		}
+
 	case model.FileUmountEventType:
 		if _, err = event.Umount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode umount event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -537,7 +512,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.resolvers.MountResolver.Get(event.Umount.MountID, event.PIDContext.Pid)
+		mount, _ := p.resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootInode)
 			if namespace := p.resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -642,8 +617,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ContainerContext); err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context: %s", err)
+
+			if errors.Is(err, &ErrPathResolution{}) {
+				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+			}
 		}
 
 		p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
@@ -655,7 +634,13 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+		var exists bool
+		event.ProcessCacheEntry, exists = event.ResolveProcessCacheEntry()
+		if !exists {
+			// no need to dispatch an exit event that don't have the corresponding cache entry
+			return
+		}
+
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
@@ -783,7 +768,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry = event.ResolveProcessCacheEntry()
+	event.ProcessCacheEntry, _ = event.ResolveProcessCacheEntry()
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
@@ -904,28 +889,6 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	return nil
 }
 
-func (p *Probe) selectTCProbes() manager.ProbesSelector {
-	p.tcProgramsLock.RLock()
-	defer p.tcProgramsLock.RUnlock()
-
-	// Although unlikely, a race is still possible with the umount event of a network namespace:
-	//   - a reload event is triggered
-	//   - selectTCProbes is invoked and the list of currently running probes is generated
-	//   - a container exits and the umount event of its network namespace is handled now (= its TC programs are stopped)
-	//   - the manager executes UpdateActivatedProbes
-	// In this setup, if we didn't use the best effort selector, the manager would try to init & attach a program that
-	// was deleted when the container exited.
-	var activatedProbes manager.BestEffort
-	for _, tcProbe := range p.tcPrograms {
-		if tcProbe.IsRunning() {
-			activatedProbes.Selectors = append(activatedProbes.Selectors, &manager.ProbeSelector{
-				ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
-			})
-		}
-	}
-	return &activatedProbes
-}
-
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.Config.ActivityDumpEnabled {
 		for _, e := range p.Config.ActivityDumpTracedEventTypes {
@@ -963,7 +926,7 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 		}
 	}
 
-	activatedProbes = append(activatedProbes, p.selectTCProbes())
+	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// Add syscall monitor probes
 	if p.Config.ActivityDumpEnabled {
@@ -1026,31 +989,40 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 	return p.Manager.UpdateActivatedProbes(activatedProbes)
 }
 
-// DumpDiscarders removes all the discarders
-func (p *Probe) DumpDiscarders() (string, error) {
-	seclog.Debugf("Dumping discarders")
-
+// GetDiscarders retrieve the discarders
+func (p *Probe) GetDiscarders() (*DiscardersDump, error) {
 	inodeMap, err := managerhelper.Map(p.Manager, "inode_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pidMap, err := managerhelper.Map(p.Manager, "pid_discarders")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsFB, err := managerhelper.Map(p.Manager, "discarder_stats_fb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	statsBB, err := managerhelper.Map(p.Manager, "discarder_stats_bb")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	dump, err := dumpDiscarders(p.resolvers.DentryResolver, pidMap, inodeMap, statsFB, statsBB)
+	if err != nil {
+		return nil, err
+	}
+	return &dump, nil
+}
+
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	seclog.Debugf("Dumping discarders")
+
+	dump, err := p.GetDiscarders()
 	if err != nil {
 		return "", err
 	}
@@ -1115,13 +1087,13 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber, p)
+		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.WithLogger(seclog.DefaultLogger)
 
-	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts, macroStore)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1148,60 +1120,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
 	defer handle.Close()
-	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
-}
-
-// setupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
-// will not close the provided netns handle, so the caller of this function needs to take care of it.
-func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File) error {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
-
-	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes() {
-		// make sure we're not overriding an existing network probe
-		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
-		_, ok := p.tcPrograms[deviceKey]
-		if ok {
-			continue
-		}
-
-		newProbe := tcProbe.Copy()
-		newProbe.CopyProgram = true
-		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
-		newProbe.IfIndex = int(device.IfIndex)
-		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
-		newProbe.IfIndexNetnsID = device.NetNS
-		newProbe.KeepProgramSpec = false
-		newProbe.TCFilterPrio = p.Config.NetworkClassifierPriority
-		newProbe.TCFilterHandle = netlink.MakeHandle(0, p.Config.NetworkClassifierHandle)
-
-		netnsEditor := []manager.ConstantEditor{
-			{
-				Name:  "netns",
-				Value: uint64(device.NetNS),
-			},
-		}
-
-		if err := p.Manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
-			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
-		} else {
-			p.tcPrograms[deviceKey] = newProbe
-		}
-	}
-	return combinedErr.ErrorOrNil()
-}
-
-// flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
-func (p *Probe) flushNetworkNamespace(namespace *NetworkNamespace) {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
-	for tcKey, tcProbe := range p.tcPrograms {
-		if tcKey.NetNS == namespace.nsID {
-			_ = p.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
-			delete(p.tcPrograms, tcKey)
-		}
-	}
+	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1210,37 +1129,36 @@ func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
 	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.flushNetworkNamespace(namespace)
+	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
 }
 
-// flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
-// per network namespace (ignoring the interfaces that are lazily deleted).
-func (p *Probe) flushInactiveProbes() map[uint32]int {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
+func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
+	// There could be entries of a previous mount_id in the cache for instance,
+	// runc does the following : it bind mounts itself (using /proc/exe/self),
+	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
+	// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
+	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
+	// so we remove all dentry entries belonging to the mountID.
+	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	probesCountNoLazyDeletion := make(map[uint32]int)
-
-	var linkName string
-	for tcKey, tcProbe := range p.tcPrograms {
-		if !tcProbe.IsTCFilterActive() {
-			_ = p.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
-			delete(p.tcPrograms, tcKey)
-		} else {
-			link, err := tcProbe.ResolveLink()
-			if err == nil {
-				linkName = link.Attrs().Name
-			} else {
-				linkName = ""
-			}
-			// ignore interfaces that are lazily deleted
-			if link.Attrs().HardwareAddr.String() != "" && !p.resolvers.NamespaceResolver.IsLazyDeletionInterface(linkName) {
-				probesCountNoLazyDeletion[tcKey.NetNS]++
-			}
-		}
+	// Resolve mount point
+	if err := event.SetMountPoint(m); err != nil {
+		seclog.Debugf("failed to set mount point: %v", err)
+		return err
+	}
+	// Resolve root
+	if err := event.SetMountRoot(m); err != nil {
+		seclog.Debugf("failed to set mount root: %v", err)
+		return err
 	}
 
-	return probesCountNoLazyDeletion
+	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
+	if err := p.resolvers.MountResolver.Insert(*m, event.PIDContext.Pid, event.ResolveContainerID(&event.ContainerContext)); err != nil {
+		seclog.Errorf("failed to insert mount event: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 // NewProbe instantiates a new runtime security agent probe
@@ -1260,7 +1178,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		cancelFnc:            cancel,
 		Erpc:                 nerpc,
 		erpcRequest:          &erpc.ERPCRequest{},
-		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		StatsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
@@ -1428,7 +1345,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
 
-	p.scrubber = pconfig.NewDefaultDataScrubber()
+	p.scrubber = procutil.NewDefaultDataScrubber()
 	p.scrubber.AddCustomSensitiveWords(config.CustomSensitiveWords)
 
 	resolvers, err := NewResolvers(config, p)
@@ -1437,11 +1354,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.event = NewEvent(p.resolvers, p.scrubber, p)
+	p.event = NewEvent(p.resolvers, p.scrubber)
 
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
-	eventZero.probe = p
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)

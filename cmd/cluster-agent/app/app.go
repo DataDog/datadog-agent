@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/mux"
@@ -36,9 +37,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -194,6 +199,17 @@ func start(cmd *cobra.Command, args []string) error {
 		log.Debugf("Health check listening on port %d", healthPort)
 	}
 
+	// Initialize remote configuration
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		rcClient, err := initializeRemoteConfig(mainCtx)
+		if err != nil {
+			log.Errorf("Failed to start remote-configuration: %v", err)
+		} else {
+			rcClient.Start()
+			defer rcClient.Close()
+		}
+	}
+
 	// Starting server early to ease investigations
 	if err = api.StartServer(); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
@@ -262,6 +278,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	clusterName := clustername.GetClusterName(context.TODO(), hname)
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
@@ -272,7 +289,6 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Failed to generate or retrieve the cluster ID")
 		}
 
-		clusterName := clustername.GetClusterName(context.TODO(), hname)
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}
@@ -335,6 +351,17 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
+		if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+			patchCtx := admissionpatch.ControllerContext{
+				IsLeaderFunc: le.IsLeader,
+				Client:       apiCl.Cl,
+				StopCh:       stopCh,
+			}
+			admissionpatch.StartControllers(patchCtx, clusterName)
+		} else {
+			log.Info("Auto instrumentation patcher is disabled")
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			IsLeaderFunc:        le.IsLeader,
 			LeaderSubscribeFunc: le.Subscribe,
@@ -415,4 +442,22 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 
 	log.Info("Started cluster check Autodiscovery")
 	return handler, nil
+}
+
+func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
+	configService, err := remoteconfig.NewService()
+	if err != nil {
+		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
+	}
+
+	if err := configService.Start(ctx); err != nil {
+		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
+	}
+
+	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{}, time.Second*5)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
+	}
+
+	return rcClient, nil
 }

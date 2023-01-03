@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -35,6 +36,8 @@ type Resolvers struct {
 	DentryResolver    *resolvers.DentryResolver
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
+	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -54,15 +57,22 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
-	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient)
-	if err != nil {
-		return nil, err
-	}
-
 	namespaceResolver, err := NewNamespaceResolver(probe)
 	if err != nil {
 		return nil, err
 	}
+
+	cgroupsResolver, err := resolvers.NewCgroupsResolver()
+	if err != nil {
+		return nil, err
+	}
+
+	mountResolver, err := resolvers.NewMountResolver(probe.StatsdClient, cgroupsResolver, resolvers.MountResolverOpts{UseProcFS: true})
+	if err != nil {
+		return nil, err
+	}
+
+	tcResolver := resolvers.NewTCResolver(config)
 
 	resolvers := &Resolvers{
 		probe:             probe,
@@ -73,6 +83,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		TagsResolver:      resolvers.NewTagsResolver(config),
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
+		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
@@ -91,21 +103,31 @@ func (r *Resolvers) resolveBasename(e *model.FileFields) string {
 }
 
 // resolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, ctx *model.PIDContext) (string, error) {
-	if isFilelessExecution(e) {
-		return r.DentryResolver.ResolveName(e.MountID, e.Inode, e.PathID), nil
-	}
-
+func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	pathStr, err := r.DentryResolver.Resolve(e.MountID, e.Inode, e.PathID, !e.HasHardLinks())
 	if err != nil {
 		return pathStr, err
 	}
 
-	mountPath, rootPath, mountErr := r.MountResolver.ResolveMountPaths(e.MountID, ctx.Pid)
-	if mountErr != nil {
-		return pathStr, mountErr
+	if e.IsFileless() {
+		return pathStr, err
 	}
 
+	mountPath, err := r.MountResolver.ResolveMountPath(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
+
+	rootPath, err := r.MountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid, ctrCtx.ID)
+	if err != nil {
+		if _, err := r.MountResolver.IsMountIDValid(e.MountID); errors.Is(err, resolvers.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		}
+		return pathStr, err
+	}
 	// This aims to handle bind mounts
 	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
 		pathStr = strings.Replace(pathStr, rootPath, "", 1)
@@ -180,14 +202,6 @@ func (r *Resolvers) ResolveCredentialsFSGroup(e *model.Credentials) string {
 		e.FSGroup, _ = r.UserGroupResolver.ResolveGroup(int(e.FSGID))
 	}
 	return e.FSGroup
-}
-
-// ResolvePCEContainerTags resolves the container tags of a ProcessCacheEntry
-func (r *Resolvers) ResolvePCEContainerTags(e *model.ProcessCacheEntry) []string {
-	if len(e.ContainerTags) == 0 && len(e.ContainerID) > 0 {
-		e.ContainerTags = r.TagsResolver.Resolve(e.ContainerID)
-	}
-	return e.ContainerTags
 }
 
 // Start the resolvers

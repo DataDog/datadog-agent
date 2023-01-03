@@ -167,7 +167,12 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 	if !coreconfig.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
-		return nil
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		return errAllComponentsDisabled
 	}
 
 	err = manager.ConfigureAutoExit(ctx)
@@ -232,6 +237,15 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
+	}
+
+	// Start workloadmeta store
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
+	store.Start(ctx)
+
 	// Initialize the remote tagger
 	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
@@ -245,10 +259,6 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 			}
 		}
 	}
-
-	// Start workloadmeta store
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	store.Start(ctx)
 
 	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {

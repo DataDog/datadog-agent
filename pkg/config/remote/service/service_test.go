@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/go-tuf/data"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/theupdateframework/go-tuf/data"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -262,13 +262,13 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 
 	// The Client object is missing
 	req := &pbgo.ClientGetConfigsRequest{}
-	_, err := service.ClientGetConfigs(req)
+	_, err := service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
 	// The Client object is present, but State is missing
 	req.Client = &pbgo.Client{}
-	_, err = service.ClientGetConfigs(req)
+	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -276,7 +276,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 	req.Client = &pbgo.Client{
 		State: &pbgo.ClientState{},
 	}
-	_, err = service.ClientGetConfigs(req)
+	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -287,7 +287,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		},
 		IsAgent: true,
 	}
-	_, err = service.ClientGetConfigs(req)
+	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -298,7 +298,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		},
 		IsTracer: true,
 	}
-	_, err = service.ClientGetConfigs(req)
+	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 
@@ -312,7 +312,7 @@ func TestClientGetConfigsRequestMissingFields(t *testing.T) {
 		IsAgent:      true,
 		ClientTracer: &pbgo.ClientTracer{},
 	}
-	_, err = service.ClientGetConfigs(req)
+	_, err = service.ClientGetConfigs(context.Background(), req)
 	assert.Error(t, err)
 	assert.Equal(t, status.Convert(err).Code(), codes.InvalidArgument)
 }
@@ -420,7 +420,7 @@ func TestService(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, [][]byte{canonicalRoot3, canonicalRoot4}, configResponse.Roots)
 	assert.ElementsMatch(t, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: fileAPM1}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: fileAPM2}}, configResponse.TargetFiles)
@@ -526,7 +526,7 @@ func TestServiceClientPredicates(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,
@@ -786,7 +786,7 @@ func TestConfigExpiration(t *testing.T) {
 	}).Return(lastConfigResponse, nil)
 
 	service.clients.seen(client) // Avoid blocking on channel sending when nothing is at the other end
-	configResponse, err := service.ClientGetConfigs(&pbgo.ClientGetConfigsRequest{Client: client})
+	configResponse, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(err)
 	assert.ElementsMatch(
 		configResponse.ClientConfigs,

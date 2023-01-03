@@ -16,11 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -65,21 +64,13 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// NetDeviceKey is used to uniquely identify a network device
-type NetDeviceKey struct {
-	IfIndex          uint32
-	NetNS            uint32
-	NetworkDirection manager.TrafficType
-}
-
 // Event describes a probe event
 type Event struct {
 	model.Event
 
 	resolvers           *Resolvers
 	pathResolutionError error
-	scrubber            *pconfig.DataScrubber
-	probe               *Probe
+	scrubber            *procutil.DataScrubber
 }
 
 // Retain the event
@@ -105,10 +96,9 @@ func (ev *Event) GetPathResolutionError() error {
 // ResolveFilePath resolves the inode to a full path
 func (ev *Event) ResolveFilePath(f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
+		path, err := ev.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
-			f.PathResolutionError = err
-			ev.SetPathResolutionError(err)
+			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
 	}
@@ -130,10 +120,10 @@ func (ev *Event) ResolveFileBasename(f *model.FileEvent) string {
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (ev *Event) ResolveFileFilesystem(f *model.FileEvent) string {
-	if f.Filesystem == "" {
-		fs, err := ev.resolvers.MountResolver.GetFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
+	if f.Filesystem == "" && !f.IsFileless() {
+		fs, err := ev.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
-			ev.SetPathResolutionError(err)
+			ev.SetPathResolutionError(f, err)
 		}
 		f.Filesystem = fs
 	}
@@ -170,14 +160,14 @@ func (ev *Event) ResolveXAttrNamespace(e *model.SetXAttrEvent) string {
 }
 
 // SetMountPoint set the mount point information
-func (ev *Event) SetMountPoint(e *model.MountEvent) error {
+func (ev *Event) SetMountPoint(e *model.Mount) error {
 	var err error
 	e.MountPointStr, err = ev.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountPoint(e *model.Mount) (string, error) {
 	if len(e.MountPointStr) == 0 {
 		if err := ev.SetMountPoint(e); err != nil {
 			return "", err
@@ -187,14 +177,14 @@ func (ev *Event) ResolveMountPoint(e *model.MountEvent) (string, error) {
 }
 
 // SetMountRoot set the mount point information
-func (ev *Event) SetMountRoot(e *model.MountEvent) error {
+func (ev *Event) SetMountRoot(e *model.Mount) error {
 	var err error
 	e.RootStr, err = ev.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
+func (ev *Event) ResolveMountRoot(e *model.Mount) (string, error) {
 	if len(e.RootStr) == 0 {
 		if err := ev.SetMountRoot(e); err != nil {
 			return "", err
@@ -203,10 +193,39 @@ func (ev *Event) ResolveMountRoot(e *model.MountEvent) (string, error) {
 	return e.RootStr, nil
 }
 
+func (ev *Event) ResolveMountPointPath(e *model.MountEvent) string {
+	if len(e.MountPointPath) == 0 {
+		mountPointPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountPointPathResolutionError = err
+			return ""
+		}
+		e.MountPointPath = mountPointPath
+	}
+	return e.MountPointPath
+}
+
+func (ev *Event) ResolveMountSourcePath(e *model.MountEvent) string {
+	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
+		bindSourceMountPath, err := ev.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		rootStr, err := ev.ResolveMountRoot(&e.Mount)
+		if err != nil {
+			e.MountSourcePathResolutionError = err
+			return ""
+		}
+		e.MountSourcePath = path.Join(bindSourceMountPath, rootStr)
+	}
+	return e.MountSourcePath
+}
+
 // ResolveContainerID resolves the container ID of the event
 func (ev *Event) ResolveContainerID(e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry := ev.ResolveProcessCacheEntry(); entry != nil {
+		if entry, _ := ev.ResolveProcessCacheEntry(); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -444,7 +463,8 @@ func (ev *Event) String() string {
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
-func (ev *Event) SetPathResolutionError(err error) {
+func (ev *Event) SetPathResolutionError(fileFields *model.FileEvent, err error) {
+	fileFields.PathResolutionError = err
 	ev.pathResolutionError = err
 }
 
@@ -481,8 +501,23 @@ func (ev *Event) ResolveEventTimestamp() time.Time {
 	return ev.Timestamp
 }
 
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *model.ProcessCacheEntry {
+	return &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
+func (ev *Event) ResolveProcessCacheEntry() (*model.ProcessCacheEntry, bool) {
+	if ev.PIDContext.IsKworker {
+		return ev.NewEmptyProcessCacheEntry(), false
+	}
+
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = ev.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
@@ -498,14 +533,16 @@ func (ev *Event) ResolveProcessCacheEntry() *model.ProcessCacheEntry {
 		// mark interpreter as resolved too
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetPathnameStr("")
 		ev.ProcessCacheEntry.LinuxBinprm.FileEvent.SetBasenameStr("")
+
+		return ev.ProcessCacheEntry, false
 	}
 
-	return ev.ProcessCacheEntry
+	return ev.ProcessCacheEntry, true
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
 func (ev *Event) GetProcessServiceTag() string {
-	entry := ev.ResolveProcessCacheEntry()
+	entry, _ := ev.ResolveProcessCacheEntry()
 	if entry == nil {
 		return ""
 	}
@@ -564,24 +601,10 @@ func bestGuessServiceTag(serviceValues []string) string {
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
 func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
-	if len(device.IfName) == 0 && ev.probe != nil {
-		key := NetDeviceKey{
-			NetNS:            device.NetNS,
-			IfIndex:          device.IfIndex,
-			NetworkDirection: manager.Egress,
-		}
-
-		ev.probe.tcProgramsLock.RLock()
-		defer ev.probe.tcProgramsLock.RUnlock()
-
-		tcProbe, ok := ev.probe.tcPrograms[key]
-		if !ok {
-			key.NetworkDirection = manager.Ingress
-			tcProbe = ev.probe.tcPrograms[key]
-		}
-
-		if tcProbe != nil {
-			device.IfName = tcProbe.IfName
+	if len(device.IfName) == 0 && ev.resolvers.TCResolver != nil {
+		ifName, ok := ev.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
+		if ok {
+			device.IfName = ifName
 		}
 	}
 
@@ -589,11 +612,10 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 }
 
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *pconfig.DataScrubber, probe *Probe) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
-		probe:     probe,
 	}
 }

@@ -15,12 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/pkg/security/api"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -70,7 +65,7 @@ func NewMonitor(p *Probe) (*Monitor, error) {
 		return nil, fmt.Errorf("couldn't create the discarder monitor: %w", err)
 	}
 
-	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient)
+	m.cgroupsMonitor = NewCgroupsMonitor(p.StatsdClient, p.resolvers.CgroupsResolver)
 
 	return m, nil
 }
@@ -162,55 +157,16 @@ func (m *Monitor) ProcessEvent(event *Event) {
 
 	// Look for an unresolved path
 	if err := event.GetPathResolutionError(); err != nil {
-		m.probe.DispatchCustomEvent(
-			NewAbnormalPathEvent(event, err),
-		)
+		if !errors.Is(err, &ErrPathResolutionNotCritical{}) {
+			m.probe.DispatchCustomEvent(
+				NewAbnormalPathEvent(event, err),
+			)
+		}
 	} else {
 		if m.activityDumpManager != nil {
 			m.activityDumpManager.ProcessEvent(event)
 		}
 	}
-}
-
-// RuleSetLoadedReport represents the rule and the custom event related to a RuleSetLoaded event, ready to be dispatched
-type RuleSetLoadedReport struct {
-	Rule  *rules.Rule
-	Event *CustomEvent
-}
-
-// ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func (m *Monitor) ReportRuleSetLoaded(ruleSet *rules.RuleSet, err *multierror.Error) {
-	r, ev := NewRuleSetLoadedEvent(ruleSet, err)
-	report := RuleSetLoadedReport{Rule: r, Event: ev}
-
-	if err := m.probe.StatsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
-		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
-	}
-
-	m.probe.DispatchCustomEvent(report.Rule, report.Event)
-}
-
-// SelfTestReport represents the rule and the custom event related to a SelfTest event; ready to be dispatched
-type SelfTestReport struct {
-	Rule  *rules.Rule
-	Event *CustomEvent
-}
-
-// ReportSelfTest reports to Datadog that a self test was performed
-func (m *Monitor) ReportSelfTest(success []string, fails []string) {
-	// send metric with number of success and fails
-	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
-	}
-	if err := m.probe.StatsdClient.Count(metrics.MetricSelfTest, 1, tags, 1.0); err != nil {
-		log.Error(fmt.Errorf("failed to send self_test metric: %w", err))
-	}
-
-	// send the custom event with the list of succeed and failed self tests
-	r, ev := NewSelfTestEvent(success, fails)
-	report := SelfTestReport{Rule: r, Event: ev}
-	m.probe.DispatchCustomEvent(report.Rule, report.Event)
 }
 
 // ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled

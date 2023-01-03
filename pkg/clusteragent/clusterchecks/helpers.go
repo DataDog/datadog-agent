@@ -32,6 +32,10 @@ func makeConfigArray(configMap map[string]integration.Config) []integration.Conf
 	return configSlice
 }
 
+func timestampNowNano() int64 {
+	return time.Now().UnixNano()
+}
+
 // timestampNow provides a consistent way to keep a seconds timestamp
 func timestampNow() int64 {
 	return time.Now().Unix()

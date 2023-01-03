@@ -234,7 +234,9 @@ func TestProcessContext(t *testing.T) {
 			return f.Close()
 		}, func(event *sprobe.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "process.file.path", executable)
-			assert.Equal(t, getInode(t, executable), event.ResolveProcessCacheEntry().FileEvent.Inode, "wrong inode")
+
+			entry, _ := event.ResolveProcessCacheEntry()
+			assert.Equal(t, getInode(t, executable), entry.FileEvent.Inode, "wrong inode")
 		})
 	})
 
@@ -407,21 +409,21 @@ func TestProcessContext(t *testing.T) {
 			args = append(args, eval.RandString(50))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 132, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 379, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 132; i++ {
+			for i := 0; i != 379; i++ {
 				assert.Equal(t, args[i], argv[i], "expected arg not found")
 			}
 
@@ -433,7 +435,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -448,21 +450,21 @@ func TestProcessContext(t *testing.T) {
 			args = append(args, eval.RandString(500))
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execArgs, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 159, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 389, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 159; i++ {
+			for i := 0; i != 389; i++ {
 				expected := args[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -478,7 +480,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("arg not truncated: %s", execArgs.(string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "envs-overflow-single", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -548,23 +550,23 @@ func TestProcessContext(t *testing.T) {
 			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			bin := "ls"
 			if kind == dockerWrapperType {
 				bin = "env"
 			}
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 57, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 380, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 57; i++ {
+			for i := 0; i != 380; i++ {
 				assert.Equal(t, envs[i], envp[i], "expected env not found")
 			}
 
@@ -576,7 +578,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("envs not truncated: %s", execEnvp.([]string))
 			}
-		}))
+		})
 	})
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -599,23 +601,23 @@ func TestProcessContext(t *testing.T) {
 			args = []string{"-u", "PATH", "-u", "HOSTNAME", "-u", "HOME", "ls", "-al"}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.GetSignal(t, func() error {
 			bin := "ls"
 			if kind == dockerWrapperType {
 				bin = "env"
 			}
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
-		}, validateExecEvent(t, kind, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *sprobe.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 68, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 390, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 68; i++ {
+			for i := 0; i != 390; i++ {
 				expected := envs[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -631,7 +633,7 @@ func TestProcessContext(t *testing.T) {
 			if !truncated.(bool) {
 				t.Errorf("envs not truncated: %s", execEnvp.([]string))
 			}
-		}))
+		})
 	})
 
 	t.Run("tty", func(t *testing.T) {
@@ -689,8 +691,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			if inode := getInode(t, executable); inode != event.ResolveProcessCacheEntry().FileEvent.Inode {
-				t.Errorf("expected inode %d, got %d => %+v", event.ResolveProcessCacheEntry().FileEvent.Inode, inode, event)
+			entry, _ := event.ResolveProcessCacheEntry()
+
+			if inode := getInode(t, executable); inode != entry.FileEvent.Inode {
+				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
 			}
 
 			str := event.String()
@@ -1578,11 +1582,11 @@ func TestProcessExit(t *testing.T) {
 		},
 		{
 			ID:         "test_exit_time_1",
-			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at < 4s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 		{
 			ID:         "test_exit_time_2",
-			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 2s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
+			Expression: fmt.Sprintf(`exit.cause == EXITED && exit.code == 0 && process.created_at > 4s && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleepTime),
 		},
 	}
 
@@ -1635,7 +1639,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-coredumped", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGQUIT", "0.1", sleepExec, "1"}
+			args := []string{"--preserve-status", "--signal=SIGQUIT", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1656,7 +1660,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "0.1", sleepExec, "1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1677,7 +1681,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-time-1", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "1", sleepExec, "0.1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "2"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1697,7 +1701,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-time-2", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "3", sleepExec, "2.1"}
+			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "5"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1742,7 +1746,7 @@ func TestProcessBusybox(t *testing.T) {
 	}
 	defer test.Close()
 
-	wrapper, err := newDockerCmdWrapper(test.Root(), "alpine")
+	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine")
 	if err != nil {
 		t.Skip("docker no available")
 		return

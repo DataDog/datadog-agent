@@ -16,6 +16,10 @@ agent flavors and binaries.
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
 
+### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/flare)
+
+Package flare implements a component to generate flares from the agent.
+
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/log)
 
 Package log implements a component to handle logging internal to the agent.

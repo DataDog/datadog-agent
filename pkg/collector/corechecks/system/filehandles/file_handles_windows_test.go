@@ -11,16 +11,16 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 func TestFhCheckWindows(t *testing.T) {
-
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	pdhtest.SetQueryReturnValue("\\\\.\\Process(_Total)\\Handle Count", 0.006848775103963421)
 
 	fileHandleCheck := new(fhCheck)
-	fileHandleCheck.Configure(nil, nil, "test")
+	fileHandleCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(fileHandleCheck.ID())
 
@@ -31,5 +31,4 @@ func TestFhCheckWindows(t *testing.T) {
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 1)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
-
 }

@@ -22,7 +22,7 @@ const (
 	btfNotFound
 	AssetReadError
 	VerifierError
-	//LoaderError
+	LoaderError
 )
 
 // coreTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets

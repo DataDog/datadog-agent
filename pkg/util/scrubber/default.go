@@ -63,6 +63,10 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{35}([a-fA-F0-9]{5})\b`),
 		Repl:  []byte(`***********************************$1`),
 	}
+	rcAppKeyReplacer := Replacer{
+		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
+		Repl:  []byte(`***********************************$1`),
+	}
 	// URI Generic Syntax
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
@@ -101,6 +105,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)
 	scrubber.AddReplacer(SingleLine, appKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, appKeyReplacer)
+	scrubber.AddReplacer(SingleLine, rcAppKeyReplacer)
 	scrubber.AddReplacer(SingleLine, uriPasswordReplacer)
 	scrubber.AddReplacer(SingleLine, passwordReplacer)
 	scrubber.AddReplacer(SingleLine, tokenReplacer)
@@ -134,9 +139,10 @@ func matchCert() *regexp.Regexp {
 
 // matchYAMLKeyWithListValue matches YAML keys with array values.
 // caveat: doesn't work if the array contain nested arrays. Example:
-//   key: [
-//    [a, b, c],
-//    def]
+//
+//	key: [
+//	 [a, b, c],
+//	 def]
 func matchYAMLKeyWithListValue(key string) *regexp.Regexp {
 	/*
 				Example 1:

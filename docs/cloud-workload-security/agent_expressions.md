@@ -4,7 +4,7 @@ kind: documentation
 description: "Agent expression attributes and operators for Cloud Workload Security Rules"
 disable_edit: true
 further_reading:
-- link: "/security_platform/cloud_workload_security/getting_started/"
+- link: "/security/cloud_workload_security/getting_started/"
   tag: "Documentation"
   text: "Get started with Datadog Cloud Workload Security"
 ---
@@ -44,6 +44,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mount` | File | [Experimental] A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
@@ -744,6 +745,19 @@ A mmap command was executed
 | `mmap.flags` | int | memory segment flags | MMap flags |
 | `mmap.protection` | int | memory segment protection | Protection constants |
 | `mmap.retval` | int | Return value of the syscall | Error Constants |
+
+### Event `mount`
+
+_This event type is experimental and may change in the future._
+
+A filesystem was mounted
+
+| Property | Type | Definition | Constants |
+| -------- | ---- | ---------- | --------- |
+| `mount.fs_type` | string | Type of the mounted file system |  |
+| `mount.mountpoint.path` | string | Path of the mount point |  |
+| `mount.retval` | int | Return value of the syscall | Error Constants |
+| `mount.source.path` | string | Source path of a bind mount |  |
 
 ### Event `mprotect`
 

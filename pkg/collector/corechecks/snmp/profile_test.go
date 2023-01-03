@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -55,7 +56,7 @@ profiles:
     definition_file: f5-big-ip.yaml
 `)
 
-	err := chk.Configure(rawInstanceConfig, rawInitConfig, "test")
+	err := chk.Configure(integration.FakeConfigHash, rawInstanceConfig, rawInitConfig, "test")
 	assert.NoError(t, err)
 
 	sender := mocksender.NewMockSender(chk.ID()) // required to initiate aggregator
@@ -222,6 +223,17 @@ profiles:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.0.8802.1.1.2.1.3.7.1.2.102",
 				Type:  gosnmp.Integer,
 				Value: 3, // 3->macAddress
@@ -305,6 +317,27 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -433,6 +466,8 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()
@@ -497,6 +532,18 @@ profiles:
       "mac_address": "82:a5:6e:a5:c9:02",
       "admin_status": 1,
       "oper_status": 1
+    }
+  ],
+  "ip_addresses": [
+    {
+      "interface_id": "profile-metadata:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "prefixlen": 24
+    },
+    {
+      "interface_id": "profile-metadata:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "prefixlen": 24
     }
   ],
   "links": [
