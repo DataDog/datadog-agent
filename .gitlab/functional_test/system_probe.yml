@@ -173,16 +173,19 @@ kitchen_test_system_probe_linux_arm64_normal:
     TEST_PATTERN: TestProtocolClassification.*
 
 kitchen_test_system_probe_linux_x64_protocols:
+  stage: functional_test
   extends:
     - .kitchen_test_system_probe_linux_x64
     - .kitchen_test_system_probe_protocols_test
 
 kitchen_test_system_probe_linux_x64_ec2_protocols:
+  stage: functional_test
   extends:
     - .kitchen_test_system_probe_linux_x64_ec2
     - .kitchen_test_system_probe_protocols_test
 
 kitchen_test_system_probe_linux_arm64_protocols:
+  stage: functional_test
   extends:
     - .kitchen_test_system_probe_linux_arm64
     - .kitchen_test_system_probe_protocols_test
