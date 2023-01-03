@@ -5,6 +5,7 @@
 
 #include "protocol-classification-defs.h"
 #include "protocol-classification-maps.h"
+#include "protocol-classification-structs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
@@ -221,9 +222,73 @@ static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     }
 }
 
+static __always_inline void mongo_handle_request(conn_tuple_t *tup, __s32 request_id) {
+    // mongo_request_id acts as a set, and we only check for existence in that set.
+    // Thus, the val = true is just a dummy value, as we ignore the value.
+    const bool val = true;
+    mongo_key key = {};
+    key.tup = *tup;
+    key.req_id = request_id;
+    bpf_map_update_elem(&mongo_request_id, &key, &val, BPF_ANY);
+}
+
+static __always_inline bool mongo_have_seen_request(conn_tuple_t *tup, __s32 response_to) {
+    mongo_key key = {};
+    key.tup = *tup;
+    key.req_id = response_to;
+    void *exists = bpf_map_lookup_elem(&mongo_request_id, &key);
+    bpf_map_delete_elem(&mongo_request_id, &key);
+    return exists != NULL;
+}
+
+// Checks if the given buffer represents a mongo request or a response.
+static __always_inline bool is_mongo(conn_tuple_t *tup, const char *buf, __u32 size) {
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, MONGO_HEADER_LENGTH)
+
+    mongo_msg_header header = *((mongo_msg_header*)buf);
+
+    // The message length should contain the size of headers
+    if (header.message_length < MONGO_HEADER_LENGTH) {
+        return false;
+    }
+
+    if (header.request_id < 0) {
+        return false;
+    }
+
+    switch (header.op_code) {
+    case MONGO_OP_UPDATE:
+    case MONGO_OP_INSERT:
+    case MONGO_OP_DELETE:
+        // If the response_to is not 0, then it is not a valid mongo request by the RFC.
+        return header.response_to == 0;
+    case MONGO_OP_REPLY:
+        // If the message is a reply, make sure we've seen the request of the response.
+        // If will eliminate false positives.
+        return mongo_have_seen_request(tup, header.response_to);
+    case MONGO_OP_QUERY:
+    case MONGO_OP_GET_MORE:
+        if (header.response_to == 0) {
+            mongo_handle_request(tup, header.request_id);
+            return true;
+        }
+        return false;
+    case MONGO_OP_COMPRESSED:
+    case MONGO_OP_MSG:
+        // If the response_to is not 0, then it is not a valid mongo request by the RFC.
+        if (header.response_to == 0) {
+            mongo_handle_request(tup, header.request_id);
+            return true;
+        }
+        return mongo_have_seen_request(tup, header.response_to);
+    }
+
+    return false;
+}
+
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
-static __always_inline void classify_protocol(protocol_t *protocol, const char *buf, __u32 size) {
+static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size) {
     if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
         return;
     }
@@ -236,6 +301,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, const char *
         *protocol = PROTOCOL_AMQP;
     } else if (is_redis(buf, size)) {
         *protocol = PROTOCOL_REDIS;
+    } else if (is_mongo(tup, buf, size)) {
+        *protocol = PROTOCOL_MONGO;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }
@@ -338,7 +405,7 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
     const size_t payload_length = skb->len - skb_info.data_off;
     const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-    classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
+    classify_protocol(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
     // If there has been a change in the classification, save the new protocol.
     if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
         bpf_map_update_with_telemetry(connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
