@@ -76,16 +76,27 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="check system-probe start", emoji=":customs:"):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
-        with Step(msg="create ", emoji=":delivery_truck:"):
+        with Step(msg="copy default policies", emoji=":delivery_truck:"):
+            command = [
+                "cp",
+                "/etc/datadog-agent/runtime-security.d/default.policy",
+                "/tmp/runtime-security.d/default.policy",
+            ]
+            self.kubernetes_helper.exec_command("system-probe", command=command)
+
+        with Step(msg="reload policies", emoji=":rocket:"):
+            self.kubernetes_helper.reload_policies()
+
+        with Step(msg="check `file` ruleset_loaded", emoji=":delivery_truck:"):
             event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:file")
             attributes = event["data"][-1]["attributes"]["attributes"]
-            start_date = attributes["date"]
+            prev_load_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
 
-        with Step(msg="check remote-config ruleset_loaded", emoji=":delivery_truck:"):
+        with Step(msg="check `remote-config` ruleset_loaded", emoji=":delivery_truck:"):
             event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
             attributes = event["data"][-1]["attributes"]["attributes"]
-            start_date = attributes["date"]
+            prev_load_date = attributes["date"]
             self.app.check_for_ignored_policies(self, attributes)
 
         with Step(msg="wait for host tags (3m)", emoji=":alarm_clock:"):
@@ -108,13 +119,13 @@ class TestE2EKubernetes(unittest.TestCase):
         with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
 
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+        with Step(msg="check `downloaded` ruleset_loaded", emoji=":delivery_truck:"):
             for _i in range(60):  # retry 60 times
                 event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
                 attributes = event["data"][-1]["attributes"]["attributes"]
-                restart_date = attributes["date"]
+                load_date = attributes["date"]
                 # search for restart log until the timestamp differs
-                if restart_date != start_date:
+                if load_date != prev_load_date:
                     break
                 time.sleep(1)
             else:

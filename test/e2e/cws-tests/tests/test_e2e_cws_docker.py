@@ -91,10 +91,10 @@ class TestE2EDocker(unittest.TestCase):
             wait_agent_log("system-probe", self.docker_helper, SYS_PROBE_START_LOG)
 
         if rc_enabled:
-            with Step(msg="check remote-config ruleset_loaded", emoji=":delivery_truck:"):
+            with Step(msg="check `remote-config` ruleset_loaded", emoji=":delivery_truck:"):
                 event = self.app.wait_app_log("rule_id:ruleset_loaded @policies.source:remote-config")
                 attributes = event["data"][-1]["attributes"]["attributes"]
-                start_date = attributes["date"]
+                prev_load_date = attributes["date"]
                 self.app.check_for_ignored_policies(self, attributes)
 
         with Step(msg="download policies", emoji=":file_folder:"):
@@ -114,13 +114,13 @@ class TestE2EDocker(unittest.TestCase):
         with Step(msg="reload policies", emoji=":file_folder:"):
             self.docker_helper.reload_policies()
 
-        with Step(msg="check ruleset_loaded", emoji=":delivery_truck:"):
+        with Step(msg="check `downloaded` ruleset_loaded", emoji=":delivery_truck:"):
             for _i in range(60):  # retry 60 times
                 event = self.app.wait_app_log("rule_id:ruleset_loaded  @policies.source:file")
                 attributes = event["data"][-1]["attributes"]["attributes"]
-                restart_date = attributes["date"]
+                load_date = attributes["date"]
                 # search for restart log until the timestamp differs
-                if restart_date != start_date:
+                if load_date != prev_load_date:
                     break
                 time.sleep(1)
             else:
