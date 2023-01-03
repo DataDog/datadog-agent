@@ -169,9 +169,11 @@ func TestConnectionsCheck(t *testing.T) {
 }
 
 func TestPodCheck(t *testing.T) {
-	cfg := config.Mock(t)
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: {}})
+	defer config.SetDetectedFeatures(nil)
 
 	t.Run("enabled", func(t *testing.T) {
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
 
@@ -180,6 +182,7 @@ func TestPodCheck(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
 		enabledChecks := getChecks(&sysconfig.Config{}, true)

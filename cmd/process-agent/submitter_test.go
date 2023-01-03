@@ -53,14 +53,13 @@ func TestNewCollectorQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert := assert.New(t)
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
 			c, err := NewSubmitter(testHostName, nil)
-			assert.NoError(err)
+			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(t, tc.expectedQueueSize, c.podResults.MaxSize())
 		})
@@ -102,14 +101,13 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert := assert.New(t)
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
 			c, err := NewSubmitter(testHostName, nil)
-			assert.NoError(err)
+			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
 	}
@@ -150,15 +148,13 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert := assert.New(t)
-
 			mockConfig := ddconfig.Mock(t)
 			if tc.override {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
 			s, err := NewSubmitter(testHostName, nil)
-			assert.NoError(err)
+			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
 			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
@@ -189,7 +185,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
+				headers.HostHeader:           testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -205,7 +201,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
+				headers.HostHeader:           testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "3",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -220,7 +216,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
+				headers.HostHeader:           testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "2",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -235,7 +231,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
+				headers.HostHeader:           testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "5",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -246,7 +242,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			message: &model.CollectorProcDiscovery{},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:      strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:           "host",
+				headers.HostHeader:           testHostName,
 				headers.ProcessVersionHeader: agentVersion.GetNumber(),
 				headers.ContainerCountHeader: "0",
 				headers.ContentTypeHeader:    headers.ProtobufContentType,
@@ -257,7 +253,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 			message: &model.CollectorProcEvent{},
 			expectHeaders: map[string]string{
 				headers.TimestampHeader:        strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:             "host",
+				headers.HostHeader:             testHostName,
 				headers.ProcessVersionHeader:   agentVersion.GetNumber(),
 				headers.ContainerCountHeader:   "0",
 				headers.ContentTypeHeader:      headers.ProtobufContentType,
