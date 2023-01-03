@@ -45,6 +45,7 @@
     - !reference [.retrieve_sysprobe_deps]
   script:
     - inv -e install-tools
+    - inv -e system-probe.object-files
     - invoke -e golangci-lint --build system-probe ./pkg
     - !reference [.build_sysprobe_artifacts]
     - invoke -e security-agent.kitchen-prepare
