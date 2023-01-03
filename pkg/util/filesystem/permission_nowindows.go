@@ -67,7 +67,7 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	if err != nil {
 		return err
 	}
-	// We keep the original 'user' rights but set 'group' and 'use' to zero.
+	// We keep the original 'user' rights but set 'group' and 'other' to zero.
 	newPerm := fperm.Mode().Perm() & 0700
 	return os.Chmod(path, fs.FileMode(newPerm))
 }
