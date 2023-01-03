@@ -197,6 +197,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					OriginFromUDS:    udsOrigin,
 					OriginFromClient: clientOrigin,
 					Cardinality:      cardinality,
+					Source:           metrics.MetricSourceDogstatsd,
 				})
 		}
 		return dest
@@ -215,6 +216,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		OriginFromUDS:    udsOrigin,
 		OriginFromClient: clientOrigin,
 		Cardinality:      cardinality,
+		Source:           metrics.MetricSourceDogstatsd,
 	})
 }
 

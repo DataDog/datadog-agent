@@ -96,6 +96,7 @@ type MetricSample struct {
 	OriginFromClient string
 	Cardinality      string
 	NoIndex          bool
+	Source           MetricSource
 }
 
 // Implement the MetricSampleContext interface

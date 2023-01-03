@@ -142,8 +142,10 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 	const pointValue = 1
 	const pointTimestamp = 2
 	const serieMetadataOrigin = 1
+	const serieMetadataOriginProduct = 1 // TODO confirm we're using 'Product' for dogstatsd
 	const serieMetadataOriginMetricType = 3
 	const metryTypeNotIndexed = 9
+	const serieMetadataProductDogstatsd = 2 // TODO confirm that this is the product enum code for dogstatsd
 
 	// Prepare to write the next payload
 	startPayload := func() error {
@@ -315,6 +317,20 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
 						return ps.Int32(serieMetadataOriginMetricType, metryTypeNotIndexed)
+					})
+				})
+			}
+
+			fmt.Println("Sending a series!")
+			if serie.Source != metrics.MetricSourceUnknown {
+				// TODO - I don't see this condition getting triggered
+				// dogstatsd server -> .... -> serializer
+				//                      ^ I suspect something in here is re-creating the MetricSample and it needs
+				// to copy over the Source field as well
+				fmt.Println("Sending a series with a source! Source set to ", serie.Source)
+				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
+					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
+						return ps.Int32(serieMetadataOriginProduct, serieMetadataProductDogstatsd)
 					})
 				})
 			}
