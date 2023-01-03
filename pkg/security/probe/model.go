@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -476,18 +475,6 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 	}
 	s.MarshalEasyJSON(w)
 	return w.BuildBytes()
-}
-
-// ExtractEventInfo extracts cpu and timestamp from the raw data event
-func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
-	if len(record.RawSample) < 16 {
-		return QuickInfo{}, model.ErrNotEnoughData
-	}
-
-	return QuickInfo{
-		cpu:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
-	}, nil
 }
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
