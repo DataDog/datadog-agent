@@ -34,17 +34,8 @@ func (_m *Submitter) Stop() {
 }
 
 // Submit provides a mock function with given fields: start, name, messages
-func (_m *Submitter) Submit(start time.Time, name string, messages []process.MessageBody) error {
-	ret := _m.Called(start, name, messages)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(time.Time, string, []process.MessageBody) error); ok {
-		r0 = rf(start, name, messages)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+func (_m *Submitter) Submit(start time.Time, name string, messages []process.MessageBody) {
+	_m.Called(start, name, messages)
 }
 
 type mockConstructorTestingTNewSubmitter interface {

@@ -3,13 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-/*
-TODO:
-- Plug in NewSubmitter in tests and checks
-- Refactor tests into collector_tests and submitter_tests
-- Mock the submitter (gen_mocks)
-*/
-
 package main
 
 import (

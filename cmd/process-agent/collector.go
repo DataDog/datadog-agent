@@ -73,6 +73,7 @@ type Collector struct {
 	// Drop payloads from specified checks
 	dropCheckPayloads []string
 
+	// Submits check payloads to datadog
 	submitter Submitter
 }
 
@@ -133,7 +134,7 @@ func (l *Collector) runCheck(c checks.Check) {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	err = l.submitter.Submit(start, c.Name(), messages)
+	l.submitter.Submit(start, c.Name(), messages)
 	if err != nil {
 		log.Errorf("Unable to submit payload for check '%s': %s", c.Name(), err)
 		return
@@ -154,11 +155,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, options che
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
 	}
-	err = l.submitter.Submit(start, c.Name(), run.Standard)
-	if err != nil {
-		log.Errorf("Unable to submit check '%s': %s", c.Name(), err)
-		return
-	}
+	l.submitter.Submit(start, c.Name(), run.Standard)
 	if options.RunStandard {
 		// We are only updating the run counter for the standard check
 		// since RT checks are too frequent and we only log standard check
@@ -168,11 +165,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, options che
 		logCheckDuration(c.Name(), start, runCounter)
 	}
 
-	err = l.submitter.Submit(start, c.RealTimeName(), run.RealTime)
-	if err != nil {
-		log.Errorf("Unable to submit check '%s': %s", c.Name(), err)
-		return
-	}
+	l.submitter.Submit(start, c.RealTimeName(), run.RealTime)
 	if options.RunRealTime {
 		checks.StoreCheckOutput(c.RealTimeName(), run.RealTime)
 	}
@@ -279,8 +272,6 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 	if !l.runRealTime || !ok {
 		return l.basicRunner(c, exit), nil
 	}
-
-	//rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
 
 	interval := checks.GetInterval(withRealTime.Name())
 	rtInterval := checks.GetInterval(withRealTime.RealTimeName())

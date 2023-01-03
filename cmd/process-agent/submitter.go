@@ -32,14 +32,14 @@ import (
 )
 
 type Submitter interface {
-	Submit(start time.Time, name string, messages []model.MessageBody) error
+	Submit(start time.Time, name string, messages []model.MessageBody)
 	Start() error
 	Stop()
 }
 
-var _ Submitter = &submitter{}
+var _ Submitter = &checkSubmitter{}
 
-type submitter struct {
+type checkSubmitter struct {
 	// Per-check Weighted Queues
 	processResults     *api.WeightedQueue
 	rtProcessResults   *api.WeightedQueue
@@ -72,7 +72,7 @@ type submitter struct {
 	updateRTStatusCallback func([]*model.CollectorStatus)
 }
 
-func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.CollectorStatus)) (*submitter, error) {
+func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.CollectorStatus)) (*checkSubmitter, error) {
 	queueBytes := ddconfig.Datadog.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, ddconfig.DefaultProcessQueueBytes)
@@ -145,7 +145,7 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 	eventForwarder := forwarder.NewDefaultForwarder(eventForwarderOpts)
 
 	printStartMessage(hostname, processAPIEndpoints, processEventsAPIEndpoints, orchestrator.OrchestratorEndpoints)
-	return &submitter{
+	return &checkSubmitter{
 		processResults:     processResults,
 		rtProcessResults:   rtProcessResults,
 		eventResults:       eventResults,
@@ -186,24 +186,24 @@ func printStartMessage(hostname string, processAPIEndpoints, processEventsAPIEnd
 		eventsEps = append(eventsEps, e.Endpoint.String())
 	}
 
-	log.Infof("Starting submitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
+	log.Infof("Starting checkSubmitter for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s", hostname, eps, eventsEps, orchestratorEps)
 }
 
-func (s *submitter) Submit(start time.Time, name string, messages []model.MessageBody) error {
+func (s *checkSubmitter) Submit(start time.Time, name string, messages []model.MessageBody) {
 	results := s.resultsQueueForCheck(name)
 	if name == checks.PodCheckName {
 		s.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
 		if s.orchestrator.IsManifestCollectionEnabled {
 			s.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
 		}
-		return nil
+		return
 	}
 
 	s.messagesToResultsQueue(start, name, messages, results)
-	return nil
+	return
 }
 
-func (s *submitter) Start() error {
+func (s *checkSubmitter) Start() error {
 	if err := s.processForwarder.Start(); err != nil {
 		return fmt.Errorf("error starting forwarder: %s", err)
 	}
@@ -300,7 +300,7 @@ func (s *submitter) Start() error {
 	return nil
 }
 
-func (s *submitter) Stop() {
+func (s *checkSubmitter) Stop() {
 	s.processResults.Stop()
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
@@ -317,7 +317,7 @@ func (s *submitter) Stop() {
 	s.wg.Wait()
 }
 
-func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
+func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -382,7 +382,7 @@ func (s *submitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 	}
 }
 
-func (s *submitter) resultsQueueForCheck(name string) *api.WeightedQueue {
+func (s *checkSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	switch name {
 	case checks.Pod.Name():
 		return s.podResults
@@ -396,7 +396,7 @@ func (s *submitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	return s.processResults
 }
 
-func (s *submitter) logQueuesSize() {
+func (s *checkSubmitter) logQueuesSize() {
 	var (
 		processSize     = s.processResults.Len()
 		rtProcessSize   = s.rtProcessResults.Len()
@@ -423,7 +423,7 @@ func (s *submitter) logQueuesSize() {
 	)
 }
 
-func (s *submitter) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
+func (s *checkSubmitter) messagesToResultsQueue(start time.Time, name string, messages []model.MessageBody, queue *api.WeightedQueue) {
 	result := s.messagesToCheckResult(start, name, messages)
 	if result == nil {
 		return
@@ -433,7 +433,7 @@ func (s *submitter) messagesToResultsQueue(start time.Time, name string, message
 	updateProcContainerCount(messages)
 }
 
-func (s *submitter) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
+func (s *checkSubmitter) messagesToCheckResult(start time.Time, name string, messages []model.MessageBody) *checkResult {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -493,7 +493,7 @@ func (s *submitter) messagesToCheckResult(start time.Time, name string, messages
 //  1. 22 bits of the seconds in the current month.
 //  2. 28 bits of hash of the hostname and process agent pid.
 //  3. 14 bits of the current message in the batch being sent to the server.
-func (s *submitter) getRequestID(start time.Time, chunkIndex int) string {
+func (s *checkSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 	// The epoch is the beginning of the month of the `start` variable.
 	epoch := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
 	// We are taking the seconds in the current month, and representing them under 22 bits.
@@ -516,7 +516,7 @@ func (s *submitter) getRequestID(start time.Time, chunkIndex int) string {
 	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
 }
 
-func (s *submitter) shouldDropPayload(check string) bool {
+func (s *checkSubmitter) shouldDropPayload(check string) bool {
 	for _, d := range s.dropCheckPayloads {
 		if d == check {
 			return true

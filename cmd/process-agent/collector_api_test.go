@@ -350,7 +350,7 @@ func TestRTProcMessageNotRetried(t *testing.T) {
 func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	init := func(c *Collector, s *submitter) {
+	init := func(c *Collector, s *checkSubmitter) {
 		c.orchestrator.OrchestrationCollectionEnabled = true
 		c.orchestrator.IsManifestCollectionEnabled = true
 
@@ -366,7 +366,7 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	clusterID, check := getPodCheckMessage(t)
 
-	init := func(c *Collector, s *submitter) {
+	init := func(c *Collector, s *checkSubmitter) {
 		c.orchestrator.OrchestrationCollectionEnabled = true
 		s.orchestrator.OrchestrationCollectionEnabled = true
 	}
@@ -534,11 +534,11 @@ func TestMultipleAPIKeys(t *testing.T) {
 	})
 }
 
-func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, init func(c *Collector, s *submitter), tc func(c *Collector, ep *mockEndpoint)) {
+func runCollectorTest(t *testing.T, check checks.Check, epConfig *endpointConfig, mockConfig ddconfig.Config, init func(c *Collector, s *checkSubmitter), tc func(c *Collector, ep *mockEndpoint)) {
 	runCollectorTestWithAPIKeys(t, check, epConfig, []string{"apiKey"}, []string{"orchestratorApiKey"}, mockConfig, init, tc)
 }
 
-func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector, s *submitter), tc func(c *Collector, ep *mockEndpoint)) {
+func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *endpointConfig, apiKeys, orchAPIKeys []string, mockConfig ddconfig.Config, init func(c *Collector, s *checkSubmitter), tc func(c *Collector, ep *mockEndpoint)) {
 	ep := newMockEndpoint(t, epConfig)
 	collectorAddr, eventsAddr, orchestratorAddr := ep.start()
 	defer ep.stop()
