@@ -37,6 +37,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -71,6 +72,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	tcResolver := resolvers.NewTCResolver(config)
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		MountResolver:     mountResolver,
@@ -81,6 +84,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,

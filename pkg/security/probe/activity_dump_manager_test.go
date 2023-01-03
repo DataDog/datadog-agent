@@ -346,19 +346,15 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		probe := &Probe{
-			StatsdClient: &statsd.NoOpClient{},
-			Config: &config.Config{
-				ActivityDumpMaxDumpSize: func() int {
-					return 2048
-				},
-			}}
 		t.Run(tt.name, func(t *testing.T) {
 			adm := &ActivityDumpManager{
-				activeDumps:        tt.fields.activeDumps,
-				probe:              probe,
-				config:             probe.Config,
-				statsdClient:       probe.StatsdClient,
+				activeDumps: tt.fields.activeDumps,
+				config: &config.Config{
+					ActivityDumpMaxDumpSize: func() int {
+						return 2048
+					},
+				},
+				statsdClient:       &statsd.NoOpClient{},
 				ignoreFromSnapshot: make(map[string]bool),
 			}
 

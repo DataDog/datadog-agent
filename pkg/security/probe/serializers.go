@@ -708,7 +708,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 
 	if e == nil {
 		// custom events create an empty event
-		e = NewEvent(r, nil, nil)
+		e = NewEvent(r, nil)
 		e.ProcessContext = pc
 	}
 
