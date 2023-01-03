@@ -6,10 +6,9 @@
 #include "amqp-defs.h"
 #include "mongo-defs.h"
 
-// Represents the max buffer size required to classify protocols .
-// We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
-// ATM, it is HTTP2_MARKER_SIZE + 8 bytes for padding,
-#define CLASSIFICATION_MAX_BUFFER (HTTP2_MARKER_SIZE + 8)
+// Represents the max buffer size required to classify protocols.
+// ATM, it is HTTP2_MARKER_SIZE.
+#define CLASSIFICATION_MAX_BUFFER (HTTP2_MARKER_SIZE)
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
 #define HTTP2_MARKER_SIZE 24
