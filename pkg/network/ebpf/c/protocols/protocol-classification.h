@@ -1,5 +1,5 @@
-#ifndef __PROTOCOL_CLASSIFICATION_HELPERS_H
-#define __PROTOCOL_CLASSIFICATION_HELPERS_H
+#ifndef __PROTOCOL_CLASSIFICATION_H
+#define __PROTOCOL_CLASSIFICATION_H
 
 #include "protocol-classification-common.h"
 #include "protocol-classification-defs.h"
