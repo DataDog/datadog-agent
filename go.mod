@@ -41,7 +41,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/DataDog/agent-payload/v5 v5.0.50
+	github.com/DataDog/agent-payload/v5 v5.0.52-0.20230103175207-2f20ca76938d
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/quantile v0.42.0-rc.3
@@ -440,7 +440,6 @@ require (
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 )
 
 require github.com/go-openapi/spec v0.20.3 // indirect
