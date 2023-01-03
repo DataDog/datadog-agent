@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func mkurl(rawurl string) *url.URL {
@@ -173,6 +174,10 @@ func TestPodCheck(t *testing.T) {
 	defer config.SetDetectedFeatures(nil)
 
 	t.Run("enabled", func(t *testing.T) {
+		// Resets the cluster name so that it isn't cached during the call to `getChecks()`
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", true)
 		cfg.Set("cluster_name", "test")
@@ -182,6 +187,9 @@ func TestPodCheck(t *testing.T) {
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
 		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
