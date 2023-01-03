@@ -684,8 +684,13 @@ int kprobe_get_envs_offset(struct pt_regs *ctx) {
     syscall->exec.args_envs_ctx.envs_offset = offset;
     syscall->exec.args_envs_ctx.args_count = args_count;
 
+    if (args_count == syscall->exec.args.count) {
+        return 0;
+    }
+
     bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
 
+    // make sure to reset envs_offset if the tailcall limit is reached and all args couldn't be read
     if (args_count != syscall->exec.args.count) {
         syscall->exec.args_envs_ctx.envs_offset = 0;
     }
