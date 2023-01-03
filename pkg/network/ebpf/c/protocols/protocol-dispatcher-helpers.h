@@ -4,7 +4,7 @@
 #include <linux/types.h>
 
 #include "protocol-dispatcher-maps.h"
-#include "protocol-classification-helpers.h"
+#include "protocol-classification.h"
 #include "ip.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.

@@ -15,7 +15,7 @@
 #include "port_range.h"
 #include "sockfd.h"
 #include "tags-types.h"
-#include "protocol-classification-helpers.h"
+#include "protocol-classification.h"
 #include "protocol-dispatcher-maps.h"
 
 #define HTTPS_PORT 443
