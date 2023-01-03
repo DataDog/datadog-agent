@@ -114,7 +114,7 @@ func NewSubmitter(hostname string, enableRealtimeCallback func([]*model.Collecto
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 
-	// Forwarder initalization
+	// Forwarder initialization
 	processAPIEndpoints, err := getAPIEndpoints()
 	if err != nil {
 		return nil, err

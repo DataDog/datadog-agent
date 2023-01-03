@@ -54,7 +54,6 @@ type Collector struct {
 	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
-	hostInfo     *checks.HostInfo
 
 	orchestrator *oconfig.OrchestratorConfig
 
@@ -206,7 +205,7 @@ const (
 )
 
 func (l *Collector) run(exit chan struct{}) error {
-	err := l.submitter.Start(l)
+	err := l.submitter.Start()
 	if err != nil {
 		return err
 	}
