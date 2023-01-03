@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/systray/internal"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -42,6 +43,7 @@ type dependencies struct {
 
 	Log log.Component
 	Config config.Component
+	Flare flare.Component
 	Params internal.BundleParams
 }
 
@@ -51,6 +53,7 @@ type systray struct {
 
 	log log.Component
 	config config.Component
+	flare flare.Component
 	params internal.BundleParams
 
 	isUserAdmin     bool
@@ -96,6 +99,7 @@ func newSystray(deps dependencies) (Component, error) {
 	s := &systray{
 		log: deps.Log,
 		config: deps.Config,
+		flare: deps.Flare,
 		params: deps.Params,
 		shutdowner: deps.Shutdowner,
 	}
@@ -357,7 +361,7 @@ func createMenuItems(s *systray, notifyIcon *walk.NotifyIcon) []menuItem {
 	menuitems = append(menuitems, menuItem{label: "S&top", handler: menuHandler(cmdTextStopService), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
 	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
+	menuitems = append(menuitems, menuItem{label: "&Flare", handler: func() { onFlare(s) }, enabled: true})
 	menuitems = append(menuitems, menuItem{label: menuSeparator})
 	menuitems = append(menuitems, menuItem{label: "E&xit", handler: func() { onExit(s) }, enabled: true})
 

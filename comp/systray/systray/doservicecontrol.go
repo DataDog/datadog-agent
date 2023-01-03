@@ -16,18 +16,16 @@ func onRestart(s *systray) {
 	if err := controlsvc.RestartService(); err != nil {
 		s.log.Warnf("Failed to restart datadog service %v", err)
 	}
-
 }
+
 func onStart(s *systray) {
 	if err := controlsvc.StartService(); err != nil {
 		s.log.Warnf("Failed to start datadog service %v", err)
 	}
-
 }
 
 func onStop(s *systray) {
 	if err := controlsvc.StopService(); err != nil {
 		s.log.Warnf("Failed to stop datadog service %v", err)
 	}
-
 }
