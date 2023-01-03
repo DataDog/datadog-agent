@@ -5,6 +5,7 @@ suites:
     - "recipe[dd-system-probe-check]"
   attributes:
     dd-agent-rspec:
+      test_pattern: <%= ENV['TEST_PATTERN'] %>
       driver_path: <%= ENV['WINDOWS_DDNPM_DRIVER'] %>
       driver_ver: <%= ENV['WINDOWS_DDNPM_VERSION'] %>
       driver_msmsha: <%= ENV['WINDOWS_DDNPM_SHASUM'] %>

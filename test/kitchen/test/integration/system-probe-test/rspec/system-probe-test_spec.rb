@@ -41,6 +41,19 @@ Dir.glob('/tmp/system-probe-tests/pkg/ebpf/bytecode/build/co-re/*.o').each do |f
   FileUtils.chmod 0644, f, :verbose => true
 end
 
+let(:test_pattern) {
+  if os == :windows
+    dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
+  else
+    dna_json_path = "/tmp/kitchen/dna.json"
+  end
+  val = JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('test_pattern')
+  if val == ""
+    return ".*"
+  end
+  return val
+}
+
 shared_examples "passes" do |bundle, env, filter, filter_inclusive|
   after :context do
     print KernelOut.format(`find "/tmp/pkgjson/#{bundle}" -maxdepth 1 -type f -path "*.json" -exec cat >"/tmp/testjson/#{bundle}.json" {} +`)
@@ -65,7 +78,7 @@ shared_examples "passes" do |bundle, env, filter, filter_inclusive|
           "--junitfile", xmlpath,
           "--jsonfile", "/tmp/pkgjson/#{bundle}/#{pkg.gsub("/","-")}.json",
           "--raw-command", "--",
-          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1"
+          "/go/bin/test2json", "-t", "-p", pkg, f, "-test.v", "-test.count=1", "-test.run", test_pattern
         ]
 
         final_env = base_env.merge(env)

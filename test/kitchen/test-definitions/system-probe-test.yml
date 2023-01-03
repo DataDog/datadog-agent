@@ -3,6 +3,8 @@ suites:
   run_list:
     - recipe[dd-system-probe-check]
   attributes:
+    dd-agent-rspec:
+      test_pattern: <%= ENV['TEST_PATTERN'] %>
     apt:
       unattended_upgrades:
         enable: false
