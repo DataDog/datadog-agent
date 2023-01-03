@@ -8,11 +8,17 @@ functional_test_junit_upload:
   tags: ["runner:main"]
   allow_failure: true
   needs:
-    - job: kitchen_test_system_probe_linux_x64
+    - job: kitchen_test_system_probe_linux_x64_normal
       optional: true
-    - job: kitchen_test_system_probe_linux_x64_ec2
+    - job: kitchen_test_system_probe_linux_x64_ec2_normal
       optional: true
-    - job: kitchen_test_system_probe_linux_arm64
+    - job: kitchen_test_system_probe_linux_arm64_normal
+      optional: true
+    - job: kitchen_test_system_probe_linux_x64_protocols
+      optional: true
+    - job: kitchen_test_system_probe_linux_x64_ec2_protocols
+      optional: true
+    - job: kitchen_test_system_probe_linux_arm64_protocols
       optional: true
   variables:
     DD_ENV: ci
