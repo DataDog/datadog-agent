@@ -158,7 +158,7 @@ func (tcr *TCResolver) FlushInactiveProbes(m *manager.Manager, isLazy func(strin
 	return probesCountNoLazyDeletion
 }
 
-func (tcr *TCResolver) GetTCProbeForKey(ifIndex, netNS uint32) *manager.Probe {
+func (tcr *TCResolver) ResolveNetworkDeviceIfName(ifIndex, netNS uint32) (string, bool) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
@@ -171,8 +171,8 @@ func (tcr *TCResolver) GetTCProbeForKey(ifIndex, netNS uint32) *manager.Probe {
 
 		tcProbe, ok := tcr.programs[key]
 		if ok {
-			return tcProbe
+			return tcProbe.IfName, true
 		}
 	}
-	return nil
+	return "", false
 }

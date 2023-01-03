@@ -602,9 +602,9 @@ func bestGuessServiceTag(serviceValues []string) string {
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
 func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
 	if len(device.IfName) == 0 && ev.resolvers.TCResolver != nil {
-		tcProbe := ev.resolvers.TCResolver.GetTCProbeForKey(device.IfIndex, device.NetNS)
-		if tcProbe != nil {
-			device.IfName = tcProbe.IfName
+		ifName, ok := ev.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
+		if ok {
+			device.IfName = ifName
 		}
 	}
 
