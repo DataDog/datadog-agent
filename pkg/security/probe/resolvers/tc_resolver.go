@@ -158,15 +158,21 @@ func (tcr *TCResolver) FlushInactiveProbes(m *manager.Manager, isLazy func(strin
 	return probesCountNoLazyDeletion
 }
 
-func (tcr *TCResolver) GetTCProbeForKey(key NetDeviceKey) *manager.Probe {
+func (tcr *TCResolver) GetTCProbeForKey(ifIndex, netNS uint32) *manager.Probe {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	tcProbe, ok := tcr.programs[key]
-	if ok {
-		return tcProbe
-	}
+	for _, direction := range []manager.TrafficType{manager.Egress, manager.Ingress} {
+		key := NetDeviceKey{
+			IfIndex:          ifIndex,
+			NetNS:            netNS,
+			NetworkDirection: direction,
+		}
 
-	key.NetworkDirection = manager.Ingress
-	return tcr.programs[key]
+		tcProbe, ok := tcr.programs[key]
+		if ok {
+			return tcProbe
+		}
+	}
+	return nil
 }

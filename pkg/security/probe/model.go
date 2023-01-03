@@ -16,13 +16,11 @@ import (
 	"syscall"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -604,13 +602,7 @@ func bestGuessServiceTag(serviceValues []string) string {
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
 func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
 	if len(device.IfName) == 0 && ev.resolvers.TCResolver != nil {
-		key := resolvers.NetDeviceKey{
-			NetNS:            device.NetNS,
-			IfIndex:          device.IfIndex,
-			NetworkDirection: manager.Egress,
-		}
-
-		tcProbe := ev.resolvers.TCResolver.GetTCProbeForKey(key)
+		tcProbe := ev.resolvers.TCResolver.GetTCProbeForKey(device.IfIndex, device.NetNS)
 		if tcProbe != nil {
 			device.IfName = tcProbe.IfName
 		}
