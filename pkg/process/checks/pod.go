@@ -19,7 +19,6 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -39,7 +38,7 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *config.AgentConfig, hostInfo *HostInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	c.hostInfo = hostInfo
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))

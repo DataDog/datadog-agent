@@ -12,8 +12,6 @@ import (
 	"errors"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // ProcessEvents is a ProcessEventsCheck singleton
@@ -24,7 +22,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, _ *HostInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
 	return nil
 }
 

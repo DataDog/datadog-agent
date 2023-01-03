@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -30,7 +29,7 @@ type ProcessDiscoveryCheck struct {
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *HostInfo) error {
+func (d *ProcessDiscoveryCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
 	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))

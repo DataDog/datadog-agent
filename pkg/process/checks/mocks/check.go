@@ -4,8 +4,6 @@ package mocks
 
 import (
 	checks "github.com/DataDog/datadog-agent/pkg/process/checks"
-	config "github.com/DataDog/datadog-agent/pkg/process/config"
-
 	mock "github.com/stretchr/testify/mock"
 
 	process "github.com/DataDog/agent-payload/v5/process"
@@ -21,13 +19,13 @@ func (_m *Check) Cleanup() {
 	_m.Called()
 }
 
-// Init provides a mock function with given fields: cfg, info
-func (_m *Check) Init(cfg *config.AgentConfig, info *checks.HostInfo) error {
-	ret := _m.Called(cfg, info)
+// Init provides a mock function with given fields: syscfg, info
+func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo) error {
+	ret := _m.Called(syscfg, info)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*config.AgentConfig, *checks.HostInfo) error); ok {
-		r0 = rf(cfg, info)
+	if rf, ok := ret.Get(0).(func(*checks.SysProbeConfig, *checks.HostInfo) error); ok {
+		r0 = rf(syscfg, info)
 	} else {
 		r0 = ret.Error(0)
 	}

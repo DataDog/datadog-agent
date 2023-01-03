@@ -10,8 +10,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 func TestProcessDiscoveryCheck(t *testing.T) {
@@ -23,9 +21,8 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	maxBatchSize := 10
 	getMaxBatchSize = func() int { return maxBatchSize }
 
-	cfg := &config.AgentConfig{}
 	ProcessDiscovery.Init(
-		cfg,
+		nil,
 		&HostInfo{
 			SystemInfo: &model.SystemInfo{
 				Cpus:        []*model.CPUInfo{{Number: 0}},

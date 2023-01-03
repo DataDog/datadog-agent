@@ -17,7 +17,6 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -39,7 +38,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *HostInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 

@@ -10,7 +10,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -32,7 +31,7 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *config.AgentConfig, hostInfo *HostInfo) error {
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	r.maxBatchSize = getMaxBatchSize()
 	r.hostInfo = hostInfo
 	r.containerProvider = util.GetSharedContainerProvider()

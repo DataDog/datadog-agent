@@ -12,7 +12,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -41,7 +40,7 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *HostInfo) error {
+func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	c.containerProvider = util.GetSharedContainerProvider()
 	c.hostInfo = info
 

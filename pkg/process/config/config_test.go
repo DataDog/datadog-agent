@@ -10,12 +10,10 @@ package config
 
 import (
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
@@ -43,15 +41,12 @@ func newConfig() {
 	config.Datadog.Set(key(ns, "grpc_connection_timeout_secs"), 0)
 }
 
-func loadAgentConfigForTest(t *testing.T, path, networksYamlPath string) *AgentConfig {
-	config.InitSystemProbeConfig(config.Datadog)
+func loadAgentConfigForTest(t *testing.T, path string) *AgentConfig {
+	// config.InitSystemProbeConfig(config.Datadog)
 
 	require.NoError(t, LoadConfigIfExists(path))
 
-	syscfg, err := sysconfig.Merge(networksYamlPath)
-	require.NoError(t, err)
-
-	cfg, err := NewAgentConfig("test", path, syscfg)
+	cfg, err := NewAgentConfig("test", path)
 	require.NoError(t, err)
 	return cfg
 }
@@ -59,18 +54,15 @@ func loadAgentConfigForTest(t *testing.T, path, networksYamlPath string) *AgentC
 // TestEnvGrpcConnectionTimeoutSecs tests DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS.
 // This environment variable cannot be tested with the other environment variables because it is overridden.
 func TestEnvGrpcConnectionTimeoutSecs(t *testing.T) {
-	syscfg, err := sysconfig.Merge("")
-	require.NoError(t, err)
-
 	t.Run("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", func(t *testing.T) {
 		t.Setenv("DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS", "1")
-		_, _ = NewAgentConfig("test", "", syscfg)
+		_, _ = NewAgentConfig("test", "")
 		assert.Equal(t, 1, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	})
 
 	t.Run("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", func(t *testing.T) {
 		t.Setenv("DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS", "2")
-		_, _ = NewAgentConfig("test", "", syscfg)
+		_, _ = NewAgentConfig("test", "")
 		assert.Equal(t, 2, config.Datadog.GetInt("process_config.grpc_connection_timeout_secs"))
 	})
 }
@@ -116,9 +108,7 @@ func TestOnlyEnvConfigLogLevelOverride(t *testing.T) {
 	t.Setenv("DD_LOG_LEVEL", "error")
 	t.Setenv("LOG_LEVEL", "debug")
 
-	syscfg, err := sysconfig.Merge("")
-	require.NoError(t, err)
-	_, _ = NewAgentConfig("test", "", syscfg)
+	_, _ = NewAgentConfig("test", "")
 	assert.Equal(t, "error", config.Datadog.GetString("log_level"))
 }
 
@@ -146,40 +136,17 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(4*time.Hour, config.Datadog.GetDuration("process_config.process_discovery.interval"))
 }
 
-func TestAgentConfigYamlAndSystemProbeConfig(t *testing.T) {
+func TestAgentConfigYaml(t *testing.T) {
 	newConfig()
 	defer restoreGlobalConfig()
 
 	assert := assert.New(t)
 
-	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "")
+	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYaml.yaml")
 
 	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
 	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
 	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
 	assert.Equal(5065, config.Datadog.GetInt("process_config.expvar_port"))
 
-	newConfig()
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net.yaml")
-
-	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
-	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
-	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-	if runtime.GOOS != "windows" {
-		assert.Equal("/var/my-location/system-probe.log", agentConfig.SystemProbeAddress)
-	}
-
-	newConfig()
-	_ = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-2.yaml")
-
-	assert.Equal("apikey_20", config.Datadog.GetString("api_key"))
-	assert.Equal("http://my-process-app.datadoghq.com", config.Datadog.GetString("process_config.process_dd_url"))
-	assert.Equal(10, config.Datadog.GetInt("process_config.queue_size"))
-
-	newConfig()
-	agentConfig = loadAgentConfigForTest(t, "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig.yaml", "./testdata/TestDDAgentConfigYamlAndSystemProbeConfig-Net-Windows.yaml")
-
-	if runtime.GOOS == "windows" {
-		assert.Equal("localhost:4444", agentConfig.SystemProbeAddress)
-	}
 }

@@ -100,7 +100,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 
 	config.InitRuntimeSettings()
 
-	cfg, err := config.NewAgentConfig(loggerName, globalParams.ConfFilePath, syscfg)
+	_, err = config.NewAgentConfig(loggerName, globalParams.ConfFilePath)
 	if err != nil {
 		log.Criticalf("Error parsing config: %s", err)
 		cleanupAndExit(1)
@@ -261,7 +261,7 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		_ = log.Error(err)
 	}
 
-	cl, err := NewCollector(cfg, hostInfo, enabledChecks)
+	cl, err := NewCollector(syscfg, hostInfo, enabledChecks)
 	if err != nil {
 		log.Criticalf("Error creating collector: %s", err)
 		cleanupAndExit(1)
