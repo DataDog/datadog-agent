@@ -74,43 +74,40 @@ var altProbes = map[probes.ProbeName]string{
 	probes.UnderscoredSKBFreeDatagramLocked: "kprobe____skb_free_datagram_locked",
 }
 
-func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) *manager.Manager {
-	mgr := &manager.Manager{
-		Maps: []*manager.Map{
-			{Name: string(probes.ConnMap)},
-			{Name: string(probes.TCPStatsMap)},
-			{Name: string(probes.TCPConnectSockPidMap)},
-			{Name: string(probes.ConnCloseBatchMap)},
-			{Name: "udp_recv_sock"},
-			{Name: "udpv6_recv_sock"},
-			{Name: string(probes.PortBindingsMap)},
-			{Name: string(probes.UDPPortBindingsMap)},
-			{Name: "pending_bind"},
-			{Name: string(probes.TelemetryMap)},
-			{Name: string(probes.SockByPidFDMap)},
-			{Name: string(probes.PidFDBySockMap)},
-			{Name: string(probes.SockFDLookupArgsMap)},
-			{Name: string(probes.DoSendfileArgsMap)},
-			{Name: string(probes.TcpSendMsgArgsMap)},
-			{Name: string(probes.IpMakeSkbArgsMap)},
-			{Name: string(probes.MapErrTelemetryMap)},
-			{Name: string(probes.HelperErrTelemetryMap)},
-			{Name: string(probes.TcpRecvMsgArgsMap)},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      closedHandler.RecordHandler,
-					LostHandler:        closedHandler.LostHandler,
-					RecordGetter:       closedHandler.RecordGetter,
-				},
+func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler, runtimeTracer bool) {
+	mgr.Maps = []*manager.Map{
+		{Name: string(probes.ConnMap)},
+		{Name: string(probes.TCPStatsMap)},
+		{Name: string(probes.TCPConnectSockPidMap)},
+		{Name: string(probes.ConnCloseBatchMap)},
+		{Name: "udp_recv_sock"},
+		{Name: "udpv6_recv_sock"},
+		{Name: string(probes.PortBindingsMap)},
+		{Name: string(probes.UDPPortBindingsMap)},
+		{Name: "pending_bind"},
+		{Name: string(probes.TelemetryMap)},
+		{Name: string(probes.SockByPidFDMap)},
+		{Name: string(probes.PidFDBySockMap)},
+		{Name: string(probes.SockFDLookupArgsMap)},
+		{Name: string(probes.DoSendfileArgsMap)},
+		{Name: string(probes.TcpSendMsgArgsMap)},
+		{Name: string(probes.IpMakeSkbArgsMap)},
+		{Name: string(probes.MapErrTelemetryMap)},
+		{Name: string(probes.HelperErrTelemetryMap)},
+		{Name: string(probes.TcpRecvMsgArgsMap)},
+	}
+	mgr.PerfMaps = []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				RecordHandler:      closedHandler.RecordHandler,
+				LostHandler:        closedHandler.LostHandler,
+				RecordGetter:       closedHandler.RecordGetter,
 			},
 		},
 	}
-
 	for probeName, funcName := range mainProbes {
 		p := &manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -144,6 +141,4 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler, runtimeT
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFSection: string(probes.TCPRecvMsgPre410), EBPFFuncName: altProbes[probes.TCPRecvMsgPre410], UID: probeUID}, MatchFuncName: "^tcp_recvmsg$"},
 		)
 	}
-
-	return mgr
 }

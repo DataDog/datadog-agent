@@ -1,8 +1,9 @@
 #ifndef __PROTOCOL_CLASSIFICATION_COMMON_H
 #define __PROTOCOL_CLASSIFICATION_COMMON_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
+#include "defs.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
 

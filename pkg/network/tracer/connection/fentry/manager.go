@@ -17,34 +17,32 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
-func newManager(config *config.Config, closedHandler *ebpf.PerfHandler) *manager.Manager {
-	mgr := &manager.Manager{
-		Maps: []*manager.Map{
-			{Name: string(probes.ConnMap)},
-			{Name: string(probes.TCPStatsMap)},
-			{Name: string(probes.TCPConnectSockPidMap)},
-			{Name: string(probes.ConnCloseBatchMap)},
-			{Name: "udp_recv_sock"},
-			{Name: "udpv6_recv_sock"},
-			{Name: string(probes.PortBindingsMap)},
-			{Name: string(probes.UDPPortBindingsMap)},
-			{Name: "pending_bind"},
-			{Name: string(probes.TelemetryMap)},
-			{Name: string(probes.SockByPidFDMap)},
-			{Name: string(probes.PidFDBySockMap)},
-			{Name: string(probes.MapErrTelemetryMap)},
-			{Name: string(probes.HelperErrTelemetryMap)},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 8 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      closedHandler.RecordHandler,
-					LostHandler:        closedHandler.LostHandler,
-					RecordGetter:       closedHandler.RecordGetter,
-				},
+func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler) {
+	mgr.Maps = []*manager.Map{
+		{Name: string(probes.ConnMap)},
+		{Name: string(probes.TCPStatsMap)},
+		{Name: string(probes.TCPConnectSockPidMap)},
+		{Name: string(probes.ConnCloseBatchMap)},
+		{Name: "udp_recv_sock"},
+		{Name: "udpv6_recv_sock"},
+		{Name: string(probes.PortBindingsMap)},
+		{Name: string(probes.UDPPortBindingsMap)},
+		{Name: "pending_bind"},
+		{Name: string(probes.TelemetryMap)},
+		{Name: string(probes.SockByPidFDMap)},
+		{Name: string(probes.PidFDBySockMap)},
+		{Name: string(probes.MapErrTelemetryMap)},
+		{Name: string(probes.HelperErrTelemetryMap)},
+	}
+	mgr.PerfMaps = []*manager.PerfMap{
+		{
+			Map: manager.Map{Name: string(probes.ConnCloseEventMap)},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 8 * os.Getpagesize(),
+				Watermark:          1,
+				RecordHandler:      closedHandler.RecordHandler,
+				LostHandler:        closedHandler.LostHandler,
+				RecordGetter:       closedHandler.RecordGetter,
 			},
 		},
 	}
@@ -59,6 +57,4 @@ func newManager(config *config.Config, closedHandler *ebpf.PerfHandler) *manager
 		}
 		mgr.Probes = append(mgr.Probes, p)
 	}
-
-	return mgr
 }

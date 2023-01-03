@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/atomicstats"
@@ -145,7 +144,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		bpfTelemetry = telemetry.NewEBPFTelemetry()
 	}
 
-	ebpfTracer, err := fentry.NewTracer(config, constantEditors, bpfTelemetry)
+	ebpfTracer, err := connection.NewTracer(config, constantEditors, bpfTelemetry)
 	if err != nil {
 		return nil, err
 	}

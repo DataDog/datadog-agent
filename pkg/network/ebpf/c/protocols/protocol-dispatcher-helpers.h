@@ -1,7 +1,7 @@
 #ifndef __PROTOCOL_DISPATCHER_HELPERS_H
 #define __PROTOCOL_DISPATCHER_HELPERS_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #include "protocol-dispatcher-maps.h"
 #include "protocol-classification.h"
