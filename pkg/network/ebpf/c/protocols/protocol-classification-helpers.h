@@ -182,21 +182,23 @@ static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size)
 static __always_inline bool is_postgres_query(const char *buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, sizeof(struct pg_message_header));
 
-    struct pg_message_header hdr;
-    hdr.message_tag = *buf;
-    hdr.message_len = *(__u32*)(buf+1);
-
-    // We only classify queries for now
-    if (hdr.message_tag != POSTGRES_QUERY_MAGIC_BYTE) {
+    if (buf_size <= sizeof(struct pg_message_header)) {
         return false;
     }
 
-    __u32 message_len = bpf_ntohl(hdr.message_len);
+    struct pg_message_header *hdr = (struct pg_message_header *)buf;
+
+    // We only classify queries for now
+    if (hdr->message_tag != POSTGRES_QUERY_MAGIC_BYTE) {
+        return false;
+    }
+
+    __u32 message_len = bpf_ntohl(hdr->message_len);
     if (message_len < POSTGRES_MIN_PAYLOAD_LEN || message_len > POSTGRES_MAX_PAYLOAD_LEN) {
         return false;
     }
 
-    return is_sql_command(buf + sizeof(hdr), buf_size - sizeof(hdr));
+    return is_sql_command(buf + sizeof(*hdr), buf_size - sizeof(*hdr));
 }
 
 static __always_inline bool is_postgres(const char *buf, __u32 buf_size) {
