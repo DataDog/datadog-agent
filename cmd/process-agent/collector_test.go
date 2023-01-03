@@ -15,7 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	processMocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
+	processmocks "github.com/DataDog/datadog-agent/cmd/process-agent/mocks"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -198,7 +198,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
-	submitter := processMocks.NewSubmitter(t)
+	submitter := processmocks.NewSubmitter(t)
 	c.submitter = submitter
 
 	standardOption := checks.RunOptions{
@@ -242,7 +242,7 @@ func TestCollectorRunCheck(t *testing.T) {
 
 	c, err := NewCollector(nil, hostInfo, []checks.Check{})
 	require.NoError(t, err)
-	submitter := processMocks.NewSubmitter(t)
+	submitter := processmocks.NewSubmitter(t)
 	require.NoError(t, err)
 	c.submitter = submitter
 
