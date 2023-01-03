@@ -48,6 +48,7 @@ func Start(settings Settings) error {
 		profiler.WithPeriod(settings.Period),
 		profiler.WithProfileTypes(types...),
 		profiler.CPUDuration(settings.CPUDuration),
+		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
 	}
 
