@@ -33,7 +33,6 @@ from .utils import (
     get_go_version,
     get_gopath,
     get_version,
-    get_version_numeric_only,
 )
 
 BIN_DIR = os.path.join(".", "bin")
@@ -57,23 +56,6 @@ def build(
     Build the security agent
     """
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
-
-    # generate windows resources
-    if sys.platform == 'win32':
-        windres_target = "pe-x86-64"
-        if arch == "x86":
-            env["GOARCH"] = "386"
-            windres_target = "pe-i386"
-
-        ver = get_version_numeric_only(ctx, major_version=major_version)
-        maj_ver, min_ver, patch_ver = ver.split(".")
-
-        ctx.run(
-            f"windmc --target {windres_target}  -r cmd/security-agent/windows_resources cmd/security-agent/windows_resources/security-agent-msg.mc"
-        )
-        ctx.run(
-            f"windres --define MAJ_VER={maj_ver} --define MIN_VER={min_ver} --define PATCH_VER={patch_ver} -i cmd/security-agent/windows_resources/security-agent.rc --target {windres_target} -O coff -o cmd/security-agent/rsrc.syso"
-        )
 
     # TODO use pkg/version for this
     main = "main."
@@ -174,7 +156,7 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
         rule="ebpfclang",
         variables={
             "target": "-target bpf",
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu", "-DBPF_NO_GLOBAL_DATA"],
         },
     )
 

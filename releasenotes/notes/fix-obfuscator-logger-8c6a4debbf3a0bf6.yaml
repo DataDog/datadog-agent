@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix panic due to uninitialized Obfuscator logger

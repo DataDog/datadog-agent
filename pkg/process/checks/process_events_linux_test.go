@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
@@ -243,14 +242,14 @@ func TestProcessEventsCheck(t *testing.T) {
 		maxBatchSize: 10,
 		listener:     listener,
 		store:        store,
+		hostInfo:     &HostInfo{},
 	}
 	check.start()
 
-	cfg := &config.AgentConfig{}
 	events := make([]*payload.ProcessEvent, 0)
 	assert.Eventually(t, func() bool {
 		// Run the process_events check until all expected events are collected
-		msgs, err := check.Run(cfg, 0)
+		msgs, err := check.Run(0)
 		require.NoError(t, err)
 
 		for _, msg := range msgs {

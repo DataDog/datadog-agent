@@ -96,6 +96,8 @@
 /.gitlab/choco_build.yml                             @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/choco_deploy.yml                            @DataDog/agent-platform @DataDog/windows-agent
 
+/.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
+
 /chocolatey/                            @DataDog/windows-agent
 
 /cmd/                                   @DataDog/agent-shared-components
@@ -273,6 +275,7 @@
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
+/pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-kernel-integrations
 /pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
 /pkg/network/dns/*_windows*.go          @DataDog/windows-kernel-integrations
@@ -281,6 +284,7 @@
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
 /pkg/network/encoding/http*             @DataDog/universal-service-monitoring
+/pkg/network/encoding/*usm*             @DataDog/universal-service-monitoring
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
@@ -350,8 +354,10 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
+/test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
+/test/benchmarks/apm_scripts/           @DataDog/agent-apm
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform

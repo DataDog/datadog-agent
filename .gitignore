@@ -176,3 +176,6 @@ TAGS
 
 # cscope
 cscope.out
+
+# Go workspace until we have proper support in the tooling
+go.work*

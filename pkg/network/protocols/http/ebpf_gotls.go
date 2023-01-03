@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -30,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
@@ -131,9 +130,8 @@ type GoTLSProgram struct {
 
 	// Process monitor channels
 	procMonitor struct {
-		done   chan struct{}
-		events chan netlink.ProcEvent
-		errors chan error
+		cleanupExec func()
+		cleanupExit func()
 	}
 
 	lock sync.RWMutex
@@ -182,20 +180,12 @@ func newGoTLSProgram(c *config.Config) *GoTLSProgram {
 		processes: make(map[pid]binaryID),
 	}
 
-	p.procMonitor.done = make(chan struct{})
-	p.procMonitor.events = make(chan netlink.ProcEvent, 1000)
-	p.procMonitor.errors = make(chan error, 1)
-
 	p.binAnalysisMetric = errtelemetry.NewMetric("gotls.analysis_time", errtelemetry.OptStatsd)
 
 	return p
 }
 
 func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
-	if p == nil {
-		return
-	}
-
 	p.manager = m
 	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
 		{Name: offsetsDataMap},
@@ -205,9 +195,10 @@ func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
 	// Hooks will be added in runtime for each binary
 }
 
-func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {}
+func (p *GoTLSProgram) ConfigureOptions(_ *manager.Options) {}
 
-func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentificationPair) {
+func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+	probeList := make([]manager.ProbeIdentificationPair, 0)
 	for _, probeInfo := range functionToProbes {
 		if probeInfo.functionInfo != nil {
 			probeList = append(probeList, probeInfo.functionInfo.getIdentificationPair())
@@ -218,14 +209,10 @@ func (p *GoTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdentif
 		}
 	}
 
-	return
+	return probeList
 }
 
 func (p *GoTLSProgram) Start() {
-	if p == nil {
-		return
-	}
-
 	var err error
 	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
 	if err != nil {
@@ -233,74 +220,38 @@ func (p *GoTLSProgram) Start() {
 		return
 	}
 
-	if err := netlink.ProcEventMonitor(p.procMonitor.events, p.procMonitor.done, p.procMonitor.errors); err != nil {
-		log.Errorf("could not create process monitor: %s", err)
+	mon := monitor.GetProcessMonitor()
+	p.procMonitor.cleanupExec, err = mon.Subscribe(&monitor.ProcessCallback{
+		Event:    monitor.EXEC,
+		Metadata: monitor.ANY,
+		Callback: p.handleProcessStart,
+	})
+	if err != nil {
+		log.Errorf("failed to subscribe Exec process monitor error: %s", err)
 		return
 	}
-
-	// This channel is used by the process watcher goroutine (just below) to
-	// wait until we finished scanning for already running Go processes.
-	// This is needed to avoid a race condition where an exit event is
-	// processed during the registration of an already running process,
-	// which would make the possible impossible to unregister afterwards,
-	// causing a memory leak.
-	startDone := make(chan interface{})
-
-	// Process watcher events handling goroutine
-	go func() {
-		// Wait for the scanning of already running processes to complete
-		<-startDone
-
-		for {
-			select {
-			case <-p.procMonitor.done:
-				return
-
-			case event, ok := <-p.procMonitor.events:
-				if !ok {
-					return
-				}
-
-				switch ev := event.Msg.(type) {
-				case *netlink.ExecProcEvent:
-					p.handleProcessStart(ev.ProcessPid)
-				case *netlink.ExitProcEvent:
-					p.handleProcessStop(ev.ProcessPid)
-
-					// No default case; the watcher has a
-					// lot of event types, some of which
-					// (e.g fork) happen all the time even
-					// on an idle machine. Logging those
-					// would flood our logs.
-				}
-
-			case err, ok := <-p.procMonitor.errors:
-				if !ok {
-					return
-				}
-
-				log.Errorf("process watcher error: %s", err)
-			}
-		}
-	}()
-
-	// Scan already running processes. We allow the process watcher to
-	// process events afterwards.
-	go func() {
-		_ = util.WithAllProcs(p.procRoot, func(pid int) error {
-			p.handleProcessStart(uint32(pid))
-			return nil
-		})
-		close(startDone)
-	}()
+	p.procMonitor.cleanupExit, err = mon.Subscribe(&monitor.ProcessCallback{
+		Event:    monitor.EXIT,
+		Metadata: monitor.ANY,
+		Callback: p.handleProcessStop,
+	})
+	if err != nil {
+		log.Errorf("failed to subscribe Exit process monitor error: %s", err)
+		goto failed
+	}
+	return
+failed:
+	if p.procMonitor.cleanupExec != nil {
+		p.procMonitor.cleanupExec()
+	}
+	if p.procMonitor.cleanupExit != nil {
+		p.procMonitor.cleanupExit()
+	}
 }
 
 func (p *GoTLSProgram) Stop() {
-	if p == nil {
-		return
-	}
-
-	close(p.procMonitor.done)
+	p.procMonitor.cleanupExec()
+	p.procMonitor.cleanupExit()
 }
 
 func (p *GoTLSProgram) handleProcessStart(pid pid) {

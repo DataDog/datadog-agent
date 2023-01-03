@@ -63,7 +63,7 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -359,14 +359,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	select {
 	case o.out <- &p:
-		// Stats will be computed for p. Mark the original resource spans to ensure that they don't
-		// get computed twice in case these spans pass through here again.
-		//
-		// Spans can pass through here multiple times because this code path gets used by the:
-		//  - OpenTelemetry Collector Datadog processor, when computing stats.
-		//  - OpenTelemetry Collector Datadog exporter, when flushing.
-		//  - Datadog Agent OTLP Ingest, when used in conjunction with an SDK or a Collector.
-		rspans.Resource().Attributes().PutBool(keyStatsComputed, true)
+		// success
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}

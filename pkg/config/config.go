@@ -264,6 +264,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
+	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
 	config.BindEnvAndSetDefault("check_runners", int64(4))
@@ -988,6 +990,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("clc_runner_port", 5005)
 	config.BindEnvAndSetDefault("clc_runner_server_write_timeout", 15)
 	config.BindEnvAndSetDefault("clc_runner_server_readheader_timeout", 10)
+	config.BindEnvAndSetDefault("clc_runner_remote_tagger_enabled", false)
+
 	// Admission controller
 	config.BindEnvAndSetDefault("admission_controller.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.mutate_unlabelled", false)
@@ -1014,6 +1018,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1227,7 +1232,9 @@ func InitConfig(config Config) {
 	setupProcesses(config)
 }
 
-var ddURLRegexp = regexp.MustCompile(`^app(\.(us|eu)\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+// ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
+// version (see AddAgentVersionToDomain).
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 
 // GetProxies returns the proxy settings from the configuration
 func GetProxies() *Proxy {
@@ -1596,7 +1603,8 @@ func setupFipsEndpoints(config Config) error {
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles))
+	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
 
 	// Processes
@@ -2029,17 +2037,16 @@ func getValidHostAliasesWithConfig(config Config) []string {
 	return aliases
 }
 
-// GetConfiguredTags returns complete list of user configured tags.
-//
-// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
-// if includeDogstatsd is true.
-func GetConfiguredTags(includeDogstatsd bool) []string {
-	tags := Datadog.GetStringSlice("tags")
-	extraTags := Datadog.GetStringSlice("extra_tags")
+// GetConfiguredTags returns list of tags from a configuration, based on
+// `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
+// if includeDogdstatsd is true.
+func GetConfiguredTags(config Config, includeDogstatsd bool) []string {
+	tags := config.GetStringSlice("tags")
+	extraTags := config.GetStringSlice("extra_tags")
 
 	var dsdTags []string
 	if includeDogstatsd {
-		dsdTags = Datadog.GetStringSlice("dogstatsd_tags")
+		dsdTags = config.GetStringSlice("dogstatsd_tags")
 	}
 
 	combined := make([]string, 0, len(tags)+len(extraTags)+len(dsdTags))
@@ -2048,6 +2055,14 @@ func GetConfiguredTags(includeDogstatsd bool) []string {
 	combined = append(combined, dsdTags...)
 
 	return combined
+}
+
+// GetGlobalConfiguredTags returns complete list of user configured tags.
+//
+// This is composed of DD_TAGS and DD_EXTRA_TAGS, with DD_DOGSTATSD_TAGS included
+// if includeDogstatsd is true.
+func GetGlobalConfiguredTags(includeDogstatsd bool) []string {
+	return GetConfiguredTags(Datadog, includeDogstatsd)
 }
 
 func bindVectorOptions(config Config, datatype DataType) {
@@ -2082,7 +2097,7 @@ func GetTraceAgentDefaultEnv() string {
 		defaultEnv = Datadog.GetString("env")
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
 	} else {
-		for _, tag := range GetConfiguredTags(false) {
+		for _, tag := range GetConfiguredTags(Datadog, false) {
 			if strings.HasPrefix(tag, "env:") {
 				defaultEnv = strings.TrimPrefix(tag, "env:")
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)

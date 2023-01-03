@@ -107,6 +107,19 @@ func (sf *StructField) GetDefaultReturnValue() string {
 	}
 }
 
+// GetDefaultScalarReturnValue returns default scalar value for the given return type
+func (sf *StructField) GetDefaultScalarReturnValue() string {
+	if sf.ReturnType == "int" {
+		return "0"
+	} else if sf.ReturnType == "bool" {
+		return "false"
+	} else if sf.ReturnType == "net.IPNet" {
+		return "net.IPNet{}"
+	} else {
+		return `""`
+	}
+}
+
 // GetArrayPrefix returns the array prefix of this field
 func (sf *StructField) GetArrayPrefix() string {
 	if sf.IsArray {
