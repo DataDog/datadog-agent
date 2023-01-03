@@ -64,8 +64,6 @@ type Collector struct {
 	// Controls the real-time interval, can change live.
 	realTimeInterval time.Duration
 
-	forwarderRetryQueueMaxBytes int
-
 	// Enables running realtime checks
 	runRealTime bool
 
@@ -134,10 +132,6 @@ func (l *Collector) runCheck(c checks.Check) {
 	}
 
 	l.submitter.Submit(start, c.Name(), messages)
-	if err != nil {
-		log.Errorf("Unable to submit payload for check '%s': %s", c.Name(), err)
-		return
-	}
 
 	if !c.RealTime() {
 		logCheckDuration(c.Name(), start, runCounter)
