@@ -10,25 +10,24 @@ package systray
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/controlsvc"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func onRestart() {
+func onRestart(s *systray) {
 	if err := controlsvc.RestartService(); err != nil {
-		log.Warnf("Failed to restart datadog service %v", err)
+		s.log.Warnf("Failed to restart datadog service %v", err)
 	}
 
 }
-func onStart() {
+func onStart(s *systray) {
 	if err := controlsvc.StartService(); err != nil {
-		log.Warnf("Failed to start datadog service %v", err)
+		s.log.Warnf("Failed to start datadog service %v", err)
 	}
 
 }
 
-func onStop() {
+func onStop(s *systray) {
 	if err := controlsvc.StopService(); err != nil {
-		log.Warnf("Failed to stop datadog service %v", err)
+		s.log.Warnf("Failed to stop datadog service %v", err)
 	}
 
 }

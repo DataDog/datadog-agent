@@ -21,6 +21,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/systray/internal"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -40,6 +41,7 @@ type dependencies struct {
 	Shutdowner fx.Shutdowner
 
 	Log log.Component
+	Config config.Component
 	Params internal.BundleParams
 }
 
@@ -48,6 +50,7 @@ type systray struct {
 	shutdowner fx.Shutdowner
 
 	log log.Component
+	config config.Component
 	params internal.BundleParams
 
 	isUserAdmin     bool
@@ -78,7 +81,7 @@ const (
 )
 
 var (
-	cmds                  = map[string]func(){
+	cmds                  = map[string]func(*systray){
 		cmdTextStartService:   onStart,
 		cmdTextStopService:    onStop,
 		cmdTextRestartService: onRestart,
@@ -92,6 +95,7 @@ func newSystray(deps dependencies) (Component, error) {
 	// fx init
 	s := &systray{
 		log: deps.Log,
+		config: deps.Config,
 		params: deps.Params,
 		shutdowner: deps.Shutdowner,
 	}
@@ -127,7 +131,7 @@ func (s *systray) start(ctx context.Context) error {
 
 	if s.params.LaunchGuiFlag {
 		s.log.Debug("Preparing to launch configuration interface...")
-		onConfigure()
+		onConfigure(s)
 	}
 
 	s.singletonEventHandle, err = acquireProcessSingleton(eventname)
@@ -385,7 +389,7 @@ func execCmdOrElevate(s *systray, cmd string) {
 	}
 
 	if cmds[cmd] != nil {
-		cmds[cmd]()
+		cmds[cmd](s)
 	}
 }
 
