@@ -40,34 +40,39 @@ func newOffsetManager(numCPUS int) *offsetManager {
 }
 
 // Get returns the data offset that hasn't been consumed yet for a given batch
-func (o *offsetManager) Get(cpu int, batch *batch, syncing bool) (i, j int) {
+func (o *offsetManager) Get(cpu int, batch *batch, syncing bool) (begin, end int) {
 	o.mux.Lock()
 	defer o.mux.Unlock()
 	state := o.stateByCPU[cpu]
+	batchID := int(batch.Idx)
 
-	if batchComplete(batch) {
-		// update nextBatchID
-		state.nextBatchID = max(int(batch.Idx)+1, state.nextBatchID)
+	if batchID < state.nextBatchID {
+		// we have already consumed this data
+		return 0, 0
 	}
 
-	// determining the start offset
-	// usually this is 0, but we've done a partial read of this batch
-	// we need to take it into account
+	if batchComplete(batch) {
+		state.nextBatchID = batchID + 1
+	}
+
+	// determining the begin offset
+	// usually this is 0, but if we've done a partial read of this batch
+	// we need to take that into account
 	if int(batch.Idx) == state.partialBatchID {
-		i = state.partialOffset
+		begin = state.partialOffset
 	}
 
 	// determining the end offset
-	// usually this is HTTP_BATCH_SIZE but it can be less
+	// usually this is the full batch size but it can be less
 	// in the context of a forced (partial) read
-	j = int(batch.Len)
+	end = int(batch.Len)
 
 	// if this is part of a forced read (that is, we're reading a batch before
 	// it's complete) we need to keep track of which entries we're reading
 	// so we avoid reading the same entries again
 	if syncing {
 		state.partialBatchID = int(batch.Idx)
-		state.partialOffset = j
+		state.partialOffset = end
 	}
 
 	return
