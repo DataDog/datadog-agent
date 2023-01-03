@@ -644,7 +644,8 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
 
-    kitchen_prepare_btfs(ctx, files_dir)
+    if not os.getenv("CI_JOB_ID"):
+        kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
