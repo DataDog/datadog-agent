@@ -135,7 +135,7 @@ func (l *Collector) runCheck(c checks.Check) {
 
 	err = l.submitter.Submit(start, c.Name(), messages)
 	if err != nil {
-		log.Errorf("Unable to submit check '%s': %s", c.Name(), err)
+		log.Errorf("Unable to submit payload for check '%s': %s", c.Name(), err)
 		return
 	}
 
