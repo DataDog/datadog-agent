@@ -1074,6 +1074,7 @@ def build_object_files(
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
         ctx.run(f"find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
 
+
 def build_cws_object_files(
     ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
 ):
@@ -1172,12 +1173,16 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
     ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
 
     if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}"):
-        ctx.run(f"mkdir {btf_dir}/kitchen-btfs-{arch} && " +
-                f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}")
+        ctx.run(
+            f"mkdir {btf_dir}/kitchen-btfs-{arch} && "
+            + f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}"
+        )
 
     can_minimize = True
     if not is_bpftool_compatible(ctx):
-        print("Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead.")
+        print(
+            "Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead."
+        )
         can_minimize = False
 
     if can_minimize:
@@ -1186,12 +1191,14 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
             output_dir=f"{btf_dir}/minimized-btfs",
-            input_bpf_programs=co_re_programs
+            input_bpf_programs=co_re_programs,
         )
 
-        ctx.run(f"cd {btf_dir}/minimized-btfs && " +
-                "tar -cJf minimized-btfs.tar.xz * && " +
-                f"mv minimized-btfs.tar.xz {files_dir}")
+        ctx.run(
+            f"cd {btf_dir}/minimized-btfs && "
+            + "tar -cJf minimized-btfs.tar.xz * && "
+            + f"mv minimized-btfs.tar.xz {files_dir}"
+        )
     else:
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
