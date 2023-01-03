@@ -14,6 +14,7 @@
 #define BATCH_SIZE 15
 
 typedef struct {
+     __u32 expected_pid;
      __u64 expected_fd;
      __u64 event_id;
 } test_ctx_t;
@@ -33,8 +34,9 @@ struct syscalls_enter_write_args {
 SEC("tracepoint/syscalls/sys_enter_write")
 int tracepoint__syscalls__sys_enter_write(struct syscalls_enter_write_args *ctx) {
     __u32 zero = 0;
+    __u32 pid = bpf_get_current_pid_tgid() >> 32;
     test_ctx_t *test_ctx = bpf_map_lookup_elem(&test, &zero);
-    if (!test_ctx || test_ctx->expected_fd != ctx->fd)
+    if (!test_ctx || test_ctx->expected_fd != ctx->fd || test_ctx->expected_pid != pid)
         return 0;
 
     // we're echoing to userspace whatever we read from the eBPF map

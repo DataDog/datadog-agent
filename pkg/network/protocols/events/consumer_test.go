@@ -97,6 +97,7 @@ func newEventGenerator(program *manager.Manager, t *testing.T) *eventGenerator {
 
 func (e *eventGenerator) Generate(eventID uint64) error {
 	type testCtx struct {
+		pid     uint32
 		fd      uint64
 		eventID uint64
 	}
@@ -104,7 +105,7 @@ func (e *eventGenerator) Generate(eventID uint64) error {
 	var (
 		fd  = uint64(e.testFile.Fd())
 		key = uint32(0)
-		val = testCtx{fd: fd, eventID: eventID}
+		val = testCtx{pid: uint32(os.Getpid()), fd: fd, eventID: eventID}
 	)
 
 	// this is done so the eBPF program will echo back an event that is equal to
