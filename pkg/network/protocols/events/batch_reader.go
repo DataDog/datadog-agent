@@ -57,9 +57,9 @@ func newBatchReader(offsetManager *offsetManager, batchMap *ebpf.Map, numCPUs in
 }
 
 // ReadAll batches from eBPF (concurrently) and execute the given
-// callback function for each
+// callback function for each batch
 func (r *batchReader) ReadAll(f func(cpu int, b *batch)) {
-	// This lock is used only used for the purposes of synchronizing termination
+	// This lock is used only for the purposes of synchronizing termination
 	// and it's only held while *enqueing* the jobs.
 	r.Lock()
 	if r.stopped {
