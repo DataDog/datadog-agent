@@ -79,6 +79,9 @@ type MetricSampleContext interface {
 
 	// IsNoIndex returns true if the metric must not be indexed.
 	IsNoIndex() bool
+
+	// GetMetricSource
+	GetMetricSource() MetricSource
 }
 
 // MetricSample represents a raw metric sample
@@ -134,4 +137,9 @@ func (m *MetricSample) Copy() *MetricSample {
 // IsNoIndex returns true if the metric must not be indexed.
 func (m *MetricSample) IsNoIndex() bool {
 	return m.NoIndex
+}
+
+// GetMetricSource returns the source of the given metric
+func (m *MetricSample) GetMetricSource() MetricSource {
+	return m.Source
 }

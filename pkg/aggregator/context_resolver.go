@@ -22,6 +22,7 @@ type Context struct {
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
 	noIndex    bool
+	source     metrics.MetricSource
 }
 
 // Tags returns tags for the context.
@@ -74,6 +75,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			Host:       metricSampleContext.GetHost(),
 			mtype:      mtype,
 			noIndex:    metricSampleContext.IsNoIndex(),
+			source:     metricSampleContext.GetMetricSource(),
 		}
 		cr.countsByMtype[mtype]++
 	}

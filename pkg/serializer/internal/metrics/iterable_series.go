@@ -323,11 +323,16 @@ func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.Buff
 
 			fmt.Println("Sending a series!")
 			if serie.Source != metrics.MetricSourceUnknown {
-				// TODO - I don't see this condition getting triggered
-				// dogstatsd server -> .... -> serializer
-				//                      ^ I suspect something in here is re-creating the MetricSample and it needs
-				// to copy over the Source field as well
 				fmt.Println("Sending a series with a source! Source set to ", serie.Source)
+				/*
+
+					It works! I see this output when running and submitting dogstatsd
+
+					Sending a series!
+					Sending a series!
+					Sending a series with a source! Source set to  dogstatsd
+
+				*/
 				return ps.Embedded(serieMetadata, func(ps *molecule.ProtoStream) error {
 					return ps.Embedded(serieMetadataOrigin, func(ps *molecule.ProtoStream) error {
 						return ps.Int32(serieMetadataOriginProduct, serieMetadataProductDogstatsd)
