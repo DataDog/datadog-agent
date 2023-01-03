@@ -86,7 +86,7 @@ require (
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudfoundry-community/go-cfclient v0.0.0-20210621174645-7773f7e22665
 	github.com/containerd/cgroups v1.0.4
-	github.com/containerd/containerd v1.6.9
+	github.com/containerd/containerd v1.6.14
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/cni v1.1.2
 	github.com/coreos/go-semver v0.3.0
@@ -204,18 +204,18 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.26.0-beta.0
-	k8s.io/apimachinery v0.26.0-beta.0
-	k8s.io/apiserver v0.26.0-beta.0
+	k8s.io/api v0.26.0
+	k8s.io/apimachinery v0.26.0
+	k8s.io/apiserver v0.26.0
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.10.0
-	k8s.io/client-go v0.26.0-beta.0
+	k8s.io/client-go v0.26.0
 	k8s.io/cri-api v0.25.4
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280
 	k8s.io/kube-state-metrics/v2 v2.4.2
-	k8s.io/kubelet v0.26.0-beta.0
-	k8s.io/metrics v0.26.0-beta.0
+	k8s.io/kubelet v0.26.0
+	k8s.io/metrics v0.26.0
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
 	sigs.k8s.io/custom-metrics-apiserver v1.23.0
 )
@@ -329,7 +329,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
-	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
+	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mdlayher/socket v0.2.3 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -419,7 +419,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	k8s.io/apiextensions-apiserver v0.23.5
-	k8s.io/component-base v0.26.0-beta.0 // indirect
+	k8s.io/component-base v0.26.0 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.33 // indirect
 	sigs.k8s.io/controller-runtime v0.11.2 // indirect
@@ -460,7 +460,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.10.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
-	k8s.io/kms v0.26.0-beta.0 // indirect
+	k8s.io/kms v0.26.0 // indirect
 	mellium.im/sasl v0.3.1 // indirect
 )
 
