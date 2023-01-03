@@ -21,12 +21,10 @@ var Pod = &PodCheck{}
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
-	sysInfo *model.SystemInfo
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) error {
-	c.sysInfo = info
+func (c *PodCheck) Init(_ *config.AgentConfig, hostInfo *HostInfo) error {
 	return nil
 }
 
@@ -40,8 +38,8 @@ func (c *PodCheck) RealTime() bool { return false }
 func (c *PodCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the PodCheck to collect a list of running pods
-func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
-	return nil, fmt.Errorf("Not implemented")
+func (c *PodCheck) Run(groupID int32) ([]model.MessageBody, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 // Cleanup frees any resource held by the PodCheck before the agent exits

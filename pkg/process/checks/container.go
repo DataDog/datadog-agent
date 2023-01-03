@@ -30,7 +30,7 @@ var Container = &ContainerCheck{}
 type ContainerCheck struct {
 	sync.Mutex
 
-	sysInfo           *model.SystemInfo
+	hostInfo          *HostInfo
 	containerProvider util.ContainerProvider
 	lastRates         map[string]*util.ContainerRateMetrics
 	networkID         string
@@ -41,9 +41,9 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *model.SystemInfo) error {
+func (c *ContainerCheck) Init(cfg *config.AgentConfig, info *HostInfo) error {
 	c.containerProvider = util.GetSharedContainerProvider()
-	c.sysInfo = info
+	c.hostInfo = info
 
 	networkID, err := cloudproviders.GetNetworkID(context.TODO())
 	if err != nil {
@@ -67,7 +67,7 @@ func (c *ContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the ContainerCheck to collect a list of running ctrList and the
 // stats for each container.
-func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (c *ContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	c.Lock()
 	defer c.Unlock()
 	startTime := time.Now()
@@ -99,13 +99,13 @@ func (c *ContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.Me
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainer{
-			HostName:          cfg.HostName,
+			HostName:          c.hostInfo.HostName,
 			NetworkId:         c.networkID,
-			Info:              c.sysInfo,
+			Info:              c.hostInfo.SystemInfo,
 			Containers:        chunked[i],
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			ContainerHostType: cfg.ContainerHostType,
+			ContainerHostType: c.hostInfo.ContainerHostType,
 		})
 	}
 

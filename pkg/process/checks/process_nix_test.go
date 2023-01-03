@@ -20,7 +20,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -46,8 +45,8 @@ func TestBasicProcessMessages(t *testing.T) {
 	}
 	lastRun := time.Now().Add(-5 * time.Second)
 	syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-	cfg := config.NewDefaultAgentConfig()
 	sysInfo := &model.SystemInfo{}
+	hostInfo := &HostInfo{SystemInfo: sysInfo}
 
 	for i, tc := range []struct {
 		testName           string
@@ -123,8 +122,8 @@ func TestBasicProcessMessages(t *testing.T) {
 			}
 			networks := make(map[int32][]*model.Connection)
 
-			procs := fmtProcesses(cfg, procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(procs, tc.containers, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, tc.processes, tc.processes, tc.pidToCid, syst2, syst1, lastRun, networks)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, procs, tc.containers, tc.maxSize, maxBatchBytes, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedChunks, len(messages))
 
@@ -232,18 +231,18 @@ func TestContainerProcessChunking(t *testing.T) {
 
 			lastRun := time.Now().Add(-5 * time.Second)
 			syst1, syst2 := cpu.TimesStat{}, cpu.TimesStat{}
-			cfg := config.NewDefaultAgentConfig()
 			sysInfo := &model.SystemInfo{}
+			hostInfo := &HostInfo{SystemInfo: sysInfo}
 
-			processes := fmtProcesses(cfg, procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, networks)
-			messages, totalProcs, totalContainers := createProcCtrMessages(processes, ctrs, cfg, tc.maxSize, maxBatchBytes, sysInfo, int32(i), "nid")
+			processes := fmtProcesses(procutil.NewDefaultDataScrubber(), nil, procsByPid, procsByPid, pidToCid, syst2, syst1, lastRun, networks)
+			messages, totalProcs, totalContainers := createProcCtrMessages(hostInfo, processes, ctrs, tc.maxSize, maxBatchBytes, int32(i), "nid")
 
 			assert.Equal(t, tc.expectedProcCount, totalProcs)
 			assert.Equal(t, tc.expectedCtrCount, totalContainers)
 
 			// sort and verify messages
 			sortMsgs(messages)
-			verifyBatchedMsgs(t, cfg, tc.expectedBatches, messages)
+			verifyBatchedMsgs(t, hostInfo, tc.expectedBatches, messages)
 		})
 	}
 }
@@ -277,7 +276,7 @@ func sortMsgs(m []model.MessageBody) {
 	})
 }
 
-func verifyBatchedMsgs(t *testing.T, cfg *config.AgentConfig, expected []map[string]int, msgs []model.MessageBody) {
+func verifyBatchedMsgs(t *testing.T, hostInfo *HostInfo, expected []map[string]int, msgs []model.MessageBody) {
 	assert := assert.New(t)
 
 	assert.Equal(len(expected), len(msgs), "Number of messages created")
@@ -285,7 +284,7 @@ func verifyBatchedMsgs(t *testing.T, cfg *config.AgentConfig, expected []map[str
 	for i, msg := range msgs {
 		payload := msg.(*model.CollectorProc)
 
-		assert.Equal(cfg.ContainerHostType, payload.ContainerHostType)
+		assert.Equal(hostInfo.ContainerHostType, payload.ContainerHostType)
 
 		actualCtrPIDCounts := map[string]int{}
 

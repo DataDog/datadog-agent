@@ -60,7 +60,7 @@ const (
 {{.Banner}}
 
   Pid: {{.Status.Pid}}
-  Hostname: {{.Status.Config.HostName}}
+  Hostname: {{.Status.HostName}}
   Uptime: {{.Status.Uptime}} seconds
   Mem alloc: {{.Status.MemStats.Alloc}} bytes
   {{- if .Status.SystemProbeProcessModuleEnabled }}
@@ -283,6 +283,7 @@ func getProgramBanner(version string) (string, string) {
 // StatusInfo is a structure to get information from expvar and feed to template
 type StatusInfo struct {
 	Pid                             int                    `json:"pid"`
+	HostName                        string                 `json:"host"`
 	Uptime                          int                    `json:"uptime"`
 	MemStats                        struct{ Alloc uint64 } `json:"memstats"`
 	Version                         version.Version        `json:"version"`
@@ -308,7 +309,7 @@ type StatusInfo struct {
 	SystemProbeProcessModuleEnabled bool                   `json:"system_probe_process_module_enabled"`
 }
 
-func initInfo(_ *config.AgentConfig) error {
+func initInfo(hostname string) error {
 	var err error
 
 	funcMap := template.FuncMap{
@@ -320,6 +321,7 @@ func initInfo(_ *config.AgentConfig) error {
 		},
 	}
 	infoOnce.Do(func() {
+		expvar.NewString("host").Set(hostname)
 		expvar.NewInt("pid").Set(int64(os.Getpid()))
 		expvar.Publish("uptime", expvar.Func(publishUptime))
 		expvar.Publish("uptime_nano", expvar.Func(publishUptimeNano))
@@ -362,7 +364,7 @@ func initInfo(_ *config.AgentConfig) error {
 }
 
 // Info is called when --info flag is enabled when executing the agent binary
-func Info(w io.Writer, _ *config.AgentConfig, expvarURL string) error {
+func Info(w io.Writer, expvarURL string) error {
 	agentVersion, _ := version.Agent()
 	var err error
 	client := http.Client{Timeout: 2 * time.Second}

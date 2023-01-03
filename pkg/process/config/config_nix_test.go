@@ -93,8 +93,7 @@ func TestAgentEncryptedVariablesSecrets(t *testing.T) {
 	t.Setenv("DD_API_KEY", "ENC[my_api_key]")
 	t.Setenv("DD_HOSTNAME", "ENC[my-host]") // Valid hostnames do not use underscores
 
-	agentConfig := loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
+	_ = loadAgentConfigForTest(t, "./testdata/TestEnvSiteConfig-Enc.yaml", "")
 
 	assert.Equal(t, "secret-my_api_key", config.Datadog.Get("api_key"))
-	assert.Equal(t, "secret-my-host", agentConfig.HostName)
 }

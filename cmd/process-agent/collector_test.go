@@ -28,7 +28,7 @@ import (
 func TestUpdateRTStatus(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg, []checks.Check{checks.Process})
+	c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -64,7 +64,7 @@ func TestUpdateRTStatus(t *testing.T) {
 func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
 	cfg := config.NewDefaultAgentConfig()
-	c, err := NewCollector(cfg, []checks.Check{checks.Process})
+	c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{checks.Process})
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
 	c.rtIntervalCh = make(chan time.Duration, 1000)
@@ -139,7 +139,7 @@ func TestDisableRealTime(t *testing.T) {
 			enabledChecks := getChecks(&sysconfig.Config{}, true)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 
-			c, err := NewCollector(cfg, enabledChecks)
+			c, err := NewCollector(cfg, &checks.HostInfo{}, enabledChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 			assert.ElementsMatch(tc.expectedChecks, c.enabledChecks)
@@ -171,7 +171,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			mockConfig := ddconfig.Mock(t)
 			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
 
-			c, err := NewCollector(cfg, expectedChecks)
+			c, err := NewCollector(cfg, &checks.HostInfo{}, expectedChecks)
 			assert.NoError(err)
 			assert.Equal(!tc.disableRealtime, c.runRealTime)
 			assert.EqualValues(expectedChecks, c.enabledChecks)
@@ -222,7 +222,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg, []checks.Check{checks.Process, checks.Pod})
+			c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{checks.Process, checks.Pod})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.processResults.MaxSize())
 			assert.Equal(tc.expectedQueueSize, c.podResults.MaxSize())
@@ -273,7 +273,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.Set("process_config.rt_queue_size", tc.queueSize)
 			}
 
-			c, err := NewCollector(cfg, []checks.Check{checks.Process})
+			c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -323,7 +323,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.Set("process_config.process_queue_bytes", tc.queueBytes)
 			}
 
-			c, err := NewCollector(cfg, []checks.Check{checks.Process})
+			c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{checks.Process})
 			assert.NoError(err)
 			assert.Equal(int64(tc.expectedQueueSize), c.processResults.MaxWeight())
 			assert.Equal(int64(tc.expectedQueueSize), c.rtProcessResults.MaxWeight())
@@ -357,7 +357,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
 	check := mocks.NewCheckWithRealTime(t)
 
-	c, err := NewCollector(cfg, []checks.Check{})
+	c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
 
 	results := api.NewWeightedQueue(1, 1024)
@@ -373,7 +373,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 		},
 	}
 
-	check.On("RunWithOptions", mock.Anything, mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("RunWithOptions", mock.Anything, standardOption).Once().Return(result, nil)
 	check.On("Name").Return("foo")
 	check.On("RealTimeName").Return("bar")
 
@@ -401,7 +401,7 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 		RunRealTime: true,
 	}
 
-	check.On("RunWithOptions", mock.Anything, mock.Anything, rtOption).Once().Return(rtResult, nil)
+	check.On("RunWithOptions", mock.Anything, rtOption).Once().Return(rtResult, nil)
 
 	c.runCheckWithRealTime(
 		check,
@@ -421,7 +421,7 @@ func TestCollectorRunCheck(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
 	check := mocks.NewCheck(t)
 
-	c, err := NewCollector(cfg, []checks.Check{})
+	c, err := NewCollector(cfg, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
 
 	results := api.NewWeightedQueue(1, 1024)
@@ -448,9 +448,11 @@ func TestCollectorRunCheck(t *testing.T) {
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
-	cfg.HostName = "host"
+	hostInfo := &checks.HostInfo{
+		HostName: "host",
+	}
 
-	c, err := NewCollector(cfg, []checks.Check{})
+	c, err := NewCollector(cfg, hostInfo, []checks.Check{})
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -569,9 +571,11 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 
 func Test_getRequestID(t *testing.T) {
 	cfg := config.NewDefaultAgentConfig()
-	cfg.HostName = "host"
+	hostInfo := &checks.HostInfo{
+		HostName: "host",
+	}
 
-	c, err := NewCollector(cfg, []checks.Check{})
+	c, err := NewCollector(cfg, hostInfo, []checks.Check{})
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
@@ -593,7 +597,7 @@ func Test_getRequestID(t *testing.T) {
 	assert.Equal(t, id3Num+2, id4Num)
 
 	// Changing the host -> changing the hash.
-	cfg.HostName = "host2"
+	hostInfo.HostName = "host2"
 	c.requestIDCachedHash = nil
 	id5 := c.getRequestID(fixedDate1, 1)
 	assert.NotEqual(t, id1, id5)

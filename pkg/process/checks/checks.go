@@ -29,10 +29,10 @@ const (
 // processed in another way (e.g. printed for debugging).
 // Before checks are used you must called Init.
 type Check interface {
-	Init(cfg *config.AgentConfig, info *model.SystemInfo) error
+	Init(cfg *config.AgentConfig, info *HostInfo) error
 	Name() string
 	RealTime() bool
-	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
+	Run(groupID int32) ([]model.MessageBody, error)
 	Cleanup()
 	ShouldSaveLastRun() bool
 }
@@ -53,7 +53,7 @@ type RunResult struct {
 type CheckWithRealTime interface {
 	Check
 	RealTimeName() string
-	RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error)
+	RunWithOptions(nextGroupID func() int32, options RunOptions) (*RunResult, error)
 }
 
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,

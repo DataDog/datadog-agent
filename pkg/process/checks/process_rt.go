@@ -11,7 +11,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -20,7 +19,7 @@ import (
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
 // Underying procutil.Probe is responsible for the actual implementation
-func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*RunResult, error) {
+func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
 	cpuTimes, err := cpu.Times(false)
 	if err != nil {
 		return nil, err
@@ -64,21 +63,21 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 	connsByPID := Connections.getLastConnectionsByPID()
 
-	chunkedStats := fmtProcessStats(cfg, p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorRealTime{
-			HostName:          cfg.HostName,
+			HostName:          p.hostInfo.HostName,
 			Stats:             chunkedStats[i],
 			ContainerStats:    chunkedCtrStats[i],
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(p.sysInfo.Cpus)),
-			TotalMemory:       p.sysInfo.TotalMemory,
-			ContainerHostType: cfg.ContainerHostType,
+			NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+			TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+			ContainerHostType: p.hostInfo.ContainerHostType,
 		})
 	}
 
@@ -95,7 +94,6 @@ func (p *ProcessCheck) runRealtime(cfg *config.AgentConfig, groupID int32) (*Run
 
 // fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
 func fmtProcessStats(
-	cfg *config.AgentConfig,
 	maxBatchSize int,
 	procs, lastProcs map[int32]*procutil.Stats,
 	pidToCid map[int]string,
