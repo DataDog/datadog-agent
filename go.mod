@@ -54,7 +54,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.41.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.41.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.0
+	github.com/DataDog/datadog-operator v0.8.3
 	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
 	github.com/DataDog/gopsutil v1.2.2
@@ -412,7 +412,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
 	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
-	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/api v0.103.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
@@ -429,6 +428,8 @@ require (
 )
 
 require github.com/DataDog/go-libddwaf v0.0.0-20221118110754-0372d7c76b8a
+
+require github.com/go-openapi/spec v0.20.3 // indirect
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
