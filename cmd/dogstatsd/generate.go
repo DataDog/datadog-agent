@@ -3,18 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package network
+//go:generate go run ../../pkg/config/render_config.go dogstatsd ../../pkg/config/config_template.yaml ./dist/dogstatsd.yaml
 
-type ProtocolType uint16
-
-const (
-	ProtocolUnclassified ProtocolType = iota
-	ProtocolUnknown
-	ProtocolHTTP
-	ProtocolHTTP2
-	ProtocolTLS
-	ProtocolMongo = 6
-	ProtocolAMQP  = 8
-	ProtocolRedis = 9
-	MaxProtocols  = 10
-)
+package main

@@ -66,7 +66,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
         const size_t payload_length = skb->len - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-        classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
+        classify_protocol(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {

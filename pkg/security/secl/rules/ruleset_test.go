@@ -87,14 +87,7 @@ func newRuleSet() *RuleSet {
 		WithSupportedDiscarders(testSupportedDiscarders).
 		WithEventTypeEnabled(enabled)
 
-	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts, &eval.MacroStore{})
-}
-
-func emptyReplCtx() eval.ReplacementContext {
-	return eval.ReplacementContext{
-		Opts:       &eval.Opts{},
-		MacroStore: &eval.MacroStore{},
-	}
+	return NewRuleSet(&testModel{}, func() eval.Event { return &testEvent{} }, &opts, &evalOpts)
 }
 
 func TestRuleBuckets(t *testing.T) {
@@ -572,12 +565,11 @@ func TestRuleSetApprovers14(t *testing.T) {
 }
 
 func TestGetRuleEventType(t *testing.T) {
+	rule := eval.NewRule("aaa", `open.filename == "test"`, &eval.Opts{})
+
 	pc := ast.NewParsingContext()
-	rule := &eval.Rule{
-		ID:         "aaa",
-		Expression: `open.filename == "test"`,
-	}
-	if err := rule.GenEvaluator(&testModel{}, pc, emptyReplCtx()); err != nil {
+
+	if err := rule.GenEvaluator(&testModel{}, pc); err != nil {
 		t.Fatal(err)
 	}
 
