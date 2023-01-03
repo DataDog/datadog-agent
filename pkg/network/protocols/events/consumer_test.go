@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	bpftelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -154,6 +155,9 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	Configure("test", m, &options)
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return bpftelemetry.PatchEBPFTelemetry(m, true, nil)
+	}
 	err = m.InitWithOptions(bc, options)
 	if err != nil {
 		return nil, err
