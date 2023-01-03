@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/perf"
 	"github.com/mailru/easyjson/jwriter"
 
@@ -65,13 +64,6 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// NetDeviceKey is used to uniquely identify a network device
-type NetDeviceKey struct {
-	IfIndex          uint32
-	NetNS            uint32
-	NetworkDirection manager.TrafficType
-}
-
 // Event describes a probe event
 type Event struct {
 	model.Event
@@ -79,7 +71,6 @@ type Event struct {
 	resolvers           *Resolvers
 	pathResolutionError error
 	scrubber            *procutil.DataScrubber
-	probe               *Probe
 }
 
 // Retain the event
@@ -610,24 +601,10 @@ func bestGuessServiceTag(serviceValues []string) string {
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
 func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) string {
-	if len(device.IfName) == 0 && ev.probe != nil {
-		key := NetDeviceKey{
-			NetNS:            device.NetNS,
-			IfIndex:          device.IfIndex,
-			NetworkDirection: manager.Egress,
-		}
-
-		ev.probe.tcProgramsLock.RLock()
-		defer ev.probe.tcProgramsLock.RUnlock()
-
-		tcProbe, ok := ev.probe.tcPrograms[key]
-		if !ok {
-			key.NetworkDirection = manager.Ingress
-			tcProbe = ev.probe.tcPrograms[key]
-		}
-
-		if tcProbe != nil {
-			device.IfName = tcProbe.IfName
+	if len(device.IfName) == 0 && ev.resolvers.TCResolver != nil {
+		ifName, ok := ev.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
+		if ok {
+			device.IfName = ifName
 		}
 	}
 
@@ -635,11 +612,10 @@ func (ev *Event) ResolveNetworkDeviceIfName(device *model.NetworkDeviceContext) 
 }
 
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber, probe *Probe) *Event {
+func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber) *Event {
 	return &Event{
 		Event:     model.Event{},
 		resolvers: resolvers,
 		scrubber:  scrubber,
-		probe:     probe,
 	}
 }

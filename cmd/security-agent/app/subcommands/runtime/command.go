@@ -469,7 +469,7 @@ func checkPoliciesInner(dir string) error {
 		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -602,7 +602,7 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 		WithLogger(seclog.DefaultLogger)
 
 	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {

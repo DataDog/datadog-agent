@@ -356,7 +356,7 @@ func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*ru
 
 	// approver ruleset
 	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
 
 	// load policies
 	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
@@ -405,7 +405,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 	evalOpts.WithVariables(model.SECLVariables)
 
 	// standard ruleset
-	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts, &eval.MacroStore{})
+	ruleSet := m.probe.NewRuleSet(&opts, &evalOpts)
 
 	loadErrs := ruleSet.LoadPolicies(m.policyLoader, m.policyOpts)
 	if loadApproversErrs.ErrorOrNil() == nil && loadErrs.ErrorOrNil() != nil {

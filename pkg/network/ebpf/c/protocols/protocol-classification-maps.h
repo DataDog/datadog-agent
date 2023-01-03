@@ -2,6 +2,7 @@
 #define __PROTOCOL_CLASSIFICATION_MAPS_H
 
 #include "protocol-classification-defs.h"
+#include "protocol-classification-structs.h"
 #include "map-defs.h"
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant classification procedures on the same
@@ -34,5 +35,9 @@ BPF_PERCPU_ARRAY_MAP(classification_buf, __u32, char [CLASSIFICATION_MAX_BUFFER]
 #else
 BPF_ARRAY_MAP(classification_buf, __u8, 1)
 #endif
+
+// A set (map from a key to a const bool value, we care only if the key exists in the map, and not its value) to
+// mark if we've seen a specific mongo request, so we can eliminate false-positive classification on responses.
+BPF_HASH_MAP(mongo_request_id, mongo_key, bool, 1024)
 
 #endif
