@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -44,9 +46,10 @@ func MakeCommand() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args[]string) error {
 			return fxutil.Run(
-				fx.Supply(core.CreateBundleParams(
-					common.DefaultConfPath,
-				).LogForDaemon("TRAY", "log_file", logFilePath)),
+				fx.Supply(core.BundleParams{
+					ConfigParams: config.NewParams(common.DefaultConfPath),
+					LogParams: log.LogForDaemon("TRAY", "log_file", logFilePath),
+				}),
 				core.Bundle,
 				fx.Supply(systrayParams),
 				systray.Bundle,
