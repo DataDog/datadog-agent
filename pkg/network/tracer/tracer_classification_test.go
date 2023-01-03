@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
-	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/testutil"
+	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
