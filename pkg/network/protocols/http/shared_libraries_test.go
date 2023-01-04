@@ -71,7 +71,10 @@ func TestSharedLibraryDetection(t *testing.T) {
 }
 
 func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
-	t.Skip("skip for the moment as some distro are not friendly with busybox package")
+	_, err = os.Stat("/usr/bin/busybox")
+	if err != nil {
+		t.Skip("skip for the moment as some distro are not friendly with busybox package")
+	}
 
 	tempDir := t.TempDir()
 	root := filepath.Join(tempDir, "root")
