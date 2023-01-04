@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -23,6 +24,8 @@ type DummyTable struct {
 	ID  int64 `bun:",pk,autoincrement"`
 	Foo string
 }
+
+var dummyModel *DummyTable = &DummyTable{ID: 1, Foo: "bar"}
 
 // GetPGHandle returns a handle on the test Postgres DB. This does not initiate
 // a connection
@@ -43,8 +46,9 @@ func GetPGHandle(t *testing.T, serverAddr string) *sql.DB {
 }
 
 // ConnectAndGetDB initiates a connection to the database, get a handle on the
-// test db, and register cleanup handlers for the test.
-func ConnectAndGetDB(t *testing.T, serverAddr string) (*bun.DB, context.Context) {
+// test db, and register cleanup handlers for the test. Finally it saves the db
+// handle and task context in the provided extras map.
+func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interface{}) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -57,5 +61,77 @@ func ConnectAndGetDB(t *testing.T, serverAddr string) (*bun.DB, context.Context)
 		_, _ = db.NewDropTable().Model((*DummyTable)(nil)).Exec(ctx)
 	})
 
-	return db, ctx
+	if extras != nil {
+		extras["ctx"] = ctx
+		extras["db"] = db
+	}
+}
+
+// The following are helpers around bun to quickly execute SQL query for use in
+// protocol classification tests.
+
+func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
+	db := extras["db"].(*bun.DB)
+	taskCtx := extras["ctx"].(context.Context)
+
+	return db, taskCtx
+}
+
+func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewAddColumn().Model((*DummyTable)(nil)).ColumnExpr("new_column BOOL").Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewCreateTable().Model((*DummyTable)(nil)).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewDelete().Model(dummyModel).WherePK().Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunDropQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewDropTable().Model((*DummyTable)(nil)).IfExists().Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunInsertQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewInsert().Model(dummyModel).Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	_, err := db.NewSelect().Model(dummyModel).WherePK().Exec(ctx)
+	require.NoError(t, err)
+}
+
+func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
+	t.Helper()
+	db, ctx := getCtx(extras)
+
+	new := *dummyModel
+	new.Foo = "baz"
+
+	_, err := db.NewUpdate().Model(&new).WherePK().Exec(ctx)
+	require.NoError(t, err)
 }

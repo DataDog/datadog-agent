@@ -696,7 +696,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			validation: validateProtocolConnection,
 		},
 		{
-			name: "postgres - short query",
+			name: "postgres - insert",
 			context: testContext{
 				serverPort:       "5432",
 				clientDialer:     defaultDialer,
@@ -708,20 +708,114 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
 				pgutils.RunPostgresServer(t, addr, port)
 
-				db, taskCtx := pgutils.ConnectAndGetDB(t, ctx.serverAddress)
-
-				_, err := db.NewCreateTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
-				require.NoError(t, err)
-
-				ctx.extras["ctx"] = taskCtx
-				ctx.extras["db"] = db
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				db := ctx.extras["db"].(*bun.DB)
-				taskCtx := ctx.extras["ctx"].(context.Context)
-
-				_, err := db.NewInsert().Model(&pgutils.DummyTable{Foo: "bar"}).Exec(taskCtx)
-				require.NoError(t, err)
+				pgutils.RunInsertQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "postgres - delete",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDeleteQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "postgres - select",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "postgres - update",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunUpdateQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "postgres - drop",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDropQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "postgres - alter",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunAlterQuery(t, ctx.extras)
 			},
 			validation: validateProtocolConnection,
 		},
@@ -739,14 +833,8 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
 				pgutils.RunPostgresServer(t, addr, port)
-
-				db, taskCtx := pgutils.ConnectAndGetDB(t, ctx.serverAddress)
-
-				_, err := db.NewCreateTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
-				require.NoError(t, err)
-
-				ctx.extras["ctx"] = taskCtx
-				ctx.extras["db"] = db
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				db := ctx.extras["db"].(*bun.DB)
