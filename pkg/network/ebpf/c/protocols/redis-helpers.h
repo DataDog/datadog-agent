@@ -69,7 +69,7 @@ static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_si
 }
 
 static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH);
 
     char first_char = buf[0];
     switch (first_char) {
