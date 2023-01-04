@@ -298,6 +298,7 @@ func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRu
 
 	if err := rule.registerCB(pathID, root, libPath); err != nil {
 		log.Debugf("error registering library %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
+		// we calling unregisterCB here as some uprobe could be already attached, unregisterCB will cleanup those entries
 		if rule.unregisterCB != nil {
 			if err := rule.unregisterCB(pathID); err != nil {
 				log.Debugf("unregisterCB library %s path %s : %s", pathID.String(), hostLibPath, err)
