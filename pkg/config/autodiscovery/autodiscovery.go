@@ -92,11 +92,9 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 		log.Info("Adding KubeContainer provider from environment")
 	}
 
-	if isContainerEnv {
-		if !isKubeEnv {
-			detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
-			log.Info("Adding Container listener from environment")
-		}
+	if isContainerEnv && !isKubeEnv {
+		detectedListeners = append(detectedListeners, config.Listeners{Name: names.Container})
+		log.Info("Adding Container listener from environment")
 	}
 
 	if isKubeEnv {

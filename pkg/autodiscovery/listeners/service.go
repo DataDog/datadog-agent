@@ -122,7 +122,7 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 // FilterTemplates implements Service#FilterTemplates.
 func (s *service) FilterTemplates(configs map[string]integration.Config) {
 	// These two overrides are handled in
-	// pkg/autodiscovery/configresolver/configresolver.go when
+	// pkg/autodiscovery/configresolver/configresolver.go
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
 	s.filterTemplatesContainerCollectAll(configs)
