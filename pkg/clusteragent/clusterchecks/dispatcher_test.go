@@ -212,9 +212,9 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.False(t, upToDate)
 
 	// Give changes
-	node1.configVersion.Inc()
+	node1.lastConfigChange = timestampNowNano()
 	node1.heartbeat = node1.heartbeat - 50
-	status2 := types.NodeStatus{LastChange: node1.configVersion.Load() - 2}
+	status2 := types.NodeStatus{LastChange: node1.lastConfigChange - 2}
 	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status2)
 	assert.NoError(t, err)
 	assert.False(t, upToDate)
@@ -222,7 +222,7 @@ func TestProcessNodeStatus(t *testing.T) {
 	assert.True(t, timestampNow() <= node1.heartbeat+1)
 
 	// No change
-	status3 := types.NodeStatus{LastChange: node1.configVersion.Load()}
+	status3 := types.NodeStatus{LastChange: node1.lastConfigChange}
 	upToDate, err = dispatcher.processNodeStatus("node1", "10.0.0.1", status3)
 	assert.NoError(t, err)
 	assert.True(t, upToDate)

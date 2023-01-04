@@ -124,6 +124,12 @@ build do
     python = "#{install_dir}/embedded/bin/python3"
   end
 
+  # If a python_mirror is set, it is set in a pip config file so that we do not leak the token in the CI output
+  pip_config_file = ENV['PIP_CONFIG_FILE']
+  pre_build_env = {
+    "PIP_CONFIG_FILE" => "#{pip_config_file}"
+  }
+
   # Install the checks along with their dependencies
   block do
     if windows?
@@ -138,13 +144,14 @@ build do
     # Prepare the build env, these dependencies are only needed to build and
     # install the core integrations.
     #
-    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1"
-    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0" # Version from ./setuptools3.rb
-    command "#{pip} install wheel==0.34.1"
-    command "#{pip} install pip-tools==6.4.0"
+    command "#{pip} download --dest #{build_deps_dir} hatchling==0.25.1", :env => pre_build_env
+    command "#{pip} download --dest #{build_deps_dir} setuptools==40.9.0", :env => pre_build_env # Version from ./setuptools3.rb
+    command "#{pip} install wheel==0.34.1", :env => pre_build_env
+    command "#{pip} install pip-tools==6.4.0", :env => pre_build_env
     uninstall_buildtime_deps = ['rtloader', 'click', 'first', 'pip-tools']
     nix_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
       # Specify C99 standard explicitly to avoid issues while building some
       # wheels (eg. ddtrace)
       "CFLAGS" => "-I#{install_dir}/embedded/include -I/opt/mqm/inc",
@@ -155,6 +162,7 @@ build do
     }
     win_build_env = {
       "PIP_FIND_LINKS" => "#{build_deps_dir}",
+      "PIP_CONFIG_FILE" => "#{pip_config_file}",
     }
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
     specific_build_env = {

@@ -144,7 +144,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 			fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?"))
 		}
 	} else {
-		// Status informations are available, add them as the agent is running.
+		// Status information are available, add them as the agent is running.
 
 		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
@@ -156,6 +156,12 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 	}
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
+
+	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
+	addSystemProbePlatformSpecificEntries(fb)
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
 		fb.AddFileFromFunc(filepath.Join("expvar", "system-probe"), getSystemProbeStats)

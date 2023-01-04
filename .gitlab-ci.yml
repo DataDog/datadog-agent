@@ -38,6 +38,7 @@ include:
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/benchmarks/benchmarks.yml
 
 default:
   retry:
@@ -61,6 +62,7 @@ stages:
   - binary_build
   - package_deps_build
   - integration_test
+  - benchmarks
   - package_build
   - internal_deploy
   - kitchen_deploy
@@ -139,7 +141,7 @@ variables:
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
   RELEASE_VERSION_7: nightly-a7
-  DATADOG_AGENT_BUILDIMAGES: v11651098-faf0544
+  DATADOG_AGENT_BUILDIMAGES: v12145148-530d89c
   DATADOG_AGENT_BUILDERS: v9930706-ef9d493
   DATADOG_AGENT_WINBUILDIMAGES: v11651098-faf0544
   DATADOG_AGENT_ARMBUILDIMAGES: v11651098-faf0544
@@ -166,7 +168,9 @@ variables:
   ARTIFACTORY_TOKEN_SSM_NAME: ci.datadog-agent.artifactory_token
   ARTIFACTORY_URL: datadog.jfrog.io
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
+  ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   USE_CACHING_PROXY_RUBY: "true"
+  USE_CACHING_PROXY_PYTHON: "true"
   CLANG_LLVM_VER: 12.0.1
 
 #
@@ -765,4 +769,12 @@ variables:
     when: never
   - <<: *if_kitchen
     when: manual
+    allow_failure: true
+
+.on_trace_agent_changes_or_manual:
+  - changes:
+      - pkg/trace/**/*
+      - .gitlab/benchmarks/*
+    when: on_success
+  - when: manual
     allow_failure: true

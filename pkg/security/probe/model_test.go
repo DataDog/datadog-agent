@@ -15,7 +15,7 @@ import (
 	"sort"
 	"testing"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -84,7 +84,7 @@ func TestProcessArgsFlags(t *testing.T) {
 	}
 
 	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}
@@ -145,7 +145,7 @@ func TestProcessArgsOptions(t *testing.T) {
 	}
 
 	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
 	e.resolvers = &Resolvers{
 		ProcessResolver: resolver,
 	}

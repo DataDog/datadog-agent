@@ -146,6 +146,7 @@ type KSMConfig struct {
 // KSMCheck wraps the config and the metric stores needed to run the check
 type KSMCheck struct {
 	core.CheckBase
+	agentConfig          config.Config
 	instance             *KSMConfig
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
@@ -197,6 +198,7 @@ func init() {
 // Configure prepares the configuration of the KSM check instance
 func (k *KSMCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	k.BuildID(integrationConfigDigest, config, initConfig)
+	k.agentConfig = ddconfig.Datadog
 
 	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
@@ -713,7 +715,7 @@ func (k *KSMCheck) initTags() {
 	}
 
 	if !k.instance.DisableGlobalTags {
-		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(false)...)
+		k.instance.Tags = append(k.instance.Tags, config.GetConfiguredTags(k.agentConfig, false)...)
 	}
 }
 

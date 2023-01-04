@@ -34,12 +34,7 @@ type dependencies struct {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	warnings, err := setupConfig(
-		deps.Params.confFilePath,
-		deps.Params.configName,
-		!deps.Params.configLoadSecrets,
-		!deps.Params.configMissingOK,
-		deps.Params.defaultConfPath)
+	warnings, err := setupConfig(deps)
 	if err != nil {
 		return nil, err
 	}
