@@ -257,3 +257,56 @@ func testTagDeduplication(t *testing.T, store *tags.Store) {
 func TestTagDeduplication(t *testing.T) {
 	testWithTagsStore(t, testTagDeduplication)
 }
+
+type mockSink []*metrics.Serie
+
+func (s *mockSink) Append(ms *metrics.Serie) {
+	*s = append(*s, ms)
+}
+
+type mockSample struct {
+	name string
+	taggerTags []string
+	metricTags []string
+}
+
+func (s *mockSample) GetName() string { return s.name }
+func (s *mockSample) GetHost() string { return "noop" }
+func (s *mockSample) GetMetricType() metrics.MetricType { return metrics.GaugeType }
+func (s *mockSample) IsNoIndex() bool { return false }
+func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
+	tb.Append(s.taggerTags...)
+	mb.Append(s.metricTags...)
+}
+
+func TestOriginTelemetry(t *testing.T) {
+	r := newContextResolver(tags.NewStore(true, "test"))
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
+	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
+	r.trackContext(&mockSample{"bar", []string{"bar"}, []string{}})
+	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}})
+	sink := mockSink{}
+	ts := 1672835152.0
+	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
+
+	assert.ElementsMatch(t, sink, []*metrics.Serie{{
+		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host: "test",
+		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"foo"}),
+		MType: metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0 }},
+	}, {
+		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host: "test",
+		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"bar"}),
+		MType: metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 2.0 }},
+	}, {
+		Name: "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
+		Host: "test",
+		Tags: tagset.NewCompositeTags([]string{"test"}, []string{"baz"}),
+		MType: metrics.APIGaugeType,
+		Points: []metrics.Point{{Ts: ts, Value: 1.0 }},
+	}})
+}

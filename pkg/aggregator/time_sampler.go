@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -35,10 +37,12 @@ type TimeSampler struct {
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
 	id TimeSamplerID
+
+	hostname string
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostname string) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
@@ -52,6 +56,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store) *TimeSa
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
+		hostname:                    hostname,
 	}
 
 	return s
@@ -229,6 +234,10 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
 	}
+
+	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
+		s.sendOriginTelemetry(timestamp, series)
+	}
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,
@@ -274,4 +283,15 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			counterContextsToDelete[counterContext] = struct{}{}
 		}
 	}
+}
+
+func (s *TimeSampler) sendOriginTelemetry(timestamp float64, series metrics.SerieSink) {
+	// If multiple samplers are used, this avoids the need to
+	// aggregate the stats agent-side, and allows us to see amount of
+	// tags duplication between shards.
+	tags := []string{
+		fmt.Sprintf("sampler_id:%d", s.id),
+	}
+
+	s.contextResolver.sendOriginTelemetry(timestamp, series, s.hostname, tags)
 }
