@@ -569,7 +569,7 @@ def chdir(dirname=None):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
     """
     Compile test suite for kitchen
     """
@@ -643,6 +643,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     for cf in copy_files:
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
+
+    if not ci:
+        kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
@@ -1051,8 +1054,8 @@ def build_object_files(
             ctx.run("which llvm-strip")
 
         check_for_inline(ctx)
-        ctx.run(f"mkdir -p {build_dir}/runtime")
-        ctx.run(f"mkdir -p {build_dir}/co-re")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     run_ninja(
         ctx,
@@ -1070,6 +1073,7 @@ def build_object_files(
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
 
 
 def build_cws_object_files(
@@ -1130,6 +1134,14 @@ def check_for_ninja(ctx):
         ctx.run("which ninja")
 
 
+def is_bpftool_compatible(ctx):
+    try:
+        ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
+        return True
+    except Exception:
+        return False
+
+
 @contextlib.contextmanager
 def tempdir():
     """
@@ -1140,6 +1152,51 @@ def tempdir():
         yield dirpath
     finally:
         shutil.rmtree(dirpath)
+
+
+def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
+    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
+
+    if arch == "x64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "aarch64"
+
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}.tar.xz"):
+        exit("BTFs for kitchen test environments not found. Please update & re-provision your dev VM.")
+
+    sudo = "sudo" if not is_root() else ""
+    ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
+
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}"):
+        ctx.run(
+            f"mkdir {btf_dir}/kitchen-btfs-{arch} && "
+            + f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}"
+        )
+
+    can_minimize = True
+    if not is_bpftool_compatible(ctx):
+        print(
+            "Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead."
+        )
+        can_minimize = False
+
+    if can_minimize:
+        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
+        generate_minimized_btfs(
+            ctx,
+            source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
+            output_dir=f"{btf_dir}/minimized-btfs",
+            input_bpf_programs=co_re_programs,
+        )
+
+        ctx.run(
+            f"cd {btf_dir}/minimized-btfs && "
+            + "tar -cJf minimized-btfs.tar.xz * && "
+            + f"mv minimized-btfs.tar.xz {files_dir}"
+        )
+    else:
+        ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
 @task
