@@ -12,79 +12,34 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-func TestUpdateContainerImageMetadata(t *testing.T) {
-	tests := []struct {
-		name                         string
-		imageMetadata                workloadmeta.ContainerImageMetadata
-		newName                      string
-		expectedUpdatedImageMetadata workloadmeta.ContainerImageMetadata
-		expectsUpdate                bool
-	}{
-		{
-			name: "new name is a digest",
-			imageMetadata: workloadmeta.ContainerImageMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainerImageMetadata,
-					ID:   "sha256:12345",
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: "gcr.io/datadoghq/cluster-agent:7.40.1",
-				},
-				ShortName: "cluster-agent",
-				RepoTags: []string{
-					"gcr.io/datadoghq/cluster-agent:7.40.1",
-				},
-			},
-			newName:       "sha256:123",
-			expectsUpdate: false,
-		},
-		{
-			name: "new name replaces old and is added as repo tag",
-			imageMetadata: workloadmeta.ContainerImageMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainerImageMetadata,
-					ID:   "sha256:12345",
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: "sha256:12345",
-				},
-				ShortName: "",
-				RepoTags:  []string{},
-			},
-			newName: "gcr.io/datadoghq/cluster-agent:7.40.1",
-			expectedUpdatedImageMetadata: workloadmeta.ContainerImageMetadata{
-				EntityID: workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainerImageMetadata,
-					ID:   "sha256:12345",
-				},
-				EntityMeta: workloadmeta.EntityMeta{
-					Name: "gcr.io/datadoghq/cluster-agent:7.40.1",
-				},
-				ShortName: "cluster-agent",
-				RepoTags: []string{
-					"gcr.io/datadoghq/cluster-agent:7.40.1",
-				},
-			},
-			expectsUpdate: true,
-		},
-	}
+func TestKnownImages(t *testing.T) {
+	images := newKnownImages()
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			testCollector := collector{}
+	// Add a first image name that refers to the "123" ID
+	images.addAssociation("agent:7", "123")
+	imageID, found := images.getImageID("agent:7")
+	assert.True(t, found)
+	assert.Equal(t, "123", imageID)
+	assert.True(t, images.isReferenced("123"))
 
-			changed := testCollector.updateContainerImageMetadata(&test.imageMetadata, test.newName)
+	// Add a second image that refers to the "123" ID
+	images.addAssociation("agent:latest", "123")
+	imageID, found = images.getImageID("agent:latest")
+	assert.True(t, found)
+	assert.Equal(t, "123", imageID)
+	assert.True(t, images.isReferenced("123"))
 
-			if test.expectsUpdate {
-				assert.True(t, changed)
-				assert.Equal(t, test.expectedUpdatedImageMetadata, test.imageMetadata)
-			} else {
-				assert.False(t, changed)
-			}
-		})
-	}
+	// Delete one of the associations
+	images.deleteAssociation("agent:latest", "123")
+	_, found = images.getImageID("agent:latest")
+	assert.False(t, found)
+	assert.True(t, images.isReferenced("123")) // Still referenced by the other
+
+	// Delete the other association
+	images.deleteAssociation("agent:7", "123")
+	_, found = images.getImageID("agent:7")
+	assert.False(t, found)
+	assert.False(t, images.isReferenced("123"))
 }
