@@ -25,8 +25,7 @@ import (
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
-// * Polling a perf buffer that contains notifications about HTTP transaction batches ready to be read;
-// * Querying these batches by doing a map lookup;
+// * Consuming HTTP transaction "events" that are sent from Kernel space;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
 type Monitor struct {
 	consumer       *events.Consumer
