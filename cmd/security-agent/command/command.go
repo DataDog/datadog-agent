@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || !kubeapiserver
-
-package check
+package command
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
 )
 
-func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	return nil
+type GlobalParams struct {
+	ConfigFilePaths []string
 }
+
+type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+
+const LoggerName = "SECURITY"

@@ -71,7 +71,7 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/alecthomas/repr v0.0.0-20181024024818-d37bc2a10ba1
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/avast/retry-go/v4 v4.3.1
+	github.com/avast/retry-go/v4 v4.3.2
 	github.com/aws/aws-lambda-go v1.32.0
 	github.com/aws/aws-sdk-go v1.44.117
 	github.com/beevik/ntp v0.3.0
@@ -127,7 +127,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/invopop/jsonschema v0.7.0
 	github.com/iovisor/gobpf v0.2.0
-	github.com/itchyny/gojq v0.12.10
+	github.com/itchyny/gojq v0.12.11
 	github.com/json-iterator/go v1.1.12
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
@@ -354,7 +354,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0 // indirect
-	github.com/prometheus/procfs v0.8.0
+	github.com/prometheus/procfs v0.9.0
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect

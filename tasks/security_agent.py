@@ -18,7 +18,6 @@ from .system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
-    generate_runtime_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -656,7 +655,6 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
-        [generate_runtime_files],
     ]
     failing_tasks = []
 

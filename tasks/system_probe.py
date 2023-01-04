@@ -264,7 +264,6 @@ def ninja_runtime_compilation_files(nw):
             rule="headerincl",
         )
         rc_outputs.extend([c_file, hash_file])
-    nw.build(rule="phony", inputs=rc_outputs, outputs=["runtime-compilation"])
 
 
 def ninja_cgo_type_files(nw, windows):
@@ -1105,11 +1104,6 @@ def clean_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
     )
-
-
-# deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
-def generate_runtime_files(ctx):
-    run_ninja(ctx, explain=True, target="runtime-compilation")
 
 
 @task
