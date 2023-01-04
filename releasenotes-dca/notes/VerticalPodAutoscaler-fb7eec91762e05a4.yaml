@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Starts the collecting of Vertical Pod Autoscalers within Kubernetes clusters
+    Starts the collecting of Vertical Pod Autoscalers within Kubernetes clusters.
