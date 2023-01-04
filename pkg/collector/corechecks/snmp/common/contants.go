@@ -13,3 +13,23 @@ const SnmpIntegrationName = "snmp"
 
 // SnmpExternalTagsSourceType is the source id used for external tags
 const SnmpExternalTagsSourceType = "snmp"
+
+type IfAdminStatus int
+
+const (
+	AdminStatus_Up IfAdminStatus = iota + 1
+	AdminStatus_Down
+	AdminStatus_Testing
+)
+
+type IfOperStatus int
+
+const (
+	OperStatus_Up IfOperStatus = iota + 1
+	OperStatus_Down
+	OperStatus_Testing
+	OperStatus_Unknown
+	OperStatus_Dormant
+	OperStatus_NotPresent
+	OperStatus_LowerLayerDown
+)

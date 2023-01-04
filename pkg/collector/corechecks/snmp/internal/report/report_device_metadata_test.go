@@ -291,8 +291,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 	assert.NoError(t, err)
 	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
 
-	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1"}
-	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_alias:ifAlias2"}
+	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1"}
+	ifTags2 := []string{"tag1", "tag2", "status:down", "interface:22", "interface_alias:ifAlias2", "interface_index:2"}
 
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags1)
 	sender.AssertMetric(t, "Gauge", interfaceStatusMetric, 1., "", ifTags2)
@@ -476,57 +476,57 @@ func Test_batchPayloads(t *testing.T) {
 
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
-		ifAdminStatus int32
-		ifOperStatus  int32
+		ifAdminStatus common.IfAdminStatus
+		ifOperStatus  common.IfOperStatus
 		status        string
 	}
 
 	// Test the method with only valid input for ifAdminStatus and ifOperStatus
 	allTests := []testCase{
 		// Valid test cases
-		{1, 1, "up"},
-		{1, 2, "down"},
-		{1, 3, "warning"},
-		{1, 4, "warning"},
-		{1, 5, "warning"},
-		{1, 6, "warning"},
-		{1, 7, "warning"},
-		{2, 1, "down"},
-		{2, 2, "off"},
-		{2, 3, "warning"},
-		{2, 4, "warning"},
-		{2, 5, "warning"},
-		{2, 6, "warning"},
-		{2, 7, "warning"},
-		{3, 1, "warning"},
-		{3, 2, "down"},
-		{3, 3, "warning"},
-		{3, 4, "warning"},
-		{3, 5, "warning"},
-		{3, 6, "warning"},
-		{3, 7, "warning"},
+		{common.AdminStatus_Up, common.OperStatus_Up, "up"},
+		{common.AdminStatus_Up, common.OperStatus_Down, "down"},
+		{common.AdminStatus_Up, common.OperStatus_Testing, "warning"},
+		{common.AdminStatus_Up, common.OperStatus_Unknown, "warning"},
+		{common.AdminStatus_Up, common.OperStatus_Dormant, "warning"},
+		{common.AdminStatus_Up, common.OperStatus_NotPresent, "warning"},
+		{common.AdminStatus_Up, common.OperStatus_LowerLayerDown, "warning"},
+		{common.AdminStatus_Down, common.OperStatus_Up, "down"},
+		{common.AdminStatus_Down, common.OperStatus_Down, "off"},
+		{common.AdminStatus_Down, common.OperStatus_Testing, "warning"},
+		{common.AdminStatus_Down, common.OperStatus_Unknown, "warning"},
+		{common.AdminStatus_Down, common.OperStatus_Dormant, "warning"},
+		{common.AdminStatus_Down, common.OperStatus_NotPresent, "warning"},
+		{common.AdminStatus_Down, common.OperStatus_LowerLayerDown, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_Up, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_Down, "down"},
+		{common.AdminStatus_Testing, common.OperStatus_Testing, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_Unknown, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_Dormant, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_NotPresent, "warning"},
+		{common.AdminStatus_Testing, common.OperStatus_LowerLayerDown, "warning"},
 
 		// Invalid ifOperStatus
-		{1, 0, "warning"},
-		{1, 8, "warning"},
-		{1, 100, "warning"},
-		{2, 0, "warning"},
-		{2, 8, "warning"},
-		{2, 100, "warning"},
-		{3, 0, "warning"},
-		{3, 8, "warning"},
-		{3, 100, "warning"},
+		{common.AdminStatus_Up, 0, "warning"},
+		{common.AdminStatus_Up, 8, "warning"},
+		{common.AdminStatus_Up, 100, "warning"},
+		{common.AdminStatus_Down, 0, "warning"},
+		{common.AdminStatus_Down, 8, "warning"},
+		{common.AdminStatus_Down, 100, "warning"},
+		{common.AdminStatus_Testing, 0, "warning"},
+		{common.AdminStatus_Testing, 8, "warning"},
+		{common.AdminStatus_Testing, 100, "warning"},
 
 		// Invalid ifAdminStatus
-		{0, 4, "down"},
-		{0, 2, "down"},
-		{0, 1, "down"},
-		{4, 1, "down"},
-		{4, 2, "down"},
-		{4, 3, "down"},
-		{100, 1, "down"},
-		{100, 2, "down"},
-		{100, 3, "down"},
+		{0, common.OperStatus_Unknown, "down"},
+		{0, common.OperStatus_Down, "down"},
+		{0, common.OperStatus_Up, "down"},
+		{4, common.OperStatus_Up, "down"},
+		{4, common.OperStatus_Down, "down"},
+		{4, common.OperStatus_Testing, "down"},
+		{100, common.OperStatus_Up, "down"},
+		{100, common.OperStatus_Down, "down"},
+		{100, common.OperStatus_Testing, "down"},
 	}
 	for _, test := range allTests {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))

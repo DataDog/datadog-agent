@@ -53,34 +53,34 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
 		status := computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
-		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias}
+		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
 		interfaceTags = append(interfaceTags, tags...)
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
 }
 
-func computeInterfaceStatus(adminStatus int32, operStatus int32) string {
-	if adminStatus == 1 {
+func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) string {
+	if adminStatus == common.AdminStatus_Up {
 		switch {
-		case operStatus == 1:
+		case operStatus == common.OperStatus_Up:
 			return "up"
-		case operStatus == 2:
+		case operStatus == common.OperStatus_Down:
 			return "down"
 		}
 		return "warning"
 	}
-	if adminStatus == 2 {
+	if adminStatus == common.AdminStatus_Down {
 		switch {
-		case operStatus == 1:
+		case operStatus == common.OperStatus_Up:
 			return "down"
-		case operStatus == 2:
+		case operStatus == common.OperStatus_Down:
 			return "off"
 		}
 		return "warning"
 	}
-	if adminStatus == 3 {
+	if adminStatus == common.AdminStatus_Testing {
 		switch {
-		case operStatus != 2:
+		case operStatus != common.OperStatus_Down:
 			return "warning"
 		}
 	}
@@ -222,8 +222,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: int32(store.GetColumnAsFloat("interface.admin_status", strIndex)),
-			OperStatus:  int32(store.GetColumnAsFloat("interface.oper_status", strIndex)),
+			AdminStatus: common.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
+			OperStatus:  common.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
