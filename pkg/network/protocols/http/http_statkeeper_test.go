@@ -271,7 +271,3 @@ func TestHTTPCorrectness(t *testing.T) {
 		require.Len(t, stats, 0)
 	})
 }
-
-func processAll(s *httpStatKeeper, txs []httpTX) {
-
-}
