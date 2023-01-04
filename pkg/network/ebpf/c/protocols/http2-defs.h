@@ -21,6 +21,9 @@
 
 #define HTTP2_SETTINGS_SIZE 6
 
+// This determines the size of the payload fragment that is captured for each HTTP request
+#define HTTP2_BUFFER_SIZE (8 * 20)
+
 typedef enum {
     kAuthority = 1,
     kMethod = 2,
@@ -83,5 +86,30 @@ typedef enum
     HTTP2_OPTIONS,
     HTTP2_PATCH
 } http2_method_t;
+
+// HTTP2 transaction information associated to a certain socket (tuple_t)
+typedef struct {
+    conn_tuple_t old_tup;
+    conn_tuple_t tup;
+    __u64 request_started;
+    __u64 tags;
+    __u64 response_last_seen;
+
+    __u32 tcp_seq;
+    __u32 current_offset_in_request_fragment;
+
+    char request_fragment[HTTP2_BUFFER_SIZE] __attribute__ ((aligned (8)));
+
+    __u16 response_status_code;
+    __u16 owned_by_src_port;
+
+    __u64 internal_dynamic_counter;
+
+    __u8  request_method;
+    __u8  packet_type;
+    __u8  schema;
+    char path[32] __attribute__ ((aligned (8)));
+    char authority[32] __attribute__ ((aligned (8)));
+} http2_transaction_t;
 
 #endif

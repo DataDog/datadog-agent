@@ -68,31 +68,6 @@ typedef struct {
     __u64 tags;
 } http_transaction_t;
 
-// HTTP2 transaction information associated to a certain socket (tuple_t)
-typedef struct {
-    conn_tuple_t old_tup;
-    conn_tuple_t tup;
-    __u64 request_started;
-    __u64 tags;
-    __u64 response_last_seen;
-
-    __u32 tcp_seq;
-    __u32 current_offset_in_request_fragment;
-
-    char request_fragment[HTTP_BUFFER_SIZE] __attribute__ ((aligned (8)));
-
-    __u16 response_status_code;
-    __u16 owned_by_src_port;
-
-    __u64 internal_dynamic_counter;
-
-    __u8  request_method;
-    __u8  packet_type;
-    __u8  schema;
-    char path[32] __attribute__ ((aligned (8)));
-    char authority[32] __attribute__ ((aligned (8)));
-} http2_transaction_t;
-
 typedef struct {
     // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
     // this is useful for detecting race conditions that result in a batch being overrriden
