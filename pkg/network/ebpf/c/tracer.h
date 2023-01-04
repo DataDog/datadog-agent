@@ -145,7 +145,8 @@ typedef struct {
 } telemetry_t;
 
 typedef struct {
-    __u16 port;
+    struct sockaddr *addr;
+    struct sock *sk;
 } bind_syscall_args_t;
 
 typedef struct {
