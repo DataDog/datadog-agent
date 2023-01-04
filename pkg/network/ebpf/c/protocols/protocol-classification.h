@@ -25,6 +25,8 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
+    } else if (is_kafka(buf, size)) {
+        *protocol = PROTOCOL_KAFKA;
     } else if (is_amqp(buf, size)) {
         *protocol = PROTOCOL_AMQP;
     } else if (is_redis(buf, size)) {
