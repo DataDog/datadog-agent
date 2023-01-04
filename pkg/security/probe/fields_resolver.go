@@ -124,7 +124,6 @@ func (ev *Event) ResolveFields(forADs bool) {
 	switch ev.GetEventType().String() {
 	case "bind":
 	case "bpf":
-		_ = ev.ResolveHelpers(&ev.BPF.Program)
 	case "capset":
 	case "chmod":
 		_ = ev.ResolveFileFieldsUser(&ev.Chmod.File.FileFields)

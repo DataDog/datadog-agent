@@ -80,7 +80,7 @@ func qualifiedType(module *common.Module, kind string) string {
 // handleBasic adds fields of "basic" type to list of exposed SECL fields of the module
 func handleBasic(module *common.Module, name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, constants string, commentText string) *common.StructField {
 	if verbose {
-		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s\n", name, kind, alias)
+		fmt.Printf("handleBasic name: %s, kind: %s, alias: %s, isArray: %v\n", name, kind, alias, isArray)
 	}
 
 	basicType := origTypeToBasicType(kind)
@@ -398,7 +398,7 @@ func handleSpec(module *common.Module, astFile *ast.File, spec interface{}, pref
 						dejavu[fieldBasename] = true
 
 						if len(fieldType) != 0 {
-							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, constants, fieldCommentText, seclField); err != nil {
+							if err := handleField(module, astFile, fieldBasename, fieldBasenameSECLNormalized, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, isArray, opOverrides, constants, fieldCommentText, seclField); err != nil {
 								log.Print(err)
 							}
 

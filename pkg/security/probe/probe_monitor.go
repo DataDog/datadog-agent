@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -152,15 +153,15 @@ func (m *Monitor) SendStats() error {
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessEvent(event *Event) {
+func (m *Monitor) ProcessEvent(event *model.Event) {
 	m.loadController.Count(event)
 
 	// Look for an unresolved path
-	if err := event.GetPathResolutionError(); err != nil {
+	if err := event.PathResolutionError; err != nil {
 		var notCritical *ErrPathResolutionNotCritical
 		if !errors.As(err, &notCritical) {
 			m.probe.DispatchCustomEvent(
-				NewAbnormalPathEvent(event, err),
+				NewAbnormalPathEvent(event, m.probe.resolvers, err),
 			)
 		}
 	} else {

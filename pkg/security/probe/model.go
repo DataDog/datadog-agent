@@ -9,7 +9,6 @@
 package probe
 
 import (
-	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -18,9 +17,6 @@ import (
 
 	"github.com/mailru/easyjson/jwriter"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -29,18 +25,15 @@ const (
 	ServiceEnvVar = "DD_SERVICE"
 )
 
-var eventZero Event
+var eventZero model.Event
 
-// Model describes the data model for the runtime security agent probe events
-type Model struct {
-	model.Model
-
+type FieldHandlers struct {
 	probe     *Probe
 	resolvers *Resolvers
 }
 
 // ValidateField validates the value of a field
-func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
+/*func (fh *FieldHandlers) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	if err := m.Model.ValidateField(field, fieldValue); err != nil {
 		return err
 	}
@@ -58,22 +51,12 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	}
 
 	return nil
-}
-
-// NewEvent returns a new Event
-func (m *Model) NewEvent() eval.Event {
-	return &Event{}
-}
-
-// Event describes a probe event
-type Event struct {
-	model.Event
-}
+}*/
 
 // ResolveFilePath resolves the inode to a full path
-func (m *Model) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
+func (fh *FieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := m.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
+		path, err := fh.resolvers.resolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -84,21 +67,21 @@ func (m *Model) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (m *Model) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
+func (fh *FieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
 		} else {
-			f.SetBasenameStr(m.resolvers.resolveBasename(&f.FileFields))
+			f.SetBasenameStr(fh.resolvers.resolveBasename(&f.FileFields))
 		}
 	}
 	return f.BasenameStr
 }
 
 // ResolveFileFilesystem resolves the filesystem a file resides in
-func (m *Model) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
+func (fh *FieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
 	if f.Filesystem == "" && !f.IsFileless() {
-		fs, err := m.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -108,27 +91,22 @@ func (m *Model) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) strin
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
-func (m *Model) ResolveFileFieldsInUpperLayer(ev *model.Event, f *model.FileFields) bool {
+func (fh *FieldHandlers) ResolveFileFieldsInUpperLayer(ev *model.Event, f *model.FileFields) bool {
 	return f.GetInUpperLayer()
 }
 
 // ResolveXAttrName returns the string representation of the extended attribute name
-func (m *Model) ResolveXAttrName(ev *model.Event, e *model.SetXAttrEvent) string {
+func (fh *FieldHandlers) ResolveXAttrName(ev *model.Event, e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
 		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
 	}
 	return e.Name
 }
 
-// ResolveHelpers returns the list of eBPF helpers used by the current program
-func (m *Model) ResolveHelpers(ev *model.Event, e *model.BPFProgram) []uint32 {
-	return e.Helpers
-}
-
 // ResolveXAttrNamespace returns the string representation of the extended attribute namespace
-func (m *Model) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAttrEvent) string {
+func (fh *FieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAttrEvent) string {
 	if len(e.Namespace) == 0 {
-		ns, _, found := strings.Cut(m.ResolveXAttrName(ev, e), ".")
+		ns, _, found := strings.Cut(fh.ResolveXAttrName(ev, e), ".")
 		if found {
 			e.Namespace = ns
 		}
@@ -137,16 +115,16 @@ func (m *Model) ResolveXAttrNamespace(ev *model.Event, e *model.SetXAttrEvent) s
 }
 
 // SetMountPoint set the mount point information
-func (m *Model) SetMountPoint(ev *model.Event, e *model.Mount) error {
+func (fh *FieldHandlers) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
-	e.MountPointStr, err = m.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
+	e.MountPointStr, err = fh.resolvers.DentryResolver.Resolve(e.ParentMountID, e.ParentInode, 0, true)
 	return err
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
-func (m *Model) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
+func (fh *FieldHandlers) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
 	if len(e.MountPointStr) == 0 {
-		if err := m.SetMountPoint(ev, e); err != nil {
+		if err := fh.SetMountPoint(ev, e); err != nil {
 			return "", err
 		}
 	}
@@ -154,25 +132,25 @@ func (m *Model) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, erro
 }
 
 // SetMountRoot set the mount point information
-func (m *Model) SetMountRoot(ev *model.Event, e *model.Mount) error {
+func (fh *FieldHandlers) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	var err error
-	e.RootStr, err = m.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
+	e.RootStr, err = fh.resolvers.DentryResolver.Resolve(e.RootMountID, e.RootInode, 0, true)
 	return err
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
-func (m *Model) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
+func (fh *FieldHandlers) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
 	if len(e.RootStr) == 0 {
-		if err := m.SetMountRoot(ev, e); err != nil {
+		if err := fh.SetMountRoot(ev, e); err != nil {
 			return "", err
 		}
 	}
 	return e.RootStr, nil
 }
 
-func (m *Model) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
+func (fh *FieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, err := m.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -182,14 +160,14 @@ func (m *Model) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) stri
 	return e.MountPointPath
 }
 
-func (m *Model) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
+func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, err := m.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
 		}
-		rootStr, err := m.ResolveMountRoot(ev, &e.Mount)
+		rootStr, err := fh.ResolveMountRoot(ev, &e.Mount)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -200,9 +178,9 @@ func (m *Model) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) str
 }
 
 // ResolveContainerID resolves the container ID of the event
-func (m *Model) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
+func (fh *FieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ID) == 0 {
-		if entry, _ := m.ResolveProcessCacheEntry(ev); entry != nil {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
 			e.ID = entry.ContainerID
 		}
 	}
@@ -210,85 +188,71 @@ func (m *Model) ResolveContainerID(ev *model.Event, e *model.ContainerContext) s
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (m *Model) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
-		e.Tags = m.resolvers.TagsResolver.Resolve(e.ID)
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
 	}
 	return e.Tags
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (m *Model) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
-	entry := m.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
-	ev.ProcessCacheEntry = entry
-
-	n, err := entry.Process.UnmarshalBinary(data)
-	if err != nil {
-		return n, err
-	}
-	entry.Process.ContainerID = ev.ContainerContext.ID
-
-	return n, nil
-}
-
 // ResolveRights resolves the rights of a file
-func (m *Model) ResolveRights(ev *model.Event, e *model.FileFields) int {
+func (fh *FieldHandlers) ResolveRights(ev *model.Event, e *model.FileFields) int {
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
 }
 
-// ResolveChownUID resolves the user id of a chown event to a username
-func (m *Model) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
+// ResolveChownUID resolves the ResolveProcessCacheEntry id of a chown event to a username
+func (fh *FieldHandlers) ResolveChownUID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
 // ResolveChownGID resolves the group id of a chown event to a group name
-func (m *Model) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
+func (fh *FieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = m.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
 	}
 	return e.Group
 }
 
 // ResolveProcessCreatedAt resolves process creation time
-func (m *Model) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) uint64 {
-	return uint64(e.ExecTime.UnixNano())
+func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) int {
+	return int(e.ExecTime.UnixNano())
 }
 
 // ResolveProcessArgv0 resolves the first arg of the event
-func (m *Model) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
-	arg0, _ := m.resolvers.ProcessResolver.GetProcessArgv0(process)
+func (fh *FieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
+	arg0, _ := fh.resolvers.ProcessResolver.GetProcessArgv0(process)
 	return arg0
 }
 
 // ResolveProcessArgs resolves the args of the event
-func (m *Model) ResolveProcessArgs(ev *model.Event, process *model.Process) string {
-	return strings.Join(m.ResolveProcessArgv(ev, process), " ")
+func (fh *FieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.Process) string {
+	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
 }
 
 // ResolveProcessArgv resolves the args of the event as an array
-func (m *Model) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
-	argv, _ := m.resolvers.ProcessResolver.GetProcessArgv(process)
+func (fh *FieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
+	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgv(process)
 	return argv
 }
 
 // ResolveProcessEnvp resolves the envp of the event as an array
-func (m *Model) ResolveProcessEnvp(process *model.Process) []string {
-	envp, _ := m.resolvers.ProcessResolver.GetProcessEnvp(process)
+func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
+	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
 	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
-func (m *Model) ResolveProcessArgsTruncated(process *model.Process) bool {
-	_, truncated := m.resolvers.ProcessResolver.GetProcessArgv(process)
+func (fh *FieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
+	_, truncated := fh.resolvers.ProcessResolver.GetProcessArgv(process)
 	return truncated
 }
 
 // ResolveProcessArgsFlags resolves the arguments flags of the event
-func (m *Model) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
-	for _, arg := range m.ResolveProcessArgv(ev, process) {
+func (fh *FieldHandlers) ResolveProcessArgsFlags(ev *model.Event, process *model.Process) (flags []string) {
+	for _, arg := range fh.ResolveProcessArgv(ev, process) {
 		if len(arg) > 1 && arg[0] == '-' {
 			isFlag := true
 			name := arg[1:]
@@ -319,8 +283,8 @@ func (m *Model) ResolveProcessArgsFlags(ev *model.Event, process *model.Process)
 }
 
 // ResolveProcessArgsOptions resolves the arguments options of the event
-func (m *Model) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
-	args := m.ResolveProcessArgv(ev, process)
+func (fh *FieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process *model.Process) (options []string) {
+	args := fh.ResolveProcessArgv(ev, process)
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if len(arg) > 1 && arg[0] == '-' {
@@ -344,73 +308,73 @@ func (m *Model) ResolveProcessArgsOptions(ev *model.Event, process *model.Proces
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
-func (m *Model) ResolveProcessEnvsTruncated(ev *model.Event, process *model.Process) bool {
-	_, truncated := m.resolvers.ProcessResolver.GetProcessEnvs(process)
+func (fh *FieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *model.Process) bool {
+	_, truncated := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return truncated
 }
 
 // ResolveProcessEnvs resolves the envs of the event
-func (m *Model) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
-	envs, _ := m.resolvers.ProcessResolver.GetProcessEnvs(process)
+func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
+	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs
 }
 
 // ResolveSetuidUser resolves the user of the Setuid event
-func (m *Model) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
+func (fh *FieldHandlers) ResolveSetuidUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.User) == 0 {
-		e.User, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
 	}
 	return e.User
 }
 
 // ResolveSetuidEUser resolves the effective user of the Setuid event
-func (m *Model) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEvent) string {
+func (fh *FieldHandlers) ResolveSetuidEUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.EUser) == 0 {
-		e.EUser, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
+		e.EUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EUID))
 	}
 	return e.EUser
 }
 
 // ResolveSetuidFSUser resolves the file-system user of the Setuid event
-func (m *Model) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEvent) string {
+func (fh *FieldHandlers) ResolveSetuidFSUser(ev *model.Event, e *model.SetuidEvent) string {
 	if len(e.FSUser) == 0 {
-		e.FSUser, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
+		e.FSUser, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSUID))
 	}
 	return e.FSUser
 }
 
 // ResolveSetgidGroup resolves the group of the Setgid event
-func (m *Model) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEvent) string {
+func (fh *FieldHandlers) ResolveSetgidGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.Group) == 0 {
-		e.Group, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.GID))
 	}
 	return e.Group
 }
 
 // ResolveSetgidEGroup resolves the effective group of the Setgid event
-func (m *Model) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEvent) string {
+func (fh *FieldHandlers) ResolveSetgidEGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.EGroup) == 0 {
-		e.EGroup, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
+		e.EGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.EGID))
 	}
 	return e.EGroup
 }
 
 // ResolveSetgidFSGroup resolves the file-system group of the Setgid event
-func (m *Model) ResolveSetgidFSGroup(ev *model.Event, e *model.SetgidEvent) string {
+func (fh *FieldHandlers) ResolveSetgidFSGroup(ev *model.Event, e *model.SetgidEvent) string {
 	if len(e.FSGroup) == 0 {
-		e.FSGroup, _ = m.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
+		e.FSGroup, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.FSGID))
 	}
 	return e.FSGroup
 }
 
 // ResolveSELinuxBoolName resolves the boolean name of the SELinux event
-func (m *Model) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinuxEvent) string {
+func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxBoolChangeEventKind {
 		return ""
 	}
 
 	if len(e.BoolName) == 0 {
-		e.BoolName = m.resolvers.resolveBasename(&e.File.FileFields)
+		e.BoolName = fh.resolvers.resolveBasename(&e.File.FileFields)
 	}
 	return e.BoolName
 }
@@ -425,25 +389,14 @@ func MarshalJSONEvent(ev *model.Event) ([]byte, error) {
 	return w.BuildBytes()
 }
 
-// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
-func (m *Model) ResolveEventTimestamp(ev *model.Event) time.Time {
-	if ev.Timestamp.IsZero() {
-		ev.Timestamp = m.resolvers.TimeResolver.ResolveMonotonicTimestamp(ev.TimestampRaw)
-		if ev.Timestamp.IsZero() {
-			ev.Timestamp = time.Now()
-		}
-	}
-	return ev.Timestamp
-}
-
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (m *Model) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
 		return ev.NewEmptyProcessCacheEntry(), false
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = m.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid)
 	}
 
 	if ev.ProcessCacheEntry == nil {
@@ -465,8 +418,8 @@ func (m *Model) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEn
 }
 
 // GetProcessServiceTag returns the service tag based on the process context
-func (m *Model) GetProcessServiceTag(ev *model.Event) string {
-	entry, _ := m.ResolveProcessCacheEntry(ev)
+func (fh *FieldHandlers) GetProcessServiceTag(ev *model.Event) string {
+	entry, _ := fh.ResolveProcessCacheEntry(ev)
 	if entry == nil {
 		return ""
 	}
@@ -498,6 +451,14 @@ func (m *Model) GetProcessServiceTag(ev *model.Event) string {
 	return bestGuessServiceTag(serviceValues)
 }
 
+// ResolveFileFieldsGroup resolves the group id of the file to a group name
+func (fh *FieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.FileFields) string {
+	if len(e.Group) == 0 {
+		e.Group, _ = fh.resolvers.UserGroupResolver.ResolveGroup(int(e.GID))
+	}
+	return e.Group
+}
+
 func bestGuessServiceTag(serviceValues []string) string {
 	if len(serviceValues) == 0 {
 		return ""
@@ -524,9 +485,9 @@ func bestGuessServiceTag(serviceValues []string) string {
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
-func (m *Model) ResolveNetworkDeviceIfName(ev *model.Event, device *model.NetworkDeviceContext) string {
-	if len(device.IfName) == 0 && m.resolvers.TCResolver != nil {
-		ifName, ok := m.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
+func (fh *FieldHandlers) ResolveNetworkDeviceIfName(ev *model.Event, device *model.NetworkDeviceContext) string {
+	if len(device.IfName) == 0 && fh.resolvers.TCResolver != nil {
+		ifName, ok := fh.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
 		if ok {
 			device.IfName = ifName
 		}
@@ -535,9 +496,31 @@ func (m *Model) ResolveNetworkDeviceIfName(ev *model.Event, device *model.Networ
 	return device.IfName
 }
 
+// ResolveFileFieldsUser resolves the user id of the file to a username
+func (fh *FieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.FileFields) string {
+	if len(e.User) == 0 {
+		e.User, _ = fh.resolvers.UserGroupResolver.ResolveUser(int(e.UID))
+	}
+	return e.User
+}
+
+// ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
+func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
+	if ev.Timestamp.IsZero() {
+		fh := ev.FieldHandlers.(*FieldHandlers)
+
+		ev.Timestamp = fh.resolvers.TimeResolver.ResolveMonotonicTimestamp(ev.TimestampRaw)
+		if ev.Timestamp.IsZero() {
+			ev.Timestamp = time.Now()
+		}
+	}
+	return ev.Timestamp
+}
+
 // NewEvent returns a new event
-func NewEvent(resolvers *Resolvers, scrubber *procutil.DataScrubber) *Event {
-	return &Event{
-		Event: model.Event{},
+func NewEvent(fh *FieldHandlers) *model.Event {
+	return &model.Event{
+		FieldHandlers: fh,
+		JSONMarshaler: MarshalJSONEvent,
 	}
 }

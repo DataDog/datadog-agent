@@ -140,22 +140,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PID
 	return pathStr, err
 }
 
-// ResolveFileFieldsUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveFileFieldsGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
-}
-
 // ResolveCredentialsUser resolves the user id of the process to a username
 func (r *Resolvers) ResolveCredentialsUser(e *model.Credentials) string {
 	if len(e.User) == 0 {

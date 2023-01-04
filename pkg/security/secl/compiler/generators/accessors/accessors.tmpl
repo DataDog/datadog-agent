@@ -55,7 +55,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{- end}}
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {	
-					{{if and $Field.Handler (not $Mock)}}
+					{{if $Field.Handler}}
 						{{if $Mock}}
 							ev := ctx.Event.(*Event)
 						{{else}}
@@ -101,7 +101,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
 
 						{{$Return := $SubName | printf "element%s"}}
-						{{if and $Field.Handler (not $Mock) }}
+						{{if $Field.Handler }}
 							{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 							{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
 							{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
@@ -151,7 +151,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						}
 					{{end}}
 					
-					{{- if and $Field.Handler (not $Mock)}}
+					{{- if $Field.Handler}}
 						{{$Ptr := "&"}}
 						{{$Parent := index $.AllFields $Field.Prefix}}
 						{{- if $Parent.IsOrigTypePtr}}
@@ -236,7 +236,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{$SubName := $Field.Iterator.Name | TrimPrefix $Field.Name}}
 
 				{{$Return := $SubName | printf "element%s"}}
-				{{if and $Field.Handler (not $Mock) }}
+				{{if $Field.Handler}}
 					{{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
 					{{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
 					{{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
@@ -245,6 +245,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{if $Field.IsLength}}
 				{{$Return = ".length" | TrimSuffix $Return}}
 				{{end}}
+
 				{{if and (eq $Field.ReturnType "int") (ne $Field.OrigType "int")}}
 					result := int({{$Return}})
 				{{else}}
@@ -270,7 +271,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{if $Field.IsLength}}
 			{{$Return = ".length" | TrimSuffix $Field.Name | printf "len(ev.%s)"}}
 			{{end}}
-			{{if and $Field.Handler (not $Mock)}}
+			{{if $Field.Handler}}
 				{{$Ptr := "&"}}
 				{{$Parent := index $.AllFields $Field.Prefix}}
 				{{- if $Parent.IsOrigTypePtr}}

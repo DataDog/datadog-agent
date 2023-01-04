@@ -148,14 +148,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
 				ev := ctx.Event.(*model.Event)
-				result := make([]int, len(ev.FieldHandlers.ResolveHelpers(ev, &ev.BPF.Program)))
-				for i, v := range ev.FieldHandlers.ResolveHelpers(ev, &ev.BPF.Program) {
+				result := make([]int, len(ev.BPF.Program.Helpers))
+				for i, v := range ev.BPF.Program.Helpers {
 					result[i] = int(v)
 				}
 				return result
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "bpf.prog.name":
 		return &eval.StringEvaluator{
@@ -15229,8 +15229,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "bpf.prog.attach_type":
 		return int(ev.BPF.Program.AttachType), nil
 	case "bpf.prog.helpers":
-		result := make([]int, len(ev.FieldHandlers.ResolveHelpers(ev, &ev.BPF.Program)))
-		for i, v := range ev.FieldHandlers.ResolveHelpers(ev, &ev.BPF.Program) {
+		result := make([]int, len(ev.BPF.Program.Helpers))
+		for i, v := range ev.BPF.Program.Helpers {
 			result[i] = int(v)
 		}
 		return result, nil

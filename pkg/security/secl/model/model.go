@@ -808,12 +808,12 @@ type BPFMap struct {
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-" json:"-"`                                                      // ID of the eBPF program
-	Type       uint32   `field:"type" constants:"BPF program types"`                              // Type of the eBPF program
-	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                        // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,handler:ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                                                            // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                                                             // Hash (sha1) of the eBPF program (added in 7.35)
+	ID         uint32   `field:"-" json:"-"`                               // ID of the eBPF program
+	Type       uint32   `field:"type" constants:"BPF program types"`       // Type of the eBPF program
+	AttachType uint32   `field:"attach_type" constants:"BPF attach types"` // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                                     // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                                      // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
@@ -980,4 +980,20 @@ type VethPairEvent struct {
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+}
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveEventTimestamp(ev *Event) time.Time
+}
+
+// ResolveProcessCacheEntry stub implementation
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+	return nil, false
+}
+
+// ResolveProcessCacheEntry stub implementation
+func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+	return ev.Timestamp
 }
