@@ -87,18 +87,18 @@ type collector struct {
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
 	contToExitInfo map[string]*exitInfo
 
-	// Stores a map of image name => image ID.
-	// Events from containerd contain an image name, but not IDs. When a delete
-	// event arrives it'll contain a name, but we won't be able to access the ID
-	// because the image is already gone, that's why we need this map.
-	knownImages map[string]string
+	knownImages *knownImages
+
+	// Map of image ID => array of repo tags
+	repoTags map[string][]string
 }
 
 func init() {
 	workloadmeta.RegisterCollector(collectorID, func() workloadmeta.Collector {
 		return &collector{
 			contToExitInfo: make(map[string]*exitInfo),
-			knownImages:    make(map[string]string),
+			knownImages:    newKnownImages(),
+			repoTags:       make(map[string][]string),
 		}
 	})
 }
