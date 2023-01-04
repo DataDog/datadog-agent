@@ -13,7 +13,7 @@
 #include "http2-helpers.h"
 #include "mongo-helpers.h"
 #include "redis-helpers.h"
-#include "sql-helpers.h"
+#include "postgres-helpers.h"
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
