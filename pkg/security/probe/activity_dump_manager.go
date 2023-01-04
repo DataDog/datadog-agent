@@ -38,12 +38,13 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config        *config.Config
-	statsdClient  statsd.ClientInterface
-	fieldHandlers *FieldHandlers
-	resolvers     *Resolvers
-	kernelVersion *kernel.Version
-	manager       *manager.Manager
+	config         *config.Config
+	statsdClient   statsd.ClientInterface
+	fieldHandlers  *FieldHandlers
+	EventMarshaler *EventMarshaler
+	resolvers      *Resolvers
+	kernelVersion  *kernel.Version
+	manager        *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -203,6 +204,7 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 		config:                 config,
 		statsdClient:           statsdClient,
 		fieldHandlers:          p.fieldHandlers,
+		EventMarshaler:         p.eventMarshaler,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
 		manager:                manager,

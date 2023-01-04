@@ -379,16 +379,6 @@ func (fh *FieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinu
 	return e.BoolName
 }
 
-// MarshalJSONEvent returns the JSON encoding of the event
-func MarshalJSONEvent(ev *model.Event) ([]byte, error) {
-	s := NewEventSerializer(ev)
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	s.MarshalEasyJSON(w)
-	return w.BuildBytes()
-}
-
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	if ev.PIDContext.IsKworker {
@@ -518,9 +508,23 @@ func (fh *FieldHandlers) ResolveEventTimestamp(ev *model.Event) time.Time {
 }
 
 // NewEvent returns a new event
-func NewEvent(fh *FieldHandlers) *model.Event {
+func NewEvent(fh *FieldHandlers, marshaler *EventMarshaler) *model.Event {
 	return &model.Event{
 		FieldHandlers: fh,
-		JSONMarshaler: MarshalJSONEvent,
+		JSONMarshaler: marshaler.MarshalJSONEvent,
 	}
+}
+
+type EventMarshaler struct {
+	resolvers *Resolvers
+}
+
+// MarshalJSONEvent returns the JSON encoding of the event
+func (em *EventMarshaler) MarshalJSONEvent(ev *model.Event) ([]byte, error) {
+	s := NewEventSerializer(ev, em.resolvers)
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	s.MarshalEasyJSON(w)
+	return w.BuildBytes()
 }

@@ -399,19 +399,3 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 
 		return &eval.ErrFieldNotFound{Field: field}
 }
-
-{{if $Mock}}
-	type FieldHandlers interface {
-		{{$Handlers := .Fields | GetHandlers}}
-		{{range $Proto, $Impl := $Handlers}}
-			{{$Proto}}
-		{{end}}
-	}
-
-	type DefaultFieldHandlers struct {}
-
-	{{$Handlers := .Fields | GetHandlers}}
-	{{range $Proto, $Impl := $Handlers}}
-			func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
-	{{end}}
-{{end}}

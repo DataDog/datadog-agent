@@ -568,7 +568,7 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 	}
 
 	if field.Prefix == "" {
-		return fmt.Sprintf("ev.%s(ev)", field.Handler)
+		return fmt.Sprintf("ev.FieldHandlers.%s(ev)", field.Handler)
 	}
 
 	ptr := "&"
@@ -576,7 +576,7 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 		ptr = ""
 	}
 
-	return fmt.Sprintf("ev.%s(%sev.%s)", field.Handler, ptr, field.Prefix)
+	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
 }
 
 func fieldADPrint(field *common.StructField, resolver string) string {

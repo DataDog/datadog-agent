@@ -9,10 +9,6 @@
 
 package {{.Name}}
 
-import (
-
-)
-
 // ResolveFields resolves all the fields associate to the event type. Context fields are automatically resolved.
 func (ev *Event) ResolveFields(forADs bool) {
     {{ $uniqueResolvers := dict }}
@@ -81,3 +77,20 @@ func (ev *Event) ResolveFields(forADs bool) {
     {{end}}
     }
 }
+
+type FieldHandlers interface {
+    {{$Handlers := .Fields | GetHandlers}}
+    {{range $Proto, $Impl := $Handlers}}
+        {{$Proto}}
+    {{end}}
+
+    // custom handlers not tied to any fields
+    ExtraFieldHandlers
+}
+
+type DefaultFieldHandlers struct {}
+
+{{$Handlers := .Fields | GetHandlers}}
+{{range $Proto, $Impl := $Handlers}}
+        func (dfh *DefaultFieldHandlers) {{$Proto}} {{$Impl}}
+{{end}}
