@@ -682,7 +682,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				clientDialer:     defaultDialer,
 				expectedProtocol: network.ProtocolPostgres,
 			},
-			shouldSkip: skipIfNotLinux,
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
 				pgutils.RunPostgresServer(t, addr, port)
@@ -703,7 +703,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				expectedProtocol: network.ProtocolPostgres,
 				extras:           make(map[string]interface{}),
 			},
-			shouldSkip: skipIfNotLinux,
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
 				pgutils.RunPostgresServer(t, addr, port)
@@ -735,7 +735,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				expectedProtocol: network.ProtocolPostgres,
 				extras:           make(map[string]interface{}),
 			},
-			shouldSkip: skipIfNotLinux,
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
 				pgutils.RunPostgresServer(t, addr, port)
