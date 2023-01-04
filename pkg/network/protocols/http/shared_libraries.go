@@ -125,9 +125,7 @@ func newSOWatcher(perfHandler *ddebpf.PerfHandler, rules ...soRule) *soWatcher {
 }
 
 type soRegistration struct {
-	pathID pathIdentifier
-	//mTime  uint64 TODO(nplanel) reload uprobes if the file changed (dnf upgrade)
-
+	pathID       pathIdentifier
 	refcount     int
 	unregisterCB func(pathIdentifier) error
 }
