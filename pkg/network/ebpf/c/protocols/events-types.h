@@ -8,7 +8,7 @@
 
 typedef struct {
     // idx is a monotonic counter used for uniquely determining a batch within a CPU core
-    // this is useful for detecting race conditions that result in a batch being overrriden
+    // this is useful for detecting race conditions that result in a batch being overwritten
     // before it gets consumed from userspace
     __u64 idx;
     // idx_to_flush is used to track which batches were flushed to userspace
