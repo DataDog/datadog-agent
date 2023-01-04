@@ -73,10 +73,6 @@ static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size)
 static __always_inline bool is_postgres_query(const char *buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, sizeof(struct pg_message_header));
 
-    if (buf_size <= sizeof(struct pg_message_header)) {
-        return false;
-    }
-
     struct pg_message_header *hdr = (struct pg_message_header *)buf;
 
     // We only classify queries for now
