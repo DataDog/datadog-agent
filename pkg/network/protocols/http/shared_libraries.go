@@ -239,7 +239,7 @@ func (w *soWatcher) Start() {
 						continue
 					}
 
-					// use cwd of the process as root if the path is absolute
+					// use cwd of the process as root if the path is relative
 					if libPath[0] != '/' {
 						root = cwd
 						libPath = "/" + libPath
