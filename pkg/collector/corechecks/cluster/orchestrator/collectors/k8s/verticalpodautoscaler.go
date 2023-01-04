@@ -41,14 +41,14 @@ type VerticalPodAutoscalerCollector struct {
 func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 	return &VerticalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         false,
+			IsDefaultVersion:          true,
+			IsStable:                  false,
 			IsMetadataProducer:        true,
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
-			Name:             "verticalpodautoscalers",
-			NodeType:         orchestrator.K8sVerticalPodAutoscaler,
-			Version:          "v1",
+			Name:                      "verticalpodautoscalers",
+			NodeType:                  orchestrator.K8sVerticalPodAutoscaler,
+			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.VerticalPodAutoscalerHandlers)),
 	}
