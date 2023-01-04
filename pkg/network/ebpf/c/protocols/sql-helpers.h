@@ -11,9 +11,13 @@
     ((sizeof(command) - 1) <= buf_size)         \
     && !bpf_memcmp((buf), &(command), sizeof(command) - 1))
 
+// is_sql_command check that there is an SQL query in buf. We only check the
+// most commonly used SQL queries
 static __always_inline bool is_sql_command(const char *buf, __u32 buf_size) {
     char tmp[SQL_COMMAND_MAX_SIZE];
 
+    // Convert what would be the query to uppercase to match queries like
+    // 'select * from table'
 #pragma unroll (SQL_COMMAND_MAX_SIZE)
     for (int i = 0; i < SQL_COMMAND_MAX_SIZE; i++) {
         if ('a' <= buf[i] && buf[i] <= 'z') {
