@@ -43,6 +43,9 @@ func NewVerticalPodAutoscalerCollector() *VerticalPodAutoscalerCollector {
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion: true,
 			IsStable:         false,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
 			Name:             "verticalpodautoscalers",
 			NodeType:         orchestrator.K8sVerticalPodAutoscaler,
 			Version:          "v1",
