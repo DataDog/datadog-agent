@@ -59,7 +59,17 @@ static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb
     }
 
     protocol_t cur_fragment_protocol = PROTOCOL_UNKNOWN;
-    char request_fragment[CLASSIFICATION_MAX_BUFFER];
+
+    // Get the buffer the fragment will be read into from a per-cpu array map.
+    // This will avoid doing unaligned stack access while parsing the protocols,
+    // which is forbidden and will make the verifier fail.
+    const u32 key = 0;
+    char *request_fragment = bpf_map_lookup_elem(&classification_buf, &key);
+    if (request_fragment == NULL) {
+        log_debug("could not get classification buffer from map");
+        return;
+    }
+
     bpf_memset(request_fragment, 0, sizeof(request_fragment));
     read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
     const size_t payload_length = skb->len - skb_info.data_off;

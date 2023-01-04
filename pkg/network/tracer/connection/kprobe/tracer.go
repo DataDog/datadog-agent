@@ -181,6 +181,15 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+	} else {
+		// Kernels < 4.7.0 do not know about the per-cpu array map used
+		// in classification, preventing the program to load even though
+		// we won't use it. We change the type to a simple array map to
+		// circumvent that.
+		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+			Type:       ebpf.Array,
+			EditorFlag: manager.EditType,
+		}
 	}
 
 	currKernelVersion, err := kernel.HostVersion()
