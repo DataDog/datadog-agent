@@ -62,7 +62,7 @@ func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
 		return
 	}
 
-	p.module.apiServer.SendProcessEvent(data)
+	p.module.SendProcessEvent(data)
 }
 
 // HandleCustomEvent implement the EventHandler interface
