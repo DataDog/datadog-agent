@@ -23,7 +23,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -68,7 +67,7 @@ func TestSharedLibraryDetection(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that soWatcher detected foo.so being opened and triggered the callback
-	assert.Equal(t, fpath, pathDetected)
+	require.Equal(t, fpath, pathDetected)
 }
 
 func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
@@ -120,11 +119,11 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that soWatcher detected foo.so being opened and triggered the callback
-	assert.Equal(t, libpath, pathDetected)
+	require.Equal(t, libpath, pathDetected)
 
 	// must failed on the host
 	_, err = os.Stat(libpath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestSameInodeRegression(t *testing.T) {
@@ -161,7 +160,7 @@ func TestSameInodeRegression(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// assert that callback was called only once
-	assert.Equal(t, int64(1), registers.Load())
+	require.Equal(t, int64(1), registers.Load())
 }
 
 // we use this helper to open files for two reasons:
