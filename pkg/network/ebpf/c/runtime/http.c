@@ -2,7 +2,7 @@
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
 
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
