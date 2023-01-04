@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -122,18 +121,10 @@ func (s *service) HasFilter(filter containers.FilterType) bool {
 
 // FilterTemplates implements Service#FilterTemplates.
 func (s *service) FilterTemplates(configs map[string]integration.Config) {
-	if !util.CcaInAD() {
-		// only applies when `logs_config.cca_in_ad` is set
-		return
-	}
-
 	// These two overrides are handled in
 	// pkg/autodiscovery/configresolver/configresolver.go when
-	// logs_config.cca_in_ad is false
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
-
-	// this is handled in the logs agent when logs_config.cca_in_ad is false
 	s.filterTemplatesContainerCollectAll(configs)
 }
 
