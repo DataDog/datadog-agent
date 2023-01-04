@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"io"
 	"os"
 	"path"
@@ -103,7 +104,7 @@ func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{checkPoliciesCmd}
 }
@@ -167,12 +168,12 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
-	_ = evalCmd.MarkFlagRequired("rule-id")
-	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
-	_ = evalCmd.MarkFlagRequired("event-file")
-	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+	evalCmd.Flags().StringVar(&evalArgs.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, flags.RuleID, "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired(flags.RuleID)
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, flags.EventFile, "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired(flags.EventFile)
+	evalCmd.Flags().BoolVar(&evalArgs.debug, flags.Debug, false, "Display an event dump if the evaluation fail")
 
 	return []*cobra.Command{evalCmd}
 }
@@ -196,7 +197,7 @@ func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Com
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
@@ -260,8 +261,8 @@ func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command 
 		},
 	}
 
-	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, flags.Check, false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, flags.OutputPath, "", "Output path for downloaded policies")
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -290,7 +291,7 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
-	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, flags.WithArgs, false, "add process arguments to the dump")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -325,7 +326,7 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 			)
 		},
 	}
-	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, flags.SnapshotInterfaces, true, "snapshot the interfaces of each network namespace during the dump")
 
 	networkNamespaceCmd := &cobra.Command{
 		Use:   "network-namespace",

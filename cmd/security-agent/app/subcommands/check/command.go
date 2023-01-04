@@ -11,6 +11,7 @@ package check
 import (
 	"context"
 	"errors"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"os"
 	"time"
 
@@ -73,14 +74,14 @@ func Commands(bundleParams core.BundleParams) []*cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&checkArgs.framework, "framework", "", "", "Framework to run the checks from")
-	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
-	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
-	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
-	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
-	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, "dump-rego-input", "", "", "Path to file where to dump the Rego input JSON")
-	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
-	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, "skip-rego-eval", "", false, "Skip rego evaluation")
+	cmd.Flags().StringVarP(&checkArgs.framework, flags.Framework, "", "", "Framework to run the checks from")
+	cmd.Flags().StringVarP(&checkArgs.file, flags.File, "f", "", "Compliance suite file to read rules from")
+	cmd.Flags().BoolVarP(&checkArgs.verbose, flags.Verbose, "v", false, "Include verbose details")
+	cmd.Flags().BoolVarP(&checkArgs.report, flags.Report, "r", false, "Send report")
+	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, flags.OverrideRegoInput, "", "", "Rego input to use when running rego checks")
+	cmd.Flags().StringVarP(&checkArgs.dumpRegoInput, flags.DumpRegoInput, "", "", "Path to file where to dump the Rego input JSON")
+	cmd.Flags().StringVarP(&checkArgs.dumpReports, flags.DumpReports, "", "", "Path to file where to dump reports")
+	cmd.Flags().BoolVarP(&checkArgs.skipRegoEval, flags.SkipRegoEval, "", false, "Skip rego evaluation")
 
 	return []*cobra.Command{cmd}
 }
