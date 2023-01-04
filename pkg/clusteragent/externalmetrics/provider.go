@@ -135,14 +135,14 @@ func (p *datadogMetricProvider) getExternalMetric(namespace string, metricSelect
 		parsed = true
 	}
 	if !parsed {
-		return nil, log.Errorf("ExternalMetric does not follow DatadogMetric format: %s", info.Metric)
+		return nil, log.Warnf("ExternalMetric does not follow DatadogMetric format: %s", info.Metric)
 	}
 
 	datadogMetric := p.store.Get(datadogMetricID)
 	log.Tracef("DatadogMetric from store: %v", datadogMetric)
 
 	if datadogMetric == nil {
-		return nil, log.Errorf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
+		return nil, log.Warnf("DatadogMetric not found for metric name: %s, datadogmetricid: %s", info.Metric, datadogMetricID)
 	}
 
 	externalMetric, err := datadogMetric.ToExternalMetricFormat(info.Metric)

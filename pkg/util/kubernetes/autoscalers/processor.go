@@ -34,7 +34,7 @@ const (
 	// extraQueryCharacters accounts for the extra characters added to form a query to Datadog's API (e.g.: `avg:`, `.rollup(X)` ...)
 	extraQueryCharacters = 16
 	// maxTimeWindow is a safeguard to prevent the Cluster Agent from making queries on a large time window
-	maxTimeWindow = 1 * time.Hour
+	maxTimeWindow = 24 * time.Hour
 )
 
 // DatadogClient abstracts the dependency on the Datadog api
@@ -134,6 +134,7 @@ func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.Extern
 		}
 	}
 
+	// In non-DatadogMetric path, we don't have any custom maxAge possible, passing 0 as custom time window to QueryExternalMetric
 	metrics, err := p.QueryExternalMetric(batch, 0)
 	if len(metrics) == 0 && err != nil {
 		log.Errorf("Error getting metrics from Datadog: %v", err.Error())
@@ -184,7 +185,7 @@ func (p *Processor) QueryExternalMetric(queries []string, timeWindow time.Durati
 
 	// Safeguard against large time window
 	if timeWindow > maxTimeWindow {
-		log.Errorf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", maxTimeWindow)
+		log.Warnf("Querying external metrics with a time window larger than: %v is not allowed, ceiling value", maxTimeWindow)
 		timeWindow = maxTimeWindow
 	}
 
