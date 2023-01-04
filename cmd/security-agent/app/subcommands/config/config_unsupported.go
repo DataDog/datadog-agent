@@ -9,6 +9,7 @@
 package config
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
 )
 
