@@ -11,6 +11,7 @@ package secrets
 import (
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -187,6 +188,12 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 	domain, _, err := k.GetStringValue("installedDomain")
 	if err != nil {
 		return nil, fmt.Errorf("could not read installedDomain in registry: %s", err)
+	}
+
+	if strings.EqualFold(domain, "NT AUTHORITY") {
+		// Installer writes `NT AUTHORITY` as installedDomain which prevents the username from being resolved correctly
+		user = domain + `\` + user
+		domain = ""
 	}
 
 	sid, _, _, err := windows.LookupSID(domain, user)
