@@ -71,14 +71,14 @@ func TestSharedLibraryDetection(t *testing.T) {
 }
 
 func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
-	_, err = os.Stat("/usr/bin/busybox")
+	_, err := os.Stat("/usr/bin/busybox")
 	if err != nil {
 		t.Skip("skip for the moment as some distro are not friendly with busybox package")
 	}
 
 	tempDir := t.TempDir()
 	root := filepath.Join(tempDir, "root")
-	err := os.MkdirAll(root, 0755)
+	err = os.MkdirAll(root, 0755)
 	require.NoError(t, err)
 
 	libpath := "/fooroot.so"
@@ -115,7 +115,7 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 	// in an new pid and mount namespaces
 	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
 	if err != nil {
-		t.Log(string(err))
+		t.Log(err, string(o))
 	}
 	require.NoError(t, err)
 
