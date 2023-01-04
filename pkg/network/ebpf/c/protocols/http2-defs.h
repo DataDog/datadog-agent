@@ -5,15 +5,21 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 2
+#define HTTP2_MAX_FRAMES 5
 
-// A limit of max frame size in order to be able to load a max size and pass the varifier.
+// A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_FRAME_LEN 60
+#define HTTP2_MAX_HEADERS_COUNT 10
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
 #define HTTP2_MAX_PATH_LEN 32
+
+#define MAX_STATIC_TABLE_INDEX 64
+
+#define HTTP2_FRAME_HEADER_SIZE 9
+
+#define HTTP2_SETTINGS_SIZE 6
 
 typedef enum {
     kAuthority = 1,
@@ -45,7 +51,7 @@ typedef struct {
 } static_table_value;
 
 typedef struct {
-    char path_buffer[32] __attribute__ ((aligned (8)));
+    char buffer[32] __attribute__ ((aligned (8)));
 } __attribute__ ((packed)) dynamic_string_value;
 
 typedef struct {
@@ -77,7 +83,5 @@ typedef enum
     HTTP2_OPTIONS,
     HTTP2_PATCH
 } http2_method_t;
-
-#define MAX_STATIC_TABLE_INDEX 64
 
 #endif

@@ -70,6 +70,7 @@ typedef struct {
 
 // HTTP2 transaction information associated to a certain socket (tuple_t)
 typedef struct {
+    conn_tuple_t old_tup;
     conn_tuple_t tup;
     __u64 request_started;
     __u64 tags;
@@ -83,7 +84,6 @@ typedef struct {
     __u16 response_status_code;
     __u16 owned_by_src_port;
 
-    char request_fragment_bla[32] __attribute__ ((aligned (8)));
     __u64 internal_dynamic_counter;
 
     __u8  request_method;

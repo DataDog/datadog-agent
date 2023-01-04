@@ -9,17 +9,12 @@
 #include "bpf_helpers.h"
 #include "map-defs.h"
 #include "http2-defs.h"
+#include "http2-maps-defs.h"
 #include "http-types.h"
 #include "protocol-classification-defs.h"
 #include "bpf_telemetry.h"
 #include "ip.h"
 #include "http2.h"
-
-BPF_HASH_MAP(http2_static_table, u64, static_table_value, 20)
-
-BPF_HASH_MAP(http2_dynamic_table, u64, dynamic_table_value, 20)
-
-BPF_HASH_MAP(http2_dynamic_counter_table, conn_tuple_t, u64, 10)
 
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
 BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
@@ -67,22 +62,22 @@ static __always_inline void http2_parse_data(char const *p, http_packet_t *packe
     // parse the http2 data over here?!
 }
 
-static __always_inline int http2_process(http2_transaction_t* http_stack2, __u64 tags) {
-//    char *buffer = (char *)http_stack2->request_fragment;
+static __always_inline int http2_process(http2_transaction_t* http2_stack, __u64 tags) {
+//    char *buffer = (char *)http2_stack->request_fragment;
     http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
     http2_method_t method = HTTP2_METHOD_UNKNOWN;
     http2_schema_t schema = HTTP2_SCHEMA_UNKNOWN;
 
-    if (http_stack2->request_method > 0) {
-        method = http_stack2->request_method;
+    if (http2_stack->request_method > 0) {
+        method = http2_stack->request_method;
     }
 
-    if (http_stack2->packet_type > 0) {
-        packet_type = http_stack2->packet_type;
+    if (http2_stack->packet_type > 0) {
+        packet_type = http2_stack->packet_type;
     }
 
-    if (http_stack2->schema > 0) {
-        schema = http_stack2->schema;
+    if (http2_stack->schema > 0) {
+        schema = http2_stack->schema;
     }
 
     log_debug("[tasik] ----------------------------------");
@@ -93,40 +88,16 @@ static __always_inline int http2_process(http2_transaction_t* http_stack2, __u64
 
 
     if (packet_type == 2) {
-             log_debug("[tasik] ------------ first char of the path bla in 0 spot is %c", http_stack2->path[0]);
-             log_debug("[tasik] ------------ first char of the path bla in 1 spot is %c", http_stack2->path[1]);
-             log_debug("[tasik] ------------ first char of the path bla in 2 spot is %c", http_stack2->path[2]);
-//             log_debug("[tasik] ------------ first char of the path bla in 3 spot is %c", http_stack2->path[3]);
-//             log_debug("[tasik] ------------ first char of the path bla in 4 spot is %c", http_stack2->path[4]);
-//             log_debug("[tasik] ------------ first char of the path bla in 5 spot is %c", http_stack2->path[5]);
-//             log_debug("[tasik] ------------ first char of the path bla in 6 spot is %c", http_stack2->path[6]);
-//             log_debug("[tasik] ------------ first char of the path bla in 7 spot is %c", http_stack2->path[7]);
-//             log_debug("[tasik] ------------ first char of the path bla in 8 spot is %c", http_stack2->path[8]);
-//             log_debug("[tasik] ------------ first char of the path bla in 9 spot is %c", http_stack2->path[9]);
-//             log_debug("[tasik] ------------ first char of the path bla in 10 spot is %c", http_stack2->path[10]);
-//             log_debug("[tasik] ------------ first char of the path bla in 11 spot is %c", http_stack2->path[11]);
-//             log_debug("[tasik] ------------ first char of the path bla in 12 spot is %c", http_stack2->path[12]);
-//             log_debug("[tasik] ------------ first char of the path bla in 13 spot is %c", http_stack2->path[13]);
-//             log_debug("[tasik] ------------ first char of the path bla in 14 spot is %c", http_stack2->path[14]);
+             log_debug("[tasik] ------------ first char of the path bla in 0 spot is %c", http2_stack->path[0]);
+             log_debug("[tasik] ------------ first char of the path bla in 1 spot is %c", http2_stack->path[1]);
+             log_debug("[tasik] ------------ first char of the path bla in 2 spot is %c", http2_stack->path[2]);
 
 
-              log_debug("[tasik] ------------ first char of the authority bla in 0 spot is %c", http_stack2->authority[0]);
-              log_debug("[tasik] ------------ first char of the authority bla in 1 spot is %c", http_stack2->authority[1]);
-              log_debug("[tasik] ------------ first char of the authority bla in 2 spot is %c", http_stack2->authority[2]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 3 spot is %c", http_stack2->authority[3]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 4 spot is %c", http_stack2->authority[4]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 5 spot is %c", http_stack2->authority[5]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 6 spot is %c", http_stack2->authority[6]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 7 spot is %c", http_stack2->authority[7]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 8 spot is %c", http_stack2->authority[8]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 9 spot is %c", http_stack2->authority[9]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 10 spot is %c", http_stack2->authority[10]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 11 spot is %c", http_stack2->authority[11]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 12 spot is %c", http_stack2->authority[12]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 13 spot is %c", http_stack2->authority[13]);
-//              log_debug("[tasik] ------------ first char of the authority bla in 14 spot is %c", http_stack2->authority[14]);
+              log_debug("[tasik] ------------ first char of the authority bla in 0 spot is %c", http2_stack->authority[0]);
+              log_debug("[tasik] ------------ first char of the authority bla in 1 spot is %c", http2_stack->authority[1]);
+              log_debug("[tasik] ------------ first char of the authority bla in 2 spot is %c", http2_stack->authority[2]);
     }
-//
+
 //    http_transaction_t *http = http_fetch_state(http_stack, packet_type);
 //    if (!http || http_seen_before(http, skb_info)) {
 //        return 0;
@@ -214,78 +185,58 @@ static __always_inline __u64 read_var_int(http2_transaction_t* http2_transaction
     return -1;
 }
 
+static __always_inline bool classify_static_value(http2_transaction_t* http2_transaction, static_table_value* static_value){
+     header_value value = static_value->value;
+     header_key name = static_value->name;
+
+     if ((name == kMethod) && (value == kPOST)){
+        http2_transaction->request_method = value;
+        http2_transaction->packet_type = 2; // this will be request and we need to make it better
+        return true;
+     }
+     if (value == kHTTP) {
+        http2_transaction->schema = value;
+        return true;
+     }
+     if ((value <= k500) && (value >= k200)) {
+        http2_transaction->packet_type = 3; // this will be response type
+        return true;
+     }
+
+     return false;
+}
+
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline void parse_field_indexed(http2_transaction_t* http2_transaction){
-     log_debug("[http2] parse_field_indexed in");
+     __u64 index = read_var_int(http2_transaction, 7);
      bool found = false;
 
-     __u64 index = read_var_int(http2_transaction, 7);
+    // we search the index in the static table
+    static_table_value* static_value = bpf_map_lookup_elem(&http2_static_table, &index);
+    if (static_value != NULL) {
+        found = classify_static_value(http2_transaction, static_value);
+    }
 
-     log_debug("[http2] ************************ the current index at parse_field_indexed is: %d", index);
-
-     if (index == 3){
-        http2_transaction->request_method = index;
-        http2_transaction->packet_type = 2; // this will be request and we need to make it better
-        found = true;
-        return;
-     }
-     if (index == 6) {
-        http2_transaction->schema = index;
-        found = true;
-     }
-
+    // if we could not find the index in the static table
     if (!found) {
-        __u64 *global_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_transaction->tup);
-        if (global_counter == NULL) {
-            log_debug("[tasik] ----------------- the current global_counter is  NULL");
-        } else {
-            log_debug("[tasik] ----------------- the current global_counter is  %d", *global_counter);
-            log_debug("[tasik] the calculated index is %d", index);
-            __u64 new_index = index - 62 - *global_counter - http2_transaction->internal_dynamic_counter;
-            if (new_index > 0){
-                log_debug("[tasik] the new index is %d", new_index);
-            } else {
-                log_debug("[tasik] the new index is %d", new_index);
+        __u64 *global_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_transaction->old_tup);
+        if (global_counter != NULL) {
+            // we change the index to fit our internal dynamic table implementation index.
+            __u64 new_index = *global_counter - (index - 61);
+            dynamic_table_value *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &new_index);
+            if (dynamic_value_new != NULL) {
+                // index 5 represents the :path header - from dynamic table
+                if ((dynamic_value_new->index == 5) && (sizeof(dynamic_value_new->value.buffer)>0)){
+                    bpf_memcpy(http2_transaction->path, dynamic_value_new->value.buffer, HTTP2_MAX_PATH_LEN);
+                }
+
+                // index 1 represents the :path header - from dynamic table
+                if ((dynamic_value_new->index == 1) && (sizeof(dynamic_value_new->value.buffer)>0)){
+                    bpf_memcpy(http2_transaction->authority, dynamic_value_new->value.buffer, HTTP2_MAX_PATH_LEN);
+                }
             }
         }
     }
-//        static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
-//        if (static_value != NULL) {
-//            log_debug("[http2] ********************** the static name in parse_field_indexed is %d", static_value->name);
-//            log_debug("[http2] *********************** the static value in parse_field_indexed is %d", static_value->value);
-//        } else {
-//            log_debug("[http2] value is null - unable to find the index at the static table");
-//        }
-
-//
-//    __u64 *current_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_transaction->tup);
-//    if (current_counter == NULL) {
-//        log_debug("[tasik] ----------------- the current counter is  NULL");
-//    } else {
-//        log_debug("[tasik] ----------------- the current counter is  %d", *current_counter);
-//    }
-
-//    dynamic_table_value *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &new_index);
-//
-//    if (dynamic_value_new != NULL) {
-//        log_debug("[tasik] wow found index %d", new_index);
-//        // index 5 represents the :path header - from dynamic table
-//        if ((dynamic_value_new->index == 5) && (sizeof(dynamic_value_new->value.path_buffer)>0)){
-//            bpf_memcpy(http2_transaction->path, dynamic_value_new->value.path_buffer, HTTP2_MAX_PATH_LEN);
-//        }
-//
-//        log_debug("[tasik] the current index is %d", dynamic_value_new->index);
-//        // index 1 represents the :path header - from dynamic table
-//        if ((dynamic_value_new->index == 1) && (sizeof(dynamic_value_new->value.path_buffer)>0)){
-//            bpf_memcpy(http2_transaction->authority, dynamic_value_new->value.path_buffer, HTTP2_MAX_PATH_LEN);
-//        }
-//
-//        log_debug("[tasik] ************************* the dynamic2 index is %d", dynamic_value_new->index);
-//        log_debug("[tasik] ************************* the dynamic value in spot 0 is %c", dynamic_value_new->value.path_buffer[0]);
-//        log_debug("[tasik] ************************* the dynamic value in spot 3 is %c", dynamic_value_new->value.path_buffer[3]);
-//    } else {
-//        log_debug("[tasik] value is null, unable to find the index in the dynamic table");
-//    }
 }
 
 // readString decoded string an hpack string from payload.
@@ -300,43 +251,39 @@ static __always_inline bool read_string(http2_transaction_t* http2_transaction, 
     // need to make sure that I am right but it seems like this part is interesting for headers which are not interesting
     // for as for example te:trailers, if so we may consider not supporting this part of the code in order to avoid
     // complexity and drop each index which is not interesting for us.
-    bool is_huff = false;
-    __u8 first_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-    if ((first_char&128) != 0) {
-            is_huff = true;
-    }
-
     *out_str_len = read_var_int(http2_transaction, 7);
     return true;
+}
+
+static __always_inline void update_current_offset(http2_transaction_t* http2_transaction, __u64 str_len, size_t payload_size){
+    bool ok = read_string(http2_transaction, 6, &str_len, payload_size);
+    if (!ok && str_len <= 0){
+        return;
+    }
+
+    http2_transaction->current_offset_in_request_fragment += str_len;
 }
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 static __always_inline void parse_field_literal(http2_transaction_t* http2_transaction, bool index_type, size_t payload_size, uint8_t n){
-    log_debug("[http2] parse_field_literal in");
-    // update the global counter.
-
     __u64 counter = 0;
 
-    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_transaction->tup);
+    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, &http2_transaction->old_tup);
     if (counter_ptr != NULL) {
         counter = *counter_ptr;
     }
     counter += 1;
-    bpf_map_update_elem(&http2_dynamic_counter_table, &http2_transaction->tup, &counter, BPF_ANY);
-
+    // update the global counter.
+    bpf_map_update_elem(&http2_dynamic_counter_table, &http2_transaction->old_tup, &counter, BPF_ANY);
 
      __u64 index = read_var_int(http2_transaction, n);
-    if (index) {
-        log_debug("[tasik] the index is parse_field_indexed %llu with counter %d", index, counter);
-    }
 
     dynamic_table_value dynamic_value = {};
     static_table_value *static_value = bpf_map_lookup_elem(&http2_static_table, &index);
     if (static_value != NULL) {
         if (index_type) {
             dynamic_value.index = static_value->name;
-            log_debug("[http2] ************************** the dynamic index is %d", dynamic_value.index);
         }
 
         __u64 str_len = 0;
@@ -345,89 +292,42 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
             return;
         }
 
-        log_debug("[http2] the string len is %llu", str_len);
-        if (str_len <= 0) {
-            return;
-        }
-
         if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
             return ;
         }
 
-        if (http2_transaction->current_offset_in_request_fragment + str_len  > sizeof(http2_transaction->request_fragment)) {
-            return;
-        }
-
         char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
         // TODO: use const __u64 size11 = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
-        bpf_memcpy(http2_transaction->request_fragment_bla, beginning, HTTP2_MAX_PATH_LEN);
 
-//         log_debug("[http2] ------------ first char bla in 0 spot is %c", http2_transaction->request_fragment_bla[0]);
-//         log_debug("[http2] ------------ first char bla in 1 spot is %c", http2_transaction->request_fragment_bla[1]);
-//         log_debug("[http2] ------------ first char bla in 2 spot is %c", http2_transaction->request_fragment_bla[2]);
-//         log_debug("[http2] ------------ first char bla in 3 spot is %c", http2_transaction->request_fragment_bla[3]);
-//         log_debug("[http2] ------------ first char bla in 4 spot is %c", http2_transaction->request_fragment_bla[4]);
-//         log_debug("[http2] ------------ first char bla in 5 spot is %c", http2_transaction->request_fragment_bla[5]);
-//         log_debug("[http2] ------------ first char bla in 6 spot is %c", http2_transaction->request_fragment_bla[6]);
-//         log_debug("[http2] ------------ first char bla in 7 spot is %c", http2_transaction->request_fragment_bla[7]);
-//         log_debug("[http2] ------------ first char bla in 8 spot is %c", http2_transaction->request_fragment_bla[8]);
-//         log_debug("[http2] ------------ first char bla in 9 spot is %c", http2_transaction->request_fragment_bla[9]);
-//         log_debug("[http2] ------------ first char bla in 10 spot is %c", http2_transaction->request_fragment_bla[10]);
-//         log_debug("[http2] ------------ first char bla in 11 spot is %c", http2_transaction->request_fragment_bla[11]);
-//         log_debug("[http2] ------------ first char bla in 12 spot is %c", http2_transaction->request_fragment_bla[12]);
-//         log_debug("[http2] ------------ first char bla in 13 spot is %c", http2_transaction->request_fragment_bla[13]);
-//         log_debug("[http2] ------------ first char bla in 14 spot is %c", http2_transaction->request_fragment_bla[14]);
-
-        bpf_memcpy(dynamic_value.value.path_buffer, http2_transaction->request_fragment_bla, HTTP2_MAX_PATH_LEN);
-        log_debug("[http2] ------------ first char for the dynamic table in 0 spot is %c", dynamic_value.value.path_buffer[0]);
+        // create the new dynamic value which will be added to the internal table.
+        bpf_memcpy(dynamic_value.value.buffer, beginning, HTTP2_MAX_PATH_LEN);
         dynamic_value.index = index;
-        log_debug("[http2] ------------ first index for the dynamic value is %d", dynamic_value.index);
-
-         // static table index starts from index 62
-//        __u64 index2 = (__u64)(static_value->name + 62);
-        log_debug("[http2] ------------ the internal_dynamic_counter  %d", http2_transaction->internal_dynamic_counter);
-
         bpf_map_update_elem(&http2_dynamic_table, &http2_transaction->internal_dynamic_counter, &dynamic_value, BPF_ANY);
 
+        // update the internal counter to increase after inserting a new value to the internal dynamic table.
         http2_transaction->internal_dynamic_counter += 1;
-        log_debug("[http2] ------------ the internal_dynamic_counter is %d", http2_transaction->internal_dynamic_counter);
+        http2_transaction->current_offset_in_request_fragment += str_len;
 
         // index 5 represents the :path header - from static table
-        if ((index == 5) && (sizeof(http2_transaction->request_fragment_bla)>0)){
-            bpf_memcpy(http2_transaction->path, http2_transaction->request_fragment_bla, HTTP2_MAX_PATH_LEN);
+        if ((index == 5) && (sizeof(dynamic_value.value.buffer)>0)){
+            bpf_memcpy(http2_transaction->path, dynamic_value.value.buffer, HTTP2_MAX_PATH_LEN);
         }
 
         // index 1 represents the :authority header
-        if ((index == 1) && (sizeof(http2_transaction->request_fragment_bla)>0)){
-            bpf_memcpy(http2_transaction->authority, http2_transaction->request_fragment_bla, HTTP2_MAX_PATH_LEN);
+        if ((index == 1) && (sizeof(dynamic_value.value.buffer)>0)){
+            bpf_memcpy(http2_transaction->authority, dynamic_value.value.buffer, HTTP2_MAX_PATH_LEN);
         }
-
-//        __u64 currnet_blabla = http2_transaction->internal_dynamic_counter - 1;
-//        dynamic_table_value *dynamic_value_new = bpf_map_lookup_elem(&http2_dynamic_table, &currnet_blabla);
-
-//        if (dynamic_value_new != NULL) {
-//            log_debug("[http2] ******************** the dynamic2 index is %d", dynamic_value_new->index);
-//            log_debug("[http2] ******************** the dynamic value in spot 0 is %c", dynamic_value_new->value.path_buffer[0]);
-//            log_debug("[http2] ******************** the dynamic value in spot 2 is %c", dynamic_value_new->value.path_buffer[2]);
-//        } else {
-//            log_debug("[http2] ******************** UNABLE TO FIND THE DYNAMIC VALUE IN THE TABLE!!!");
-//        }
-
-        http2_transaction->current_offset_in_request_fragment += str_len;
-
-//        if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
-//            return ;
-//        }
-//        __u8 current_char = *(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment);
-//        log_debug("[http2] ------------ the current char is  %d", current_char);
-//        if (current_char > 0) {
-//            log_debug("[http2] blblablalbalblabllba");
-//        }
-
         }
-        else {
-            log_debug("[http2] unable to find the static value in map");
+    else {
+        __u64 str_len = 0;
+        update_current_offset(http2_transaction, str_len, payload_size);
+
+        // Literal Header Field with Incremental Indexing - New Name, which means we need to read the body as well,
+        // so we are reading again and updating the len.
+        if (index == 0) {
+            update_current_offset(http2_transaction, str_len, payload_size);
         }
+    }
 }
 
 // parse_header_field_repr is handling the header frame by bit calculation and is storing the needed data for our
@@ -450,13 +350,6 @@ static __always_inline void parse_header_field_repr(http2_transaction_t* http2_t
         log_debug("[http2] first char %d & 192 == 64; calling parse_field_literal", first_char);
         parse_field_literal(http2_transaction, true, payload_size, 6);
     }
-//    if ((first_char&240) == 16) {
-//        // 6.2.2 Literal Header Field without Indexing
-//        // top four bits are 0000
-//        // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.2
-//        log_debug("[http2] first char %d & 240 == 0; calling parse_field_literal", first_char);
-//        parse_field_literal(http2_transaction, false, payload_size, 4);
-//    }
 }
 
 // This function reads the http2 headers frame.
@@ -465,7 +358,7 @@ static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http
 
 // need to come back and understand how many times I will iterate over the current frame
 //#pragma unroll
-    for (int i = 0; i < HTTP2_MAX_FRAME_LEN; i++) {
+    for (int i = 0; i < HTTP2_MAX_HEADERS_COUNT; i++) {
         if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
                 return false;
         }
@@ -495,7 +388,6 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
         if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
             return;
         }
-
 
         if (!read_http2_frame_header(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
             return;
@@ -527,11 +419,6 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
         if (http2_transaction->current_offset_in_request_fragment + (__u32)current_frame.length > skb->len) {
             return;
         }
-
-//        log_debug("[http2] the current frame len is: %d", current_frame.length);
-//        log_debug("[http2] the current frame flags is: %d", current_frame.flags);
-//        log_debug("[http2] the current frame type is: %d", current_frame.type);
-//        log_debug("[http2] the current frame place: %d", http2_transaction->current_offset_in_request_fragment);
 
         // Load the current frame into http2_frame strct in order to filter the needed frames.
         if (!decode_http2_headers_frame(http2_transaction, current_frame.length)){
