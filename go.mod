@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
-	github.com/DataDog/datadog-operator v0.7.1-0.20220602134901-4f6af09bf54f
+	github.com/DataDog/datadog-operator v0.7.0
 	github.com/DataDog/ebpf-manager v0.1.0
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork
 	github.com/DataDog/gohai v0.0.0-20221116153829-5d479901d2e9
@@ -349,7 +349,7 @@ require (
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
-	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/prometheus/client_model v0.3.0
@@ -436,6 +436,9 @@ require (
 require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
+	github.com/twmb/franz-go v1.10.1 // indirect
+	github.com/twmb/franz-go/pkg/kadm v1.6.0 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.2.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
