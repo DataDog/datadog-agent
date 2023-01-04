@@ -10,9 +10,9 @@ package runtime
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -27,7 +27,7 @@ import (
 )
 
 type activityDumpCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	name                     string
 	containerID              string
@@ -43,7 +43,7 @@ type activityDumpCliParams struct {
 	remoteRequest            bool
 }
 
-func activityDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
@@ -56,15 +56,15 @@ func activityDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -73,7 +73,7 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpListCmd}
 }
 
-func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -85,8 +85,8 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -114,7 +114,7 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpStopCmd}
 }
 
-func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "generate command for activity dumps",
@@ -126,7 +126,7 @@ func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateCmd}
 }
 
-func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -138,8 +138,8 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -197,7 +197,7 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateDumpCmd}
 }
 
-func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -209,8 +209,8 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
