@@ -137,7 +137,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 
 	var closeTracerFn func()
-	closeTracerFn, err = fentry.GetTracer(config, m, mgrOptions, perfHandlerTCP)
+	closeTracerFn, err = fentry.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
 		// failed to load fentry tracer
 		return nil, err
@@ -146,7 +146,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	if err != nil {
 		// load the kprobe tracer
 		log.Infof("fentry tracer not supported, falling back to kprobe tracer")
-		closeTracerFn, err = kprobe.GetTracer(config, m, mgrOptions, perfHandlerTCP)
+		closeTracerFn, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
 		}

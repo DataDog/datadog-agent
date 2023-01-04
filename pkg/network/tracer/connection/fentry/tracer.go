@@ -24,8 +24,8 @@ const probeUID = "net"
 
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
-// GetTracer loads a new tracer
-func GetTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
+// LoadTracer loads a new tracer
+func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Options, perfHandlerTCP *ddebpf.PerfHandler) (func(), error) {
 	if !fargate.IsFargateInstance() {
 		return nil, ErrorNotSupported
 	}
