@@ -126,3 +126,4 @@ gomodules.xyz/jsonpatch: Copyright (c) 2015 The Authors
 github.com/bytecodealliance/wasmtime-go: Copyright (c) 2020 The Bytecode Alliance
 github.com/OneOfOne/xxhash: Copyright (c) 2014 Ahmed W. (OneOfOne)
 github.com/yashtewari/glob-intersection: Copyright (c) 2018 Yash Tewari (yashtewari)
+go.mongodb.org/mongo-driver/*: Copyright © 2018 MongoDB, Inc.

@@ -10,7 +10,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -26,15 +25,15 @@ var RTContainer = &RTContainerCheck{}
 // RTContainerCheck collects numeric statistics about live ctrList.
 type RTContainerCheck struct {
 	maxBatchSize      int
-	sysInfo           *model.SystemInfo
+	hostInfo          *HostInfo
 	containerProvider util.ContainerProvider
 	lastRates         map[string]*util.ContainerRateMetrics
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *config.AgentConfig, sysInfo *model.SystemInfo) error {
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	r.maxBatchSize = getMaxBatchSize()
-	r.sysInfo = sysInfo
+	r.hostInfo = hostInfo
 	r.containerProvider = util.GetSharedContainerProvider()
 	return nil
 }
@@ -49,7 +48,7 @@ func (r *RTContainerCheck) RealTime() bool { return true }
 func (r *RTContainerCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
-func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (r *RTContainerCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	var err error
 	var containers []*model.Container
 	var lastRates map[string]*util.ContainerRateMetrics
@@ -73,13 +72,13 @@ func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.
 	messages := make([]model.MessageBody, 0, groupSize)
 	for i := 0; i < groupSize; i++ {
 		messages = append(messages, &model.CollectorContainerRealTime{
-			HostName:          cfg.HostName,
+			HostName:          r.hostInfo.HostName,
 			Stats:             chunked[i],
 			NumCpus:           int32(system.HostCPUCount()),
-			TotalMemory:       r.sysInfo.TotalMemory,
+			TotalMemory:       r.hostInfo.SystemInfo.TotalMemory,
 			GroupId:           groupID,
 			GroupSize:         int32(groupSize),
-			ContainerHostType: cfg.ContainerHostType,
+			ContainerHostType: r.hostInfo.ContainerHostType,
 		})
 	}
 

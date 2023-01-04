@@ -156,7 +156,7 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
         rule="ebpfclang",
         variables={
             "target": "-target bpf",
-            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
+            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu", "-DBPF_NO_GLOBAL_DATA"],
         },
     )
 

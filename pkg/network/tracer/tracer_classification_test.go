@@ -23,11 +23,14 @@ import (
 	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
@@ -46,7 +49,6 @@ type testContext struct {
 	expectedProtocol network.ProtocolType
 	// A channel to mark goroutines (like servers) to halt.
 	done chan struct{}
-	//nolint:unused
 	// A dynamic map that allows extending the context easily between phases of the test.
 	extras map[string]interface{}
 }
@@ -538,6 +540,139 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				require.NoError(t, res.Err())
 			},
 			teardown:   defaultTeardown,
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "mongo - classify by connect",
+			context: testContext{
+				serverPort:       "27017",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolMongo,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				protocolsmongo.RunMongoServer(t, host, port)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  ctx.clientDialer,
+				})
+				require.NoError(t, err)
+				client.Stop()
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "mongo - classify by collection creation",
+			context: testContext{
+				serverPort:       "27017",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolMongo,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				protocolsmongo.RunMongoServer(t, host, port)
+
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  ctx.clientDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*protocolsmongo.Client)
+				db := client.C.Database("test")
+				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*protocolsmongo.Client)
+				client.Stop()
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "mongo - classify by insertion",
+			context: testContext{
+				serverPort:       "27017",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolMongo,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				protocolsmongo.RunMongoServer(t, host, port)
+
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  ctx.clientDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				db := client.C.Database("test")
+				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
+				ctx.extras["collection"] = db.Collection("collection")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				collection := ctx.extras["collection"].(*mongo.Collection)
+				input := map[string]string{"test": "test"}
+				_, err := collection.InsertOne(context.Background(), input)
+				require.NoError(t, err)
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*protocolsmongo.Client)
+				client.Stop()
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			name: "mongo - classify by find",
+			context: testContext{
+				serverPort:       "27017",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolMongo,
+				extras:           make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				host, port, _ := net.SplitHostPort(ctx.serverAddress)
+				protocolsmongo.RunMongoServer(t, host, port)
+
+				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
+					ServerAddress: ctx.targetAddress,
+					ClientDialer:  ctx.clientDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["client"] = client
+				db := client.C.Database("test")
+				require.NoError(t, db.CreateCollection(context.Background(), "collection"))
+
+				collection := db.Collection("collection")
+				ctx.extras["input"] = map[string]string{"test": "test"}
+				_, err = collection.InsertOne(context.Background(), ctx.extras["input"])
+				require.NoError(t, err)
+
+				ctx.extras["collection"] = db.Collection("collection")
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				collection := ctx.extras["collection"].(*mongo.Collection)
+				res := collection.FindOne(context.Background(), bson.M{"test": "test"})
+				require.NoError(t, res.Err())
+				var output map[string]string
+				require.NoError(t, res.Decode(&output))
+				delete(output, "_id")
+				require.EqualValues(t, output, ctx.extras["input"])
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*protocolsmongo.Client)
+				client.Stop()
+			},
 			validation: validateProtocolConnection,
 		},
 		{

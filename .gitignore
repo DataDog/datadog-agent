@@ -109,6 +109,12 @@ system-probe-msg.h
 **/.ninja_deps
 *.ninja
 pkg/ebpf/bytecode/build/**/*.d
+pkg/ebpf/bytecode/runtime/conntrack.go
+pkg/ebpf/bytecode/runtime/http.go
+pkg/ebpf/bytecode/runtime/oom-kill.go
+pkg/ebpf/bytecode/runtime/runtime-security.go
+pkg/ebpf/bytecode/runtime/tcp-queue-length.go
+pkg/ebpf/bytecode/runtime/tracer.go
 pkg/security/tests/syscall_tester/**/*.d
 
 # dsd artifacts

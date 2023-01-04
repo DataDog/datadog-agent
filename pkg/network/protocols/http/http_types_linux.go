@@ -62,6 +62,7 @@ const (
 	ProtocolHTTP     ProtocolType = 0x2
 	ProtocolHTTP2    ProtocolType = 0x3
 	ProtocolTLS      ProtocolType = 0x4
+	ProtocolMONGO    ProtocolType = 0x6
 	ProtocolPostgres ProtocolType = 0x7
 	ProtocolAMQP     ProtocolType = 0x8
 	ProtocolRedis    ProtocolType = 0x9

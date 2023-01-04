@@ -17,7 +17,6 @@ import (
 
 	payload "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -33,13 +32,13 @@ type ProcessEventsCheck struct {
 
 	store    events.Store
 	listener *events.SysProbeListener
-	sysInfo  *payload.SystemInfo
+	hostInfo *HostInfo
 
 	maxBatchSize int
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 
@@ -48,7 +47,7 @@ func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *payload.SystemInf
 	}
 
 	log.Info("Initializing process_events check")
-	e.sysInfo = info
+	e.hostInfo = info
 	e.maxBatchSize = getMaxBatchSize()
 
 	store, err := events.NewRingStore(statsd.Client)
@@ -89,7 +88,7 @@ func (e *ProcessEventsCheck) RealTime() bool { return false }
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
-func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payload.MessageBody, error) {
+func (e *ProcessEventsCheck) Run(groupID int32) ([]payload.MessageBody, error) {
 	if !e.isCheckCorrectlySetup() {
 		return nil, errors.New("the process_events check hasn't been correctly initialized")
 	}
@@ -106,8 +105,8 @@ func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]payl
 	messages := make([]payload.MessageBody, len(chunks))
 	for c, chunk := range chunks {
 		messages[c] = &payload.CollectorProcEvent{
-			Hostname:  cfg.HostName,
-			Info:      e.sysInfo,
+			Hostname:  e.hostInfo.HostName,
+			Info:      e.hostInfo.SystemInfo,
 			Events:    chunk,
 			GroupId:   groupID,
 			GroupSize: int32(len(chunks)),

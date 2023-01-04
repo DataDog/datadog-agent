@@ -1233,7 +1233,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 	if rng {
 		assert.Equal(t, expectedBaseHTTPURL+"01", c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"02", c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL+"03", c.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL+"03"+"/api/v2/profile", c.GetString("apm_config.profiling_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
@@ -1244,7 +1244,7 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.apm_dd_url"))
-		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.profiling_dd_url")) // Omitting "/api/v2/profile" as the config is not overwritten
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))

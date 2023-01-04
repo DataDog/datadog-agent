@@ -23,7 +23,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
-	"github.com/vishvananda/netlink"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 	"golang.org/x/time/rate"
@@ -38,7 +37,6 @@ import (
 	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -111,10 +109,6 @@ type Probe struct {
 
 	constantOffsets map[string]uint64
 	runtimeCompiled bool
-
-	// network section
-	tcProgramsLock sync.RWMutex
-	tcPrograms     map[NetDeviceKey]*manager.Probe
 
 	isRuntimeDiscarded bool
 }
@@ -359,18 +353,9 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 }
 
-func (p *Probe) sendTCProgramsStats() {
-	p.tcProgramsLock.RLock()
-	defer p.tcProgramsLock.RUnlock()
-
-	if val := float64(len(p.tcPrograms)); val > 0 {
-		_ = p.StatsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
-	}
-}
-
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
-	p.sendTCProgramsStats()
+	p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
 
 	return p.monitor.SendStats()
 }
@@ -904,28 +889,6 @@ func (p *Probe) SetApprovers(eventType eval.EventType, approvers rules.Approvers
 	return nil
 }
 
-func (p *Probe) selectTCProbes() manager.ProbesSelector {
-	p.tcProgramsLock.RLock()
-	defer p.tcProgramsLock.RUnlock()
-
-	// Although unlikely, a race is still possible with the umount event of a network namespace:
-	//   - a reload event is triggered
-	//   - selectTCProbes is invoked and the list of currently running probes is generated
-	//   - a container exits and the umount event of its network namespace is handled now (= its TC programs are stopped)
-	//   - the manager executes UpdateActivatedProbes
-	// In this setup, if we didn't use the best effort selector, the manager would try to init & attach a program that
-	// was deleted when the container exited.
-	var activatedProbes manager.BestEffort
-	for _, tcProbe := range p.tcPrograms {
-		if tcProbe.IsRunning() {
-			activatedProbes.Selectors = append(activatedProbes.Selectors, &manager.ProbeSelector{
-				ProbeIdentificationPair: tcProbe.ProbeIdentificationPair,
-			})
-		}
-	}
-	return &activatedProbes
-}
-
 func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	if p.Config.ActivityDumpEnabled {
 		for _, e := range p.Config.ActivityDumpTracedEventTypes {
@@ -963,7 +926,7 @@ func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
 		}
 	}
 
-	activatedProbes = append(activatedProbes, p.selectTCProbes())
+	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// Add syscall monitor probes
 	if p.Config.ActivityDumpEnabled {
@@ -1124,13 +1087,13 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
-func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts, macroStore *eval.MacroStore) *rules.RuleSet {
+func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
 	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber, p)
+		return NewEvent(p.resolvers, p.scrubber)
 	}
 	opts.WithLogger(seclog.DefaultLogger)
 
-	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts, macroStore)
+	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1157,60 +1120,7 @@ func (p *Probe) setupNewTCClassifier(device model.NetDevice) error {
 		return QueuedNetworkDeviceError{msg: fmt.Sprintf("device %s is queued until %d is resolved", device.Name, device.NetNS)}
 	}
 	defer handle.Close()
-	return p.setupNewTCClassifierWithNetNSHandle(device, handle)
-}
-
-// setupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
-// will not close the provided netns handle, so the caller of this function needs to take care of it.
-func (p *Probe) setupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File) error {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
-
-	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes() {
-		// make sure we're not overriding an existing network probe
-		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
-		_, ok := p.tcPrograms[deviceKey]
-		if ok {
-			continue
-		}
-
-		newProbe := tcProbe.Copy()
-		newProbe.CopyProgram = true
-		newProbe.UID = probes.SecurityAgentUID + device.GetKey()
-		newProbe.IfIndex = int(device.IfIndex)
-		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
-		newProbe.IfIndexNetnsID = device.NetNS
-		newProbe.KeepProgramSpec = false
-		newProbe.TCFilterPrio = p.Config.NetworkClassifierPriority
-		newProbe.TCFilterHandle = netlink.MakeHandle(0, p.Config.NetworkClassifierHandle)
-
-		netnsEditor := []manager.ConstantEditor{
-			{
-				Name:  "netns",
-				Value: uint64(device.NetNS),
-			},
-		}
-
-		if err := p.Manager.CloneProgram(probes.SecurityAgentUID, newProbe, netnsEditor, nil); err != nil {
-			_ = multierror.Append(&combinedErr, fmt.Errorf("couldn't clone %s: %v", tcProbe.ProbeIdentificationPair, err))
-		} else {
-			p.tcPrograms[deviceKey] = newProbe
-		}
-	}
-	return combinedErr.ErrorOrNil()
-}
-
-// flushNetworkNamespace thread unsafe version of FlushNetworkNamespace
-func (p *Probe) flushNetworkNamespace(namespace *NetworkNamespace) {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
-	for tcKey, tcProbe := range p.tcPrograms {
-		if tcKey.NetNS == namespace.nsID {
-			_ = p.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
-			delete(p.tcPrograms, tcKey)
-		}
-	}
+	return p.resolvers.TCResolver.SetupNewTCClassifierWithNetNSHandle(device, handle, p.Manager)
 }
 
 // FlushNetworkNamespace removes all references and stops all TC programs in the provided network namespace. This method
@@ -1219,37 +1129,7 @@ func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
 	p.resolvers.NamespaceResolver.FlushNetworkNamespace(namespace)
 
 	// cleanup internal structures
-	p.flushNetworkNamespace(namespace)
-}
-
-// flushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
-// per network namespace (ignoring the interfaces that are lazily deleted).
-func (p *Probe) flushInactiveProbes() map[uint32]int {
-	p.tcProgramsLock.Lock()
-	defer p.tcProgramsLock.Unlock()
-
-	probesCountNoLazyDeletion := make(map[uint32]int)
-
-	var linkName string
-	for tcKey, tcProbe := range p.tcPrograms {
-		if !tcProbe.IsTCFilterActive() {
-			_ = p.Manager.DetachHook(tcProbe.ProbeIdentificationPair)
-			delete(p.tcPrograms, tcKey)
-		} else {
-			link, err := tcProbe.ResolveLink()
-			if err == nil {
-				linkName = link.Attrs().Name
-			} else {
-				linkName = ""
-			}
-			// ignore interfaces that are lazily deleted
-			if link.Attrs().HardwareAddr.String() != "" && !p.resolvers.NamespaceResolver.IsLazyDeletionInterface(linkName) {
-				probesCountNoLazyDeletion[tcKey.NetNS]++
-			}
-		}
-	}
-
-	return probesCountNoLazyDeletion
+	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
 }
 
 func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
@@ -1298,7 +1178,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		cancelFnc:            cancel,
 		Erpc:                 nerpc,
 		erpcRequest:          &erpc.ERPCRequest{},
-		tcPrograms:           make(map[NetDeviceKey]*manager.Probe),
 		StatsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
@@ -1475,11 +1354,10 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.event = NewEvent(p.resolvers, p.scrubber, p)
+	p.event = NewEvent(p.resolvers, p.scrubber)
 
 	eventZero.resolvers = p.resolvers
 	eventZero.scrubber = p.scrubber
-	eventZero.probe = p
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
