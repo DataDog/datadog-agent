@@ -42,7 +42,6 @@ var (
 	pkgname              string
 	output               string
 	verbose              bool
-	mock                 bool
 	docOutput            string
 	fieldsResolverOutput string
 	buildTags            string
@@ -507,7 +506,6 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 		AllFields:  make(map[string]*common.StructField),
 		Iterators:  make(map[string]*common.StructField),
 		EventTypes: make(map[string]*common.EventTypeMetadata),
-		Mock:       mock,
 	}
 
 	// If the target package is different from the model package
@@ -586,13 +584,6 @@ func fieldADPrint(field *common.StructField, resolver string) string {
 	return fmt.Sprintf("_ = %s", resolver)
 }
 
-func override(str string, mock bool) string {
-	if !strings.Contains(str, ".") && !mock {
-		return "model." + str
-	}
-	return str
-}
-
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
 	idx := strings.LastIndex(field.Name, ".")
 	if idx == -1 {
@@ -667,7 +658,6 @@ var funcMap = map[string]interface{}{
 	"TrimSuffix":       strings.TrimSuffix,
 	"HasPrefix":        strings.HasPrefix,
 	"NewField":         newField,
-	"Override":         override,
 	"GetFieldResolver": getFieldResolver,
 	"FieldADPrint":     fieldADPrint,
 	"GetChecks":        getChecks,
@@ -753,7 +743,6 @@ func removeEmptyLines(input *bytes.Buffer) string {
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
-	flag.BoolVar(&mock, "mock", false, "Mock accessors")
 	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
 	flag.StringVar(&fieldsResolverOutput, "fields-resolver", "", "Fields resolver output file")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")

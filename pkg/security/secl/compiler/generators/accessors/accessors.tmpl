@@ -4,8 +4,6 @@
 
 package {{.Name}}
 
-{{$Mock := .Mock}}
-
 import (
 	"net"
 	"reflect"
@@ -13,10 +11,6 @@ import (
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-
-	{{if not $Mock}}
-	_ "github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	{{end}}
 )
 
 // suppress unused package warning
@@ -51,27 +45,21 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Mock | Override $Field.OpOverrides}},
+			OpOverrides: {{$Field.OpOverrides}},
 			{{- end}}
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {	
 					{{if $Field.Handler}}
-						{{if $Mock}}
-							ev := ctx.Event.(*Event)
-						{{else}}
-							ev := ctx.Event.(*model.Event)
-						{{end}}
+						ev := ctx.Event.(*Event)
 					{{end}}
 
 					{{$Checks := $Field | GetChecks $.AllFields}}
 
-					{{- if not $Mock }}
 					if ptr := ctx.Cache[field]; ptr != nil {
 						if result := (*[]{{$Field.ReturnType}})(ptr); result != nil {
 							return *result
 						}
 					}
-					{{end -}}
 
 					var results []{{$Field.ReturnType}}
 
@@ -126,20 +114,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						value = iterator.Next()
 					}
 
-					{{- if not $Mock }}
 					ctx.Cache[field] = unsafe.Pointer(&results)
-					{{end}}
 
 					return results
 				},
 			{{- else}}
 				{{- $ReturnType := $Field.ReturnType}}
 				EvalFnc: func(ctx *eval.Context) {{$Field.GetArrayPrefix}}{{$ReturnType}} {
-					{{if $Mock}}
-						ev := ctx.Event.(*Event)
-					{{else}}
-						ev := ctx.Event.(*model.Event)
-					{{end}}
+					ev := ctx.Event.(*Event)
 
 					{{$Return := $Field.Name | printf "ev.%s"}}
 
