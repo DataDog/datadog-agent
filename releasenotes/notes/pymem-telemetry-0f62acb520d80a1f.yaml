@@ -1,2 +1,2 @@
 enhancements:
-  - Added new telemetry metrics (``pymem.*``) to track python heap usage.    
+  - Added new telemetry metrics (``pymem.*``) to track Python heap usage.
