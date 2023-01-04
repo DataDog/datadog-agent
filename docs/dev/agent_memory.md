@@ -154,8 +154,8 @@ enabled by default. Set `telemetry.python_memory: false` to disable.
 
 | Internal name  | Default metric name         | Description                                                    |
 |----------------|-----------------------------|----------------------------------------------------------------|
-| `pymem__alloc` | `datadog.agent.pymem.alloc` | Total number of bytes allocated since the start of the agent.  |
-| `pymem__inuse` | `datadog.agent.pymem.inuse` | Number of bytes currently allocated by the python interpreter. |
+| `pymem__alloc` | `datadog.agent.pymem.alloc` | Total number of bytes allocated since the start of the Agent.  |
+| `pymem__inuse` | `datadog.agent.pymem.inuse` | Number of bytes currently allocated by the Python interpreter. |
 
 The Python memory manager internally maintains a small reserve of
 unused memory, so the numbers provided by this tool may be slightly
