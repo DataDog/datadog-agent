@@ -7,8 +7,6 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // Name for check performed by process-agent or system-probe
@@ -24,15 +22,22 @@ const (
 	ProcessEventsCheckName = "process_events"
 )
 
+// SysProbeConfig provides access to system probe configuration
+type SysProbeConfig struct {
+	MaxConnsPerMessage int
+	// System probe collection configuration
+	SystemProbeAddress string
+}
+
 // Check is an interface for Agent checks that collect data. Each check returns
 // a specific MessageBody type that will be published to the intake endpoint or
 // processed in another way (e.g. printed for debugging).
 // Before checks are used you must called Init.
 type Check interface {
-	Init(cfg *config.AgentConfig, info *model.SystemInfo) error
+	Init(syscfg *SysProbeConfig, info *HostInfo) error
 	Name() string
 	RealTime() bool
-	Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error)
+	Run(groupID int32) ([]model.MessageBody, error)
 	Cleanup()
 	ShouldSaveLastRun() bool
 }
@@ -53,7 +58,7 @@ type RunResult struct {
 type CheckWithRealTime interface {
 	Check
 	RealTimeName() string
-	RunWithOptions(cfg *config.AgentConfig, nextGroupID func() int32, options RunOptions) (*RunResult, error)
+	RunWithOptions(nextGroupID func() int32, options RunOptions) (*RunResult, error)
 }
 
 // All is a list of all runnable checks. Putting a check in here does not guarantee it will be run,

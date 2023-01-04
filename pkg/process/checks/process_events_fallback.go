@@ -12,8 +12,6 @@ import (
 	"errors"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 )
 
 // ProcessEvents is a ProcessEventsCheck singleton
@@ -24,7 +22,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
 	return nil
 }
 
@@ -38,7 +36,7 @@ func (e *ProcessEventsCheck) RealTime() bool { return false }
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
-func (e *ProcessEventsCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (e *ProcessEventsCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	return nil, errors.New("the process_events check is not supported on this system")
 }
 

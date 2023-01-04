@@ -16,6 +16,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -66,7 +66,7 @@ type Collector struct {
 	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
-	cfg          *config.AgentConfig
+	hostInfo     *checks.HostInfo
 
 	orchestrator *oconfig.OrchestratorConfig
 
@@ -100,24 +100,26 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (*Collector, error) {
-	sysInfo, err := checks.CollectSystemInfo(cfg)
-	if err != nil {
-		return nil, err
+func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
+	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
+
+	cfg := &checks.SysProbeConfig{}
+	if syscfg != nil && syscfg.Enabled {
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
-	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
 	for _, c := range enabledChecks {
-		if err := c.Init(cfg, sysInfo); err != nil {
+		if err := c.Init(cfg, hostInfo); err != nil {
 			return nil, err
 		}
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime)
+	return NewCollectorWithChecks(hostInfo, enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) (*Collector, error) {
+func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, runRealTime bool) (*Collector, error) {
 	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
@@ -164,7 +166,7 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 
 	return &Collector{
 		rtIntervalCh:  make(chan time.Duration),
-		cfg:           cfg,
+		hostInfo:      hostInfo,
 		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
@@ -193,7 +195,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	messages, err := c.Run(l.cfg, l.nextGroupID())
+	messages, err := c.Run(l.nextGroupID())
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -220,7 +222,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	run, err := c.RunWithOptions(l.cfg, l.nextGroupID, options)
+	run, err := c.RunWithOptions(l.nextGroupID, options)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -300,7 +302,7 @@ func (l *Collector) getRequestID(start time.Time, chunkIndex int) string {
 	// Next, we want 28 bits of hashed hostname & process agent pid.
 	if l.requestIDCachedHash == nil {
 		hash := fnv.New32()
-		hash.Write([]byte(l.cfg.HostName))
+		hash.Write([]byte(l.hostInfo.HostName))
 		hash.Write([]byte(strconv.Itoa(os.Getpid())))
 		hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 		l.requestIDCachedHash = &hostNamePIDHash
@@ -330,7 +332,7 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 		agentVersion, _ := version.Agent()
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(headers.HostHeader, l.hostInfo.HostName)
 		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
@@ -411,7 +413,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	}
 	updateEnabledChecks(checkNames)
 	updateDropCheckPayloads(l.dropCheckPayloads)
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, eventsEps, orchestratorEps, checkNames)
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s, enabled checks=%v", l.hostInfo.HostName, eps, eventsEps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
