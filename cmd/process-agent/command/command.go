@@ -178,7 +178,7 @@ func loadConfigIfExists(path string) error {
 	}
 
 	if !util.PathExists(path) {
-		log.Infof("no config exists at %s, ignoring...", path)
+		log.Infof("No config exists at %s, ignoring...", path)
 		return nil
 	}
 

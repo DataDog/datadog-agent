@@ -298,7 +298,7 @@ func initRuntimeSettings() {
 	for _, setting := range processRuntimeSettings {
 		err := settings.RegisterRuntimeSetting(setting)
 		if err != nil {
-			_ = log.Warnf("cannot initialize the runtime setting %s: %v", setting.Name(), err)
+			_ = log.Warnf("Cannot initialize the runtime setting %s: %v", setting.Name(), err)
 		}
 	}
 }
