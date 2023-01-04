@@ -21,7 +21,10 @@ import (
 )
 
 func addSystemProbePlatformSpecificEntries(fb flarehelpers.FlareBuilder) {
-	fb.RegisterDirPerm(filepath.Dir(config.Datadog.GetString("system_probe_config.sysprobe_socket")))
+	sysprobeSocketLocation := config.Datadog.GetString("system_probe_config.sysprobe_socket")
+	if sysprobeSocketLocation != "" {
+		fb.RegisterDirPerm(filepath.Dir(sysprobeSocketLocation))
+	}
 }
 
 func getLinuxKernelSymbols(fb flarehelpers.FlareBuilder) error {

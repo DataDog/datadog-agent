@@ -62,8 +62,10 @@ const (
 	ProtocolHTTP    ProtocolType = 0x2
 	ProtocolHTTP2   ProtocolType = 0x3
 	ProtocolTLS     ProtocolType = 0x4
+	ProtocolMONGO   ProtocolType = 0x6
 	ProtocolAMQP    ProtocolType = 0x8
-	ProtocolMax     ProtocolType = 0x9
+	ProtocolRedis   ProtocolType = 0x9
+	ProtocolMax     ProtocolType = 0xa
 )
 
 const (

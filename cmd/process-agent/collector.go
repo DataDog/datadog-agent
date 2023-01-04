@@ -16,13 +16,14 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -65,7 +66,9 @@ type Collector struct {
 	groupID *atomic.Int32
 
 	rtIntervalCh chan time.Duration
-	cfg          *config.AgentConfig
+	hostInfo     *checks.HostInfo
+
+	orchestrator *oconfig.OrchestratorConfig
 
 	// counters for each type of check
 	runCounters   sync.Map
@@ -97,22 +100,26 @@ type Collector struct {
 }
 
 // NewCollector creates a new Collector
-func NewCollector(cfg *config.AgentConfig, enabledChecks []checks.Check) (Collector, error) {
-	sysInfo, err := checks.CollectSystemInfo(cfg)
-	if err != nil {
-		return Collector{}, err
-	}
-
+func NewCollector(syscfg *sysconfig.Config, hostInfo *checks.HostInfo, enabledChecks []checks.Check) (*Collector, error) {
 	runRealTime := !ddconfig.Datadog.GetBool("process_config.disable_realtime_checks")
-	for _, c := range enabledChecks {
-		c.Init(cfg, sysInfo)
+
+	cfg := &checks.SysProbeConfig{}
+	if syscfg != nil && syscfg.Enabled {
+		cfg.MaxConnsPerMessage = syscfg.MaxConnsPerMessage
+		cfg.SystemProbeAddress = syscfg.SocketAddress
 	}
 
-	return NewCollectorWithChecks(cfg, enabledChecks, runRealTime), nil
+	for _, c := range enabledChecks {
+		if err := c.Init(cfg, hostInfo); err != nil {
+			return nil, err
+		}
+	}
+
+	return NewCollectorWithChecks(hostInfo, enabledChecks, runRealTime)
 }
 
 // NewCollectorWithChecks creates a new Collector
-func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runRealTime bool) Collector {
+func NewCollectorWithChecks(hostInfo *checks.HostInfo, checks []checks.Check, runRealTime bool) (*Collector, error) {
 	queueSize := ddconfig.Datadog.GetInt("process_config.queue_size")
 	if queueSize <= 0 {
 		log.Warnf("Invalid check queue size: %d. Using default value: %d", queueSize, ddconfig.DefaultProcessQueueSize)
@@ -131,6 +138,11 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		queueBytes = ddconfig.DefaultProcessQueueBytes
 	}
 
+	orchestrator := oconfig.NewDefaultOrchestratorConfig()
+	if err := orchestrator.Load(); err != nil {
+		return nil, err
+	}
+
 	processResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating process check queue with max_size=%d and max_weight=%d", processResults.MaxSize(), processResults.MaxWeight())
 
@@ -141,7 +153,7 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
 
-	podResults := api.NewWeightedQueue(queueSize, int64(cfg.Orchestrator.PodQueueBytes))
+	podResults := api.NewWeightedQueue(queueSize, int64(orchestrator.PodQueueBytes))
 	log.Debugf("Creating pod check queue with max_size=%d and max_weight=%d", podResults.MaxSize(), podResults.MaxWeight())
 
 	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
@@ -152,9 +164,10 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
 	}
 
-	return Collector{
+	return &Collector{
 		rtIntervalCh:  make(chan time.Duration),
-		cfg:           cfg,
+		hostInfo:      hostInfo,
+		orchestrator:  orchestrator,
 		groupID:       atomic.NewInt32(rand.Int31()),
 		enabledChecks: checks,
 
@@ -173,7 +186,7 @@ func NewCollectorWithChecks(cfg *config.AgentConfig, checks []checks.Check, runR
 		runRealTime: runRealTime,
 
 		dropCheckPayloads: dropCheckPayloads,
-	}
+	}, nil
 }
 
 func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
@@ -182,7 +195,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	messages, err := c.Run(l.cfg, l.nextGroupID())
+	messages, err := c.Run(l.nextGroupID())
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -193,7 +206,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		checks.StoreCheckOutput(c.Name(), nil)
 	}
 
-	if c.Name() == config.PodCheckName {
+	if c.Name() == checks.PodCheckName {
 		handlePodChecks(l, start, messages, results)
 	} else {
 		l.messagesToResultsQueue(start, c.Name(), messages, results)
@@ -209,7 +222,7 @@ func (l *Collector) runCheckWithRealTime(c checks.CheckWithRealTime, results, rt
 	// update the last collected timestamp for info
 	updateLastCollectTime(start)
 
-	run, err := c.RunWithOptions(l.cfg, l.nextGroupID, options)
+	run, err := c.RunWithOptions(l.nextGroupID, options)
 	if err != nil {
 		log.Errorf("Unable to run check '%s': %s", c.Name(), err)
 		return
@@ -275,9 +288,9 @@ const (
 )
 
 // getRequestID generates a unique identifier (string representation of 64 bits integer) that is composed as follows:
-//	1. 22 bits of the seconds in the current month.
-//	2. 28 bits of hash of the hostname and process agent pid.
-// 	3. 14 bits of the current message in the batch being sent to the server.
+//  1. 22 bits of the seconds in the current month.
+//  2. 28 bits of hash of the hostname and process agent pid.
+//  3. 14 bits of the current message in the batch being sent to the server.
 func (l *Collector) getRequestID(start time.Time, chunkIndex int) string {
 	// The epoch is the beginning of the month of the `start` variable.
 	epoch := time.Date(start.Year(), start.Month(), 1, 0, 0, 0, 0, start.Location())
@@ -289,7 +302,7 @@ func (l *Collector) getRequestID(start time.Time, chunkIndex int) string {
 	// Next, we want 28 bits of hashed hostname & process agent pid.
 	if l.requestIDCachedHash == nil {
 		hash := fnv.New32()
-		hash.Write([]byte(l.cfg.HostName))
+		hash.Write([]byte(l.hostInfo.HostName))
 		hash.Write([]byte(strconv.Itoa(os.Getpid())))
 		hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 		l.requestIDCachedHash = &hostNamePIDHash
@@ -319,12 +332,12 @@ func (l *Collector) messagesToCheckResult(start time.Time, name string, messages
 		agentVersion, _ := version.Agent()
 		extraHeaders := make(http.Header)
 		extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(start.Unix())))
-		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
+		extraHeaders.Set(headers.HostHeader, l.hostInfo.HostName)
 		extraHeaders.Set(headers.ProcessVersionHeader, agentVersion.GetNumber())
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
 		extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
 
-		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
+		if l.orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
 				extraHeaders.Set(headers.ClusterIDHeader, cid)
 			}
@@ -372,8 +385,8 @@ func (l *Collector) run(exit chan struct{}) error {
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	orchestratorEps := make([]string, 0, len(l.cfg.Orchestrator.OrchestratorEndpoints))
-	for _, e := range l.cfg.Orchestrator.OrchestratorEndpoints {
+	orchestratorEps := make([]string, 0, len(l.orchestrator.OrchestratorEndpoints))
+	for _, e := range l.orchestrator.OrchestratorEndpoints {
 		orchestratorEps = append(orchestratorEps, e.Endpoint.String())
 	}
 	eventsEps := make([]string, 0, len(processEventsAPIEndpoints))
@@ -400,7 +413,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	}
 	updateEnabledChecks(checkNames)
 	updateDropCheckPayloads(l.dropCheckPayloads)
-	log.Infof("Starting process-agent for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s, enabled checks=%v", l.cfg.HostName, eps, eventsEps, orchestratorEps, checkNames)
+	log.Infof("Starting process-agent for host=%s, endpoints=%s, events endpoints=%s orchestrator endpoints=%s, enabled checks=%v", l.hostInfo.HostName, eps, eventsEps, orchestratorEps, checkNames)
 
 	go util.HandleSignals(exit)
 
@@ -469,7 +482,7 @@ func (l *Collector) run(exit chan struct{}) error {
 	// connections forwarder reuses processForwarder's config
 	connectionsForwarder := forwarder.NewDefaultForwarder(processForwarderOpts)
 
-	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.cfg.Orchestrator.OrchestratorEndpoints)))
+	podForwarderOpts := forwarder.NewOptionsWithResolvers(resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(l.orchestrator.OrchestratorEndpoints)))
 	podForwarderOpts.DisableAPIKeyChecking = true
 	podForwarderOpts.RetryQueuePayloadsTotalMaxSize = l.forwarderRetryQueueMaxBytes // Allow more in-flight requests than the default
 	podForwarder := forwarder.NewDefaultForwarder(podForwarderOpts)
@@ -581,11 +594,30 @@ func (l *Collector) runnerForCheck(c checks.Check, exit chan struct{}) (func(), 
 
 	rtResults := l.resultsQueueForCheck(withRealTime.RealTimeName())
 
+	interval := checks.GetInterval(withRealTime.Name())
+	rtInterval := checks.GetInterval(withRealTime.RealTimeName())
+
+	if interval < rtInterval || interval%rtInterval != 0 {
+		// Check interval must be greater or equal to realtime check interval and the intervals must be divisible
+		// in order to be run on the same goroutine
+		defaultInterval := checks.GetDefaultInterval(withRealTime.Name())
+		defaultRTInterval := checks.GetDefaultInterval(withRealTime.RealTimeName())
+		log.Warnf(
+			"Invalid %s check interval overrides [%s,%s], resetting to defaults [%s,%s]",
+			withRealTime.Name(),
+			interval,
+			rtInterval,
+			defaultInterval,
+			defaultRTInterval,
+		)
+		interval = defaultInterval
+		rtInterval = defaultRTInterval
+	}
+
 	return checks.NewRunnerWithRealTime(
 		checks.RunnerConfig{
-			CheckInterval: l.cfg.CheckInterval(withRealTime.Name()),
-			RtInterval:    l.cfg.CheckInterval(withRealTime.RealTimeName()),
-
+			CheckInterval:  interval,
+			RtInterval:     rtInterval,
 			ExitChan:       exit,
 			RtIntervalChan: l.rtIntervalCh,
 			RtEnabled: func() bool {
@@ -605,7 +637,7 @@ func (l *Collector) basicRunner(c checks.Check, results *api.WeightedQueue, exit
 			l.runCheck(c, results)
 		}
 
-		ticker := time.NewTicker(l.cfg.CheckInterval(c.Name()))
+		ticker := time.NewTicker(checks.GetInterval(c.Name()))
 		for {
 			select {
 			case <-ticker.C:
@@ -675,7 +707,7 @@ func (l *Collector) consumePayloads(results *api.WeightedQueue, fwd forwarder.Fo
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
-			case config.PodCheckManifestName:
+			case checks.PodCheckManifestName:
 				updateRTStatus = false
 				responses, err = fwd.SubmitOrchestratorManifests(forwarderPayload, payload.headers)
 			case checks.ProcessDiscovery.Name():
@@ -833,7 +865,7 @@ func readResponseStatuses(checkName string, responses <-chan forwarder.Response)
 
 func ignoreResponseBody(checkName string) bool {
 	switch checkName {
-	case checks.Pod.Name(), config.PodCheckManifestName, checks.ProcessEvents.Name():
+	case checks.Pod.Name(), checks.PodCheckManifestName, checks.ProcessEvents.Name():
 		return true
 	default:
 		return false
@@ -844,8 +876,8 @@ func ignoreResponseBody(checkName string) bool {
 // By default we only send pod payloads containing pod metadata and pod manifests (yaml)
 // Manifest payloads is a copy of pod manifests, we only send manifest payloads when feature flag is true
 func handlePodChecks(l *Collector, start time.Time, messages []model.MessageBody, results *api.WeightedQueue) {
-	l.messagesToResultsQueue(start, config.PodCheckName, messages[:len(messages)/2], results)
-	if l.cfg.Orchestrator.IsManifestCollectionEnabled {
-		l.messagesToResultsQueue(start, config.PodCheckManifestName, messages[len(messages)/2:], results)
+	l.messagesToResultsQueue(start, checks.PodCheckName, messages[:len(messages)/2], results)
+	if l.orchestrator.IsManifestCollectionEnabled {
+		l.messagesToResultsQueue(start, checks.PodCheckManifestName, messages[len(messages)/2:], results)
 	}
 }

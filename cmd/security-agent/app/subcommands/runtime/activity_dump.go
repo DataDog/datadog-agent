@@ -10,8 +10,9 @@ package runtime
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/comp/core"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -26,7 +27,7 @@ import (
 )
 
 type activityDumpCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	name                     string
 	containerID              string
@@ -42,7 +43,7 @@ type activityDumpCliParams struct {
 	remoteRequest            bool
 }
 
-func activityDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpCmd := &cobra.Command{
 		Use:   "activity-dump",
 		Short: "activity dump command",
@@ -55,15 +56,15 @@ func activityDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -72,7 +73,7 @@ func listCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpListCmd}
 }
 
-func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -84,8 +85,8 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -93,19 +94,19 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.name,
-		"name",
+		flags.Name,
 		"",
 		"an activity dump name can be used to filter the activity dump.",
 	)
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.containerID,
-		"containerID",
+		flags.ContainerID,
 		"",
 		"an containerID can be used to filter the activity dump.",
 	)
 	activityDumpStopCmd.Flags().StringVar(
 		&cliParams.comm,
-		"comm",
+		flags.Comm,
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
@@ -113,7 +114,7 @@ func stopCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpStopCmd}
 }
 
-func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpGenerateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "generate command for activity dumps",
@@ -125,7 +126,7 @@ func generateCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateCmd}
 }
 
-func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -137,8 +138,8 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -146,49 +147,49 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.comm,
-		"comm",
+		flags.Comm,
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
 	activityDumpGenerateDumpCmd.Flags().IntVar(
 		&cliParams.timeout,
-		"timeout",
+		flags.Timeout,
 		60,
 		"timeout for the activity dump in minutes",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.differentiateArgs,
-		"differentiate-args",
+		flags.DifferentiateArgs,
 		true,
 		"add the arguments in the process node merge algorithm",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
-		"output",
+		flags.Output,
 		"/tmp/activity_dumps/",
 		"local storage output directory",
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.localStorageCompression,
-		"compression",
+		flags.Compression,
 		false,
 		"defines if the local storage output should be compressed before persisting the data to disk",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
 		&cliParams.localStorageFormats,
-		"format",
+		flags.Format,
 		[]string{},
 		fmt.Sprintf("local storage output formats. Available options are %v.", config.AllStorageFormats()),
 	)
 	activityDumpGenerateDumpCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
-		"remote-compression",
+		flags.RemoteCompression,
 		true,
 		"defines if the remote storage output should be compressed before sending the data",
 	)
 	activityDumpGenerateDumpCmd.Flags().StringArrayVar(
 		&cliParams.remoteStorageFormats,
-		"remote-format",
+		flags.RemoteFormat,
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", config.AllStorageFormats()),
 	)
@@ -196,7 +197,7 @@ func generateDumpCommands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpGenerateDumpCmd}
 }
 
-func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &activityDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -208,8 +209,8 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -217,44 +218,44 @@ func generateEncodingCommands(globalParams *common.GlobalParams) []*cobra.Comman
 
 	activityDumpGenerateEncodingCmd.Flags().StringVar(
 		&cliParams.file,
-		"input",
+		flags.Input,
 		"",
 		"path to the activity dump file",
 	)
-	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired("input")
+	_ = activityDumpGenerateEncodingCmd.MarkFlagRequired(flags.Input)
 	activityDumpGenerateEncodingCmd.Flags().StringVar(
 		&cliParams.localStorageDirectory,
-		"output",
+		flags.Output,
 		"/tmp/activity_dumps/",
 		"local storage output directory",
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.localStorageCompression,
-		"compression",
+		flags.Compression,
 		false,
 		"defines if the local storage output should be compressed before persisting the data to disk",
 	)
 	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
 		&cliParams.localStorageFormats,
-		"format",
+		flags.Format,
 		[]string{},
 		fmt.Sprintf("local storage output formats. Available options are %v.", config.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteStorageCompression,
-		"remote-compression",
+		flags.RemoteCompression,
 		true,
 		"defines if the remote storage output should be compressed before sending the data",
 	)
 	activityDumpGenerateEncodingCmd.Flags().StringArrayVar(
 		&cliParams.remoteStorageFormats,
-		"remote-format",
+		flags.RemoteFormat,
 		[]string{},
 		fmt.Sprintf("remote storage output formats. Available options are %v.", config.AllStorageFormats()),
 	)
 	activityDumpGenerateEncodingCmd.Flags().BoolVar(
 		&cliParams.remoteRequest,
-		"remote",
+		flags.Remote,
 		false,
 		"when set, the transcoding will be done by system-probe instead of the current security-agent instance",
 	)

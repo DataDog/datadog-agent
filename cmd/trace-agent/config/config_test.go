@@ -1034,3 +1034,45 @@ func TestFargateConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestSetMaxMemCPU(t *testing.T) {
+	t.Run("default, non-containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		setMaxMemCPU(c, false)
+		assert.Equal(t, 0.5, c.MaxCPU)
+		assert.Equal(t, 5e8, c.MaxMemory)
+	})
+
+	t.Run("default, containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		setMaxMemCPU(c, true)
+		assert.Equal(t, 0.0, c.MaxCPU)
+		assert.Equal(t, 0.0, c.MaxMemory)
+	})
+
+	t.Run("limits set, non-containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		coreconfig.Datadog.Set("apm_config.max_cpu_percent", "20")
+		coreconfig.Datadog.Set("apm_config.max_memory", "200")
+		setMaxMemCPU(c, false)
+		assert.Equal(t, 0.2, c.MaxCPU)
+		assert.Equal(t, 200.0, c.MaxMemory)
+	})
+
+	t.Run("limits set, containerized", func(t *testing.T) {
+		cleanConfig()
+		defer cleanConfig()
+		c := config.New()
+		coreconfig.Datadog.Set("apm_config.max_cpu_percent", "30")
+		coreconfig.Datadog.Set("apm_config.max_memory", "300")
+		setMaxMemCPU(c, true)
+		assert.Equal(t, 0.3, c.MaxCPU)
+		assert.Equal(t, 300.0, c.MaxMemory)
+	})
+}

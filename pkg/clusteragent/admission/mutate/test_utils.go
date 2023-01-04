@@ -86,13 +86,15 @@ func fakePodWithLabel(k, v string) *corev1.Pod {
 }
 
 func fakePodWithAnnotation(k, v string) *corev1.Pod {
-	return &corev1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
+			Name: "pod",
 			Annotations: map[string]string{
 				k: v,
 			},
 		},
 	}
+	return withContainer(pod, "-container")
 }
 
 func fakePodWithEnv(name, env string) *corev1.Pod {

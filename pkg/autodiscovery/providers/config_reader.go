@@ -383,7 +383,7 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, error
 		if fargate.IsFargateInstance() {
 			// In Fargate, since no host tags are applied in the backend,
 			// add the configured DD_TAGS/DD_EXTRA_TAGS to the instance tags.
-			tags := config.GetConfiguredTags(false)
+			tags := config.GetGlobalConfiguredTags(false)
 			err := dataConf.MergeAdditionalTags(tags)
 			if err != nil {
 				log.Debugf("Could not add agent-level tags to instance of %v: %v", fpath, err)
