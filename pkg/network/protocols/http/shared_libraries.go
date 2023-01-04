@@ -69,7 +69,7 @@ func newPathIdentifier(path string) (pi pathIdentifier, err error) {
 
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		return pi, fmt.Errorf("invalid file stat")
+		return pi, fmt.Errorf("invalid file %q stat %T", path, info.Sys())
 	}
 
 	return pathIdentifier{
