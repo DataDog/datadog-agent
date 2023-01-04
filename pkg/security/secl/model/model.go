@@ -22,7 +22,6 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"sigs.k8s.io/json/internal/golang/encoding/json"
 )
 
 const (
@@ -212,11 +211,11 @@ type Event struct {
 	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-"`
 	PathResolutionError error                 `field:"-" json:"-"` // hold one of the path resolution error
 
-	// User Context, here we hold resolvers, etc.
-	UserCtx interface{}
+	// field resolution
+	FieldHandlers FieldHandlers `field:"-" json:"-"`
 
 	// Serializer
-	JSONMarshaler func(ev *Event) ([]byte, error)
+	JSONMarshaler func(ev *Event) ([]byte, error) `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {

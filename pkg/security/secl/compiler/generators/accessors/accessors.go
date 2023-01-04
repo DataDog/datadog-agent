@@ -554,7 +554,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 
 		if field, ok := allFields[path]; ok {
 			if field.IsOrigTypePtr {
-				result += fmt.Sprintf("if e.%s == nil { e.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
+				result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 			}
 		}
 	}
@@ -629,6 +629,39 @@ func getChecks(allFields map[string]*common.StructField, field *common.StructFie
 	return checks
 }
 
+func getHandlers(allFields map[string]*common.StructField) map[string]string {
+	handlers := make(map[string]string)
+
+	for _, field := range allFields {
+		if field.Handler != "" && !field.IsLength {
+			returnType := field.ReturnType
+			if field.IsArray {
+				returnType = "[]" + returnType
+			}
+
+			handler := fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
+
+			if _, exists := handlers[handler]; exists {
+				continue
+			}
+
+			name := "e" + strings.TrimPrefix(field.Name, field.Prefix)
+
+			if field.ReturnType == "int" {
+				if field.IsArray {
+					handlers[handler] = fmt.Sprintf("{ var result []int; for _, value := range %s { result = append(result, int(value)) }; return result }", name)
+				} else {
+					handlers[handler] = fmt.Sprintf("{ return int(%s) }", name)
+				}
+			} else {
+				handlers[handler] = fmt.Sprintf("{ return %s }", name)
+			}
+		}
+	}
+
+	return handlers
+}
+
 var funcMap = map[string]interface{}{
 	"TrimPrefix":       strings.TrimPrefix,
 	"TrimSuffix":       strings.TrimSuffix,
@@ -638,6 +671,7 @@ var funcMap = map[string]interface{}{
 	"GetFieldResolver": getFieldResolver,
 	"FieldADPrint":     fieldADPrint,
 	"GetChecks":        getChecks,
+	"GetHandlers":      getHandlers,
 }
 
 //go:embed accessors.tmpl
