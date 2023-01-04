@@ -9,8 +9,10 @@
 package http
 
 import (
+	"debug/elf"
 	"os"
 	"regexp"
+	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -18,7 +20,9 @@ import (
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -348,6 +352,28 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 	return func(id pathIdentifier, root string, path string) error {
 		uid := getUID(id)
 
+		elfFile, err := elf.Open(root + path)
+		if err != nil {
+			return err
+		}
+		defer elfFile.Close()
+
+		symbolsSet := make(common.StringSet, len(probes))
+		for _, singleProbe := range probes {
+			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
+				sp := strings.Split(selector.EBPFSection, "/")
+				symbol := sp[len(sp)-1]
+				if len(symbol) == 0 {
+					continue
+				}
+				symbolsSet[symbol] = struct{}{}
+			}
+		}
+		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
+		if err != nil {
+			return err
+		}
+
 		for _, singleProbe := range probes {
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
@@ -368,9 +394,21 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 					continue
 				}
 
+				sp := strings.Split(selector.EBPFSection, "/")
+				symbol := sp[len(sp)-1]
+				if len(symbol) == 0 {
+					continue
+				}
+				offset, err := bininspect.SymbolToOffset(elfFile, symbolMap[symbol])
+				if err != nil {
+					return err
+				}
+
 				newProbe := &manager.Probe{
 					ProbeIdentificationPair: identifier,
 					BinaryPath:              root + path,
+					UprobeOffset:            uint64(offset),
+					HookFuncName:            symbol,
 				}
 				_ = m.AddHook("", newProbe)
 			}
