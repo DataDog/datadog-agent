@@ -226,7 +226,11 @@ func (w *soWatcher) Start() {
 					root    = procPid + "/root"
 					cwd     = procPid + "/cwd"
 				)
-				if strings.HasPrefix(libPath, "/proc/") { //lib.Pid == uint32(thisPID) { // don't scan ourself when we resolve offsets
+
+				if strings.HasPrefix(libPath, "/proc/") {
+					// don't scan ourself when we resolve offsets via debug.elf.Open()
+					// but make the unit test pass as the pid of the test and the tracer would be the same
+					// that why we don't filter by lib.Pid == uint32(thisPID) here
 					continue
 				}
 
