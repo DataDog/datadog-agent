@@ -37,7 +37,7 @@ func (l *libPath) Bytes() []byte {
 	return l.Buf[:l.Len]
 }
 
-// pathIdentifier is the unique key (system wide) based on dev/inode
+// pathIdentifier is the unique key (system wide) of a file based on dev/inode
 type pathIdentifier struct {
 	dev   uint64
 	inode uint64
