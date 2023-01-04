@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
-	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
+	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
@@ -676,7 +676,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			validation: validateProtocolConnection,
 		},
 		{
-			name: "postgres - connection",
+			name: "postgres - connect",
 			context: testContext{
 				serverPort:       "5432",
 				clientDialer:     defaultDialer,
@@ -685,7 +685,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			shouldSkip: skipIfNotLinux,
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgres(t, addr, port)
+				pgutils.RunPostgresServer(t, addr, port)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
@@ -706,7 +706,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			shouldSkip: skipIfNotLinux,
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgres(t, addr, port)
+				pgutils.RunPostgresServer(t, addr, port)
 
 				db, taskCtx := pgutils.ConnectAndGetDB(t, ctx.serverAddress)
 
@@ -738,7 +738,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			shouldSkip: skipIfNotLinux,
 			preTracerSetup: func(t *testing.T, ctx testContext) {
 				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
-				pgutils.RunPostgres(t, addr, port)
+				pgutils.RunPostgresServer(t, addr, port)
 
 				db, taskCtx := pgutils.ConnectAndGetDB(t, ctx.serverAddress)
 
