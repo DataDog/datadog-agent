@@ -149,7 +149,7 @@ memory manager.
 Python memory telemetry is only available when using Python 3 (Python
 2 lacks the hooks necessary to implement this).
 
-Python memory telemetry is part of the agent internal telemetry and is
+Python memory telemetry is part of the Agent internal telemetry and is
 enabled by default. Set `telemetry.python_memory: false` to disable.
 
 | Internal name  | Default metric name         | Description                                                    |
