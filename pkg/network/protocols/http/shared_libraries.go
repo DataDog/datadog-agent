@@ -283,12 +283,13 @@ func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRu
 		log.Debugf("can't create path identifier %s", err)
 		return
 	}
+
+	r.m.Lock()
+	defer r.m.Unlock()
 	if _, found := r.blocklistByID[pathID]; found {
 		return
 	}
 
-	r.m.Lock()
-	defer r.m.Unlock()
 	if reg, found := r.byID[pathID]; found {
 		reg.refcount++
 		r.byPID[pid] = reg
