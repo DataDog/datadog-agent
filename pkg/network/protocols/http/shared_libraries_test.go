@@ -71,7 +71,7 @@ func TestSharedLibraryDetection(t *testing.T) {
 	assert.Equal(t, fpath, pathDetected)
 }
 
-func TestSharedLibraryDetectionWithRoot(t *testing.T) {
+func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 	t.Skip("skip for the moment as some distro are not friendly with busybox package")
 
 	tempDir := t.TempDir()
@@ -83,8 +83,6 @@ func TestSharedLibraryDetectionWithRoot(t *testing.T) {
 
 	simulateOpenAt(root + libpath)
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
-	require.NoError(t, err)
-	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
 	require.NoError(t, err)
 
 	perfHandler, doneFn := initEBPFProgram(t)
@@ -111,10 +109,13 @@ func TestSharedLibraryDetectionWithRoot(t *testing.T) {
 	watcher.Start()
 
 	time.Sleep(10 * time.Millisecond)
-	//	simulateOpenAt(fpath)
+	// simulate a slow (1 second) : open, write, close of the file
+	// in an new pid and mount namespaces
 	o, err := exec.Command("unshare", "--fork", "--pid", "-R", root, "/ash", "-c", fmt.Sprintf("sleep 1 > %s", libpath)).CombinedOutput()
-	t.Log(string(o))
-	assert.NoError(t, err)
+	if err != nil {
+		t.Log(string(err))
+	}
+	require.NoError(t, err)
 
 	time.Sleep(10 * time.Millisecond)
 
