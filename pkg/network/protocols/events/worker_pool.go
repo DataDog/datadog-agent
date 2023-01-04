@@ -22,7 +22,7 @@ type workerPool struct {
 
 func newWorkerPool(size int) (*workerPool, error) {
 	if size <= 0 {
-		return nil, fmt.Errorf("invalid worker pool size")
+		return nil, fmt.Errorf("invalid worker pool size %d", size)
 	}
 
 	pool := &workerPool{
