@@ -5,6 +5,8 @@
 #include <linux/kconfig.h>
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
+#include <uapi/linux/ipv6.h>
+#include <uapi/linux/udp.h>
 
 #include "tracer.h"
 #include "ip.h"

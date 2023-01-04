@@ -481,10 +481,10 @@ func TestTCPConnsReported(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {
-		testUDPSendAndReceive(t, "127.0.0.1:0")
+		testUDPSendAndReceive(t, "127.0.0.1:8001")
 	})
 	t.Run("v6", func(t *testing.T) {
-		testUDPSendAndReceive(t, "[::1]:0")
+		testUDPSendAndReceive(t, "[::1]:8001")
 	})
 }
 
