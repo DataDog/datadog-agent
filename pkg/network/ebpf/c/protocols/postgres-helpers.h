@@ -4,24 +4,6 @@
 #include "postgres-defs.h"
 #include "sql-helpers.h"
 
-// Regular format of postgres message: | byte tag | int32_t len | string payload |
-// From https://www.postgresql.org/docs/current/protocol-overview.html:
-// The first byte of a message identifies the message type, and the next four
-// bytes specify the length of the rest of the message (this length count
-// includes itself, but not the message-type byte). The remaining contents of
-// the message are determined by the message type
-struct pg_message_header {
-    __u8 message_tag;
-    __u32 message_len; // Big-endian: use bpf_ntohl to read this field
-} __attribute__((packed));
-
-// Postgres Startup Message (used when a client connects to the server) differs
-// from other messages by not having a message tag.
-struct pg_startup_header {
-    __u32 message_len; // Big-endian: use bpf_ntohl to read this field
-    __u32 version; // Big-endian: use bpf_ntohl to read this field
-};
-
 // is_postgres_connect checks if the buffer is a Postgres startup message.
 static __always_inline bool is_postgres_connect(const char *buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, POSTGRES_STARTUP_MIN_LEN);
