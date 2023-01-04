@@ -18,20 +18,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
 
-// PerfBatchManager is reponsbile for two things:
+// perfBatchManager is reponsbile for two things:
 //
 // * Keeping track of the state of each batch object we read off the perf ring;
 // * Detecting idle batches (this might happen in hosts with a low connection churn);
 //
 // The motivation is to impose an upper limit on how long a TCP close connection
 // event remains stored in the eBPF map before being processed by the NetworkAgent.
-type PerfBatchManager struct {
+type perfBatchManager struct {
 	// eBPF
 	batchMap *ebpf.Map
 
@@ -42,9 +41,9 @@ type PerfBatchManager struct {
 	expiredStateInterval time.Duration
 }
 
-// NewPerfBatchManager returns a new `PerfBatchManager` and initializes the
+// newPerfBatchManager returns a new `PerfBatchManager` and initializes the
 // eBPF map that holds the tcp_close batch objects.
-func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, error) {
+func newPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*perfBatchManager, error) {
 	if batchMap == nil {
 		return nil, fmt.Errorf("batchMap is nil")
 	}
@@ -60,7 +59,7 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 		}
 	}
 
-	return &PerfBatchManager{
+	return &perfBatchManager{
 		batchMap:             batchMap,
 		stateByCPU:           state,
 		expiredStateInterval: defaultExpiredStateInterval,
@@ -68,7 +67,7 @@ func NewPerfBatchManager(batchMap *ebpf.Map, numCPUs int) (*PerfBatchManager, er
 }
 
 // ExtractBatchInto extracts from the given batch all connections that haven't been processed yet.
-func (p *PerfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
+func (p *perfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, cpu int) {
 	if cpu >= len(p.stateByCPU) {
 		return
 	}
@@ -87,7 +86,7 @@ func (p *PerfBatchManager) ExtractBatchInto(buffer *network.ConnectionBuffer, b 
 // GetPendingConns return all connections that are in batches that are not yet full.
 // It tracks which connections have been processed by this call, by batch id.
 // This prevents double-processing of connections between GetPendingConns and Extract.
-func (p *PerfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
+func (p *perfBatchManager) GetPendingConns(buffer *network.ConnectionBuffer) {
 	b := new(netebpf.Batch)
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
@@ -129,7 +128,7 @@ type batchState struct {
 
 // ExtractBatchInto extract network.ConnectionStats objects from the given `batch` into the supplied `buffer`.
 // The `start` (inclusive) and `end` (exclusive) arguments represent the offsets of the connections we're interested in.
-func (p *PerfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, start, end uint16) {
+func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b *netebpf.Batch, start, end uint16) {
 	if start >= end || end > netebpf.BatchSize {
 		return
 	}
@@ -154,12 +153,12 @@ func (p *PerfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		}
 
 		conn := buffer.Next()
-		PopulateConnStats(conn, &ct.Tup, &ct.Conn_stats)
-		UpdateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
+		populateConnStats(conn, &ct.Tup, &ct.Conn_stats)
+		updateTCPStats(conn, ct.Conn_stats.Cookie, &ct.Tcp_stats)
 	}
 }
 
-func (p *PerfBatchManager) cleanupExpiredState(now time.Time) {
+func (p *perfBatchManager) cleanupExpiredState(now time.Time) {
 	for cpu := 0; cpu < len(p.stateByCPU); cpu++ {
 		cpuState := &p.stateByCPU[cpu]
 		for id, s := range cpuState.processed {
@@ -170,68 +169,7 @@ func (p *PerfBatchManager) cleanupExpiredState(now time.Time) {
 	}
 }
 
-func PopulateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
-	*stats = network.ConnectionStats{
-		Pid:    t.Pid,
-		NetNS:  t.Netns,
-		Source: t.SourceAddress(),
-		Dest:   t.DestAddress(),
-		SPort:  t.Sport,
-		DPort:  t.Dport,
-		Monotonic: network.StatCounters{
-			SentBytes:   s.Sent_bytes,
-			RecvBytes:   s.Recv_bytes,
-			SentPackets: s.Sent_packets,
-			RecvPackets: s.Recv_packets,
-		},
-		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		LastUpdateEpoch:  s.Timestamp,
-		IsAssured:        s.IsAssured(),
-		Cookie:           s.Cookie,
-	}
-
-	if network.IsValidProtocolValue(s.Protocol) {
-		stats.Protocol = network.ProtocolType(s.Protocol)
-	} else {
-		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
-	}
-
-	if t.Type() == netebpf.TCP {
-		stats.Type = network.TCP
-	} else {
-		stats.Type = network.UDP
-	}
-
-	switch t.Family() {
-	case netebpf.IPv4:
-		stats.Family = network.AFINET
-	case netebpf.IPv6:
-		stats.Family = network.AFINET6
-	}
-
-	switch s.ConnectionDirection() {
-	case netebpf.Incoming:
-		stats.Direction = network.INCOMING
-	case netebpf.Outgoing:
-		stats.Direction = network.OUTGOING
-	default:
-		stats.Direction = network.OUTGOING
-	}
-}
-
-func UpdateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
-	if conn.Type != network.TCP {
-		return
-	}
-
-	conn.Monotonic.Retransmits = tcpStats.Retransmits
-	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.RTT = tcpStats.Rtt
-	conn.RTTVar = tcpStats.Rtt_var
-}
-
-func NewConnBatchManager(mgr *manager.Manager) (*PerfBatchManager, error) {
+func newConnBatchManager(mgr *manager.Manager) (*perfBatchManager, error) {
 	connCloseEventMap, _, err := mgr.GetMap(string(probes.ConnCloseEventMap))
 	if err != nil {
 		return nil, err
@@ -243,7 +181,7 @@ func NewConnBatchManager(mgr *manager.Manager) (*PerfBatchManager, error) {
 	}
 
 	numCPUs := int(connCloseEventMap.MaxEntries())
-	batchMgr, err := NewPerfBatchManager(connCloseMap, numCPUs)
+	batchMgr, err := newPerfBatchManager(connCloseMap, numCPUs)
 	if err != nil {
 		return nil, err
 	}

@@ -14,22 +14,21 @@ import (
 
 	"go.uber.org/atomic"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const (
-	PerfReceivedStat = "perf_recv"
-	PerfLostStat     = "perf_lost"
+	perfReceivedStat = "perf_recv"
+	perfLostStat     = "perf_lost"
 )
 
-type TCPCloseConsumer struct {
+type tcpCloseConsumer struct {
 	perfHandler  *ddebpf.PerfHandler
-	batchManager *PerfBatchManager
+	batchManager *perfBatchManager
 	requests     chan chan struct{}
 	buffer       *network.ConnectionBuffer
 	once         sync.Once
@@ -39,8 +38,8 @@ type TCPCloseConsumer struct {
 	perfLost     *atomic.Int64
 }
 
-func NewTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *PerfBatchManager) (*TCPCloseConsumer, error) {
-	c := &TCPCloseConsumer{
+func newTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, batchManager *perfBatchManager) (*tcpCloseConsumer, error) {
+	c := &tcpCloseConsumer{
 		perfHandler:  perfHandler,
 		batchManager: batchManager,
 		requests:     make(chan chan struct{}),
@@ -51,7 +50,7 @@ func NewTCPCloseConsumer(m *manager.Manager, perfHandler *ddebpf.PerfHandler, ba
 	return c, nil
 }
 
-func (c *TCPCloseConsumer) FlushPending() {
+func (c *tcpCloseConsumer) FlushPending() {
 	if c == nil {
 		return
 	}
@@ -61,14 +60,14 @@ func (c *TCPCloseConsumer) FlushPending() {
 	<-wait
 }
 
-func (c *TCPCloseConsumer) GetStats() map[string]int64 {
+func (c *tcpCloseConsumer) GetStats() map[string]int64 {
 	return map[string]int64{
-		PerfReceivedStat: c.perfReceived.Load(),
-		PerfLostStat:     c.perfLost.Load(),
+		perfReceivedStat: c.perfReceived.Load(),
+		perfLostStat:     c.perfLost.Load(),
 	}
 }
 
-func (c *TCPCloseConsumer) Stop() {
+func (c *tcpCloseConsumer) Stop() {
 	if c == nil {
 		return
 	}
@@ -78,7 +77,7 @@ func (c *TCPCloseConsumer) Stop() {
 	})
 }
 
-func (c *TCPCloseConsumer) Start(callback func([]network.ConnectionStats)) {
+func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	if c == nil {
 		return
 	}

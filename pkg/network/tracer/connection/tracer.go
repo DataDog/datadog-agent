@@ -69,7 +69,7 @@ type tracer struct {
 	config   *config.Config
 
 	// tcp_close events
-	closeConsumer *TCPCloseConsumer
+	closeConsumer *tcpCloseConsumer
 
 	pidCollisions *atomic.Int64
 	removeTuple   *netebpf.ConnTuple
@@ -152,12 +152,12 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 		}
 	}
 
-	batchMgr, err := NewConnBatchManager(m)
+	batchMgr, err := newConnBatchManager(m)
 	if err != nil {
 		return nil, fmt.Errorf("could not create connection batch maanager: %w", err)
 	}
 
-	closeConsumer, err := NewTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
+	closeConsumer, err := newTCPCloseConsumer(m, perfHandlerTCP, batchMgr)
 	if err != nil {
 		return nil, fmt.Errorf("could not create TCPCloseConsumer: %w", err)
 	}
@@ -256,7 +256,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 	tel := newTelemetry()
 	entries := t.conns.Iterate()
 	for entries.Next(unsafe.Pointer(key), unsafe.Pointer(stats)) {
-		PopulateConnStats(conn, key, stats)
+		populateConnStats(conn, key, stats)
 
 		tel.addConnection(conn)
 
@@ -264,7 +264,7 @@ func (t *tracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*n
 			continue
 		}
 		if t.getTCPStats(tcp, key, seen) {
-			UpdateTCPStats(conn, stats.Cookie, tcp)
+			updateTCPStats(conn, stats.Cookie, tcp)
 		}
 		*buffer.Next() = *conn
 	}
@@ -383,8 +383,8 @@ func (t *tracer) GetTelemetry() map[string]int64 {
 	pidCollisions := t.pidCollisions.Load()
 
 	stats := map[string]int64{
-		"closed_conn_polling_lost":     closeStats[PerfLostStat],
-		"closed_conn_polling_received": closeStats[PerfReceivedStat],
+		"closed_conn_polling_lost":     closeStats[perfLostStat],
+		"closed_conn_polling_received": closeStats[perfReceivedStat],
 		"pid_collisions":               pidCollisions,
 
 		"tcp_failed_connects": int64(telemetry.Tcp_failed_connect),
@@ -473,4 +473,65 @@ func (t *tracer) getTCPStats(stats *netebpf.TCPStats, tuple *netebpf.ConnTuple, 
 
 	tuple.Pid = pid
 	return true
+}
+
+func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *netebpf.ConnStats) {
+	*stats = network.ConnectionStats{
+		Pid:    t.Pid,
+		NetNS:  t.Netns,
+		Source: t.SourceAddress(),
+		Dest:   t.DestAddress(),
+		SPort:  t.Sport,
+		DPort:  t.Dport,
+		Monotonic: network.StatCounters{
+			SentBytes:   s.Sent_bytes,
+			RecvBytes:   s.Recv_bytes,
+			SentPackets: s.Sent_packets,
+			RecvPackets: s.Recv_packets,
+		},
+		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
+		LastUpdateEpoch:  s.Timestamp,
+		IsAssured:        s.IsAssured(),
+		Cookie:           s.Cookie,
+	}
+
+	if network.IsValidProtocolValue(s.Protocol) {
+		stats.Protocol = network.ProtocolType(s.Protocol)
+	} else {
+		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
+	}
+
+	if t.Type() == netebpf.TCP {
+		stats.Type = network.TCP
+	} else {
+		stats.Type = network.UDP
+	}
+
+	switch t.Family() {
+	case netebpf.IPv4:
+		stats.Family = network.AFINET
+	case netebpf.IPv6:
+		stats.Family = network.AFINET6
+	}
+
+	switch s.ConnectionDirection() {
+	case netebpf.Incoming:
+		stats.Direction = network.INCOMING
+	case netebpf.Outgoing:
+		stats.Direction = network.OUTGOING
+	default:
+		stats.Direction = network.OUTGOING
+	}
+}
+
+func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *netebpf.TCPStats) {
+	if conn.Type != network.TCP {
+		return
+	}
+
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
+	conn.RTT = tcpStats.Rtt
+	conn.RTTVar = tcpStats.Rtt_var
 }

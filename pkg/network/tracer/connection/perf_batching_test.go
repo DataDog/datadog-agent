@@ -154,15 +154,15 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	assert.Equal(t, uint16(2), manager.stateByCPU[cpu].processed[batch.Id].offset)
 }
 
-func newEmptyBatchManager() *PerfBatchManager {
-	p := PerfBatchManager{stateByCPU: make([]percpuState, numTestCPUs)}
+func newEmptyBatchManager() *perfBatchManager {
+	p := perfBatchManager{stateByCPU: make([]percpuState, numTestCPUs)}
 	for cpu := 0; cpu < numTestCPUs; cpu++ {
 		p.stateByCPU[cpu] = percpuState{processed: make(map[uint64]batchState)}
 	}
 	return &p
 }
 
-func newTestBatchManager(t *testing.T) *PerfBatchManager {
+func newTestBatchManager(t *testing.T) *perfBatchManager {
 	rlimit.RemoveMemlock()
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Type:       ebpf.Hash,
@@ -173,7 +173,7 @@ func newTestBatchManager(t *testing.T) *PerfBatchManager {
 	require.NoError(t, err)
 	t.Cleanup(func() { m.Close() })
 
-	mgr, err := NewPerfBatchManager(m, numTestCPUs)
+	mgr, err := newPerfBatchManager(m, numTestCPUs)
 	require.NoError(t, err)
 	return mgr
 }
