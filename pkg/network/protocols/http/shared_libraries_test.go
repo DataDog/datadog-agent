@@ -86,6 +86,8 @@ func TestSharedLibraryDetectionWithPIDandRootNameSpace(t *testing.T) {
 	simulateOpenAt(root + libpath)
 	err = exec.Command("cp", "/usr/bin/busybox", root+"/ash").Run()
 	require.NoError(t, err)
+	err = exec.Command("cp", "/usr/bin/busybox", root+"/sleep").Run()
+	require.NoError(t, err)
 
 	perfHandler, doneFn := initEBPFProgram(t)
 	t.Cleanup(doneFn)
