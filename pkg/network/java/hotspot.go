@@ -289,7 +289,7 @@ func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error 
 	defer cleanConn()
 
 	var loadCommand string
-	isJar := strings.HasSuffix(filepath.Base(agentPath), ".jar")
+	isJar := strings.HasSuffix(agentPath, ".jar")
 	if isJar { // agent is a .jar
 		loadCommand = fmt.Sprintf("load instrument false %s", dstAgentPath)
 		if args != "" {
