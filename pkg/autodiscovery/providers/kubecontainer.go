@@ -23,36 +23,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-// KubeContainerConfigProvider implements the ConfigProvider interface for both pods and containers
-// This provider is meant to replace both the `ContainerConfigProvider` and the `KubeletConfigProvider` components.
-// Once the rollout is complete, `pkg/autodiscovery/providers/container.go` and `pkg/autodiscovery/providers/kubelet.go`
-// should be deleted and this provider should be renamed to something more generic such as
-// `ContainerConfigProvider`
-type KubeContainerConfigProvider struct {
+// ContainerConfigProvider implements the ConfigProvider interface for both pods and containers
+type ContainerConfigProvider struct {
 	workloadmetaStore workloadmeta.Store
 	configErrors      map[string]ErrorMsgSet                   // map[entity name]ErrorMsgSet
 	configCache       map[string]map[string]integration.Config // map[entity name]map[config digest]integration.Config
 	mu                sync.RWMutex
 }
 
-// NewKubeContainerConfigProvider returns a new ConfigProvider subscribed to both container
+// NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewKubeContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
-	return &KubeContainerConfigProvider{
+func NewContainerConfigProvider(*config.ConfigurationProviders) (ConfigProvider, error) {
+	return &ContainerConfigProvider{
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
 	}, nil
 }
 
-// String returns a string representation of the KubeContainerConfigProvider
-func (k *KubeContainerConfigProvider) String() string {
+// String returns a string representation of the ContainerConfigProvider
+func (k *ContainerConfigProvider) String() string {
 	return names.KubeContainer
 }
 
 // Stream starts listening to workloadmeta to generate configs as they come
 // instead of relying on a periodic call to Collect.
-func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
+func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	const name = "ad-kubecontainerprovider"
 
 	// outCh must be unbuffered. processing of workloadmeta events must not
@@ -90,7 +86,7 @@ func (k *KubeContainerConfigProvider) Stream(ctx context.Context) <-chan integra
 	return outCh
 }
 
-func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
+func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundle) integration.ConfigChanges {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -157,7 +153,7 @@ func (k *KubeContainerConfigProvider) processEvents(evBundle workloadmeta.EventB
 	return changes
 }
 
-func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, ErrorMsgSet) {
+func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integration.Config, ErrorMsgSet) {
 	var (
 		errMsgSet ErrorMsgSet
 		errs      []error
@@ -261,7 +257,7 @@ func (k *KubeContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]i
 	return configs, errMsgSet
 }
 
-func (k *KubeContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
+func (k *ContainerConfigProvider) generateContainerConfig(container *workloadmeta.Container) ([]integration.Config, []error) {
 	var (
 		errs    []error
 		configs []integration.Config
@@ -275,7 +271,7 @@ func (k *KubeContainerConfigProvider) generateContainerConfig(container *workloa
 }
 
 // GetConfigErrors returns a map of configuration errors for each namespace/pod
-func (k *KubeContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
+func (k *ContainerConfigProvider) GetConfigErrors() map[string]ErrorMsgSet {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -317,5 +313,5 @@ func findKubernetesInLabels(labels map[string]string) bool {
 }
 
 func init() {
-	RegisterProvider(names.KubeContainer, NewKubeContainerConfigProvider)
+	RegisterProvider(names.KubeContainer, NewContainerConfigProvider)
 }

@@ -22,7 +22,7 @@ import (
 func TestProcessEvents(t *testing.T) {
 	store := workloadmetatesting.NewStore()
 
-	cp := &KubeContainerConfigProvider{
+	cp := &ContainerConfigProvider{
 		workloadmetaStore: store,
 		configCache:       make(map[string]map[string]integration.Config),
 		configErrors:      make(map[string]ErrorMsgSet),
@@ -386,7 +386,7 @@ func TestGenerateConfig(t *testing.T) {
 				}
 			}
 
-			cp := &KubeContainerConfigProvider{
+			cp := &ContainerConfigProvider{
 				workloadmetaStore: store,
 				configCache:       make(map[string]map[string]integration.Config),
 				configErrors:      make(map[string]ErrorMsgSet),
