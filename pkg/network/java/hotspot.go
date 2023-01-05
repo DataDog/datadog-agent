@@ -31,6 +31,7 @@ import (
 //   o java process check if .attach_pid<his-pid> exit
 //   o then create an unix socket .java_pid<his-pid>
 //   o we can write command through the unix socket
+//   <pid-of-java> refers to the namespaced pid of the process.
 //
 // Public documentation https://openjdk.org/groups/hotspot/docs/Serviceability.html#battach
 //
@@ -44,7 +45,7 @@ type Hotspot struct {
 	socketPath string
 }
 
-// NewHotspot create an object to connect to an JVM hotspot
+// NewHotspot create an object to connect to a JVM hotspot
 // pid (host pid) and nsPid (within the namespace pid)
 func NewHotspot(pid int, nsPid int) (h *Hotspot, err error) {
 	h = &Hotspot{
