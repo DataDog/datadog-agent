@@ -267,7 +267,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 }
 
 // Attach an agent to the hotspot, uid/gid must be accessible read-only by the targeted hotspot
-func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
+func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error {
 
 	// ask JVM to create a socket to communicate
 	if err := h.attachJVMProtocol(uid, gid); err != nil {
@@ -275,7 +275,7 @@ func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 	}
 
 	// copy the agent in the cwd of the process and change his owner/group
-	agentPath, agentCleanup, err := h.copyAgent(agent, uid, gid)
+	dstAgentPath, agentCleanup, err := h.copyAgent(agentPath, uid, gid)
 	if err != nil {
 		return err
 	}
@@ -289,14 +289,14 @@ func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 	defer cleanConn()
 
 	var loadCommand string
-	isJar := strings.HasSuffix(filepath.Base(agent), ".jar")
+	isJar := strings.HasSuffix(filepath.Base(agentPath), ".jar")
 	if isJar { // agent is a .jar
-		loadCommand = fmt.Sprintf("load instrument false %s", agentPath)
+		loadCommand = fmt.Sprintf("load instrument false %s", dstAgentPath)
 		if args != "" {
 			loadCommand += "=" + args
 		}
 	} else {
-		loadCommand = fmt.Sprintf("load %s true", agentPath)
+		loadCommand = fmt.Sprintf("load %s true", dstAgentPath)
 		if args != "" {
 			loadCommand += " " + args
 		}
