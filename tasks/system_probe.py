@@ -1073,7 +1073,7 @@ def build_object_files(
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
-        ctx.run(f"find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
+        ctx.run(f"{sudo} find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
 
 
 def build_cws_object_files(
