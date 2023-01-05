@@ -84,7 +84,7 @@ func testInject(t *testing.T, prefix string) {
 	t.Log("=== Test Success ===")
 }
 
-// We testing injection on a java hotspot running
+// We test injection on a java hotspot running
 //  o on the host
 //  o in the container, _simulated_ by running java in his own PID namespace
 func TestInject(t *testing.T) {

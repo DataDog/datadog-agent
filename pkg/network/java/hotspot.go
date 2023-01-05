@@ -74,11 +74,12 @@ func (h *Hotspot) tmpPath() string {
 	return fmt.Sprintf("%s/tmp", h.root)
 }
 
-func (h *Hotspot) socketExists() bool {
+func (h *Hotspot) isSocketExists() bool {
 	mode, err := os.Stat(h.socketPath)
 	return err == nil && (mode.Mode()&fs.ModeSocket > 0)
 }
 
+// getPathOwner return the uid/gid pointed by the path
 func getPathOwner(path string) (uint32, uint32, error) {
 	mode, err := os.Stat(path)
 	if err != nil {
@@ -91,6 +92,11 @@ func getPathOwner(path string) (uint32, uint32, error) {
 	return stat.Uid, stat.Gid, nil
 }
 
+// copyAgent copy the agent-usm.jar to a directory where the running java process can load it.
+// the agent-usm.jar file must be readable from java process point of view
+// copyAgent return :
+//  o dstPath is path to the copy of agent-usm.jar (from container perspective), this would be pass to the hotspot command
+//  o cleanup must be called to remove the created file
 func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cleanup func(), err error) {
 	dstPath = h.cwd + "/" + filepath.Base(agent)
 	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
@@ -135,7 +141,9 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	}, nil
 }
 
-func (h *Hotspot) connect() (cleanup func(), err error) {
+// connect to the previously created hotspot unix socket
+// return close function must be call when finished
+func (h *Hotspot) connect() (close func(), err error) {
 	addr, err := net.ResolveUnixAddr("unix", h.socketPath)
 	if err != nil {
 		return nil, err
@@ -153,6 +161,9 @@ func (h *Hotspot) connect() (cleanup func(), err error) {
 	return func() { h.conn.Close() }, nil
 }
 
+// parseResponse parse the response from the hotspot command
+// JVM will return a command error code and some command have a specific return code
+// the response will contain the full message
 func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, response string, err error) {
 	line := 0
 	scanner := bufio.NewScanner(bytes.NewReader(buf))
@@ -213,7 +224,7 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	return nil
 }
 
-// the (short) protocol is following
+// attachJVMProtocol use this (short) protocol :
 //  o create a file .attach_pid%d
 //  o send a SIGQUIT signal
 //  o wait for socket file to be created by the java process
@@ -250,7 +261,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	}
 	defer os.Remove(attachPath)
 
-	process, _ := os.FindProcess(h.pid) // os.FindProcess() will never failed on linux
+	process, _ := os.FindProcess(h.pid) // os.FindProcess() will never fail on linux
 	if err := process.Signal(syscall.SIGQUIT); err != nil {
 		return fmt.Errorf("process %d/%d SIGQUIT failed : %s", h.pid, h.nsPid, err)
 	}
@@ -259,7 +270,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	end := time.Now().Add(6 * time.Second)
 	for end.After(time.Now()) {
 		time.Sleep(200 * time.Millisecond)
-		if h.socketExists() {
+		if h.isSocketExists() {
 			return nil
 		}
 	}
