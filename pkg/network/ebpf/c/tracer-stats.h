@@ -135,7 +135,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
+static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats, bool absolute_retransmits) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;
     t->pid = 0;
@@ -150,7 +150,9 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
         return;
     }
 
-    if (stats.retransmits > 0) {
+    if (absolute_retransmits) {
+        val->retransmits = stats.retransmits;
+    } else if (stats.retransmits > 0) {
         __sync_fetch_and_add(&val->retransmits, stats.retransmits);
     }
 
@@ -175,7 +177,7 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
     return 0;
 }
 
-__maybe_unused static __always_inline int handle_retransmit(struct sock *sk, int segs) {
+static __always_inline int handle_retransmit(struct sock *sk, int segs, bool use_retrans_out) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -184,24 +186,12 @@ __maybe_unused static __always_inline int handle_retransmit(struct sock *sk, int
     }
 
     tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
-
-    return 0;
-}
-
-static __always_inline int handle_retransmit_retrans_out(struct sock *sk) {
-    conn_tuple_t t = {};
-    u64 zero = 0;
-
-    if (!read_conn_tuple(&t, sk, zero, CONN_TYPE_TCP)) {
-        return 0;
+    if (use_retrans_out) {
+        u32 retrans_out;
+        bpf_probe_read(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
+        stats.retransmits = retrans_out;
     }
-
-    u32 retrans_out;
-    bpf_probe_read(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
-
-    tcp_stats_t stats = { .retransmits = retrans_out, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
+    update_tcp_stats(&t, stats, use_retrans_out);
 
     return 0;
 }
@@ -216,7 +206,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats);
+    update_tcp_stats(t, stats, false);
 }
 
 

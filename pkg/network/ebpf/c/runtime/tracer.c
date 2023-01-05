@@ -423,7 +423,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     struct sock* sk = args->sk;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     
-    return handle_retransmit_retrans_out(sk);
+    return handle_retransmit(sk, 0, true);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -443,7 +443,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats);
+    update_tcp_stats(&t, stats, false);
 
     return 0;
 }
