@@ -191,7 +191,7 @@ type inodeDiscarders struct {
 }
 
 func newInodeDiscarders(erpc *erpc.ERPC, dentryResolver *resolvers.DentryResolver) *inodeDiscarders {
-	event := NewEvent(nil, nil, nil)
+	event := NewEvent(nil, nil)
 	ctx := eval.NewContext(event.GetPointer())
 
 	id := &inodeDiscarders{

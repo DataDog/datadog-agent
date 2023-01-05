@@ -15,7 +15,7 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Commands returns a slice of subcommands for the `config` command in the Process Agent
@@ -146,17 +146,8 @@ func getConfigValue(globalParams *command.GlobalParams, args []string) error {
 }
 
 func getClient(globalParams *command.GlobalParams) (settings.Client, error) {
-	// Set up the config so we can get the port later
-	// We set this up differently from the main process-agent because this way is quieter
-	cfg := config.NewDefaultAgentConfig()
-	if globalParams.ConfFilePath != "" {
-		if err := config.LoadConfigIfExists(globalParams.ConfFilePath); err != nil {
-			return nil, err
-		}
-	}
-	err := cfg.LoadAgentConfig(globalParams.ConfFilePath)
-	if err != nil {
-		return nil, err
+	if err := command.BootstrapConfig(globalParams.ConfFilePath, true); err != nil {
+		return nil, log.Criticalf("Error parsing config: %s", err)
 	}
 
 	httpClient := apiutil.GetClient(false)

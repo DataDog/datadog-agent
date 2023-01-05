@@ -414,7 +414,7 @@ type AgentConfig struct {
 	MaxCatalogEntries int
 
 	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient
+	RemoteSamplingClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -464,7 +464,7 @@ func New() *AgentConfig {
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
-		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
+		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",

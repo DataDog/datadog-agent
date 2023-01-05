@@ -246,12 +246,12 @@ func GetFilledProcess(p *process.Process) *process.FilledProcess {
 }
 
 // EnvVars returns a array with the environment variables of the given pid
-func EnvVars(pid int32) ([]string, bool, error) {
+func EnvVars(pid int32) ([]string, error) {
 	filename := filepath.Join(util.HostProc(), fmt.Sprintf("/%d/environ", pid))
 
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	defer f.Close()
 
@@ -271,17 +271,14 @@ func EnvVars(pid int32) ([]string, bool, error) {
 	scanner.Split(zero)
 
 	var envs []string
-	truncated := false
 	for scanner.Scan() {
 		text := scanner.Text()
 		if len(text) > 0 {
 			envs = append(envs, text)
-		} else {
-			truncated = true
 		}
 	}
 
-	return envs, truncated, nil
+	return envs, nil
 }
 
 // ProcFSModule is a representation of a line in /proc/modules
