@@ -146,6 +146,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	return nil
 }
 
+// syncCache update cache with the first working pid
 func (mr *MountResolver) syncCache(mountID uint32, pids ...uint32) error {
 	var err error
 	var mnts []*mountinfo.Info
@@ -178,10 +179,8 @@ func (mr *MountResolver) syncCache(mountID uint32, pids ...uint32) error {
 		return nil
 	}
 
-	if err != nil {
-		// add to fallback limiter to avoid strom of file access
-		mr.fallbackLimiter.Add(mountID, now.Add(fallbackLimiterPeriod))
-	}
+	// add to fallback limiter to avoid storm of file access
+	mr.fallbackLimiter.Add(mountID, now.Add(fallbackLimiterPeriod))
 
 	return err
 }
