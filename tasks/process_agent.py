@@ -154,6 +154,7 @@ def gen_mocks(ctx):
     """
 
     interfaces = {
+        "./cmd/process-agent": ["Submitter"],
         "./pkg/process/checks": ["Check", "CheckWithRealTime"],
         "./pkg/process/net": ["SysProbeUtil"],
         "./pkg/process/procutil": ["Probe"],
