@@ -121,7 +121,7 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 		return "", nil, err
 	}
 	_, err = io.Copy(dst, srcAgent)
-	dst.Close() // we closing the file here as Chown will be call just after on the same path
+	dst.Close() // we are closing the file here as Chown will be call just after on the same path
 	if err != nil {
 		return "", nil, err
 	}
