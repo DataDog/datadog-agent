@@ -107,5 +107,7 @@ func (p *JavaTLSProgram) Stop() {
 		log.Debugf("java TLS ebpf subprogram is not enabled")
 		return
 	}
-	p.cleanupExec()
+	if p.cleanupExec != nil {
+		p.cleanupExec()
+	}
 }
