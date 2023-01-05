@@ -408,7 +408,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 	rs.AddListener(&listener)
 	addRuleExpr(t, rs, `unlink.file.path == "/var/log/httpd" && process.file.path == "/bin/touch"`)
 
-	event := rs.NewEvent()
+	event := rs.NewEvent().(*model.Event)
 	event.Init()
 
 	event.Type = uint32(model.FileUnlinkEventType)

@@ -771,6 +771,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	return errs
 }
 
+// NewEvent returns a new event using the embedded constructor
+func (rs *RuleSet) NewEvent() eval.Event {
+	return rs.eventCtor()
+}
+
 // NewRuleSet returns a new ruleset for the specified data model
 func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
