@@ -27,6 +27,15 @@ const (
 	defaultLogFile = "c:\\programdata\\datadog\\logs\\ddtray.log"
 )
 
+var (
+	// set by the build task and used to configure the logger to output to console when debugging.
+	// This value should correspond to the subsystem in the PE header.
+	//
+	// There will only be console output if the PE subsystem is "console", but the GUI functions will
+	// also fail, so this is really only useful for debugging setup/initialization or cmdline setup.
+	subsystem string
+)
+
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand() *cobra.Command {
 	systrayParams := systray.BundleParams{}
@@ -39,6 +48,15 @@ func MakeCommand() *cobra.Command {
 	} else {
 		logFilePath = defaultLogFile
 	}
+	fmt.Println(logFilePath)
+
+	// log params
+	var logParams log.Params
+	if subsystem == "windows" {
+		logParams = log.LogForDaemon("TRAY", "log_file", logFilePath)
+	} else if subsystem == "console" {
+		logParams = log.LogForOneShot("TRAY", "log_file", true)
+	}
 
 	// root command
 	cmd := &cobra.Command{
@@ -48,7 +66,7 @@ func MakeCommand() *cobra.Command {
 			return fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewParams(common.DefaultConfPath),
-					LogParams: log.LogForDaemon("TRAY", "log_file", logFilePath),
+					LogParams: logParams,
 				}),
 				core.Bundle,
 				fx.Supply(systrayParams),
@@ -56,6 +74,10 @@ func MakeCommand() *cobra.Command {
 			)
 		},
 	}
+
+	//
+	// NOTE: The command line help/usage will not be visible in the release binary because the PE subsystem is "windows"
+	//
 
 	cmd.PersistentFlags().BoolVar(&systrayParams.LaunchGuiFlag, "launch-gui", false, "Launch browser configuration and exit")
 

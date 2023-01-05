@@ -16,7 +16,7 @@ AGENT_TAG = "datadog/agent:master"
 
 
 @task
-def build(ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod="mod"):
+def build(ctx, debug=False, console=False, rebuild=False, race=False, major_version='7', arch="x64", go_mod="mod"):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
@@ -44,7 +44,14 @@ def build(ctx, rebuild=False, race=False, major_version='7', arch="x64", go_mod=
     command += "-i cmd/systray/systray.rc -O coff -o cmd/systray/rsrc.syso"
     ctx.run(command)
     ldflags = get_version_ldflags(ctx, major_version=major_version)
-    ldflags += "-s -w -linkmode external -extldflags '-Wl,--subsystem,windows' "
+    if not debug:
+        ldflags += "-s -w "
+    if console:
+        subsystem = 'console'
+    else:
+        subsystem = 'windows'
+    ldflags += f"-X {REPO_PATH}/cmd/systray/command/command.subsystem={subsystem} "
+    ldflags += f"-linkmode external -extldflags '-Wl,--subsystem,{subsystem}' "
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -o {agent_bin} -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/systray"
     args = {
         "go_mod": go_mod,
@@ -68,7 +75,7 @@ def run(ctx, rebuild=False, race=False, skip_build=False):
     if not skip_build:
         build(ctx, rebuild, race)
 
-    ctx.run(os.path.join(BIN_PATH, bin_name("ddtray.exe")))
+    ctx.run(os.path.join(BIN_PATH, bin_name("ddtray")))
 
 
 @task
@@ -82,4 +89,7 @@ def clean(ctx):
 
     # remove the bin/agent folder
     print("Remove systray executable")
-    ctx.run("rm -rf ./bin/agent/ddtray.exe")
+    try:
+        os.remove('./bin/agent/ddtray.exe')
+    except Exception as e:
+        print(e)
