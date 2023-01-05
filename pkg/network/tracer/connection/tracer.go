@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -77,6 +78,7 @@ type tracer struct {
 	telemetry telemetry
 
 	closeTracer func()
+	stopOnce    sync.Once
 }
 
 type telemetry struct {
@@ -145,7 +147,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 
 	if err != nil {
 		// load the kprobe tracer
-		log.Infof("fentry tracer not supported, falling back to kprobe tracer")
+		log.Info("fentry tracer not supported, falling back to kprobe tracer")
 		closeTracerFn, err = kprobe.LoadTracer(config, m, mgrOptions, perfHandlerTCP)
 		if err != nil {
 			return nil, err
@@ -190,6 +192,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor, bpfTel
 	}
 
 	if err := bpfTelemetry.RegisterEBPFTelemetry(m); err != nil {
+		tr.Stop()
 		return nil, fmt.Errorf("error registering ebpf telemetry: %v", err)
 	}
 
@@ -221,11 +224,13 @@ func (t *tracer) FlushPending() {
 }
 
 func (t *tracer) Stop() {
-	_ = t.m.Stop(manager.CleanAll)
-	t.closeConsumer.Stop()
-	if t.closeTracer != nil {
-		t.closeTracer()
-	}
+	t.stopOnce.Do(func() {
+		_ = t.m.Stop(manager.CleanAll)
+		t.closeConsumer.Stop()
+		if t.closeTracer != nil {
+			t.closeTracer()
+		}
+	})
 }
 
 func (t *tracer) GetMap(name string) *ebpf.Map {

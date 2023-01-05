@@ -11,7 +11,7 @@ package kprobe
 import (
 	"fmt"
 
-	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 const probeUID = "net"
@@ -109,7 +110,7 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		// in classification, preventing the program to load even though
 		// we won't use it. We change the type to a simple array map to
 		// circumvent that.
-		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+		mgrOpts.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
 			Type:       ebpf.Array,
 			EditorFlag: manager.EditType,
 		}

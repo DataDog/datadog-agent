@@ -196,6 +196,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
+		tr.Stop()
 		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
