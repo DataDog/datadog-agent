@@ -24,6 +24,10 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+const (
+	AgentUSMJar = "agent-usm.jar"
+)
+
 var (
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
@@ -49,7 +53,7 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		log.Errorf("java TLS support requires runtime-compilation to be enabled")
 		return nil
 	}
-	javaUSMAgentJarPath = filepath.Join(c.JavaDir, "agent-usm.jar")
+	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
