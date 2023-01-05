@@ -110,6 +110,11 @@ func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.Colle
 				continue
 			}
 
+			// Ignore unstable collectors.
+			if !collector.Metadata().IsStable {
+				continue
+			}
+
 			// Enable the cluster collector when the node resource is discovered.
 			if collector.Metadata().NodeType == orchestrator.K8sNode {
 				clusterCollector, _ := inventory.CollectorForDefaultVersion("clusters")

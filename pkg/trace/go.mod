@@ -10,11 +10,11 @@ go 1.18
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/otlp/model v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.42.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.42.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/sketches-go v1.4.1
 	github.com/Microsoft/go-winio v0.5.2
@@ -28,17 +28,17 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/tinylib/msgp v1.1.6
 	github.com/vmihailenco/msgpack/v4 v4.3.12
-	go.opentelemetry.io/collector/pdata v0.66.0
-	go.opentelemetry.io/collector/semconv v0.66.0
+	go.opentelemetry.io/collector/pdata v1.0.0-rc2
+	go.opentelemetry.io/collector/semconv v0.68.0
 	go.uber.org/atomic v1.10.0
-	golang.org/x/sys v0.2.0
+	golang.org/x/sys v0.3.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
 	google.golang.org/grpc v1.51.0
 	k8s.io/apimachinery v0.23.8
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.42.0-rc.3 // indirect
 	github.com/DataDog/go-tuf v0.3.0--fix-localmeta-fork // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
@@ -67,7 +67,7 @@ require (
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
 	golang.org/x/text v0.4.0 // indirect

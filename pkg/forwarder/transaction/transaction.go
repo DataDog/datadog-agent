@@ -300,7 +300,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 	transactionEndpointName := t.GetEndpointName()
 	logURL := scrubber.ScrubLine(url) // sanitized url that can be logged
 
-	req, err := http.NewRequest("POST", url, reader)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, reader)
 	if err != nil {
 		log.Errorf("Could not create request for transaction to invalid URL %q (dropping transaction): %s", logURL, err)
 		transactionsErrors.Add(1)
@@ -308,7 +308,6 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, client *http.Clie
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req = req.WithContext(ctx)
 	req.Header = t.Headers
 	resp, err := client.Do(req)
 

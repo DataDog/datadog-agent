@@ -10,12 +10,10 @@ package secrets
 
 import (
 	"fmt"
-	"os"
 	"os/user"
 	"syscall"
 )
 
-// checkRights validates that a secret backend has supported permissions
 func checkRights(path string, allowGroupExec bool) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
@@ -91,37 +89,4 @@ func checkGroupPermission(stat *syscall.Stat_t, usr *user.User, userGroups []str
 	}
 
 	return nil
-}
-
-// checkConfigFilePermissions validates that a config file has supported permissions when using secret_backend_command_sha256 hash
-var checkConfigFilePermissions = func(path string) error {
-	var stat syscall.Stat_t
-	if err := syscall.Stat(path, &stat); err != nil {
-		return fmt.Errorf("unable to check permissions for '%s': can't stat it: %s", path, err)
-	}
-
-	if stat.Uid != 0 || stat.Gid != 0 {
-		return fmt.Errorf("invalid config file permissions for '%s': not owned by root:root", path)
-	}
-
-	if stat.Mode&syscall.S_IWOTH != 0 {
-		return fmt.Errorf("invalid config file permissions for '%s': cannot have o+w permission", path)
-	}
-
-	return nil
-}
-
-// lockOpenFile opens the file and prevents overwrite and delete by another process
-func lockOpenFile(path string) (*os.File, error) {
-	fd, err := syscall.Open(path, syscall.O_CREAT|syscall.O_RDONLY, 0600)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = syscall.Flock(fd, syscall.LOCK_EX); err != nil {
-		syscall.Close(fd)
-		return nil, err
-	}
-
-	return os.NewFile(uintptr(fd), path), nil
 }

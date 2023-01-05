@@ -17,10 +17,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/gopsutil/host"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/compiler"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -69,6 +71,26 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 	if _, err := os.Stat(outputFile); err != nil {
 		if !os.IsNotExist(err) {
 			return nil, outputFileErr, fmt.Errorf("error stat-ing output file %s: %w", outputFile, err)
+		}
+
+		kv, err := kernel.HostVersion()
+		if err != nil {
+			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel version: %w", err)
+		}
+		_, family, _, err := host.PlatformInformation()
+		if err != nil {
+			return nil, kernelVersionErr, fmt.Errorf("unable to get kernel family: %w", err)
+		}
+
+		// RHEL platforms back-ported the __BPF_FUNC_MAPPER macro, so we can always use the dynamic method there
+		if kv >= kernel.VersionCode(4, 10, 0) || family == "rhel" {
+			var helperPath string
+			helperPath, err = includeHelperAvailability(kernelHeaders)
+			if err != nil {
+				return nil, compilationErr, fmt.Errorf("error getting helper availability: %w", err)
+			}
+			defer os.Remove(helperPath)
+			flags = append(flags, fmt.Sprintf("-include%s", helperPath))
 		}
 
 		if err := compiler.CompileToObjectFile(in, outputFile, flags, kernelHeaders); err != nil {

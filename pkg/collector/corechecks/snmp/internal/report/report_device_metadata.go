@@ -33,9 +33,10 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	device := buildNetworkDeviceMetadata(config.DeviceID, config.DeviceIDTags, config, metadataStore, tags, deviceStatus)
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
+	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore)
 
-	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, topologyLinks)
+	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -191,6 +192,32 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 	return interfaces
 }
 
+func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []metadata.IPAddressMetadata {
+	if store == nil {
+		// it's expected that the value store is nil if we can't reach the device
+		// in that case, we just return a nil slice.
+		return nil
+	}
+	indexes := store.GetColumnIndexes("ip_addresses.if_index")
+	if len(indexes) == 0 {
+		log.Debugf("Unable to build ip addresses metadata: no ip_addresses.if_index found")
+		return nil
+	}
+	sort.Strings(indexes)
+	var ipAddresses []metadata.IPAddressMetadata
+	for _, strIndex := range indexes {
+		index := store.GetColumnAsString("ip_addresses.if_index", strIndex)
+		Netmask := store.GetColumnAsString("ip_addresses.netmask", strIndex)
+		ipAddress := metadata.IPAddressMetadata{
+			InterfaceID: deviceID + ":" + index,
+			IPAddress:   strIndex,
+			Prefixlen:   int32(netmaskToPrefixlen(Netmask)),
+		}
+		ipAddresses = append(ipAddresses, ipAddress)
+	}
+	return ipAddresses
+}
+
 func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []metadata.TopologyLinkMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
@@ -267,7 +294,7 @@ func formatID(idType string, store *metadata.Store, field string, strIndex strin
 	return remoteDeviceID
 }
 
-func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata, topologyLinks []metadata.TopologyLinkMetadata) []metadata.NetworkDevicesMetadata {
+func batchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, device metadata.DeviceMetadata, interfaces []metadata.InterfaceMetadata, ipAddresses []metadata.IPAddressMetadata, topologyLinks []metadata.TopologyLinkMetadata) []metadata.NetworkDevicesMetadata {
 	var payloads []metadata.NetworkDevicesMetadata
 	var resourceCount int
 	payload := metadata.NetworkDevicesMetadata{
@@ -292,6 +319,20 @@ func batchPayloads(namespace string, subnet string, collectTime time.Time, batch
 		}
 		resourceCount++
 		payload.Interfaces = append(payload.Interfaces, interfaceMetadata)
+	}
+
+	for _, ipAddress := range ipAddresses {
+		if resourceCount == batchSize {
+			payloads = append(payloads, payload)
+			payload = metadata.NetworkDevicesMetadata{
+				Subnet:           subnet,
+				Namespace:        namespace,
+				CollectTimestamp: collectTime.Unix(),
+			}
+			resourceCount = 0
+		}
+		resourceCount++
+		payload.IPAddresses = append(payload.IPAddresses, ipAddress)
 	}
 
 	for _, linkMetadata := range topologyLinks {

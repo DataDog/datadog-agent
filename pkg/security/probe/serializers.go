@@ -163,7 +163,7 @@ type ProcessSerializer struct {
 	// Process ID
 	Pid uint32 `json:"pid,omitempty"`
 	// Parent Process ID
-	PPid uint32 `json:"ppid,omitempty"`
+	PPid *uint32 `json:"ppid,omitempty"`
 	// Thread ID
 	Tid uint32 `json:"tid,omitempty"`
 	// User ID
@@ -610,50 +610,58 @@ func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
 }
 
 func newProcessSerializer(ps *model.Process, e *Event) *ProcessSerializer {
-	argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
-	envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(ps)
-	argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(ps)
+	if ps.IsNotKworker() {
+		argv, argvTruncated := e.resolvers.ProcessResolver.GetProcessScrubbedArgv(ps)
+		envs, EnvsTruncated := e.resolvers.ProcessResolver.GetProcessEnvs(ps)
+		argv0, _ := e.resolvers.ProcessResolver.GetProcessArgv0(ps)
 
-	psSerializer := &ProcessSerializer{
-		ForkTime: getTimeIfNotZero(ps.ForkTime),
-		ExecTime: getTimeIfNotZero(ps.ExecTime),
-		ExitTime: getTimeIfNotZero(ps.ExitTime),
+		psSerializer := &ProcessSerializer{
+			ForkTime: getTimeIfNotZero(ps.ForkTime),
+			ExecTime: getTimeIfNotZero(ps.ExecTime),
+			ExitTime: getTimeIfNotZero(ps.ExitTime),
 
-		Pid:           ps.Pid,
-		Tid:           ps.Tid,
-		PPid:          ps.PPid,
-		Comm:          ps.Comm,
-		TTY:           ps.TTYName,
-		Executable:    newFileSerializer(&ps.FileEvent, e),
-		Argv0:         argv0,
-		Args:          argv,
-		ArgsTruncated: argvTruncated,
-		Envs:          envs,
-		EnvsTruncated: EnvsTruncated,
-		IsThread:      ps.IsThread,
-		IsKworker:     ps.IsKworker,
-	}
+			Pid:           ps.Pid,
+			Tid:           ps.Tid,
+			PPid:          getUint32Pointer(&ps.PPid),
+			Comm:          ps.Comm,
+			TTY:           ps.TTYName,
+			Executable:    newFileSerializer(&ps.FileEvent, e),
+			Argv0:         argv0,
+			Args:          argv,
+			ArgsTruncated: argvTruncated,
+			Envs:          envs,
+			EnvsTruncated: EnvsTruncated,
+			IsThread:      ps.IsThread,
+			IsKworker:     ps.IsKworker,
+		}
 
-	if ps.HasInterpreter() {
-		psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
-	}
+		if ps.HasInterpreter() {
+			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
+		}
 
-	credsSerializer := newCredentialsSerializer(&ps.Credentials)
-	// Populate legacy user / group fields
-	psSerializer.UID = credsSerializer.UID
-	psSerializer.User = credsSerializer.User
-	psSerializer.GID = credsSerializer.GID
-	psSerializer.Group = credsSerializer.Group
-	psSerializer.Credentials = &ProcessCredentialsSerializer{
-		CredentialsSerializer: credsSerializer,
-	}
+		credsSerializer := newCredentialsSerializer(&ps.Credentials)
+		// Populate legacy user / group fields
+		psSerializer.UID = credsSerializer.UID
+		psSerializer.User = credsSerializer.User
+		psSerializer.GID = credsSerializer.GID
+		psSerializer.Group = credsSerializer.Group
+		psSerializer.Credentials = &ProcessCredentialsSerializer{
+			CredentialsSerializer: credsSerializer,
+		}
 
-	if len(ps.ContainerID) != 0 {
-		psSerializer.Container = &ContainerContextSerializer{
-			ID: ps.ContainerID,
+		if len(ps.ContainerID) != 0 {
+			psSerializer.Container = &ContainerContextSerializer{
+				ID: ps.ContainerID,
+			}
+		}
+		return psSerializer
+	} else {
+		return &ProcessSerializer{
+			Pid:       ps.Pid,
+			Tid:       ps.Tid,
+			IsKworker: ps.IsKworker,
 		}
 	}
-	return psSerializer
 }
 
 func newDDContextSerializer(e *Event) *DDContextSerializer {
@@ -700,7 +708,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *Event, r *Resolver
 
 	if e == nil {
 		// custom events create an empty event
-		e = NewEvent(r, nil, nil)
+		e = NewEvent(r, nil)
 		e.ProcessContext = pc
 	}
 

@@ -122,7 +122,7 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
-	ddOrchestratorURL := "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	ddOrchestratorURL := "DD_ORCHESTRATOR_URL"
 	expectedValue := "123.datadoghq.com"
 	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
@@ -131,6 +131,50 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 	suite.NoError(err)
 
 	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+
+	// Override to make sure the precedence
+	ddOrchestratorURL = "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"
+	expectedValue = "456.datadoghq.com"
+	suite.T().Setenv(ddOrchestratorURL, expectedValue)
+	err = orchestratorCfg.Load()
+	suite.NoError(err)
+
+	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
+}
+
+func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
+	suite.T().Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://process1.com": ["key1"], "https://process2.com": ["key2"]}`)
+
+	expected := map[string]string{
+		"key1": "process1.com",
+		"key2": "process2.com",
+	}
+
+	actualEndpoints := []apicfg.Endpoint{}
+	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
+
+	// Override to make sure the precedence
+	suite.T().Setenv("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+
+	expected = map[string]string{
+		"key1": "orchestrator1.com",
+		"key2": "orchestrator2.com",
+		"key3": "orchestrator2.com",
+	}
+
+	actualEndpoints = []apicfg.Endpoint{}
+	err = extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
+	suite.NoError(err)
+	suite.Len(actualEndpoints, len(expected))
+	for _, actual := range actualEndpoints {
+		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
+	}
 }
 
 func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {

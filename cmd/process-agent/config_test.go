@@ -13,9 +13,9 @@ import (
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 func mkurl(rawurl string) *url.URL {
@@ -27,20 +27,20 @@ func mkurl(rawurl string) *url.URL {
 }
 
 func TestProcessDiscovery(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	// Make sure the process_discovery check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, false)
+		enabledChecks := getChecks(scfg, false)
 		assert.Contains(t, enabledChecks, checks.ProcessDiscovery)
 	})
 
 	// Make sure the process_discovery check can be disabled
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.NotContains(t, enabledChecks, checks.ProcessDiscovery)
 	})
 
@@ -48,13 +48,13 @@ func TestProcessDiscovery(t *testing.T) {
 	t.Run("mutual exclusion", func(t *testing.T) {
 		cfg.Set("process_config.process_discovery.enabled", true)
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.NotContains(t, enabledChecks, checks.ProcessDiscovery)
 	})
 }
 
 func TestContainerCheck(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	// Make sure the container check can be enabled if the process check is disabled
@@ -63,7 +63,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", false)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.Contains(t, enabledChecks, checks.Container)
 		assert.Contains(t, enabledChecks, checks.RTContainer)
 		assert.NotContains(t, enabledChecks, checks.Process)
@@ -75,7 +75,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.container_collection.enabled", true)
 		cfg.Set("process_config.disable_realtime_checks", true)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.Contains(t, enabledChecks, checks.Container)
 		assert.NotContains(t, enabledChecks, checks.RTContainer)
 	})
@@ -85,7 +85,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, ocfg, false)
+		enabledChecks := getChecks(scfg, false)
 		assert.NotContains(t, enabledChecks, checks.Container)
 		assert.NotContains(t, enabledChecks, checks.RTContainer)
 	})
@@ -95,7 +95,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
 		cfg.Set("process_config.container_collection.enabled", true)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.Contains(t, enabledChecks, checks.Process)
 		assert.NotContains(t, enabledChecks, checks.Container)
 		assert.NotContains(t, enabledChecks, checks.RTContainer)
@@ -108,24 +108,22 @@ func TestProcessCheck(t *testing.T) {
 	scfg, err := sysconfig.New("")
 	assert.NoError(t, err)
 
-	ocfg := &oconfig.OrchestratorConfig{}
-
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.NotContains(t, enabledChecks, checks.Process)
 	})
 
 	// Make sure the process check can be enabled
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.process_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.Contains(t, enabledChecks, checks.Process)
 	})
 }
 
 func TestSysprobeProcessModule(t *testing.T) {
-	cfg, ocfg := config.Mock(t), &oconfig.OrchestratorConfig{}
+	cfg := config.Mock(t)
 	cfg.Set("process_config.process_collection.enabled", true)
 	cfg.Set("system_probe_config.enabled", true)
 
@@ -134,7 +132,7 @@ func TestSysprobeProcessModule(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		_ = getChecks(scfg, ocfg, true)
+		_ = getChecks(scfg, true)
 		assert.True(t, checks.Process.SysprobeProcessModuleEnabled)
 	})
 
@@ -143,14 +141,13 @@ func TestSysprobeProcessModule(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		_ = getChecks(scfg, ocfg, false)
+		_ = getChecks(scfg, false)
 		assert.False(t, checks.Process.SysprobeProcessModuleEnabled)
 	})
 }
 
 func TestConnectionsCheck(t *testing.T) {
 	cfg := config.Mock(t)
-	ocfg := &oconfig.OrchestratorConfig{}
 	cfg.Set("system_probe_config.enabled", true)
 
 	t.Run("enabled", func(t *testing.T) {
@@ -158,7 +155,7 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.Contains(t, enabledChecks, checks.Connections)
 	})
 
@@ -167,55 +164,58 @@ func TestConnectionsCheck(t *testing.T) {
 		scfg, err := sysconfig.New("")
 		assert.NoError(t, err)
 
-		enabledChecks := getChecks(scfg, ocfg, true)
+		enabledChecks := getChecks(scfg, true)
 		assert.NotContains(t, enabledChecks, checks.Connections)
 	})
 }
 
 func TestPodCheck(t *testing.T) {
-	cfg := config.Mock(t)
+	config.SetDetectedFeatures(config.FeatureMap{config.Kubernetes: {}})
+	defer config.SetDetectedFeatures(nil)
 
 	t.Run("enabled", func(t *testing.T) {
+		// Resets the cluster name so that it isn't cached during the call to `getChecks()`
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", true)
+		cfg.Set("cluster_name", "test")
 
-		ocfg := oconfig.NewDefaultOrchestratorConfig()
-		ocfg.KubeClusterName = "test" // We can't reliably detect a kubernetes cluster in a test
-		assert.NoError(t, ocfg.Load())
-
-		enabledChecks := getChecks(&sysconfig.Config{}, ocfg, true)
+		enabledChecks := getChecks(&sysconfig.Config{}, true)
 		assert.Contains(t, enabledChecks, checks.Pod)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
+		clustername.ResetClusterName()
+		defer clustername.ResetClusterName()
+
+		cfg := config.Mock(t)
 		cfg.Set("orchestrator_explorer.enabled", false)
 
-		ocfg := oconfig.NewDefaultOrchestratorConfig()
-		ocfg.KubeClusterName = "test" // We can't reliably detect a kubernetes cluster in a test
-		assert.NoError(t, ocfg.Load())
-
-		enabledChecks := getChecks(&sysconfig.Config{}, ocfg, true)
+		enabledChecks := getChecks(&sysconfig.Config{}, true)
 		assert.NotContains(t, enabledChecks, checks.Pod)
 	})
 }
 
 func TestProcessEventsCheck(t *testing.T) {
-	scfg, ocfg := &sysconfig.Config{}, &oconfig.OrchestratorConfig{}
+	scfg := &sysconfig.Config{}
 	cfg := config.Mock(t)
 
 	t.Run("default", func(t *testing.T) {
-		enabledChecks := getChecks(scfg, ocfg, false)
+		enabledChecks := getChecks(scfg, false)
 		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
 	})
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", true)
-		enabledChecks := getChecks(scfg, ocfg, false)
+		enabledChecks := getChecks(scfg, false)
 		assert.Contains(t, enabledChecks, checks.ProcessEvents)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg.Set("process_config.event_collection.enabled", false)
-		enabledChecks := getChecks(scfg, ocfg, false)
+		enabledChecks := getChecks(scfg, false)
 		assert.NotContains(t, enabledChecks, checks.ProcessEvents)
 	})
 }

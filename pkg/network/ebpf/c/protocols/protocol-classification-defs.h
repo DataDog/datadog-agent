@@ -3,17 +3,16 @@
 
 #include <linux/types.h>
 
+#include "amqp-defs.h"
+#include "http2-defs.h"
+#include "http-classification-defs.h"
+#include "mongo-defs.h"
+#include "redis-defs.h"
+
 // Represents the max buffer size required to classify protocols .
 // We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
 // ATM, it is HTTP2_MARKER_SIZE + 8 bytes for padding,
 #define CLASSIFICATION_MAX_BUFFER (HTTP2_MARKER_SIZE + 8)
-
-// Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "HTTP/2 Connection Preface" section
-#define HTTP2_MARKER_SIZE 24
-
-// The minimal HTTP response has 17 characters: HTTP/1.1 200 OK\r\n
-// The minimal HTTP request has 16 characters: GET x HTTP/1.1\r\n
-#define HTTP_MIN_SIZE 16
 
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and
@@ -25,6 +24,9 @@ typedef enum {
     PROTOCOL_HTTP,
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
+    PROTOCOL_MONGO = 6,
+    PROTOCOL_AMQP = 8,
+    PROTOCOL_REDIS = 9,
     //  Add new protocols before that line.
     MAX_PROTOCOLS,
     __MAX_UINT8 = 255,

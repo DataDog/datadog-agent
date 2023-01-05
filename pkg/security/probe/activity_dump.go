@@ -576,6 +576,11 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 		return node
 	}
 
+	// drop processes with abnormal paths
+	if entry.GetPathResolutionError() != "" {
+		return node
+	}
+
 	// look for a ProcessActivityNode by process cookie
 	if entry.Cookie > 0 {
 		var found bool
@@ -1106,6 +1111,11 @@ func (ad *ActivityDump) InsertFileEventInProcess(pan *ProcessActivityNode, fileE
 		filePath = fileEvent.PathnameStr
 	}
 
+	// drop file events with abnormal paths
+	if event != nil && event.GetPathResolutionError() != nil {
+		return false
+	}
+
 	parent, nextParentIndex := extractFirstParent(filePath)
 	if nextParentIndex == 0 {
 		return false
@@ -1163,7 +1173,7 @@ func (ad *ActivityDump) snapshotProcess(pan *ProcessActivityNode) error {
 }
 
 func (ad *ActivityDump) insertSnapshotedSocket(pan *ProcessActivityNode, p *process.Process, family uint16, ip net.IP, port uint16) {
-	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
+	evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber)
 	evt.Event.Type = uint32(model.BindEventType)
 
 	evt.Bind.SyscallEvent.Retval = 0
@@ -1305,7 +1315,7 @@ func (pan *ProcessActivityNode) snapshotFiles(p *process.Process, ad *ActivityDu
 			continue
 		}
 
-		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber, ad.adm.probe)
+		evt := NewEvent(ad.adm.resolvers, ad.adm.scrubber)
 		evt.Event.Type = uint32(model.FileOpenEventType)
 
 		resolvedPath, err = filepath.EvalSymlinks(f)
