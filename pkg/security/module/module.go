@@ -354,14 +354,8 @@ func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*ru
 		},
 	})
 
-	eventCtor := func() eval.Event {
-		return &model.Event{
-			FieldHandlers: &model.DefaultFieldHandlers{},
-		}
-	}
-
 	// approver ruleset
-	approverRuleSet := rules.NewRuleSet(&model.Model{}, eventCtor, &opts, &evalOpts)
+	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 
 	// load policies
 	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)

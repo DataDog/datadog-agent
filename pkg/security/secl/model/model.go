@@ -29,7 +29,9 @@ const (
 )
 
 // Model describes the data model for the runtime security agent events
-type Model struct{}
+type Model struct {
+	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -115,6 +117,10 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 				return fmt.Errorf("the name provided in %s must be at most %d characters, len(\"%s\") = %d", field, MaxBpfObjName, value, len(value))
 			}
 		}
+	}
+
+	if m.ExtraValidateFieldFnc != nil {
+		return m.ExtraValidateFieldFnc(field, fieldValue)
 	}
 
 	return nil
@@ -244,6 +250,13 @@ func initMember(member reflect.Value, deja map[string]bool) {
 
 			initMember(field, deja)
 		}
+	}
+}
+
+// NewDefaultEvent returns a new event using the default field handlers
+func NewDefaultEvent() eval.Event {
+	return &Event{
+		FieldHandlers: &DefaultFieldHandlers{},
 	}
 }
 

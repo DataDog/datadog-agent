@@ -1118,7 +1118,7 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 		}
 	}
 
-	return rules.NewRuleSet(&model.Model{}, eventCtor, opts, evalOpts)
+	return rules.NewRuleSet(NewModel(p), eventCtor, opts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is

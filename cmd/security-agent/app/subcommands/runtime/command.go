@@ -464,14 +464,13 @@ func checkPoliciesInner(dir string) error {
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+					return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
 				}, nil)
 			},
 		}).
 		WithLogger(seclog.DefaultLogger)
 
-	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {

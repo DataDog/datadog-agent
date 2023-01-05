@@ -9,8 +9,12 @@
 package probe
 
 import (
+	"fmt"
+
 	"github.com/mailru/easyjson/jwriter"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -21,26 +25,26 @@ const (
 
 var eventZero model.Event
 
-// ValidateField validates the value of a field
-/*func (fh *FieldHandlers) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	if err := m.Model.ValidateField(field, fieldValue); err != nil {
-		return err
+// NewModel returns a new model with some extra field validation
+func NewModel(probe *Probe) *model.Model {
+	return &model.Model{
+		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
+			switch field {
+			case "bpf.map.name":
+				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
+					return fmt.Errorf("%s is not available on this kernel version", field)
+				}
+
+			case "bpf.prog.name":
+				if offset, found := probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
+					return fmt.Errorf("%s is not available on this kernel version", field)
+				}
+			}
+
+			return nil
+		},
 	}
-
-	switch field {
-	case "bpf.map.name":
-		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFMapStructName]; !found || offset == constantfetch.ErrorSentinel {
-			return fmt.Errorf("%s is not available on this kernel version", field)
-		}
-
-	case "bpf.prog.name":
-		if offset, found := m.probe.constantOffsets[constantfetch.OffsetNameBPFProgAuxStructName]; !found || offset == constantfetch.ErrorSentinel {
-			return fmt.Errorf("%s is not available on this kernel version", field)
-		}
-	}
-
-	return nil
-}*/
+}
 
 // NewEvent returns a new event
 func NewEvent(fh *FieldHandlers, marshaler *EventMarshaler) *model.Event {
