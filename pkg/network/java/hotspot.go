@@ -228,16 +228,15 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	var ownerErr error
 	if err == nil {
 		hook.Close()
-		// we don't check Chown() return error here as it can fail on some filesystems (ex: force_uid (like nfs))
+		// we don't check Chown() return error here as it can fail on some filesystems (read below)
 		_ = syscall.Chown(attachPath, uid, gid)
 		hookUID, _, ownerErr = getPathOwner(attachPath)
 	}
 	if err != nil || ownerErr != nil || hookUID != uint32(uid) {
-		// we failed to create the .attach_pid file in the process directory
-		// let's try in /tmp
+		// We trying an alternative attach path (in /tmp)
+		//  o if we can't create one in the cwd of the java process (probably read only filesystem)
+		//  o the filesystem changed the owner (id mapped mounts, like nfs force_uid, ...)
 
-		// Note: some filesystem over write the owner when creating a file
-		// JVM doesn't like this
 		if ownerErr == nil {
 			os.Remove(attachPath)
 		}
@@ -250,9 +249,6 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 		hook.Close()
 	}
 	defer os.Remove(attachPath)
-	if err != nil {
-		return err
-	}
 
 	process, _ := os.FindProcess(h.pid)
 	if err := process.Signal(syscall.SIGQUIT); err != nil {
