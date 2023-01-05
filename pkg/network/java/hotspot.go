@@ -84,7 +84,10 @@ func getPathOwner(path string) (uint32, uint32, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	stat := mode.Sys().(*syscall.Stat_t)
+	stat, ok := mode.Sys().(*syscall.Stat_t)
+	if stat == nil || !ok {
+		return 0, 0, fmt.Errorf("stat cast issue on path %s %T", path, mode.Sys())
+	}
 	return stat.Uid, stat.Gid, nil
 }
 
@@ -94,8 +97,11 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 		// if the destination file already exist
 		// check if it's not the source agent file
 		if src, err := os.Stat(agent); err == nil {
-			s := src.Sys().(*syscall.Stat_t)
-			d := dst.Sys().(*syscall.Stat_t)
+			s, oks := src.Sys().(*syscall.Stat_t)
+			d, okd := dst.Sys().(*syscall.Stat_t)
+			if s == nil || d == nil || !oks || !okd {
+				return "", nil, fmt.Errorf("stat cast issue on path %s %T %s %T", agent, src.Sys(), h.root+dstPath, dst.Sys())
+			}
 			if s.Dev == d.Dev && s.Ino == d.Ino {
 				return "", func() {}, nil
 			}
