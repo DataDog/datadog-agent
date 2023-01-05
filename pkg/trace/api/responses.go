@@ -15,6 +15,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -111,7 +112,7 @@ func httpRateByService(ratesVersion string, w http.ResponseWriter, dynConf *samp
 		Rates: currentState.Rates,
 	}
 	if ratesVersion != "" {
-		w.Header().Set(headerRatesPayloadVersion, currentState.Version)
+		w.Header().Set(semconv.HeaderRatesPayloadVersion, currentState.Version)
 		if ratesVersion == currentState.Version {
 			_, err = wc.Write([]byte("{}"))
 			return

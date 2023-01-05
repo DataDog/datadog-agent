@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -158,14 +159,14 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set Datadog headers, except API key which is set per-endpoint
 	if containerID != "" {
-		req.Header.Set(headerContainerID, containerID)
+		req.Header.Set(semconv.HeaderContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
-	req.Header.Set(headerContainerID, containerID)
+	req.Header.Set(semconv.HeaderContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
 	}

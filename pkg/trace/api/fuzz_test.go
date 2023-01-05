@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
@@ -183,8 +184,8 @@ func FuzzHandleStats(f *testing.F) {
 			t.Fatalf("Couldn't create http request: %v", err)
 		}
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(headerLang, "lang")
-		req.Header.Set(headerTracerVersion, "0.0.1")
+		req.Header.Set(semconv.HeaderLang, "lang")
+		req.Header.Set(semconv.HeaderTracerVersion, "0.0.1")
 		var client http.Client
 		resp, err := client.Do(req)
 		if err != nil {

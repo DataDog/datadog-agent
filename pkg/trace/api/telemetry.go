@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -84,7 +85,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 
 		if cid := r.containerIDProvider.GetContainerID(req.Context(), req.Header); cid != "" {
-			req.Header.Set(headerContainerID, cid)
+			req.Header.Set(semconv.HeaderContainerID, cid)
 		} else {
 			metrics.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
 		}

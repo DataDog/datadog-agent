@@ -32,5 +32,5 @@ func NewIDProvider(_ string) IDProvider {
 }
 
 func (_ *idProvider) GetContainerID(_ context.Context, h http.Header) string {
-	return h.Get(headerContainerID)
+	return h.Get(semconv.HeaderContainerID)
 }
