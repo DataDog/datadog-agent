@@ -48,14 +48,14 @@ type TCPQueueLengthTracer struct {
 func NewTCPQueueLengthTracer(cfg *ebpf.Config) (*TCPQueueLengthTracer, error) {
 	if cfg.EnableCORE {
 		probe, err := loadTCPQueueLengthCOREProbe(cfg)
-		if err == nil {
+		if err != nil {
+			if !cfg.AllowRuntimeCompiledFallback {
+				return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
+			}
+			log.Warnf("error loading CO-RE tcp-queue-length probe: %s. falling back to runtime compiled probe", err)
+		} else {
 			return probe, nil
 		}
-
-		if !cfg.AllowRuntimeCompiledFallback {
-			return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
-		}
-		log.Warnf("error loading CO-RE tcp-queue-length probe: %s. falling back to runtime compiled probe", err)
 	}
 
 	return loadTCPQueueLengthRuntimeCompiledProbe(cfg)
