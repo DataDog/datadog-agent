@@ -17,6 +17,7 @@ import (
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
+	tracesemconv "github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -532,8 +533,8 @@ func TestOTLPReceiver(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
 		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
-			headerLang:        {"go"},
-			headerContainerID: {"containerdID"},
+			tracesemconv.HeaderLang:        {"go"},
+			tracesemconv.HeaderContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
 		ps := make([]*Payload, 2)
 		timeout := time.After(time.Second / 2)
@@ -764,10 +765,10 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("tagsFromHeaders", func(t *testing.T) {
 		out := tagsFromHeaders(http.Header(map[string][]string{
-			headerLang:                  {"go"},
-			headerLangVersion:           {"1.14"},
-			headerLangInterpreter:       {"x"},
-			headerLangInterpreterVendor: {"y"},
+			tracesemconv.HeaderLang:                  {"go"},
+			tracesemconv.HeaderLangVersion:           {"1.14"},
+			tracesemconv.HeaderLangInterpreter:       {"x"},
+			tracesemconv.HeaderLangInterpreterVendor: {"y"},
 		}), otlpProtocolGRPC)
 		assert.Equal(t, []string{"endpoint_version:opentelemetry_grpc_v1", "lang:go", "lang_version:1.14", "interpreter:x", "lang_vendor:y"}, out)
 	})
@@ -1076,8 +1077,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					assert.Equal(wante, gote)
 				case "_dd.container_tags":
 					// order not guaranteed, so we need to unpack and sort to compare
-					gott := strings.Split(got.Meta[tagContainersTags], ",")
-					wantt := strings.Split(want.Meta[tagContainersTags], ",")
+					gott := strings.Split(got.Meta[tracesemconv.TagContainersTags], ",")
+					wantt := strings.Split(want.Meta[tracesemconv.TagContainersTags], ",")
 					sort.Strings(gott)
 					sort.Strings(wantt)
 					assert.Equal(wantt, gott)
@@ -1266,8 +1267,8 @@ func trimSpaces(str string) string {
 
 func BenchmarkProcessRequest(b *testing.B) {
 	metadata := http.Header(map[string][]string{
-		headerLang:        {"go"},
-		headerContainerID: {"containerdID"},
+		tracesemconv.HeaderLang:        {"go"},
+		tracesemconv.HeaderContainerID: {"containerdID"},
 	})
 	out := make(chan *Payload, 100)
 	end := make(chan struct{})

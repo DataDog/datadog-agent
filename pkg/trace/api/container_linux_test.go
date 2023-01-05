@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		req.Header.Add(headerContainerID, containerID)
+		req.Header.Add(semconv.HeaderContainerID, containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
@@ -102,7 +103,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		req.Header.Add(headerContainerID, containerID)
+		req.Header.Add(semconv.HeaderContainerID, containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
