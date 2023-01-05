@@ -23,6 +23,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+var (
+	missingBTFS = map[string]struct{}{
+		"4.18.0-1018-azure":            {},
+		"4.18.0-147.43.1.el8_1.x86_64": {},
+	}
+)
+
+func isMissingBTF(kv string) bool {
+	_, ok := missingBTFS[kv]
+	return ok
+}
+
 func TestTCPQueueLengthCompile(t *testing.T) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
@@ -50,7 +62,7 @@ func TestTCPQueueLengthTracer(t *testing.T) {
 	cfg := ebpf.NewConfig()
 
 	fullKV := host.GetStatusInformation().KernelVersion
-	if cfg.EnableCORE && (fullKV == "4.18.0-1018-azure" || fullKV == "4.18.0-147.43.1.el8_1.x86_64") {
+	if cfg.EnableCORE && isMissingBTF(fullKV) {
 		t.Skipf("Skipping CO-RE tests for kernel version %v due to missing BTFs", fullKV)
 	}
 
