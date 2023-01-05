@@ -233,7 +233,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 		hookUID, _, ownerErr = getPathOwner(attachPath)
 	}
 	if err != nil || ownerErr != nil || hookUID != uint32(uid) {
-		// We trying an alternative attach path (in /tmp)
+		// We are trying an alternative attach path (in /tmp)
 		//  o if we can't create one in the cwd of the java process (probably read only filesystem)
 		//  o the filesystem changed the owner (id mapped mounts, like nfs force_uid, ...)
 
