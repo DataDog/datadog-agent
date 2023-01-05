@@ -31,9 +31,9 @@ const (
 var (
 	// path to our java USM agent TLS tracer
 	javaUSMAgentJarPath = ""
-	// randomID is used here as an identifier, simple proof of authenticity
+	// authID is used here as an identifier, simple proof of authenticity
 	// between the injected java process and the ebpf ioctl that receive the payload
-	randomID = int64(0)
+	authID = int64(0)
 )
 
 type JavaTLSProgram struct {
@@ -67,7 +67,7 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 	}
 
 	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
-	randomID = rand.Int63()
+	authID = rand.Int63()
 }
 
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
@@ -77,7 +77,7 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdent
 }
 
 func newJavaProcess(pid uint32) {
-	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(randomID, 10)); err != nil {
+	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(authID, 10)); err != nil {
 		log.Error(err)
 	}
 }
