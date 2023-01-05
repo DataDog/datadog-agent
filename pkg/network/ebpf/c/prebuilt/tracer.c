@@ -477,7 +477,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     int segs = args->segs;
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     log_debug("kretprobe/tcp_retransmit: segs: %d\n", segs);
-    return handle_retransmit(sk, segs, false);
+    return handle_retransmit(sk, segs, RETRANSMIT_COUNT_INCREMENT);
 }
 
 SEC("kprobe/tcp_set_state")
@@ -497,7 +497,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats, false);
+    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_INCREMENT);
 
     return 0;
 }
