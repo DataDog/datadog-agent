@@ -79,12 +79,13 @@ func (p *JavaTLSProgram) GetAllUndefinedProbes() (probeList []manager.ProbeIdent
 
 func newJavaProcess(pid uint32) {
 	if err := java.InjectAgent(int(pid), javaUSMAgentJarPath, strconv.FormatInt(randomID, 10)); err != nil {
-		log.Errorf("%v", err)
+		log.Error(err)
 	}
 }
 
 func (p *JavaTLSProgram) Start() {
 	if p == nil {
+		log.Debugf("java TLS ebpf subprogram is not enabled")
 		return
 	}
 
@@ -103,6 +104,7 @@ func (p *JavaTLSProgram) Start() {
 
 func (p *JavaTLSProgram) Stop() {
 	if p == nil {
+		log.Debugf("java TLS ebpf subprogram is not enabled")
 		return
 	}
 	p.cleanupExec()
