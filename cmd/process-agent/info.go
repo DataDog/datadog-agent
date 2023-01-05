@@ -24,7 +24,6 @@ import (
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -287,7 +286,6 @@ type StatusInfo struct {
 	Uptime                          int                    `json:"uptime"`
 	MemStats                        struct{ Alloc uint64 } `json:"memstats"`
 	Version                         version.Version        `json:"version"`
-	Config                          config.AgentConfig     `json:"config"`
 	DockerSocket                    string                 `json:"docker_socket"`
 	LastCollectTime                 string                 `json:"last_collect_time"`
 	ProcessCount                    int                    `json:"process_count"`

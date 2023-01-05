@@ -57,7 +57,12 @@ static __always_inline void read_into_buffer_for_classification(char *buffer, st
     // we are doing `buffer[0]` here, there is not dynamic computation on that said register after this,
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
-    if (offset + 14 < len) {
+    // Check that we have enough room in the request fragment buffer. Even
+    // though that's not strictly needed here, the verifier does not know that,
+    // so this check makes it happy.
+    if (i * BLK_SIZE >= CLASSIFICATION_MAX_BUFFER) {
+        return;
+    } else if (offset + 14 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
     } else if (offset + 13 < len) {
         bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);

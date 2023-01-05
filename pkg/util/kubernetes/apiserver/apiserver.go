@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -99,6 +100,9 @@ type APIClient struct {
 
 	// VPAClient holds kubernetes VerticalPodAutoscalers client
 	VPAClient vpa.Interface
+
+	// VPAInformerFactory
+	VPAInformerFactory vpai.SharedInformerFactory
 
 	// timeoutSeconds defines the kubernetes client timeout
 	timeoutSeconds int64
@@ -239,6 +243,13 @@ func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
 	return vpa.NewForConfig(clientConfig)
 }
 
+// VPAInformerFactory vpai.SharedInformerFactory
+func getVPAInformerFactory(client vpa.Interface) (vpai.SharedInformerFactory, error) {
+	// default to 300s
+	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
+	return vpai.NewSharedInformerFactory(client, resyncPeriodSeconds*time.Second), nil
+}
+
 func getWPAInformerFactory() (dynamicinformer.DynamicSharedInformerFactory, error) {
 	// default to 300s
 	resyncPeriodSeconds := time.Duration(config.Datadog.GetInt64("kubernetes_informers_resync_period"))
@@ -356,6 +367,13 @@ func (c *APIClient) connect() error {
 			_ = log.Errorf("Error getting datadoghq informer Client: %s", err.Error())
 			return err
 		}
+
+		c.VPAInformerFactory, err = getVPAInformerFactory(c.VPAClient)
+		if err != nil {
+			log.Infof("Could not get a vpa informer factory: %v", err)
+			return err
+		}
+
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {

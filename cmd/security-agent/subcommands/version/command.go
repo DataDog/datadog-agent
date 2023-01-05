@@ -7,22 +7,20 @@ package version
 
 import (
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version info",
@@ -30,8 +28,8 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(displayVersion,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray), config.WithConfigLoadSecurityAgent(true)),
-					LogParams:    log.LogForOneShot(common.LoggerName, "off", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
@@ -40,8 +38,8 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{versionCmd}
 }
 
-func displayVersion(log complog.Component, config compconfig.Component) {
-	av, _ := version.Agent()
+func displayVersion(log log.Component, config config.Component) {
+	av, _ := pkgversion.Agent()
 	meta := ""
 	if av.Meta != "" {
 		meta = fmt.Sprintf("- Meta: %s ", color.YellowString(av.Meta))
@@ -50,7 +48,7 @@ func displayVersion(log complog.Component, config compconfig.Component) {
 	fmt.Fprintf(color.Output, "Security agent %s %s- Commit: '%s' - Serialization version: %s\n",
 		color.BlueString(av.GetNumberAndPre()),
 		meta,
-		color.GreenString(version.Commit),
+		color.GreenString(pkgversion.Commit),
 		color.MagentaString(serializer.AgentPayloadVersion),
 	)
 }

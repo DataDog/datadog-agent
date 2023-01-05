@@ -69,11 +69,13 @@ type UDPRecvSock struct {
 	Msg *_Ctype_struct_msghdr
 }
 type BindSyscallArgs struct {
-	Port uint16
+	Addr *_Ctype_struct_sockaddr
+	Sk   *_Ctype_struct_sock
 }
 
 type _Ctype_struct_sock uint64
 type _Ctype_struct_msghdr uint64
+type _Ctype_struct_sockaddr uint64
 
 type TCPState uint8
 

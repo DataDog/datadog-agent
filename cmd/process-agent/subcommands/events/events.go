@@ -21,7 +21,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -89,7 +88,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func bootstrapEventsCmd(cliParams *cliParams) error {
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
+	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
@@ -97,12 +96,6 @@ func bootstrapEventsCmd(cliParams *cliParams) error {
 	_, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
-	}
-
-	// Set up logger
-	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath)
-	if err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	return nil

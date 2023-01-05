@@ -104,6 +104,15 @@ func LoadTracer(config *config.Config, m *manager.Manager, mgrOpts manager.Optio
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+	} else {
+		// Kernels < 4.7.0 do not know about the per-cpu array map used
+		// in classification, preventing the program to load even though
+		// we won't use it. We change the type to a simple array map to
+		// circumvent that.
+		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+			Type:       ebpf.Array,
+			EditorFlag: manager.EditType,
+		}
 	}
 
 	// exclude all non-enabled probes to ensure we don't run into problems with unsupported probe types

@@ -53,7 +53,15 @@ func (a *asset) Compile(config *ebpf.Config, additionalFlags []string, client st
 		}
 	}()
 
-	kernelHeaders := kernel.GetKernelHeaders(config, client)
+	opts := kernel.KernelHeaderOptions{
+		DownloadEnabled: config.EnableKernelHeaderDownload,
+		Dirs:            config.KernelHeadersDirs,
+		DownloadDir:     config.KernelHeadersDownloadDir,
+		AptConfigDir:    config.AptConfigDir,
+		YumReposDir:     config.YumReposDir,
+		ZypperReposDir:  config.ZypperReposDir,
+	}
+	kernelHeaders := kernel.GetKernelHeaders(opts, client)
 	if len(kernelHeaders) == 0 {
 		a.tm.compilationResult = headerFetchErr
 		return nil, fmt.Errorf("unable to find kernel headers")

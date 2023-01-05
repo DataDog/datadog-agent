@@ -9,9 +9,10 @@
 #include "mongo-defs.h"
 #include "redis-defs.h"
 
-// Represents the max buffer size required to classify protocols.
-// ATM, it is HTTP2_MARKER_SIZE.
-#define CLASSIFICATION_MAX_BUFFER (HTTP2_MARKER_SIZE)
+// Represents the max buffer size required to classify protocols .
+// We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
+// ATM, it is HTTP2_MARKER_SIZE + 8 bytes for padding,
+#define CLASSIFICATION_MAX_BUFFER (HTTP2_MARKER_SIZE + 8)
 
 // The enum below represents all different protocols we know to classify.
 // We set the size of the enum to be 8 bits, by adding max value (max uint8 which is 255) and

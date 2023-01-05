@@ -23,7 +23,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -82,7 +81,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
+	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
@@ -90,11 +89,6 @@ func runCheckCmd(cliParams *cliParams) error {
 	syscfg, err := sysconfig.Merge(cliParams.SysProbeConfFilePath)
 	if err != nil {
 		return log.Critical(err)
-	}
-
-	_, err = config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath)
-	if err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
