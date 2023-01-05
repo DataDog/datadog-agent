@@ -753,7 +753,7 @@
       {
 		"Cache Key": "datadog.org_id",
 		"Conflict Filter": "(datadog.org_id != 8182)",
-		"Filter": "(query <> 'dogfood'::text)",
+		"Filter": "((relname ~ '.*'::text) AND (relkind = ANY ('{r,t,m}'::\"char\"[])))",
 		"Hash Cond": "(pg_stat_statements.dbid = pg_database.)",
 		"Index Cond": "((datadog.org.id >= 10) AND (datadog.org.id < 15))",
 		"Join Filter": "datadog.org.name != 'dummy'",
@@ -933,7 +933,7 @@
       {
 		"Cache Key": "datadog.org_id",
 		"Conflict Filter": "( datadog.org_id != ? )",
-		"Filter": "( query <> ? :: text )",
+		"Filter": "( ( relname ~ ? :: text ) AND ( relkind = ANY ( ? :: \"char\" [] ) ) )",
 		"Hash Cond": "( pg_stat_statements.dbid = pg_database. )",
 		"Index Cond": "( ( datadog.org.id >= ? ) AND ( datadog.org.id < ? ) )",
 		"Join Filter": "datadog.org.name != ?",
