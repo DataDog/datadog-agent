@@ -25,8 +25,8 @@ typedef enum
 
 typedef enum
 {
-    RETRANSMIT_COUNT_ABSOLUTE = 1,
-    RETRANSMIT_COUNT_INCREMENT = 2,
+    RETRANSMIT_COUNT_ABSOLUTE = 0,
+    RETRANSMIT_COUNT_INCREMENT = 1,
 } retransmit_count_increment_t;
 
 #define CONN_DIRECTION_MASK 0b11
