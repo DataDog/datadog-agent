@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	log "github.com/cihub/seelog"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/content"
@@ -86,6 +86,11 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 		event := &events.ImageCreate{}
 		if err := proto.Unmarshal(containerdEvent.Event.Value, event); err != nil {
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
+		}
+
+		c.imagesToScan <- namespacedImageName{
+			namespace: containerdEvent.Namespace,
+			name:      event.Name,
 		}
 
 		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
@@ -354,4 +359,52 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	}
 
 	return layers, nil
+}
+
+func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespacedImageName) error {
+	img, err := c.containerdClient.Image(imageToScan.namespace, imageToScan.name)
+	if err != nil {
+		// TODO: handle
+		return err
+	}
+
+	ctxWithNamespace := namespaces.WithNamespace(ctx, imageToScan.namespace)
+	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
+	if err != nil {
+		// TODO: handle
+		return err
+	}
+
+	bom, err := c.trivyClient.ScanImage(ctx, imageToScan.namespace, imageToScan.name)
+	if err != nil {
+		// TODO: handle
+		return err
+	}
+
+	imageID := manifest.Config.Digest.String()
+	storedImage, err := c.store.GetImage(imageID)
+	if err != nil {
+		// TODO: handle
+		return err
+	}
+
+	if storedImage.CycloneDXBOM != nil {
+		// BOM already stored. Can happen when the same image ID is referenced
+		// with different names.
+		return nil
+	}
+
+	// TODO: Not thread-safe. Change.
+	existingImgCopy := storedImage.DeepCopy().(*workloadmeta.ContainerImageMetadata)
+	existingImgCopy.CycloneDXBOM = bom
+
+	c.store.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceRuntime,
+			Entity: existingImgCopy,
+		},
+	})
+
+	return nil
 }

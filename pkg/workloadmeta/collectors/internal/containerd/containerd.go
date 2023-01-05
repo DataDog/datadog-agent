@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/events"
 
@@ -29,6 +30,8 @@ import (
 const (
 	collectorID   = "containerd"
 	componentName = "workloadmeta-containerd"
+
+	imagesToScanBufferSize = 50
 
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
@@ -91,6 +94,14 @@ type collector struct {
 
 	// Map of image ID => array of repo tags
 	repoTags map[string][]string
+
+	trivyClient  *trivy.Client
+	imagesToScan chan namespacedImageName
+}
+
+type namespacedImageName struct {
+	namespace string
+	name      string
 }
 
 func init() {
@@ -106,6 +117,24 @@ func init() {
 func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	if !config.IsFeaturePresent(config.Containerd) {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
+	}
+
+	if imageMetadataCollectionIsEnabled() {
+		var err error
+		c.trivyClient, err = trivy.NewClient(ctx)
+		if err != nil {
+			return fmt.Errorf("error initializing trivy client: %w", err)
+		}
+
+		c.imagesToScan = make(chan namespacedImageName, imagesToScanBufferSize)
+
+		go func() {
+			for imageToScan := range c.imagesToScan {
+				if err := c.extractBOMWithTrivy(ctx, imageToScan); err != nil {
+					log.Warnf("error extracting SBOM for image: namespace=%s name=%s, err: %w", imageToScan.namespace, imageToScan.name, err)
+				}
+			}
+		}()
 	}
 
 	c.store = store
@@ -137,6 +166,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 			}
 		}()
 		defer cancelEvents()
+		defer close(c.imagesToScan)
 
 		c.stream(ctx)
 	}()
@@ -194,7 +224,7 @@ func (c *collector) notifyInitialEvents(ctx context.Context) error {
 		}
 		containerEvents = append(containerEvents, nsContainerEvents...)
 
-		if config.Datadog.GetBool("workloadmeta.image_metadata_collection.enabled") {
+		if imageMetadataCollectionIsEnabled() {
 			if err := c.notifyInitialImageEvents(ctx, namespace); err != nil {
 				return err
 			}
@@ -249,6 +279,11 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 	for _, image := range existingImages {
 		if err := c.notifyEventForImage(ctx, namespace, image); err != nil {
 			return err
+		}
+
+		c.imagesToScan <- namespacedImageName{
+			namespace: namespace,
+			name:      image.Name(),
 		}
 	}
 
@@ -355,7 +390,7 @@ func subscribeFilters() []string {
 	var filters []string
 
 	for _, topic := range containerdTopics {
-		if isImageTopic(topic) && !config.Datadog.GetBool("workloadmeta.image_metadata_collection.enabled") {
+		if isImageTopic(topic) && !imageMetadataCollectionIsEnabled() {
 			continue
 		}
 
@@ -378,4 +413,8 @@ func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time)
 		exitTS:   exitTS,
 		exitCode: exitCode,
 	}
+}
+
+func imageMetadataCollectionIsEnabled() bool {
+	return config.Datadog.GetBool("workloadmeta.image_metadata_collection.enabled")
 }

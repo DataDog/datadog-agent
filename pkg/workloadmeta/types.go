@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	"github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -633,6 +634,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
+	CycloneDXBOM *cyclonedx.BOM
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -686,6 +688,12 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+
+		if i.CycloneDXBOM != nil {
+			_, _ = fmt.Fprintln(&sb, "SBOM: stored")
+		} else {
+			_, _ = fmt.Fprintln(&sb, "SBOM: not stored")
+		}
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
 		for _, layer := range i.Layers {
