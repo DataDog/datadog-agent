@@ -33,3 +33,12 @@ const (
 	OperStatus_NotPresent
 	OperStatus_LowerLayerDown
 )
+
+type InterfaceStatus string
+
+const (
+	InterfaceStatus_Up      InterfaceStatus = "up"
+	InterfaceStatus_Down    InterfaceStatus = "down"
+	InterfaceStatus_Warning InterfaceStatus = "warning"
+	InterfaceStatus_Off     InterfaceStatus = "off"
+)

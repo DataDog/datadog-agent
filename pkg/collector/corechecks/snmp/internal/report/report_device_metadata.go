@@ -52,39 +52,39 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	// Telemetry
 	for _, interfaceStatus := range interfaces {
-		status := computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus)
+		status := string(computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus))
 		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
 		interfaceTags = append(interfaceTags, tags...)
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
 }
 
-func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) string {
+func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) common.InterfaceStatus {
 	if adminStatus == common.AdminStatus_Up {
 		switch {
 		case operStatus == common.OperStatus_Up:
-			return "up"
+			return common.InterfaceStatus_Up
 		case operStatus == common.OperStatus_Down:
-			return "down"
+			return common.InterfaceStatus_Down
 		}
-		return "warning"
+		return common.InterfaceStatus_Warning
 	}
 	if adminStatus == common.AdminStatus_Down {
 		switch {
 		case operStatus == common.OperStatus_Up:
-			return "down"
+			return common.InterfaceStatus_Down
 		case operStatus == common.OperStatus_Down:
-			return "off"
+			return common.InterfaceStatus_Off
 		}
-		return "warning"
+		return common.InterfaceStatus_Warning
 	}
 	if adminStatus == common.AdminStatus_Testing {
 		switch {
 		case operStatus != common.OperStatus_Down:
-			return "warning"
+			return common.InterfaceStatus_Warning
 		}
 	}
-	return "down"
+	return common.InterfaceStatus_Down
 }
 
 func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
