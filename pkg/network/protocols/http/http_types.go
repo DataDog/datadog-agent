@@ -17,13 +17,10 @@ package http
 import "C"
 
 type httpConnTuple C.conn_tuple_t
-type httpBatchState C.http_batch_state_t
 type sslSock C.ssl_sock_t
 type sslReadArgs C.ssl_read_args_t
 
 type ebpfHttpTx C.http_transaction_t
-type httpBatch C.http_batch_t
-type httpBatchKey C.http_batch_key_t
 
 type libPath C.lib_path_t
 
@@ -42,8 +39,6 @@ const (
 )
 
 const (
-	HTTPBatchSize  = C.HTTP_BATCH_SIZE
-	HTTPBatchPages = C.HTTP_BATCH_PAGES
 	HTTPBufferSize = C.HTTP_BUFFER_SIZE
 
 	libPathMaxSize = C.LIB_PATH_MAX_SIZE

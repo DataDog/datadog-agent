@@ -212,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     network_flags = "-Ipkg/network/ebpf/c -g"
     network_co_re_flags = f"-I{network_co_re_dir}"
-    network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
     network_co_re_programs = []
 
     for prog in network_programs:
@@ -310,6 +310,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
+            ],
+            "pkg/network/protocols/events/types.go": [
+                "pkg/network/ebpf/c/protocols/events-types.h",
             ],
         }
         nw.rule(
