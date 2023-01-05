@@ -37,6 +37,7 @@ type JavaTLSProgram struct {
 	cleanupExec    func()
 }
 
+// Static evaluation to make sure we are not breaking the interface.
 var _ subprogram = &JavaTLSProgram{}
 
 func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
