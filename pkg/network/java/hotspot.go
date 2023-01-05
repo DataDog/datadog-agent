@@ -47,8 +47,8 @@ type Hotspot struct {
 
 // NewHotspot create an object to connect to a JVM hotspot
 // pid (host pid) and nsPid (within the namespace pid)
-func NewHotspot(pid int, nsPid int) (h *Hotspot, err error) {
-	h = &Hotspot{
+func NewHotspot(pid int, nsPid int) (*Hotspot, error) {
+	h := &Hotspot{
 		pid:   pid,
 		nsPid: nsPid,
 	}
@@ -58,6 +58,7 @@ func NewHotspot(pid int, nsPid int) (h *Hotspot, err error) {
 		h.nsPid = pid
 	}
 
+	var err error
 	procPath := fmt.Sprintf("%s/%d", util.HostProc(), pid)
 	h.root = procPath + "/root"
 	h.cwd, err = os.Readlink(procPath + "/cwd")
