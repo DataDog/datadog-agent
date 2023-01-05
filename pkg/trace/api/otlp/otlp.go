@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package api
+package otlp
 
 import (
 	"compress/gzip"
@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	tracesemconv "github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -51,28 +50,73 @@ const (
 	otlpProtocolGRPC = "grpc"
 )
 
-// OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
+// Config holds the configuration for the OpenTelemetry receiver.
+type Config struct {
+	// BindHost specifies the host to bind the receiver to.
+	BindHost string `mapstructure:"-"`
+
+	// HTTPPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	HTTPPort int `mapstructure:"http_port"`
+
+	// GRPCPort specifies the port to use for the plain HTTP receiver.
+	// If unset (or 0), the receiver will be off.
+	GRPCPort int `mapstructure:"grpc_port"`
+
+	// SpanNameRemappings is the map of datadog span names and preferred name to map to. This can be used to
+	// automatically map Datadog Span Operation Names to an updated value. All entries should be key/value pairs.
+	SpanNameRemappings map[string]string `mapstructure:"span_name_remappings"`
+
+	// SpanNameAsResourceName specifies whether the OpenTelemetry span's name should be
+	// used as the Datadog span's operation name. By default (when this is false), the
+	// operation name is deduced from a combination between the instrumentation scope
+	// name and the span kind.
+	//
+	// For context, the OpenTelemetry 'Span Name' is equivalent to the Datadog 'resource name'.
+	// The Datadog Span's Operation Name equivalent in OpenTelemetry does not exist, but the span's
+	// kind comes close.
+	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
+
+	// MaxRequestBytes specifies the maximum number of bytes that will be read
+	// from an incoming HTTP request.
+	MaxRequestBytes int64 `mapstructure:"-"`
+
+	// UsePreviewHostnameLogic specifies wether to use the 'preview' OpenTelemetry attributes to hostname rules,
+	// controlled in the Datadog exporter by the `exporter.datadog.hostname.preview` feature flag.
+	// The 'preview' rules change the canonical hostname chosen in cloud providers to be consistent with the
+	// one sent by Datadog cloud integrations.
+	UsePreviewHostnameLogic bool `mapstructure:"-"`
+}
+
+type TagConfig struct {
+	Hostname string
+	// the traces will default to this environment
+	DefaultEnv    string
+	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	CIDProvider   IDProvider
+}
+
+// Receiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
-type OTLPReceiver struct {
-	wg          sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
-	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
-	out         chan<- *Payload     // the outgoing payload channel
-	conf        *config.AgentConfig // receiver config
-	cidProvider IDProvider          // container ID provider
+type Receiver struct {
+	wg      sync.WaitGroup  // waits for a graceful shutdown
+	httpsrv *http.Server    // the running HTTP server on a started receiver, if enabled
+	grpcsrv *grpc.Server    // the running GRPC server on a started receiver, if enabled
+	out     chan<- *Payload // the outgoing payload channel
+	conf    Config          // receiver config
+	tagConf TagConfig       // global tag-related config
 }
 
-// NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+// NewReceiver returns a new Receiver which sends any incoming traces down the out channel.
+func NewReceiver(out chan<- *Payload, cfg Config, tagCfg TagConfig) *Receiver {
+	return &Receiver{out: out, conf: cfg, tagConf: tagCfg}
 }
 
-// Start starts the OTLPReceiver, if any of the servers were configured as active.
-func (o *OTLPReceiver) Start() {
-	cfg := o.conf.OTLPReceiver
-	if cfg.HTTPPort != 0 {
+// Start starts the Receiver, if any of the servers were configured as active.
+func (o *Receiver) Start() {
+	if o.conf.HTTPPort != 0 {
 		o.httpsrv = &http.Server{
-			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
+			Addr:        net.JoinHostPort(o.conf.BindHost, strconv.Itoa(o.conf.HTTPPort)),
 			Handler:     o,
 			ConnContext: connContext,
 		}
@@ -85,10 +129,10 @@ func (o *OTLPReceiver) Start() {
 				}
 			}
 		}()
-		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.HTTPPort)
+		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.conf.BindHost, o.conf.HTTPPort)
 	}
-	if cfg.GRPCPort != 0 {
-		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+	if o.conf.GRPCPort != 0 {
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", o.conf.BindHost, o.conf.GRPCPort))
 		if err != nil {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
@@ -101,13 +145,13 @@ func (o *OTLPReceiver) Start() {
 					log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 				}
 			}()
-			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.GRPCPort)
+			log.Debugf("Listening to core Agent for OTLP traces on internal gRPC port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", o.conf.BindHost, o.conf.GRPCPort)
 		}
 	}
 }
 
 // Stop stops any running server.
-func (o *OTLPReceiver) Stop() {
+func (o *Receiver) Stop() {
 	if o.httpsrv != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		go func() {
@@ -124,7 +168,7 @@ func (o *OTLPReceiver) Stop() {
 }
 
 // Export implements ptraceotlp.Server
-func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
+func (o *Receiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
@@ -133,7 +177,7 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) 
 }
 
 // ServeHTTP implements http.Handler
-func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (o *Receiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer timing.Since("datadog.trace_agent.otlp.process_http_request_ms", time.Now())
 	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
@@ -148,7 +192,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		r = gzipr
 	}
-	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
+	rd := apiutil.NewLimitedReader(r, o.conf.MaxRequestBytes)
 	slurp, err := io.ReadAll(rd)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -208,7 +252,7 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
+func (o *Receiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
 		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
@@ -216,7 +260,7 @@ func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, head
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *Receiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -225,7 +269,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		rattr[k] = v.AsString()
 		return true
 	})
-	src, srcok := attributes.SourceFromAttributes(attr, o.conf.OTLPReceiver.UsePreviewHostnameLogic)
+	src, srcok := attributes.SourceFromAttributes(attr, o.conf.UsePreviewHostnameLogic)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -246,7 +290,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		containerID = rattr[string(semconv.AttributeK8SPodUID)]
 	}
 	if containerID == "" {
-		containerID = o.cidProvider.GetContainerID(ctx, header)
+		containerID = o.tagConf.CIDProvider.GetContainerID(ctx, header)
 	}
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
@@ -318,7 +362,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		})
 	}
 	if env == "" {
-		env = o.conf.DefaultEnv
+		env = o.tagConf.DefaultEnv
 	}
 
 	// Get the hostname or set to empty if source is empty
@@ -333,7 +377,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		}
 	} else {
 		// fallback hostname
-		hostname = o.conf.Hostname
+		hostname = o.tagConf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
 	p.TracerPayload = &pb.TracerPayload{
@@ -345,7 +389,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
 	}
-	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
+	if ctags := getContainerTags(o.tagConf.ContainerTags, containerID); ctags != "" {
 		p.TracerPayload.Tags = map[string]string{
 			tracesemconv.TagContainersTags: ctags,
 		}
@@ -462,7 +506,7 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
+func (o *Receiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
@@ -528,7 +572,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	status2Error(in.Status(), in.Events(), span)
 	if span.Name == "" {
 		name := in.Name()
-		if !o.conf.OTLPReceiver.SpanNameAsResourceName {
+		if !o.conf.SpanNameAsResourceName {
 			name = spanKindName(in.Kind())
 			if lib.Name() != "" {
 				name = lib.Name() + "." + name
@@ -536,7 +580,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 				name = "opentelemetry." + name
 			}
 		}
-		if v, ok := o.conf.OTLPReceiver.SpanNameRemappings[name]; ok {
+		if v, ok := o.conf.SpanNameRemappings[name]; ok {
 			name = v
 		}
 		span.Name = name

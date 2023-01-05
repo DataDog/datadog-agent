@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package api
+package otlp
 
 import (
 	"context"
@@ -18,7 +18,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	tracesemconv "github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
@@ -88,14 +87,23 @@ var otlpTestTracesRequest = testutil.NewOTLPTracesRequest([]testutil.OTLPResourc
 	},
 })
 
+var traceCfg = &TagConfig{
+	Hostname: "fallback-hostname",
+	DefaultEnv: "none",
+	ContainerTags: func (_ string) ([]string, error) {
+		return nil, errors.New("ContainerTags function not defined")
+	},
+	CIDProvider: NewIDProvider(""),
+}
+
 func TestOTLPMetrics(t *testing.T) {
 	assert := assert.New(t)
-	cfg := config.New()
+	cfg := &Config{}
 	stats := &teststatsd.Client{}
 	defer testutil.WithStatsClient(stats)()
 
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewReceiver(out, cfg, traceCfg)
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -130,10 +138,11 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
-	cfg := config.New()
-	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
+	cfg = &Config{
+		SpanNameRemappings: map[string]string{"libname.unspecified": "new"
+	}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewReceiver(out, cfg, traceCfg)
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -154,9 +163,9 @@ func TestOTLPNameRemapping(t *testing.T) {
 }
 
 func TestOTLPReceiveResourceSpans(t *testing.T) {
-	cfg := config.New()
+	cfg := &Config{}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg)
+	rcv := NewReceiver(out, cfg, traceCfg)
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -434,10 +443,10 @@ func TestOTLPHostname(t *testing.T) {
 			out:    "span-hostname",
 		},
 	} {
-		cfg := config.New()
+		cfg := &Config{}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg)
+		rcv := NewReceiver(out, cfg, traceCfg)
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -466,14 +475,14 @@ func TestOTLPHostname(t *testing.T) {
 	}
 }
 
-func TestOTLPReceiver(t *testing.T) {
+func TestReceiver(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
-		cfg := config.New()
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg).conf)
+		cfg := &Config{}
+		assert.NotNil(t, NewReceiver(nil, cfg, traceCfg).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, config.New())
+		o := NewReceiver(nil, &Config{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.httpsrv)
@@ -482,12 +491,11 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/http", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
+		cfg := &Config{
 			BindHost: "localhost",
 			HTTPPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewReceiver(nil, cfg, traceCfg)
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -497,12 +505,11 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
+		cfg := &Config{
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewReceiver(nil, cfg, traceCfg)
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -516,13 +523,12 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("Start/http+grpc", func(t *testing.T) {
 		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
+		cfg := &Config{
 			BindHost: "localhost",
 			HTTPPort: port1,
 			GRPCPort: port2,
 		}
-		o := NewOTLPReceiver(nil, cfg)
+		o := NewReceiver(nil, cfg, traceCfg)
 		o.Start()
 		defer o.Stop()
 		assert.NotNil(t, o.grpcsrv)
@@ -531,7 +537,7 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, config.New())
+		o := NewReceiver(out, &Config{})
 		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
 			tracesemconv.HeaderLang:        {"go"},
 			tracesemconv.HeaderContainerID: {"containerdID"},
@@ -776,8 +782,8 @@ func TestOTLPHelpers(t *testing.T) {
 
 func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
-	cfg := config.New()
-	o := NewOTLPReceiver(nil, cfg)
+	cfg := &Config{}
+	o := NewReceiver(nil, cfg, traceCfg)
 	for i, tt := range []struct {
 		rattr   map[string]string
 		libname string
@@ -1107,7 +1113,7 @@ func TestResourceAttributesMap(t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, config.New()).convertSpan(rattr, lib, span)
+	NewReceiver(nil, &Config{}, traceCfg).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
@@ -1284,7 +1290,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 		}
 	}()
 
-	r := NewOTLPReceiver(out, nil)
+	r := NewReceiver(out, nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

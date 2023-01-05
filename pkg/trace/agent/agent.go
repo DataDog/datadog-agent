@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/otlp"
 	"github.com/DataDog/datadog-agent/pkg/trace/remoteconfighandler"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -108,7 +109,13 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig) *Agent {
 		ctx:                   ctx,
 	}
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt)
-	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf)
+	tagCfg := otlp.TagConfig{
+		Hostname:      conf.Hostname,
+		DefaultEnv:    conf.DefaultEnv,
+		ContainerTags: conf.ContainerTags,
+		CIDProvider:   api.NewIDProvider(conf.ContainerProcRoot),
+	}
+	agnt.OTLPReceiver = otlp.NewReceiver(in, conf.OTLPReceiver, tagCfg)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler)
 	return agnt
