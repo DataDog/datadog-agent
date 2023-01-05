@@ -97,19 +97,17 @@ func TestInject(t *testing.T) {
 		t.Skip("Kernel < 4.1.0 are not supported as /proc/pid/status doesn't report NSpid")
 	}
 
-	for _, tname := range []string{"host", "namespace"} {
-		t.Run(tname, func(t *testing.T) {
-			p := ""
-			if tname == "namespace" {
-				// running the tagert process in a new PID namespace
-				// and testing if the test/plaform give enough permission to do that
-				p = "unshare -p --fork "
-				_, err = testutil.RunCommand(p + "id")
-				if err != nil {
-					t.Skipf("unshare not supported on this platform %s", err)
-				}
-			}
-			testInject(t, p)
-		})
-	}
+	t.Run("host", func(t *testing.T) {
+		testInject(t, "")
+	})
+	t.Run("PIDnamespace", func(t *testing.T) {
+		// running the tagert process in a new PID namespace
+		// and testing if the test/plaform give enough permission to do that
+		p := "unshare -p --fork "
+		_, err = testutil.RunCommand(p + "id")
+		if err != nil {
+			t.Skipf("unshare not supported on this platform %s", err)
+		}
+		testInject(t, p)
+	})
 }
