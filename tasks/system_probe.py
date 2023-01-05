@@ -1222,28 +1222,60 @@ def generate_minimized_btfs(
         return
 
     ctx.run(f"mkdir -p {output_dir}")
-    for root, dirs, files in os.walk(source_dir):
-        path_from_root = os.path.relpath(root, source_dir)
 
-        for dir in dirs:
-            output_subdir = os.path.join(output_dir, path_from_root, dir)
-            ctx.run(f"mkdir -p {output_subdir}")
+    check_for_ninja(ctx)
 
-        for file in files:
-            if not file.endswith(".tar.xz"):
-                continue
+    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+    with open(ninja_file_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file, width=180)
 
-            btf_filename = file[: -len(".tar.xz")]
-            compressed_source_btf_path = os.path.join(root, file)
-            output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
-            compressed_output_btf_path = output_btf_path + ".tar.xz"
+        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
+        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
-            ctx.run(f"tar -xf {compressed_source_btf_path}")
-            ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
+        for root, dirs, files in os.walk(source_dir):
+            path_from_root = os.path.relpath(root, source_dir)
 
-            tar_working_directory = os.path.join(output_dir, path_from_root)
-            ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
-            ctx.run(f"rm {output_btf_path}")
+            for d in dirs:
+                output_subdir = os.path.join(output_dir, path_from_root, d)
+                ctx.run(f"mkdir -p {output_subdir}")
+
+            for file in files:
+                if not file.endswith(".tar.xz"):
+                    continue
+
+                btf_filename = file[: -len(".tar.xz")]
+                minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+
+                nw.build(
+                    rule="decompress_btf",
+                    inputs=[os.path.join(root, file)],
+                    outputs=[os.path.join(root, btf_filename)],
+                    variables={
+                        "target_directory": root,
+                    },
+                )
+
+                nw.build(
+                    rule="minimize_btf",
+                    inputs=[os.path.join(root, btf_filename)],
+                    outputs=[minimized_btf_path],
+                    variables={
+                        "input_bpf_programs": input_bpf_programs,
+                    },
+                )
+
+                nw.build(
+                    rule="compress_minimized_btf",
+                    inputs=[minimized_btf_path],
+                    outputs=[f"{minimized_btf_path}.tar.xz"],
+                    variables={
+                        "tar_working_directory": os.path.join(output_dir, path_from_root),
+                        "rel_in": btf_filename,
+                    },
+                )
+
+    ctx.run(f"ninja -f {ninja_file_path}")
 
 
 @task
