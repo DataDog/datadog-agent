@@ -153,23 +153,29 @@ func (h *Hotspot) connect() (cleanup func(), err error) {
 	return func() { h.conn.Close() }, nil
 }
 
-func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, response string) {
+func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, response string, err error) {
 	line := 0
 	scanner := bufio.NewScanner(bytes.NewReader(buf))
 	for scanner.Scan() {
 		s := string(scanner.Bytes())
 		switch line {
 		case 0:
-			returnCommand, _ = strconv.Atoi(s)
+			returnCommand, err = strconv.Atoi(s)
+			if err != nil {
+				return 0, 0, "", fmt.Errorf("parsing hotspot response failed %d %s", line, s)
+			}
 		case 1:
 			if strings.HasPrefix(s, "return code: ") {
-				returnCode, _ = strconv.Atoi(s[len("return code: "):])
+				returnCode, err = strconv.Atoi(s[len("return code: "):])
+				if err != nil {
+					return 0, 0, "", fmt.Errorf("parsing hotspot response failed %d %s", line, s)
+				}
 			}
 		}
 		response += s + "\n"
 		line++
 	}
-	return returnCommand, returnCode, response
+	return returnCommand, returnCode, response, nil
 }
 
 // command: tailingNull is necessary here to flush command
@@ -196,7 +202,10 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Read(buf); err != nil {
 		return err
 	}
-	returnCommand, returnCode, responseText := h.parseResponse(buf)
+	returnCommand, returnCode, responseText, err := h.parseResponse(buf)
+	if err != nil {
+		return err
+	}
 
 	if returnCommand != 0 {
 		return fmt.Errorf("command '%s' return command %d code %d\n%s\n", cmd, returnCommand, returnCode, responseText)
