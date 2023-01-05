@@ -224,13 +224,14 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 
 	attachPath := attachPIDPath(h.root + h.cwd)
 	hook, err := os.OpenFile(attachPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
-	if err != nil {
-		return err
+	hookUID := uint32(0)
+	var ownerErr error
+	if err == nil {
+		hook.Close()
+		// we don't check Chown() return error here as it can fail on some filesystems (ex: force_uid (like nfs))
+		_ = syscall.Chown(attachPath, uid, gid)
+		hookUID, _, ownerErr = getPathOwner(attachPath)
 	}
-	hook.Close()
-	// we don't check Chown() return error here as it can fail on some filesystems (ex: force_uid (like nfs))
-	_ = syscall.Chown(attachPath, uid, gid)
-	hookUID, _, ownerErr := getPathOwner(attachPath)
 	if err != nil || ownerErr != nil || hookUID != uint32(uid) {
 		// we failed to create the .attach_pid file in the process directory
 		// let's try in /tmp
