@@ -17,21 +17,21 @@ const SnmpExternalTagsSourceType = "snmp"
 type IfAdminStatus int
 
 const (
-	AdminStatus_Up IfAdminStatus = iota + 1
-	AdminStatus_Down
-	AdminStatus_Testing
+	AdminStatus_Up      IfAdminStatus = 1
+	AdminStatus_Down    IfAdminStatus = 2
+	AdminStatus_Testing IfAdminStatus = 3
 )
 
 type IfOperStatus int
 
 const (
-	OperStatus_Up IfOperStatus = iota + 1
-	OperStatus_Down
-	OperStatus_Testing
-	OperStatus_Unknown
-	OperStatus_Dormant
-	OperStatus_NotPresent
-	OperStatus_LowerLayerDown
+	OperStatus_Up             IfOperStatus = 1
+	OperStatus_Down           IfOperStatus = 2
+	OperStatus_Testing        IfOperStatus = 3
+	OperStatus_Unknown        IfOperStatus = 4
+	OperStatus_Dormant        IfOperStatus = 5
+	OperStatus_NotPresent     IfOperStatus = 6
+	OperStatus_LowerLayerDown IfOperStatus = 7
 )
 
 type InterfaceStatus string
