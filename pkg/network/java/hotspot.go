@@ -93,14 +93,16 @@ func getPathOwner(path string) (uint32, uint32, error) {
 
 func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cleanup func(), err error) {
 	dstPath = h.cwd + "/" + filepath.Base(agent)
-	if dst, err := os.Stat(h.root + dstPath); err == nil {
+	// path from the host point of view pointing to the process root namespace (/proc/pid/root/usr/...)
+	nsDstPath := h.root + dstPath
+	if dst, err := os.Stat(nsDstPath); err == nil {
 		// if the destination file already exist
 		// check if it's not the source agent file
 		if src, err := os.Stat(agent); err == nil {
 			s, oks := src.Sys().(*syscall.Stat_t)
 			d, okd := dst.Sys().(*syscall.Stat_t)
 			if s == nil || d == nil || !oks || !okd {
-				return "", nil, fmt.Errorf("stat cast issue on path %s %T %s %T", agent, src.Sys(), h.root+dstPath, dst.Sys())
+				return "", nil, fmt.Errorf("stat cast issue on path %s %T %s %T", agent, src.Sys(), nsDstPath, dst.Sys())
 			}
 			if s.Dev == d.Dev && s.Ino == d.Ino {
 				return "", func() {}, nil
@@ -114,7 +116,7 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	}
 	defer srcAgent.Close()
 
-	dst, err := os.OpenFile(h.root+dstPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(0444))
+	dst, err := os.OpenFile(nsDstPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(0444))
 	if err != nil {
 		return "", nil, err
 	}
@@ -123,12 +125,12 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 	if err != nil {
 		return "", nil, err
 	}
-	if err := syscall.Chown(h.root+dstPath, uid, gid); err != nil {
+	if err := syscall.Chown(nsDstPath, uid, gid); err != nil {
 		return "", nil, err
 	}
 
 	return dstPath, func() {
-		os.Remove(h.root + dstPath)
+		os.Remove(nsDstPath)
 	}, nil
 }
 
