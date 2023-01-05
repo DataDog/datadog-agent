@@ -14,10 +14,6 @@ type httpConnTuple struct {
 	Pid      uint32
 	Metadata uint32
 }
-type httpBatchState struct {
-	Idx      uint64
-	To_flush uint64
-}
 type sslSock struct {
 	Tup       httpConnTuple
 	Fd        uint32
@@ -38,15 +34,6 @@ type ebpfHttpTx struct {
 	Owned_by_src_port    uint16
 	Tcp_seq              uint32
 	Tags                 uint64
-}
-type httpBatch struct {
-	Idx uint64
-	Pos uint8
-	Txs [15]ebpfHttpTx
-}
-type httpBatchKey struct {
-	Cpu uint32
-	Num uint32
 }
 
 type libPath struct {
@@ -69,8 +56,6 @@ const (
 )
 
 const (
-	HTTPBatchSize  = 0xf
-	HTTPBatchPages = 0x3
 	HTTPBufferSize = 0xa0
 
 	libPathMaxSize = 0x78

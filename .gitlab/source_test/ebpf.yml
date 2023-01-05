@@ -11,7 +11,7 @@
 
 .build_sysprobe_artifacts:
   # kitchen prepare also builds object files
-  - inv -e system-probe.kitchen-prepare
+  - inv -e system-probe.kitchen-prepare --ci
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/tracer-debug.o $CI_PROJECT_DIR/.tmp/binary-ebpf/tracer-debug.o
   - cp $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/offset-guess.o $CI_PROJECT_DIR/.tmp/binary-ebpf/offset-guess.o

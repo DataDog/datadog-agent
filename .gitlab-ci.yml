@@ -137,6 +137,7 @@ variables:
   ## comment out the line below to disable integration wheels cache
   INTEGRATION_WHEELS_CACHE_BUCKET: dd-agent-omnibus
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
+  S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
   RELEASE_VERSION_6: nightly
@@ -147,7 +148,7 @@ variables:
   DATADOG_AGENT_ARMBUILDIMAGES: v11651098-faf0544
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v11651098-faf0544
   DATADOG_AGENT_NIKOS_BUILDIMAGES: v11651098-faf0544
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v10582792-c2b9fb7
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v11463399-6ff70af
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   NIKOS_INSTALL_DIR: /opt/datadog-agent/embedded/nikos
   NIKOS_EMBEDDED_PATH: /opt/datadog-agent/embedded/nikos/embedded

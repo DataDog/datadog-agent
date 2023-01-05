@@ -77,8 +77,6 @@ func defaultTeardown(_ *testing.T, ctx testContext) {
 }
 
 // skipIfNotLinux skips the test if we are not on a linux machine
-//
-//nolint:deadcode,unused
 func skipIfNotLinux(ctx testContext) (bool, string) {
 	if runtime.GOOS != "linux" {
 		return true, "test is supported on linux machine only"
@@ -88,8 +86,6 @@ func skipIfNotLinux(ctx testContext) (bool, string) {
 }
 
 // skipIfUsingNAT skips the test if we have a NAT rules applied.
-//
-//nolint:deadcode,unused
 func skipIfUsingNAT(ctx testContext) (bool, string) {
 	if ctx.targetAddress != ctx.serverAddress {
 		return true, "test is not supported when NAT is applied"
@@ -99,8 +95,6 @@ func skipIfUsingNAT(ctx testContext) (bool, string) {
 }
 
 // composeSkips skips if one of the given filters is matched.
-//
-//nolint:deadcode,unused
 func composeSkips(filters ...func(ctx testContext) (bool, string)) func(ctx testContext) (bool, string) {
 	return func(ctx testContext) (bool, string) {
 		for _, filter := range filters {
