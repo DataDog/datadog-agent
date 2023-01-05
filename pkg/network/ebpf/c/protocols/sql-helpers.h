@@ -7,9 +7,8 @@
 // Check that we can read the amount of memory we want, then to the comparison.
 // Note: we use `sizeof(command) - 1` to *not* compare with the null-terminator of
 // the strings.
-#define check_command(buf, command, buf_size) ( \
-    ((sizeof(command) - 1) <= buf_size)         \
-    && !bpf_memcmp((buf), &(command), sizeof(command) - 1))
+#define check_command(buf, command, buf_size) \
+    (!bpf_memcmp((buf), &(command), sizeof(command) - 1))
 
 // is_sql_command check that there is an SQL query in buf. We only check the
 // most commonly used SQL queries
