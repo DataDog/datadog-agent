@@ -126,6 +126,7 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 		return "", nil, err
 	}
 	if err := syscall.Chown(nsDstPath, uid, gid); err != nil {
+		os.Remove(nsDstPath)
 		return "", nil, err
 	}
 
