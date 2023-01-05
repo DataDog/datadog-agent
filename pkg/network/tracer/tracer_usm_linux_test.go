@@ -159,7 +159,6 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpsSupported(t) {
 		t.Skip("HTTPS feature not available/supported for this setup")
 	}
-	t.Skip("we don't support fast process start/stop yet as /proc/pid/root pass likely doesn't exist when we try to add hook")
 
 	tlsLibs := []*regexp.Regexp{
 		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
@@ -232,8 +231,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	require.NoError(t, err)
 
 	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(fetchCmd[0]).Run()
-	time.Sleep(2 * time.Second)
+	go func() {
+		pipesleep := fetchCmd[0] + " | sleep 2"
+		exec.Command("bash", "-c", pipesleep).Run()
+	}()
+	// Give 1 second delay to analyze the ELF binary
+	time.Sleep(1 * time.Second)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
