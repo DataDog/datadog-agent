@@ -1,2 +1,2 @@
-service_monitoring_config:
+system_probe_config:
   enable_go_tls_support: true
