@@ -92,8 +92,8 @@ const (
 	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
-	AgentNetworksGoTLSEnabled          AgentMetadataName = "feature_networks_go_tls_enabled"
-	AgentNetworksJavaTLSEnabled        AgentMetadataName = "feature_networks_java_tls_enabled"
+	AgentUSMGoTLSEnabled               AgentMetadataName = "feature_usm_go_tls_enabled"
+	AgentUSMJavaTLSEnabled             AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
 	AgentAPMEnabled                    AgentMetadataName = "feature_apm_enabled"
@@ -414,8 +414,8 @@ func initializeConfig(cfg config.Config) {
 	SetAgentMetadata(AgentNetworksEnabled, config.Datadog.GetBool("network_config.enabled"))
 	SetAgentMetadata(AgentNetworksHTTPEnabled, config.Datadog.GetBool("network_config.enable_http_monitoring"))
 	SetAgentMetadata(AgentNetworksHTTPSEnabled, config.Datadog.GetBool("network_config.enable_https_monitoring"))
-	SetAgentMetadata(AgentNetworksGoTLSEnabled, config.Datadog.GetBool("system_probe_config.enable_go_tls_support"))
-	SetAgentMetadata(AgentNetworksJavaTLSEnabled, config.Datadog.GetBool("system_probe_config.enable_java_tls_support"))
+	SetAgentMetadata(AgentUSMGoTLSEnabled, config.Datadog.GetBool("service_monitoring_config.enable_go_tls_support"))
+	SetAgentMetadata(AgentUSMJavaTLSEnabled, config.Datadog.GetBool("service_monitoring_config.enable_java_tls_support"))
 	SetAgentMetadata(AgentLogsEnabled, config.Datadog.GetBool("logs_enabled"))
 	SetAgentMetadata(AgentCSPMEnabled, config.Datadog.GetBool("compliance_config.enabled"))
 	SetAgentMetadata(AgentAPMEnabled, config.Datadog.GetBool("apm_config.enabled"))
