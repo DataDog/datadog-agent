@@ -68,7 +68,6 @@ func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
 
 	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
 	randomID = rand.Int63()
-	//TODO setup the random id here
 }
 
 func (p *JavaTLSProgram) ConfigureOptions(options *manager.Options) {}
