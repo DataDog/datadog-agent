@@ -179,8 +179,8 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 }
 
 // command: tailingNull is necessary here to flush command
-//	otherwise the JVM is block waiting for more bytes
-//	This is apply only for some command like : 'load agent.so true'
+//	otherwise the JVM is blocked and waiting for more bytes
+//	This applies only for some command like : 'load agent.so true'
 func (h *Hotspot) command(cmd string, tailingNull bool) error {
 	if _, err := h.conn.Write([]byte{'1', 0}); err != nil { // Protocol version
 		return err
@@ -216,7 +216,7 @@ func (h *Hotspot) command(cmd string, tailingNull bool) error {
 // the (short) protocol is following
 //  o create a file .attach_pid%d
 //  o send a SIGQUIT signal
-//  o wait for socket file created by the java process
+//  o wait for socket file to be created by the java process
 func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	attachPIDPath := func(root string) string {
 		return fmt.Sprintf("%s/.attach_pid%d", root, h.nsPid)
@@ -228,7 +228,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 		return err
 	}
 	hook.Close()
-	// we don't check Chown() return error here as it can failed on some filesystem
+	// we don't check Chown() return error here as it can fail on some filesystems (ex: force_uid (like nfs))
 	_ = syscall.Chown(attachPath, uid, gid)
 	hookUID, _, ownerErr := getPathOwner(attachPath)
 	if err != nil || ownerErr != nil || hookUID != uint32(uid) {
