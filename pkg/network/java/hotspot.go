@@ -250,7 +250,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	}
 	defer os.Remove(attachPath)
 
-	process, _ := os.FindProcess(h.pid)
+	process, _ := os.FindProcess(h.pid) // os.FindProcess() will never failed on linux
 	if err := process.Signal(syscall.SIGQUIT); err != nil {
 		return fmt.Errorf("process %d/%d SIGQUIT failed : %s", h.pid, h.nsPid, err)
 	}
@@ -266,7 +266,7 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 	return fmt.Errorf("the java process %d/%d didn't create a socket file", h.pid, h.nsPid)
 }
 
-// Attach() an agent to the hostspot, uid/gid must be accessible read-only by the targeted hotspot
+// Attach an agent to the hotspot, uid/gid must be accessible read-only by the targeted hotspot
 func (h *Hotspot) Attach(agent string, args string, uid int, gid int) error {
 
 	// ask JVM to create a socket to communicate
