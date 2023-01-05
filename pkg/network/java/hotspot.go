@@ -108,17 +108,17 @@ func (h *Hotspot) copyAgent(agent string, uid int, gid int) (dstPath string, cle
 		}
 	}
 
-	fagent, err := os.Open(agent)
+	srcAgent, err := os.Open(agent)
 	if err != nil {
 		return "", nil, err
 	}
-	defer fagent.Close()
+	defer srcAgent.Close()
 
 	dst, err := os.OpenFile(h.root+dstPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.FileMode(0444))
 	if err != nil {
 		return "", nil, err
 	}
-	_, err = io.Copy(dst, fagent)
+	_, err = io.Copy(dst, srcAgent)
 	dst.Close()
 	if err != nil {
 		return "", nil, err
