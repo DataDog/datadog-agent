@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -fields-resolver fields_resolver.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go
 
 package model
 
@@ -319,6 +319,21 @@ func (ev *Event) NewEmptyProcessCacheEntry() *ProcessCacheEntry {
 func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	fileFields.PathResolutionError = err
 	ev.PathResolutionError = err
+}
+
+// ResolveProcessCacheEntry uses the field handler
+func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
+	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
+}
+
+// ResolveEventTimestamp uses the field handler
+func (ev *Event) ResolveEventTimestamp() time.Time {
+	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+}
+
+// GetProcessServiceTag uses the field handler
+func (ev *Event) GetProcessServiceTag() string {
+	return ev.FieldHandlers.GetProcessServiceTag(ev)
 }
 
 // SetuidEvent represents a setuid event
@@ -985,6 +1000,7 @@ type SyscallsEvent struct {
 type ExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveEventTimestamp(ev *Event) time.Time
+	GetProcessServiceTag(ev *Event) string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -992,7 +1008,12 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 	return nil, false
 }
 
-// ResolveProcessCacheEntry stub implementation
+// ResolveEventTimestamp stub implementation
 func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
 	return ev.Timestamp
+}
+
+// GetProcessServiceTag stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessServiceTag(ev *Event) string {
+	return ""
 }

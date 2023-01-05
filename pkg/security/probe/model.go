@@ -516,12 +516,12 @@ func NewEvent(fh *FieldHandlers, marshaler *EventMarshaler) *model.Event {
 }
 
 type EventMarshaler struct {
-	resolvers *Resolvers
+	probe *Probe
 }
 
 // MarshalJSONEvent returns the JSON encoding of the event
 func (em *EventMarshaler) MarshalJSONEvent(ev *model.Event) ([]byte, error) {
-	s := NewEventSerializer(ev, em.resolvers)
+	s := NewEventSerializer(ev, em.probe)
 	w := &jwriter.Writer{
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
 	}

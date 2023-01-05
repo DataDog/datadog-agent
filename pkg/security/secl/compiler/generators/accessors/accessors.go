@@ -38,13 +38,13 @@ const (
 )
 
 var (
-	filename             string
-	pkgname              string
-	output               string
-	verbose              bool
-	docOutput            string
-	fieldsResolverOutput string
-	buildTags            string
+	filename            string
+	pkgname             string
+	output              string
+	verbose             bool
+	docOutput           string
+	fieldHandlersOutput string
+	buildTags           string
 )
 
 var (
@@ -560,7 +560,7 @@ func newField(allFields map[string]*common.StructField, field *common.StructFiel
 	return result
 }
 
-func getFieldResolver(allFields map[string]*common.StructField, field *common.StructField) string {
+func getFieldHandler(allFields map[string]*common.StructField, field *common.StructField) string {
 	if field.Handler == "" || field.Iterator != nil || field.CachelessResolution {
 		return ""
 	}
@@ -577,11 +577,11 @@ func getFieldResolver(allFields map[string]*common.StructField, field *common.St
 	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
 }
 
-func fieldADPrint(field *common.StructField, resolver string) string {
+func fieldADPrint(field *common.StructField, handler string) string {
 	if field.SkipADResolution {
-		return fmt.Sprintf("if !forADs { _ = %s }", resolver)
+		return fmt.Sprintf("if !forADs { _ = %s }", handler)
 	}
-	return fmt.Sprintf("_ = %s", resolver)
+	return fmt.Sprintf("_ = %s", handler)
 }
 
 func getHolder(allFields map[string]*common.StructField, field *common.StructField) *common.StructField {
@@ -654,21 +654,21 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 }
 
 var funcMap = map[string]interface{}{
-	"TrimPrefix":       strings.TrimPrefix,
-	"TrimSuffix":       strings.TrimSuffix,
-	"HasPrefix":        strings.HasPrefix,
-	"NewField":         newField,
-	"GetFieldResolver": getFieldResolver,
-	"FieldADPrint":     fieldADPrint,
-	"GetChecks":        getChecks,
-	"GetHandlers":      getHandlers,
+	"TrimPrefix":      strings.TrimPrefix,
+	"TrimSuffix":      strings.TrimSuffix,
+	"HasPrefix":       strings.HasPrefix,
+	"NewField":        newField,
+	"GetFieldHandler": getFieldHandler,
+	"FieldADPrint":    fieldADPrint,
+	"GetChecks":       getChecks,
+	"GetHandlers":     getHandlers,
 }
 
 //go:embed accessors.tmpl
 var accessorsTemplateCode string
 
-//go:embed fields_resolver.tmpl
-var fieldsResolverTemplate string
+//go:embed field_handlers.tmpl
+var fieldHandlersTemplate string
 
 func main() {
 	module, err := parseFile(filename, pkgname)
@@ -676,8 +676,8 @@ func main() {
 		panic(err)
 	}
 
-	if len(fieldsResolverOutput) > 0 {
-		if err = GenerateContent(fieldsResolverOutput, module, fieldsResolverTemplate); err != nil {
+	if len(fieldHandlersOutput) > 0 {
+		if err = GenerateContent(fieldHandlersOutput, module, fieldHandlersTemplate); err != nil {
 			panic(err)
 		}
 	}
@@ -744,7 +744,7 @@ func removeEmptyLines(input *bytes.Buffer) string {
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
 	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
-	flag.StringVar(&fieldsResolverOutput, "fields-resolver", "", "Fields resolver output file")
+	flag.StringVar(&fieldHandlersOutput, "field-handlers", "", "Field handlers output file")
 	flag.StringVar(&filename, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&pkgname, "package", pkgPrefix+"/"+os.Getenv("GOPACKAGE"), "Go package name")
 	flag.StringVar(&buildTags, "tags", "", "build tags used for parsing")

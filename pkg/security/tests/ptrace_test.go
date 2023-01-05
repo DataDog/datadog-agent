@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -49,7 +49,7 @@ func TestPTraceEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "ptrace", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(42), event.PTrace.Address, "wrong address")
 			assert.Equal(t, event.Async, false)

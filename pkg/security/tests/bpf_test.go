@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -45,7 +44,7 @@ func TestBPFEventLoad(t *testing.T) {
 	t.Run("prog_load", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "-load-bpf")
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfProgTypeKprobe), event.BPF.Program.Type, "wrong program type")
 
@@ -82,7 +81,7 @@ func TestBPFEventMap(t *testing.T) {
 	t.Run("map_lookup", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return runSyscallTesterFunc(t, syscallTester, "-load-bpf", "-clone-bpf")
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
 

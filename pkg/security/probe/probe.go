@@ -371,6 +371,8 @@ func (p *Probe) GetMonitor() *Monitor {
 
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
+	p.event.FieldHandlers = p.fieldHandlers
+	p.event.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
 	return p.event
 }
 
@@ -1109,7 +1111,14 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
 	opts.WithLogger(seclog.DefaultLogger)
 
-	return rules.NewRuleSet(&model.Model{}, opts, evalOpts)
+	eventCtor := func() eval.Event {
+		return &model.Event{
+			FieldHandlers: p.fieldHandlers,
+			JSONMarshaler: p.eventMarshaler.MarshalJSONEvent,
+		}
+	}
+
+	return rules.NewRuleSet(&model.Model{}, eventCtor, opts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1197,6 +1206,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		StatsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
+		event:                &model.Event{},
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1371,10 +1381,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	p.resolvers = resolvers
 
 	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
-	p.eventMarshaler = &EventMarshaler{resolvers: resolvers}
-
-	eventZero.FieldHandlers = p.fieldHandlers
-	eventZero.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
+	p.eventMarshaler = &EventMarshaler{probe: p}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()

@@ -15,7 +15,7 @@ func (ev *Event) ResolveFields(forADs bool) {
     // resolve context fields that are not related to any event type
     {{- range $Key, $Field := .Fields}}
         {{- if and (eq $Field.Event "*") }}
-            {{ $resolver := $Field | GetFieldResolver $.AllFields }}
+            {{ $resolver := $Field | GetFieldHandler $.AllFields }}
             {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
                 {{$Checks := $Field | GetChecks $.AllFields}}
                 {{if $Checks}}
@@ -34,7 +34,7 @@ func (ev *Event) ResolveFields(forADs bool) {
                         {{ $_ := set $uniqueResolvers $resolver "" }}
                     }
                 {{else}}
-                    {{ $resolver := $Field | GetFieldResolver $.AllFields }}
+                    {{ $resolver := $Field | GetFieldHandler $.AllFields }}
                     {{ if and (ne $resolver "") (not (hasKey $uniqueResolvers $resolver)) }}
                         {{ $resolver | FieldADPrint $Field }}
                         {{ $_ := set $uniqueResolvers $resolver "" }}
@@ -51,7 +51,7 @@ func (ev *Event) ResolveFields(forADs bool) {
         case "{{$Name}}":
             {{- range $Key, $FieldName := $EventType.Fields }}
                 {{- $Field := index $.Fields $FieldName }}
-                {{ $resolver := $Field | GetFieldResolver $.AllFields }}
+                {{ $resolver := $Field | GetFieldHandler $.AllFields }}
                 {{ if ne $resolver "" }}
                     {{$Checks := $Field | GetChecks $.AllFields}}
                     {{if $Checks}}

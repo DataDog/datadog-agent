@@ -985,7 +985,7 @@ func serializeSyscallRetval(retval int64) string {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, resolvers *Resolvers) *EventSerializer {
+func NewEventSerializer(event *model.Event, probe *Probe) *EventSerializer {
 	var pc model.ProcessContext
 	if entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event); entry != nil {
 		pc = entry.ProcessContext
@@ -995,7 +995,7 @@ func NewEventSerializer(event *model.Event, resolvers *Resolvers) *EventSerializ
 		EventContextSerializer: EventContextSerializer{
 			Name: model.EventType(event.Type).String(),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(&pc, event, resolvers),
+		ProcessContextSerializer: newProcessContextSerializer(&pc, event, probe.resolvers),
 		DDContextSerializer:      newDDContextSerializer(event),
 		UserContextSerializer:    newUserContextSerializer(event),
 		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTimestamp(event)),
@@ -1181,7 +1181,7 @@ func NewEventSerializer(event *model.Event, resolvers *Resolvers) *EventSerializ
 		s.MProtectEventSerializer = newMProtectEventSerializer(event)
 	case model.PTraceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.PTrace.Retval)
-		s.PTraceEventSerializer = newPTraceEventSerializer(event, resolvers)
+		s.PTraceEventSerializer = newPTraceEventSerializer(event, probe.resolvers)
 	case model.LoadModuleEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.LoadModule.Retval)
 		if !event.LoadModule.LoadedFromMemory {
@@ -1195,7 +1195,7 @@ func NewEventSerializer(event *model.Event, resolvers *Resolvers) *EventSerializ
 		s.ModuleEventSerializer = newUnloadModuleEventSerializer(event)
 	case model.SignalEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Signal.Retval)
-		s.SignalEventSerializer = newSignalEventSerializer(event, resolvers)
+		s.SignalEventSerializer = newSignalEventSerializer(event, probe.resolvers)
 	case model.SpliceEventType:
 		s.EventContextSerializer.Outcome = serializeSyscallRetval(event.Splice.Retval)
 		s.SpliceEventSerializer = newSpliceEventSerializer(event)

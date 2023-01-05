@@ -167,6 +167,7 @@ type RuleSet struct {
 	policies         []*Policy
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
+	eventCtor        func() eval.Event
 	listenersLock    sync.RWMutex
 	listeners        []RuleSetListener
 	globalVariables  eval.GlobalVariables
@@ -433,7 +434,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, rs.model.NewEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -671,7 +672,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 					varName = string(action.Set.Scope) + "." + varName
 				}
 
-				if _, err := rs.model.NewEvent().GetFieldValue(varName); err == nil {
+				if _, err := rs.eventCtor().GetFieldValue(varName); err == nil {
 					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with field", varName))
 					continue
 				}
@@ -708,7 +709,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 
 					variableValue = action.Set.Value
 				} else if action.Set.Field != "" {
-					kind, err := rs.model.NewEvent().GetFieldType(action.Set.Field)
+					kind, err := rs.eventCtor().GetFieldType(action.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", action.Set.Field, err))
 						continue
@@ -771,7 +772,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 }
 
 // NewRuleSet returns a new ruleset for the specified data model
-func NewRuleSet(model eval.Model, opts *Opts, evalOpts *eval.Opts) *RuleSet {
+func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 	logger := log.OrNullLogger(opts.Logger)
 
 	if evalOpts.MacroStore == nil {
@@ -784,6 +785,7 @@ func NewRuleSet(model eval.Model, opts *Opts, evalOpts *eval.Opts) *RuleSet {
 
 	return &RuleSet{
 		model:            model,
+		eventCtor:        eventCtor,
 		opts:             opts,
 		evalOpts:         evalOpts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
