@@ -6,12 +6,10 @@
 package api
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -21,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -44,8 +41,6 @@ import (
 const keyStatsComputed = "_dd.stats_computed"
 
 const (
-	// otlpProtocolHTTP specifies that the incoming connection was made over plain HTTP.
-	otlpProtocolHTTP = "http"
 	// otlpProtocolGRPC specifies that the incoming connection was made over gRPC.
 	otlpProtocolGRPC = "grpc"
 )
@@ -54,7 +49,6 @@ const (
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	wg          sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
@@ -69,23 +63,6 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
-	if cfg.HTTPPort != 0 {
-		o.httpsrv = &http.Server{
-			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
-			Handler:     o,
-			ConnContext: connContext,
-		}
-		o.wg.Add(1)
-		go func() {
-			defer o.wg.Done()
-			if err := o.httpsrv.ListenAndServe(); err != nil {
-				if err != http.ErrServerClosed {
-					log.Criticalf("Error starting OpenTelemetry HTTP server: %v", err)
-				}
-			}
-		}()
-		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.HTTPPort)
-	}
 	if cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		if err != nil {
@@ -107,15 +84,6 @@ func (o *OTLPReceiver) Start() {
 
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
-	if o.httpsrv != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		go func() {
-			if err := o.httpsrv.Shutdown(timeout); err != nil {
-				log.Errorf("Error shutting down OTLP HTTP server: %v", err)
-			}
-			cancel()
-		}()
-	}
 	if o.grpcsrv != nil {
 		go o.grpcsrv.Stop()
 	}
@@ -129,50 +97,6 @@ func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) 
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
 	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
-}
-
-// ServeHTTP implements http.Handler
-func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	defer timing.Since("datadog.trace_agent.otlp.process_http_request_ms", time.Now())
-	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
-
-	r := req.Body
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		gzipr, err := gzip.NewReader(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:corrupt_gzip"), 1)
-			return
-		}
-		r = gzipr
-	}
-	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
-	slurp, err := io.ReadAll(rd)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)
-		return
-	}
-	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	in := ptraceotlp.NewExportRequest()
-	switch getMediaType(req) {
-	case "application/x-protobuf":
-		if err := in.UnmarshalProto(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
-			return
-		}
-	case "application/json":
-		fallthrough
-	default:
-		if err := in.UnmarshalJSON(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
-			return
-		}
-	}
-	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
 }
 
 func tagsFromHeaders(h http.Header, protocol string) []string {

@@ -475,23 +475,7 @@ func TestOTLPReceiver(t *testing.T) {
 		o := NewOTLPReceiver(nil, config.New())
 		o.Start()
 		defer o.Stop()
-		assert.Nil(t, o.httpsrv)
 		assert.Nil(t, o.grpcsrv)
-	})
-
-	t.Run("Start/http", func(t *testing.T) {
-		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.Nil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
-		assert.Equal(t, fmt.Sprintf("localhost:%d", port), o.httpsrv.Addr)
 	})
 
 	t.Run("Start/grpc", func(t *testing.T) {
@@ -505,27 +489,11 @@ func TestOTLPReceiver(t *testing.T) {
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
-		assert.Nil(o.httpsrv)
 		assert.NotNil(o.grpcsrv)
 		svc, ok := o.grpcsrv.GetServiceInfo()["opentelemetry.proto.collector.trace.v1.TraceService"]
 		assert.True(ok)
 		assert.Equal("opentelemetry/proto/collector/trace/v1/trace_service.proto", svc.Metadata)
 		assert.Equal("Export", svc.Methods[0].Name)
-	})
-
-	t.Run("Start/http+grpc", func(t *testing.T) {
-		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port1,
-			GRPCPort: port2,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.NotNil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
 	})
 
 	t.Run("processRequest", func(t *testing.T) {
@@ -1287,7 +1255,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), otlpProtocolHTTP, metadata, otlpTestTracesRequest)
+		r.processRequest(context.Background(), otlpProtocolGRPC, metadata, otlpTestTracesRequest)
 	}
 	b.StopTimer()
 	end <- struct{}{}
