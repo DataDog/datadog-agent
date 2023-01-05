@@ -49,7 +49,6 @@ func (le *LeaderEngine) getCurrentLeader() (string, *v1.ConfigMap, error) {
 func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	// We first want to check if the ConfigMap the Leader Election is based on exists.
 	_, err := le.coreClient.ConfigMaps(le.LeaderNamespace).Get(context.TODO(), le.LeaseName, metav1.GetOptions{})
-
 	if err != nil {
 		if errors.IsNotFound(err) == false {
 			return nil, err
@@ -106,7 +105,7 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 	}
 
 	leaderElectorInterface, err := rl.New(
-		rl.ConfigMapsResourceLock,
+		rl.ConfigMapsLeasesResourceLock,
 		configMap.ObjectMeta.Namespace,
 		configMap.ObjectMeta.Name,
 		le.coreClient,
