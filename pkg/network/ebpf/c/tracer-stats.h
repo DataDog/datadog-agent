@@ -11,8 +11,8 @@
 #include "cookie.h"
 
 #ifdef COMPILE_PREBUILT
-static __u64 offset_rtt();
-static __u64 offset_rtt_var();
+static __always_inline __u64 offset_rtt();
+static __always_inline __u64 offset_rtt_var();
 #elif defined(COMPILE_CORE)
 static __always_inline struct tcp_sock * tcp_sk(const struct sock *sk);
 #endif
@@ -198,7 +198,7 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
 }
 
 static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u8 state) {
-    u32 rtt, rtt_var;
+    u32 rtt = 0, rtt_var = 0;
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel(&rtt, sizeof(rtt), (char*)sk + offset_rtt());
     bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), (char*)sk + offset_rtt_var());
