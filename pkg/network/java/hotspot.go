@@ -47,13 +47,15 @@ type Hotspot struct {
 
 // NewHotspot create an object to connect to a JVM hotspot
 // pid (host pid) and nsPid (within the namespace pid)
+//
+// NSPid field was introduced in kernel >= 4.1
+// So we can't support container on Centos 7 (kernel 3.10)
 func NewHotspot(pid int, nsPid int) (*Hotspot, error) {
 	h := &Hotspot{
 		pid:   pid,
 		nsPid: nsPid,
 	}
-	// workaround Centos 7 (kernel 3.10) NSPid field was introduced in 4.1
-	// so we don't support container on Centos 7
+	// Centos 7 workaround to support host environment
 	if h.nsPid == 0 {
 		h.nsPid = pid
 	}
