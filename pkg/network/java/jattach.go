@@ -32,5 +32,8 @@ func InjectAgent(pid int, agent string, args string) error {
 		return err
 	}
 
-	return h.Attach(agent, args, int(uids[3]), int(gids[3])) // 3: filesystem uid/gid
+	// we return the process uid and gid from the filesystem point of view
+	// as attach file need to be created with uid/gid accessible from the java hotspot
+	// index 3 here point to the 4th columns of /proc/pid/status Uid/Gid => filesystem uid/gid
+	return h.Attach(agent, args, int(uids[3]), int(gids[3]))
 }
