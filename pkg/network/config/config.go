@@ -246,7 +246,6 @@ func New() *Config {
 
 		EnableHTTPMonitoring:  cfg.GetBool(join(netNS, "enable_http_monitoring")),
 		EnableHTTPSMonitoring: cfg.GetBool(join(netNS, "enable_https_monitoring")),
-		EnableGoTLSSupport:    cfg.GetBool(join(spNS, "enable_go_tls_support")),
 		MaxHTTPStatsBuffered:  cfg.GetInt(join(netNS, "max_http_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(netNS, "max_tracked_http_connections")),
@@ -274,6 +273,7 @@ func New() *Config {
 
 		// Service Monitoring
 		EnableJavaTLSSupport: cfg.GetBool(join(smNS, "enable_java_tls_support")),
+		EnableGoTLSSupport:   cfg.GetBool(join(smNS, "enable_go_tls_support")),
 	}
 
 	if !cfg.IsSet(join(spNS, "max_closed_connections_buffered")) {

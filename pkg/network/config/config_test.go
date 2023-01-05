@@ -96,7 +96,7 @@ func TestEnableGoTLSSupport(t *testing.T) {
 		newConfig()
 		defer restoreGlobalConfig()
 
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_GO_TLS_SUPPORT", "true")
 		_, err := sysconfig.New("")
 		require.NoError(t, err)
 		cfg := New()
