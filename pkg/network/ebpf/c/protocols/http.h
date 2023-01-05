@@ -9,8 +9,6 @@
 #include "https.h"
 #include "events.h"
 
-#include <uapi/linux/ptrace.h>
-
 USM_EVENTS_INIT(http, http_transaction_t, HTTP_BATCH_SIZE);
 
 static __always_inline int http_responding(http_transaction_t *http) {

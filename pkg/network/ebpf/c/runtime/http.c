@@ -1,9 +1,14 @@
+
+#include "ktypes.h"
+
+#ifdef COMPILE_RUNTIME
 #include <linux/kconfig.h>
+#endif
 
 #include "bpf_tracing.h"
-#include "tracer.h"
-#include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
+#include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
@@ -53,10 +58,10 @@ int socket__http_filter(struct __sk_buff *skb) {
 }
 
 SEC("kprobe/tcp_sendmsg")
-int kprobe__tcp_sendmsg(struct pt_regs *ctx) {
-    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", PT_REGS_PARM1(ctx));
+int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+    log_debug("kprobe/tcp_sendmsg: sk=%llx\n", sk);
     // map connection tuple during SSL_do_handshake(ctx)
-    map_ssl_ctx_to_sock((struct sock *)PT_REGS_PARM1(ctx));
+    map_ssl_ctx_to_sock(sk);
 
     return 0;
 }
@@ -851,6 +856,7 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
         return NULL;
     }
 
+#ifdef COMPILE_RUNTIME
 #if defined(__x86_64__)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
     return (void*) t->fs;
@@ -866,6 +872,9 @@ static __always_inline void* get_tls_base(struct task_struct* task) {
 #else
 #error "Unsupported platform"
 #endif
+#endif
+    // TODO: Add CO-RE support
+    return NULL;
 }
 
 // This number will be interpreted by elf-loader to set the current running kernel version

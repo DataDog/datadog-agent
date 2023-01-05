@@ -1,14 +1,38 @@
 #ifndef __CONN_TUPLE_H
 #define __CONN_TUPLE_H
 
+#include "ktypes.h"
 #include "bpf_builtins.h"
-#include "netns.h"
+#include "bpf_telemetry.h"
+// FIX THIS
+// #include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif
 
+#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
 #include <net/inet_sock.h>
+#endif
+
+#ifdef COMPILE_CORE
+#define AF_INET   2
+#define AF_INET6 10
+
+#define sk_num          __sk_common.skc_num
+#define sk_family       __sk_common.skc_family
+#define sk_net          __sk_common.skc_net
+#define sk_rcv_saddr    __sk_common.skc_rcv_saddr
+#define sk_daddr        __sk_common.skc_daddr
+#define sk_v6_daddr     __sk_common.skc_v6_daddr
+#define sk_v6_rcv_saddr __sk_common.skc_v6_rcv_saddr
+#define sk_dport        __sk_common.skc_dport
+
+static __always_inline struct inet_sock *inet_sk(const struct sock *sk) {
+	return (struct inet_sock *)sk;
+}
+#endif
+
 
 static __always_inline __u16 read_sport(struct sock* skp) {
     __u16 sport = 0;
@@ -30,7 +54,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    t->netns = get_netns(&skp->sk_net);
+    /* t->netns = get_netns(&skp->sk_net); */
     u16 family = 0;
     bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), &skp->sk_family);
 

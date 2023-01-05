@@ -1,15 +1,22 @@
 #ifndef __IP_H
 #define __IP_H
 
-#include "kconfig.h"
+#include "ktypes.h"
 #include "bpf_helpers.h"
 #include "bpf_builtins.h"
 #include "bpf_endian.h"
 
+#ifdef COMPILE_CORE
+// from uapi/linux/if_ether.h
+#define ETH_HLEN 14
+#define ETH_P_IP 0x0800
+#define ETH_P_IPV6 0x86DD
+#else
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/ip.h>
 #include <uapi/linux/ipv6.h>
 #include <uapi/linux/udp.h>
+#endif
 
 // from uapi/linux/tcp.h
 struct __tcphdr {

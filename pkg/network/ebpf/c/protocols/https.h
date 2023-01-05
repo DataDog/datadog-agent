@@ -1,10 +1,15 @@
 #ifndef __HTTPS_H
 #define __HTTPS_H
 
+#ifdef COMPILE_CORE
+#define MAJOR(dev) ((dev)>>8)
+#define MINOR(dev) ((dev) & 0xff)
+#else
 #include <linux/dcache.h>
 #include <linux/fs.h>
 #include <linux/mm_types.h>
 #include <linux/sched.h>
+#endif
 
 #include "bpf_builtins.h"
 #include "go-tls-types.h"
