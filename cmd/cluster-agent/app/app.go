@@ -200,8 +200,9 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize remote configuration
+	var rcClient *remote.Client
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err := initializeRemoteConfig(mainCtx)
+		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -354,10 +355,14 @@ func start(cmd *cobra.Command, args []string) error {
 		if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
 				IsLeaderFunc: le.IsLeader,
-				Client:       apiCl.Cl,
+				K8sClient:    apiCl.Cl,
+				RcClient:     rcClient,
+				ClusterName:  clusterName,
 				StopCh:       stopCh,
 			}
-			admissionpatch.StartControllers(patchCtx, clusterName)
+			if err := admissionpatch.StartControllers(patchCtx); err != nil {
+				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
+			}
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
@@ -454,7 +459,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
 	}
 
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{}, time.Second*5)
+	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}
