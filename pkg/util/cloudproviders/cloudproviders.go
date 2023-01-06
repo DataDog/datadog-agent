@@ -11,12 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	ecscommon "github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/ecs"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
@@ -36,7 +34,6 @@ type cloudProviderDetector struct {
 // DetectCloudProvider detects the cloud provider where the agent is running in order:
 func DetectCloudProvider(ctx context.Context) {
 	detectors := []cloudProviderDetector{
-		{name: ecscommon.CloudProviderName, callback: ecs.IsRunningOn},
 		{name: ec2.CloudProviderName, callback: ec2.IsRunningOn},
 		{name: gce.CloudProviderName, callback: gce.IsRunningOn},
 		{name: azure.CloudProviderName, callback: azure.IsRunningOn},
@@ -64,7 +61,6 @@ type cloudProviderNTPDetector struct {
 // GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
 func GetCloudProviderNTPHosts(ctx context.Context) []string {
 	detectors := []cloudProviderNTPDetector{
-		{name: ecscommon.CloudProviderName, callback: ecs.GetNTPHosts},
 		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
 		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
 		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
