@@ -162,9 +162,7 @@ func (s *systray) stop(ctx context.Context) error {
 	}
 
 	// wait for goroutine to finish
-	s.log.Info("starting wait")
 	s.routineWaitGroup.Wait()
-	s.log.Info("routine done!")
 
 	// release our singleton
 	if s.singletonEventHandle != windows.Handle(0) {
@@ -212,7 +210,6 @@ func windowRoutine(s *systray) {
 	// Run the message loop
 	// use the notifyWindowToStop function to stop the message loop
 	mw.Run()
-	s.log.Info("routine exiting!")
 }
 
 func acquireProcessSingleton(eventname string) (windows.Handle, error) {
@@ -405,7 +402,7 @@ func relaunchElevated(s *systray, cmd string) {
 	cwd, _ := os.Getwd()
 
 	// Reconstruct arguments, drop launch-gui and tell the new process it should have been elevated.
-	xargs := []string{"-launch-elev=true", "-launch-cmd=" + cmd}
+	xargs := []string{"--launch-elev=true", "--launch-cmd=" + cmd}
 	args := strings.Join(xargs, " ")
 
 	verbPtr, _ := windows.UTF16PtrFromString(verb)

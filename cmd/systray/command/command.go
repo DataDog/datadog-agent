@@ -33,7 +33,7 @@ var (
 	//
 	// There will only be console output if the PE subsystem is "console", but the GUI functions will
 	// also fail, so this is really only useful for debugging setup/initialization or cmdline setup.
-	subsystem string
+	subsystem = "windows"
 )
 
 // MakeCommand makes the top-level Cobra command for this app.
@@ -48,7 +48,6 @@ func MakeCommand() *cobra.Command {
 	} else {
 		logFilePath = defaultLogFile
 	}
-	fmt.Println(logFilePath)
 
 	// log params
 	var logParams log.Params
