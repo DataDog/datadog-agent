@@ -60,4 +60,3 @@ func IsUserAnAdmin() (bool, error) {
 	}
 	return true, nil
 }
-

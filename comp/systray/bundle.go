@@ -11,8 +11,8 @@
 package systray
 
 import (
-	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/comp/systray/internal"
+	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -29,5 +29,3 @@ var Bundle = fxutil.Bundle(
 	// require the systray component, causing it to start
 	fx.Invoke(func(_ systray.Component) {}),
 )
-
-

@@ -64,13 +64,13 @@ func MakeCommand() *cobra.Command {
 
 	// root command
 	cmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s", os.Args[0]),
+		Use:          fmt.Sprintf("%s", os.Args[0]),
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args[]string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.Run(
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewParams(common.DefaultConfPath),
-					LogParams: logParams,
+					LogParams:    logParams,
 				}),
 				core.Bundle,
 				fx.Supply(systrayParams),

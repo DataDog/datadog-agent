@@ -22,28 +22,28 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/systray/internal"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
-	"go.uber.org/fx"
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
+	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 )
 
 type dependencies struct {
 	fx.In
 
-	Lc fx.Lifecycle
+	Lc         fx.Lifecycle
 	Shutdowner fx.Shutdowner
 
-	Log log.Component
+	Log    log.Component
 	Config config.Component
-	Flare flare.Component
+	Flare  flare.Component
 	Params internal.BundleParams
 }
 
@@ -51,20 +51,19 @@ type systray struct {
 	// For triggering Shutdown
 	shutdowner fx.Shutdowner
 
-	log log.Component
+	log    log.Component
 	config config.Component
-	flare flare.Component
+	flare  flare.Component
 	params internal.BundleParams
 
-	isUserAdmin     bool
+	isUserAdmin bool
 
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
 
 	// Window management
 	notifyWindowToStop func()
-	routineWaitGroup sync.WaitGroup
-
+	routineWaitGroup   sync.WaitGroup
 }
 
 type menuItem struct {
@@ -84,7 +83,7 @@ const (
 )
 
 var (
-	cmds                  = map[string]func(*systray){
+	cmds = map[string]func(*systray){
 		cmdTextStartService:   onStart,
 		cmdTextStopService:    onStop,
 		cmdTextRestartService: onRestart,
@@ -97,10 +96,10 @@ var (
 func newSystray(deps dependencies) (Component, error) {
 	// fx init
 	s := &systray{
-		log: deps.Log,
-		config: deps.Config,
-		flare: deps.Flare,
-		params: deps.Params,
+		log:        deps.Log,
+		config:     deps.Config,
+		flare:      deps.Flare,
+		params:     deps.Params,
 		shutdowner: deps.Shutdowner,
 	}
 
@@ -257,7 +256,7 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 	if err != nil {
 		return nil, err
 	}
-	defer func () {
+	defer func() {
 		if err != nil {
 			ni.Dispose()
 			ni = nil
@@ -319,7 +318,6 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 	if err := ni.SetVisible(true); err != nil {
 		pkglog.Warnf("Failed to set window visibility %v", err)
 	}
-
 
 	return ni, nil
 }

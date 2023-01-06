@@ -21,4 +21,3 @@ func main() {
 	}()
 	exitcode = runcmd.Run(command.MakeCommand())
 }
-

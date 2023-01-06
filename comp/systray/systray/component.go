@@ -12,7 +12,6 @@ import (
 )
 
 type Component interface {
-
 }
 
 var Module = fxutil.Component(

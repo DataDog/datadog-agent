@@ -6,8 +6,7 @@
 package internal
 
 type BundleParams struct {
-	LaunchGuiFlag bool
+	LaunchGuiFlag      bool
 	LaunchElevatedFlag bool
-	LaunchCommand string
+	LaunchCommand      string
 }
-
