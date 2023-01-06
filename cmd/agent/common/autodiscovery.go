@@ -30,7 +30,7 @@ var (
 		"container": {"kubelet": struct{}{}},
 	}
 
-	incompatibleProviders = []string{"kubelet", "container", "docker"}
+	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
 func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaScheduler) *autodiscovery.AutoConfig {
@@ -72,7 +72,7 @@ func setupAutoDiscovery(confSearchPaths []string, metaScheduler *scheduler.MetaS
 		}
 
 		var enableContainerProvider bool
-		for _, p := range incompatibleProviders {
+		for _, p := range legacyProviders {
 			if _, found := uniqueConfigProviders[p]; found {
 				enableContainerProvider = true
 				delete(uniqueConfigProviders, p)
