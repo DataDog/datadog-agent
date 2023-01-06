@@ -41,12 +41,6 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
     return (struct inet_sock *)sk;
 }
 
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == ENABLED;
-}
-
 static __always_inline bool is_ipv6_enabled() {
     __u64 val = 0;
     LOAD_CONSTANT("ipv6_enabled", val);

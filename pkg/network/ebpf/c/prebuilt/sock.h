@@ -3,7 +3,9 @@
 
 #include "kconfig.h"
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 #include "defs.h"
+#include "ipv6.h"
 
 // source include/linux/socket.h
 #define __AF_INET   2
