@@ -182,11 +182,12 @@ func (h *Hotspot) parseResponse(buf []byte) (returnCommand int, returnCode int, 
 					return 0, 0, "", fmt.Errorf("parsing hotspot response failed %d %s", line, s)
 				}
 			}
+		default:
+			break
 		}
-		response += s + "\n"
 		line++
 	}
-	return returnCommand, returnCode, response, nil
+	return returnCommand, returnCode, string(buf), nil
 }
 
 // command: tailingNull is necessary here to flush command
