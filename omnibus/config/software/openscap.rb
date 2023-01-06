@@ -45,8 +45,8 @@ build do
   patch source: "dpkg-version-comparison-2.patch", env: env
   patch source: "dpkg-version-comparison-3.patch", env: env
 
-  env["CC"] = "/opt/datadog-agent/embedded/bin/gcc"
-  env["CXX"] = "/opt/datadog-agent/embedded/bin/g++"
+  env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
+  env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
 
   command "rm -rf /usr/local/include/rpm", env: env
 

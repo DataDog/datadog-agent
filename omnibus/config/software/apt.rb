@@ -8,7 +8,6 @@ require './lib/cmake.rb'
 name 'apt'
 default_version '2.5.4'
 
-dependency 'gcc'
 dependency 'gnutls'
 dependency 'liblz4'
 dependency 'liblzma'
@@ -44,10 +43,9 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   env["PKG_CONFIG_PATH"] = "/opt/datadog-agent/embedded/lib/pkgconfig"
-  env["CC"] = "/opt/datadog-agent/embedded/bin/gcc"
-  env["CXX"] = "/opt/datadog-agent/embedded/bin/g++"
+  env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
+  env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
   env["CXXFLAGS"] += " -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
-  env["CPPFLAGS"] += " -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env
   patch source: "disable_systemd.patch", env: env
