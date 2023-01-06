@@ -48,6 +48,7 @@ build do
 
   env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
+  env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
 
   command "rm -rf /usr/local/include/rpm", env: env
 

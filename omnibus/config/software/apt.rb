@@ -45,7 +45,7 @@ build do
   env["PKG_CONFIG_PATH"] = "/opt/datadog-agent/embedded/lib/pkgconfig"
   env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
-  env["CXXFLAGS"] += " -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
+  env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
   patch source: "no_doc.patch", env: env
   patch source: "disable_arch_check.patch", env: env
   patch source: "disable_systemd.patch", env: env
