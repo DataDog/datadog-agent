@@ -65,6 +65,7 @@ build do
     "-DUSE_NLS=OFF",
     "-DWITH_TESTS=OFF",
     "-DLZMA_LIBRARIES:FILEPATH=/opt/datadog-agent/embedded/lib/liblzma.so",
+    "-DGCRYPT_LIBRARIES:FILEPATH=/opt/datadog-agent/embedded/lib/libgcrypt.so",
   ]
   cmake(*cmake_options, env: env)
 
