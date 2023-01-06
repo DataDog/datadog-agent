@@ -192,6 +192,10 @@ func (e *ebpfProgram) Init() error {
 		if err == nil {
 			return nil
 		}
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+			return fmt.Errorf("co-re load failed: %w", err)
+		}
+
 		log.Errorf("co-re load failed: %s. attempting fallback.", err)
 	}
 
