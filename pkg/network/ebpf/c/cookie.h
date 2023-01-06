@@ -5,14 +5,7 @@
 #include "bpf_core_read.h"
 
 static __always_inline u32 get_sk_cookie(struct sock *sk) {
-#if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
-    if (bpf_helper_exists(BPF_FUNC_get_prandom_u32)) {
-        return bpf_get_prandom_u32();
-    }
-#endif
-
-    u64 t = bpf_ktime_get_ns();
-    return (u32)((u64)sk ^ t);
+    return bpf_get_prandom_u32();
 }
 
 #endif // __COOKIE_H__
