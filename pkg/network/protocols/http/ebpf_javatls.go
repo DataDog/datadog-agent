@@ -62,10 +62,6 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 }
 
 func (p *JavaTLSProgram) ConfigureManager(m *nettelemetry.Manager) {
-	if p == nil {
-		return
-	}
-
 	rand.Seed(int64(os.Getpid()) + time.Now().UnixMicro())
 	authID = rand.Int63()
 }
@@ -83,11 +79,6 @@ func newJavaProcess(pid uint32) {
 }
 
 func (p *JavaTLSProgram) Start() {
-	if p == nil {
-		log.Debugf("java TLS ebpf subprogram is not enabled")
-		return
-	}
-
 	var err error
 	p.cleanupExec, err = p.processMonitor.Subscribe(&monitor.ProcessCallback{
 		Event:    monitor.EXEC,
@@ -102,10 +93,6 @@ func (p *JavaTLSProgram) Start() {
 }
 
 func (p *JavaTLSProgram) Stop() {
-	if p == nil {
-		log.Debugf("java TLS ebpf subprogram is not enabled")
-		return
-	}
 	if p.cleanupExec != nil {
 		p.cleanupExec()
 	}
