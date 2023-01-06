@@ -103,16 +103,8 @@ func newSystray(deps dependencies) (Component, error) {
 		shutdowner: deps.Shutdowner,
 	}
 
-	menuitems := make([]menuItem, 0)
-	menuitems = append(menuitems, menuItem{label: verstring, enabled: false})
-	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "&Start", handler: menuHandler(cmdTextStartService), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "S&top", handler: menuHandler(cmdTextStopService), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Restart", handler: menuHandler(cmdTextRestartService), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Configure", handler: menuHandler(cmdTextConfig), enabled: true})
-	menuitems = append(menuitems, menuItem{label: "&Flare", handler: onFlare, enabled: true})
-	menuitems = append(menuitems, menuItem{label: separator})
-	menuitems = append(menuitems, menuItem{label: "E&xit", handler: onExit, enabled: true})
+	// fx lifecycle hooks
+	deps.Lc.Append(fx.Hook{OnStart: s.start, OnStop: s.stop})
 
 	// init vars
 	isAdmin, err := winutil.IsUserAnAdmin()
@@ -127,6 +119,7 @@ func newSystray(deps dependencies) (Component, error) {
 	return s, nil
 }
 
+// start hook has a fx enforced timeout, so don't do long running things
 func (s *systray) start(ctx context.Context) error {
 	var err error
 
@@ -250,6 +243,8 @@ func acquireProcessSingleton(eventname string) (windows.Handle, error) {
 	return h, nil
 }
 
+// this function must be called from and the NotifyIcon used from a single thread locked goroutine
+// https://github.com/lxn/walk/issues/601
 func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err error) {
 	// Create the notify icon (must be cleaned up)
 	ni, err = walk.NewNotifyIcon(mw)
@@ -267,15 +262,15 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 	// 1 is the ID of the MAIN_ICON in systray.rc
 	icon, err := walk.NewIconFromResourceId(1)
 	if err != nil {
-		pkglog.Warnf("Failed to load icon %v", err)
+		s.log.Warnf("Failed to load icon %v", err)
 	}
 	if err := ni.SetIcon(icon); err != nil {
-		pkglog.Warnf("Failed to set icon %v", err)
+		s.log.Warnf("Failed to set icon %v", err)
 	}
 
 	// Set mouseover tooltip
 	if err := ni.SetToolTip("Click for info or use the context menu to exit."); err != nil {
-		pkglog.Warnf("Failed to set tooltip text %v", err)
+		s.log.Warnf("Failed to set tooltip text %v", err)
 	}
 
 	// When the left mouse button is pressed, bring up our balloon.
@@ -295,12 +290,12 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 		} else {
 			action = walk.NewAction()
 			if err := action.SetText(item.label); err != nil {
-				pkglog.Warnf("Failed to set text for item %s %v", item.label, err)
+				s.log.Warnf("Failed to set text for item %s %v", item.label, err)
 				continue
 			}
 			err = action.SetEnabled(item.enabled)
 			if err != nil {
-				pkglog.Warnf("Failed to set enabled for item %s %v", item.label, err)
+				s.log.Warnf("Failed to set enabled for item %s %v", item.label, err)
 				continue
 			}
 			if item.handler != nil {
@@ -309,14 +304,14 @@ func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err
 		}
 		err = ni.ContextMenu().Actions().Add(action)
 		if err != nil {
-			pkglog.Warnf("Failed to add action for item %s to context menu %v", item.label, err)
+			s.log.Warnf("Failed to add action for item %s to context menu %v", item.label, err)
 			continue
 		}
 	}
 
 	// The notify icon is hidden initially, so we have to make it visible.
 	if err := ni.SetVisible(true); err != nil {
-		pkglog.Warnf("Failed to set window visibility %v", err)
+		s.log.Warnf("Failed to set window visibility %v", err)
 	}
 
 	return ni, nil
@@ -412,7 +407,7 @@ func relaunchElevated(s *systray, cmd string) {
 
 	err := windows.ShellExecute(0, verbPtr, exePtr, argPtr, cwdPtr, showCmd)
 	if err != nil {
-		pkglog.Warnf("Failed to launch self as elevated %v", err)
+		s.log.Warnf("Failed to launch self as elevated %v", err)
 	} else {
 		triggerShutdown(s)
 	}
