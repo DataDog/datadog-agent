@@ -134,7 +134,7 @@ func (s *systray) start(ctx context.Context) error {
 
 	if s.params.LaunchGuiFlag {
 		s.log.Debug("Preparing to launch configuration interface...")
-		onConfigure(s)
+		go onConfigure(s)
 	}
 
 	s.singletonEventHandle, err = acquireProcessSingleton(eventname)
