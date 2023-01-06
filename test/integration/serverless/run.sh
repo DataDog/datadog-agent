@@ -183,6 +183,9 @@ sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
 
+RAWLOGS_DIR=".serverless/rawlogs/$stage"
+mkdir -p $RAWLOGS_DIR
+
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
     retry_counter=1
@@ -199,6 +202,8 @@ for function_name in "${all_functions[@]}"; do
         break
     done
     printf "\e[A\e[K" # erase previous log line
+
+    echo $raw_logs > $RAWLOGS_DIR/$function_name
 
     # Replace invocation-specific data like timestamps and IDs with XXX to normalize across executions
     if [[ " ${metric_functions[*]} " =~ " ${function_name} " ]]; then
