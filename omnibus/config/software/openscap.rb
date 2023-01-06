@@ -44,6 +44,7 @@ build do
   patch source: "dpkg-version-comparison-1.patch", env: env
   patch source: "dpkg-version-comparison-2.patch", env: env
   patch source: "dpkg-version-comparison-3.patch", env: env
+  patch source: "disable_ldap_probe.patch", env: env
 
   env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-8.4.0/bin/g++"

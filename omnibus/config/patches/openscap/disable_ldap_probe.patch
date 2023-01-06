@@ -1,0 +1,35 @@
+diff -r -u openscap-1.2.17.old/configure openscap-1.2.17.new/configure
+--- openscap-1.2.17.old/configure	2018-05-29 06:51:38.735290277 +0000
++++ openscap-1.2.17.new/configure	2023-01-06 23:20:55.310610174 +0000
+@@ -23335,7 +23335,7 @@
+ probe_sql57_req_deps_missing=
+ probe_sql57_opt_deps_ok=yes
+ probe_sql57_opt_deps_missing=
+-probe_ldap57_req_deps_ok=yes
++probe_ldap57_req_deps_ok=no
+ probe_ldap57_req_deps_missing=
+ probe_ldap57_opt_deps_ok=yes
+ probe_ldap57_opt_deps_missing=
+@@ -25812,7 +25812,7 @@
+ 
+ echo
+ echo ' * Checking presence of required headers for the ldap57 probe'
+-for ac_header in ldap.h pthread.h stdbool.h
++for ac_header in __ldap__.h pthread.h stdbool.h
+ do :
+   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ ac_fn_c_check_header_preproc "$LINENO" "$ac_header" "$as_ac_Header"
+@@ -30741,13 +30741,8 @@
+ fi
+ 
+ probe_sql57_enabled=$probe_sql57_req_deps_ok
+- if test "$probe_ldap57_req_deps_ok" = yes; then
+-  probe_ldap57_enabled_TRUE=
+-  probe_ldap57_enabled_FALSE='#'
+-else
+   probe_ldap57_enabled_TRUE='#'
+   probe_ldap57_enabled_FALSE=
+-fi
+ 
+ probe_ldap57_enabled=$probe_ldap57_req_deps_ok
+  if test "$probe_dnscache_req_deps_ok" = yes; then
