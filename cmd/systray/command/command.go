@@ -36,6 +36,11 @@ var (
 	subsystem = "windows"
 )
 
+func init() {
+	// disable cobra mouse trap so cobra doesn't immediately kill our GUI app
+	cobra.MousetrapHelpText = ""
+}
+
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand() *cobra.Command {
 	systrayParams := systray.BundleParams{}
