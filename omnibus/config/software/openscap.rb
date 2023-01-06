@@ -36,7 +36,6 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   patch source: "fix_apt_key_pkgconfig.patch", env: env
-  # patch source: "add_missing_apt_includes.patch", env: env
   patch source: "get_results_from_session.patch", env: env
   patch source: "5e5bc61c1fc6a6556665aa5689a62d6bc6487c74.patch", env: env
   patch source: "apt-1.9.0.patch", env: env
@@ -49,14 +48,6 @@ build do
   env["CC"] = "/opt/gcc-8.4.0/bin/gcc"
   env["CXX"] = "/opt/gcc-8.4.0/bin/g++"
   env["CXXFLAGS"] += " -static-libstdc++ -std=c++11 -DDPKG_DATADIR=/usr/share/dpkg"
-
-  command "rm -rf /usr/local/include/rpm", env: env
-
-  #cmake_options = [
-  #  "-D", "ENABLE_PYTHON3=FALSE",
-  #  "-D", "ENABLE_PERL=FALSE",
-  #]
-  #cmake(*cmake_options, env: env)
 
   configure_options = [
     "--disable-python",

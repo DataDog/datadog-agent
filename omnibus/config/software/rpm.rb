@@ -44,7 +44,6 @@ end
 relative_path "rpm-#{version}"
 
 build do
-  # patch source: "0001-Include-fcntl.patch"
   patch source: "0002-Set-backend-db-to-sqlite-by-default-in-the-macros.patch"
   patch source: "disable_md2.patch"
 
