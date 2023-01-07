@@ -15,7 +15,11 @@
 #
 
 name "liblzma"
-default_version "5.2.5"
+if mac_os_x?
+  default_version "5.0.5"
+else
+  default_version "5.2.5"
+end
 
 license "Public-Domain"
 license_file "COPYING"
