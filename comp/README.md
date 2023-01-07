@@ -46,3 +46,13 @@ Package runner implements a component to run data collection checks in the Proce
 
 Package submitter implements a component to submit collected data in the Process Agent to
 supported Datadog intakes.
+
+## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
+
+*Datadog Team*: agent-windows
+
+Package systray implements the "systray" bundle for the Datadog Agent Manager tray application.
+
+### [comp/systray/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray/systray)
+
+Package systray

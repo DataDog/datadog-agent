@@ -5,7 +5,7 @@
 //go:build windows
 // +build windows
 
-// Package systray implements the "systray" bundle for the systray app.
+// Package systray implements the "systray" bundle for the Datadog Agent Manager tray application.
 //
 // Including `systray.Module` in an App will automatically start the app.
 //
