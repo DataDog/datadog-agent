@@ -19,7 +19,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-windows
+// team: windows-agent
 
 // BundleParams defines the parameters for this bundle
 type BundleParams = internal.BundleParams

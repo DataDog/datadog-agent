@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-windows
+// team: windows-agent
 
 type Component interface {
 }
