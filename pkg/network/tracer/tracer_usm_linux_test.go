@@ -539,7 +539,6 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 
 		initTracerState(t, tr)
 		require.NoError(t, err)
-		done := make(chan struct{})
 		HTTPServer := NewTCPServerOnAddress(serverHost, func(c net.Conn) {
 			r := bufio.NewReader(c)
 			input, err := r.ReadBytes(byte('\n'))
@@ -548,7 +547,8 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 			}
 			c.Close()
 		})
-		require.NoError(t, HTTPServer.Run(done))
+		t.Cleanup(HTTPServer.Shutdown)
+		require.NoError(t, HTTPServer.Run())
 		_, port, err := net.SplitHostPort(HTTPServer.address)
 		require.NoError(t, err)
 		targetAddr := net.JoinHostPort(targetHost, port)
@@ -570,7 +570,7 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 
 		client.CloseIdleConnections()
 		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, network.ProtocolHTTP)
-		close(done)
+		HTTPServer.Shutdown()
 
 		time.Sleep(2 * time.Second)
 
