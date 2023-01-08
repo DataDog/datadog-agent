@@ -14,6 +14,7 @@
 #include "protocols/https.h"
 #include "protocols/http2.h"
 #include "protocols/http2-defs.h"
+#include "protocols/http2-decoding.h"
 #include "protocols/go-tls-types.h"
 #include "protocols/go-tls-goid.h"
 #include "protocols/go-tls-location.h"

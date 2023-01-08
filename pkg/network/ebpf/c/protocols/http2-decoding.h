@@ -353,4 +353,64 @@ static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http
     return true;
 }
 
+// This function filters the needed frames from the http2 session.
+static __always_inline void process_http2_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
+    log_debug("[http2] http2 process_http2_frames");
+
+    struct http2_frame current_frame = {};
+
+#pragma unroll
+    // Iterate till max frames to avoid high connection rate.
+    for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
+        if (http2_transaction->current_offset_in_request_fragment + HTTP2_FRAME_HEADER_SIZE > skb->len) {
+        log_debug("[http2] size is too big!");
+          return;
+        }
+
+        // Load the current frame into http2_frame strct in order to filter the needed frames.
+        if (http2_transaction->current_offset_in_request_fragment > sizeof(http2_transaction->request_fragment)) {
+            return;
+        }
+
+        if (!read_http2_frame_header(http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment, HTTP2_FRAME_HEADER_SIZE, &current_frame)){
+            return;
+        }
+
+        http2_transaction->current_offset_in_request_fragment += HTTP2_FRAME_HEADER_SIZE;
+
+        // End of stream my apper in the data frame as well as the header frame.
+        if (current_frame.type == kDataFrame && current_frame.flags == 1){
+           log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
+        }
+
+        if (current_frame.length == 0) {
+            continue;
+        }
+
+        // Filter all types of frames except header frame.
+        if (current_frame.type != kHeadersFrame) {
+            http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
+            continue;
+        }
+
+        // End of stream my apper in the header frame as well.
+        if (current_frame.flags == 1){
+           log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
+        }
+
+        // Verify size of pos with max of XX not bigger then the packet.
+        if (http2_transaction->current_offset_in_request_fragment + (__u32)current_frame.length > skb->len) {
+            return;
+        }
+
+        // Load the current frame into http2_frame strct in order to filter the needed frames.
+        if (!decode_http2_headers_frame(http2_transaction, current_frame.length)){
+            log_debug("[http2] unable to read http2 header frame");
+            return;
+        }
+
+        http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
+    }
+}
+
 #endif
