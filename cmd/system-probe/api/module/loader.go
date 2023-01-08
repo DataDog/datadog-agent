@@ -27,7 +27,7 @@ func init() {
 	}
 }
 
-// loader is responsible for managing the lifecyle of each api.Module, which includes:
+// loader is responsible for managing the lifecycle of each api.Module, which includes:
 // * Module initialization;
 // * Module termination;
 // * Module telemetry consolidation;

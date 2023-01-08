@@ -620,6 +620,7 @@ var allStats = []statsComp{
 	tracerStats,
 	bpfHelperStats,
 	bpfMapStats,
+	httpStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -654,6 +655,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["map_ops"] = t.bpfTelemetry.GetMapsTelemetry()
 		case bpfHelperStats:
 			ret["ebpf_helpers"] = t.bpfTelemetry.GetHelperTelemetry()
+		case httpStats:
+			ret["universal_service_monitoring"] = t.httpMonitor.GetUSMStats()
 		}
 	}
 
@@ -693,7 +696,7 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 
 }
 
-// DebugEBPFMaps returns all maps registred in the eBPF manager
+// DebugEBPFMaps returns all maps registered in the eBPF manager
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
 	if err != nil {
@@ -715,7 +718,7 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 // expiry is handled differently for UDP and TCP. For TCP where conntrack TTL is very long, we use a short expiry for userspace tracking
 // but use conntrack as a source of truth to keep long-lived idle TCP conns in the userspace state, while evicting closed TCP connections.
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
-// UDP expiries
+// UDP expires
 func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uint64, ctr *cachedConntrack) bool {
 	timeout := t.timeoutForConn(conn)
 	if !conn.IsExpired(latestTime, timeout) {
@@ -804,6 +807,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 
 func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *telemetry.EBPFTelemetry, offsets []manager.ConstantEditor) *http.Monitor {
 	if !c.EnableHTTPMonitoring {
+		http.USMStartupError = fmt.Errorf("http monitoring is disabled")
 		return nil
 	}
 
@@ -812,18 +816,21 @@ func newHTTPMonitor(c *config.Config, tracer connection.Tracer, bpfTelemetry *te
 
 	monitor, err := http.NewMonitor(c, offsets, sockFDMap, bpfTelemetry)
 	if err != nil {
-		log.Errorf("could not instantiate http monitor: %s", err)
+		http.USMStartupError = fmt.Errorf("could not instantiate http monitor: %s", err)
+		log.Error(http.USMStartupError.Error())
 		return nil
 	}
 
 	err = monitor.Start()
 	if errors.Is(err, syscall.ENOMEM) {
-		log.Error("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+		http.USMStartupError = fmt.Errorf("could not enable http monitoring: not enough memory to attach http ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>")
+		log.Error(http.USMStartupError.Error())
 		return nil
 	}
 
 	if err != nil {
-		log.Errorf("could not enable http monitoring: %s", err)
+		http.USMStartupError = fmt.Errorf("could not enable http monitoring: %s", err)
+		log.Error(http.USMStartupError.Error())
 		return nil
 	}
 

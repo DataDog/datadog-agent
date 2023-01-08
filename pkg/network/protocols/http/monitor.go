@@ -23,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 )
 
+var (
+	USMStartupError error
+)
+
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
 // * Consuming HTTP transaction "events" that are sent from Kernel space;
@@ -99,6 +103,17 @@ func (m *Monitor) Start() error {
 	}
 
 	return m.processMonitor.Initialize()
+}
+
+func (m *Monitor) GetUSMStats() map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{
+			"Error": USMStartupError.Error(),
+		}
+	}
+	return map[string]interface{}{
+		"last_check": m.telemetry.then,
+	}
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
