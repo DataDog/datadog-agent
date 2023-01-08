@@ -107,7 +107,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
 
     process_http2_frames(http2, skb);
-    http2_process(http2, NO_TAGS);
+    http2_process(http2, NULL, NO_TAGS);
     return 0;
 }
 

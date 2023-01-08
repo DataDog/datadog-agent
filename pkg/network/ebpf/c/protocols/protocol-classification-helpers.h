@@ -9,6 +9,7 @@
 #include "bpf_telemetry.h"
 #include "ip.h"
 #include "http2.h"
+#include "http2-maps-defs-classify.h"
 
 // Patch to support old kernels that don't contain bpf_skb_load_bytes, by adding a dummy implementation to bypass runtime compilation.
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)

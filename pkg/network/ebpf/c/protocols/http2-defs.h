@@ -9,7 +9,7 @@
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
-#define HTTP2_MAX_HEADERS_COUNT 10
+#define HTTP2_MAX_HEADERS_COUNT 30
 
 // A limit of max frame size in order to be able to load a max size and pass the varifier.
 // NOTE: we may need to change the max size.
@@ -55,12 +55,18 @@ typedef struct {
 
 typedef struct {
     char buffer[32] __attribute__ ((aligned (8)));
+    __u64 string_len;
 } __attribute__ ((packed)) dynamic_string_value;
 
 typedef struct {
     __u64 index;
     dynamic_string_value value;
 } dynamic_table_value;
+
+typedef struct {
+    __u64 index;
+    conn_tuple_t old_tup;
+} dynamic_table_index;
 
 typedef enum
 {
@@ -102,8 +108,6 @@ typedef struct {
 
     __u16 response_status_code;
     __u16 owned_by_src_port;
-
-    __u64 internal_dynamic_counter;
 
     __u8  request_method;
     __u8  packet_type;

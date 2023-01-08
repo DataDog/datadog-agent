@@ -180,7 +180,6 @@ const (
 	HelperErrTelemetryMap BPFMapName = "helper_err_telemetry_map"
 	TcpRecvMsgArgsMap     BPFMapName = "tcp_recvmsg_args"
 	StaticTableMap        BPFMapName = "http2_static_table"
-	DynamicTableMap       BPFMapName = "http2_dynamic_table"
 )
 
 // SectionName returns the SectionName for the given BPF map

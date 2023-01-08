@@ -31,6 +31,7 @@ import (
 
 const (
 	httpInFlightMap   = "http_in_flight"
+	http2InFlightMap  = "http2_in_flight"
 	httpBatchesMap    = "http_batches"
 	httpBatchStateMap = "http_batch_state"
 	httpBatchEvents   = "http_batch_events"
@@ -63,6 +64,7 @@ type ebpfProgram struct {
 	offsets     []manager.ConstantEditor
 	subprograms []subprogram
 	mapCleaner  *ddebpf.MapCleaner
+	mapCleaner2 *ddebpf.MapCleaner
 
 	batchCompletionHandler *ddebpf.PerfHandler
 }
@@ -126,6 +128,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
+			{Name: http2InFlightMap},
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
@@ -232,6 +235,11 @@ func (e *ebpfProgram) Init() error {
 		},
 		MapSpecEditors: map[string]manager.MapSpecEditor{
 			httpInFlightMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+			http2InFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
@@ -403,28 +411,6 @@ func (e *ebpfProgram) Init() error {
 		}
 	}
 
-	dnymicTable, _, err := e.Manager.GetMap(string(probes.DynamicTableMap))
-	if err == nil {
-		type dynamicTableEntry struct {
-			Index uint64
-			Value netebpf.DynamicTableEnumValue
-		}
-
-		dynamicTableEntries := []dynamicTableEntry{
-			{
-				Index: 1,
-			},
-		}
-
-		for _, entry := range dynamicTableEntries {
-			err := dnymicTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
-
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -439,6 +425,7 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	e.setupMapCleaner()
+	e.setupMapCleaner2()
 
 	return nil
 }
@@ -477,6 +464,32 @@ func (e *ebpfProgram) setupMapCleaner() {
 	})
 
 	e.mapCleaner = httpMapCleaner
+}
+
+func (e *ebpfProgram) setupMapCleaner2() {
+	http2Map, _, _ := e.GetMap(http2InFlightMap)
+	http2MapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(netebpf.ConnTuple), new(ebpfHttpTx))
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	ttl2 := e.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	http2MapCleaner.Clean(e.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
+		httpTxn, ok := val.(*ebpfHttpTx)
+		if !ok {
+			return false
+		}
+
+		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+			return (now - updated) > ttl2
+		}
+
+		started := int64(httpTxn.RequestStarted())
+		return started > 0 && (now-started) > ttl2
+	})
+
+	e.mapCleaner2 = http2MapCleaner
 }
 
 func getBytecode(c *config.Config) (bc bytecode.AssetReader, err error) {

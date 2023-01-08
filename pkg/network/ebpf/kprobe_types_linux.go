@@ -114,6 +114,7 @@ type DynamicTableEnumKey = uint8
 
 type DynamicTableEnumValue = struct {
 	Buffer [32]int8
+	Len    uint64
 }
 
 const (
