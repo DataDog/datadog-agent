@@ -280,6 +280,8 @@
 /pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
 /pkg/network/dns/*_windows*.go          @DataDog/windows-kernel-integrations
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
+/pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
@@ -354,6 +356,7 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
+/test/new-e2e/                          @DataDog/agent-e2e-testing
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm

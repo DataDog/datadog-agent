@@ -85,6 +85,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 			MutexProfileFraction: profiling.GetMutexProfileFraction(),
 			BlockProfileRate:     profiling.GetBlockProfileRate(),
 			WithGoroutineProfile: config.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+			WithDeltaProfiles:    config.Datadog.GetBool("internal_profiling.delta_profiles"),
 			Tags:                 []string{fmt.Sprintf("version:%v", v)},
 		}
 		err := profiling.Start(settings)

@@ -37,6 +37,7 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	NamespaceResolver *NamespaceResolver
 	CgroupsResolver   *resolvers.CgroupsResolver
+	TCResolver        *resolvers.TCResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -71,6 +72,8 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		return nil, err
 	}
 
+	tcResolver := resolvers.NewTCResolver(config)
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		MountResolver:     mountResolver,
@@ -81,6 +84,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		DentryResolver:    dentryResolver,
 		NamespaceResolver: namespaceResolver,
 		CgroupsResolver:   cgroupsResolver,
+		TCResolver:        tcResolver,
 	}
 
 	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
@@ -134,22 +138,6 @@ func (r *Resolvers) resolveFileFieldsPath(e *model.FileFields, pidCtx *model.PID
 	}
 
 	return pathStr, err
-}
-
-// ResolveFileFieldsUser resolves the user id of the file to a username
-func (r *Resolvers) ResolveFileFieldsUser(e *model.FileFields) string {
-	if len(e.User) == 0 {
-		e.User, _ = r.UserGroupResolver.ResolveUser(int(e.UID))
-	}
-	return e.User
-}
-
-// ResolveFileFieldsGroup resolves the group id of the file to a group name
-func (r *Resolvers) ResolveFileFieldsGroup(e *model.FileFields) string {
-	if len(e.Group) == 0 {
-		e.Group, _ = r.UserGroupResolver.ResolveGroup(int(e.GID))
-	}
-	return e.Group
 }
 
 // ResolveCredentialsUser resolves the user id of the process to a username

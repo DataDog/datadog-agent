@@ -23,7 +23,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -82,7 +81,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
+	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
@@ -92,17 +91,12 @@ func runCheckCmd(cliParams *cliParams) error {
 		return log.Critical(err)
 	}
 
-	cfg, err := config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, syscfg)
-	if err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -136,7 +130,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	sysInfo, err := checks.CollectSystemInfo(cfg)
+	hostInfo, err := checks.CollectHostInfo()
 	if err != nil {
 		log.Errorf("failed to collect system info: %s", err)
 	}
@@ -152,15 +146,17 @@ func runCheckCmd(cliParams *cliParams) error {
 	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
 
 	if checks.Process.SysprobeProcessModuleEnabled {
-		net.SetSystemProbePath(cfg.SystemProbeAddress)
+		net.SetSystemProbePath(syscfg.SocketAddress)
 	}
 
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		checks.Process.Init(cfg, sysInfo)
-		checks.Process.Run(cfg, 0) //nolint:errcheck
+		if err := checks.Process.Init(nil, hostInfo); err != nil {
+			return err
+		}
+		checks.Process.Run(0) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
@@ -169,25 +165,34 @@ func runCheckCmd(cliParams *cliParams) error {
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
 
+		cfg := &checks.SysProbeConfig{
+			MaxConnsPerMessage: syscfg.MaxConnsPerMessage,
+			SystemProbeAddress: syscfg.SocketAddress,
+		}
+
 		if ch.Name() == cliParams.checkName {
-			ch.Init(cfg, sysInfo)
+			if err = ch.Init(cfg, hostInfo); err != nil {
+				return err
+			}
 			cleanups = append(cleanups, ch.Cleanup)
-			return runCheck(cliParams, cfg, ch)
+			return runCheck(cliParams, ch)
 		}
 
 		withRealTime, ok := ch.(checks.CheckWithRealTime)
 		if ok && withRealTime.RealTimeName() == cliParams.checkName {
-			withRealTime.Init(cfg, sysInfo)
+			if err = withRealTime.Init(cfg, hostInfo); err != nil {
+				return err
+			}
 			cleanups = append(cleanups, withRealTime.Cleanup)
-			return runCheckAsRealTime(cliParams, cfg, withRealTime)
+			return runCheckAsRealTime(cliParams, withRealTime)
 		}
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) error {
+func runCheck(cliParams *cliParams, ch checks.Check) error {
 	// Run the check once to prime the cache.
-	if _, err := ch.Run(cfg, 0); err != nil {
+	if _, err := ch.Run(0); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -198,14 +203,14 @@ func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) er
 		printResultsBanner(ch.Name())
 	}
 
-	msgs, err := ch.Run(cfg, 1)
+	msgs, err := ch.Run(1)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 	return printResults(ch.Name(), msgs, cliParams.checkOutputJSON)
 }
 
-func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
+func runCheckAsRealTime(cliParams *cliParams, ch checks.CheckWithRealTime) error {
 	options := checks.RunOptions{
 		RunStandard: true,
 		RunRealTime: true,
@@ -220,7 +225,7 @@ func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks
 
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
-	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
+	if _, err := ch.RunWithOptions(nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -231,7 +236,7 @@ func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks
 		printResultsBanner(ch.RealTimeName())
 	}
 
-	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
+	run, err := ch.RunWithOptions(nextGroupID, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}

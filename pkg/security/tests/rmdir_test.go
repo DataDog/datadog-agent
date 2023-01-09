@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -56,7 +56,7 @@ func TestRmdir(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -84,7 +84,7 @@ func TestRmdir(t *testing.T) {
 				return error(err)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -141,7 +141,7 @@ func TestRmdir(t *testing.T) {
 				return fmt.Errorf("failed to unlink file with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assert.Equal(t, inode, event.Rmdir.File.Inode, "wrong inode")
 			assertRights(t, event.Rmdir.File.Mode, expectedMode, "wrong initial mode")
@@ -182,7 +182,7 @@ func TestRmdirInvalidate(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return syscall.Rmdir(testFile)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "rmdir", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rmdir.file.path", testFile)
 		})

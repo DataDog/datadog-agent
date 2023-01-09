@@ -81,7 +81,7 @@ func (m *WindowsMonitor) Start() {
 				// the linux side has an error code potentially, that
 				// gets aggregated under the hood.  Do we need somthing
 				// analogous
-				m.process(transactionBatch, nil)
+				m.process(transactionBatch)
 			case transactions, ok := <-m.hei.dataChannel:
 				if !ok {
 					return
@@ -91,40 +91,24 @@ func (m *WindowsMonitor) Start() {
 				// gets aggregated under the hood.  Do we need somthing
 				// analogous
 				if len(transactions) > 0 {
-					m.processEtw(transactions, nil)
+					m.process(transactions)
 				}
 			}
-
 		}
 	}()
 
 	return
 }
 
-func (m *WindowsMonitor) processEtw(transactionBatch []WinHttpTransaction, err error) {
-	transactions := make([]httpTX, len(transactionBatch))
-	for i := range transactionBatch {
-		transactions[i] = &transactionBatch[i]
-	}
-
+func (m *WindowsMonitor) process(transactionBatch []WinHttpTransaction) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	m.telemetry.aggregate(transactions, err)
-	m.statkeeper.Process(transactions)
-}
-func (m *WindowsMonitor) process(transactionBatch []WinHttpTransaction, err error) {
-	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
-		transactions[i] = &transactionBatch[i]
-
+		tx := httpTX(&transactionBatch[i])
+		m.telemetry.count(tx)
+		m.statkeeper.Process(tx)
 	}
-
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	m.telemetry.aggregate(transactions, err)
-	m.statkeeper.Process(transactions)
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:

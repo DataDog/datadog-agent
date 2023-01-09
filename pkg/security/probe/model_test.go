@@ -15,7 +15,7 @@ import (
 	"sort"
 	"testing"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,7 +25,7 @@ import (
 )
 
 func TestSetFieldValue(t *testing.T) {
-	event := &Event{}
+	event := &model.Event{}
 	var readOnlyError *eval.ErrFieldReadOnly
 
 	for _, field := range event.GetFields() {
@@ -73,23 +73,23 @@ func TestProcessArgsFlags(t *testing.T) {
 		"-9", "-", "--",
 	})
 
-	e := Event{
-		Event: model.Event{
-			Exec: model.ExecEvent{
-				Process: &model.Process{
-					ArgsEntry: &argsEntry,
-				},
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+
+	e := model.Event{
+		Exec: model.ExecEvent{
+			Process: &model.Process{
+				ArgsEntry: &argsEntry,
+			},
+		},
+		FieldHandlers: &FieldHandlers{
+			resolvers: &Resolvers{
+				ProcessResolver: resolver,
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
-	e.resolvers = &Resolvers{
-		ProcessResolver: resolver,
-	}
-
-	flags := e.ResolveProcessArgsFlags(e.Exec.Process)
+	flags := e.FieldHandlers.ResolveProcessArgsFlags(&e, e.Exec.Process)
 	sort.Strings(flags)
 
 	hasFlag := func(flags []string, flag string) bool {
@@ -134,23 +134,23 @@ func TestProcessArgsOptions(t *testing.T) {
 		"--", "---", "-9",
 	})
 
-	e := Event{
-		Event: model.Event{
-			Exec: model.ExecEvent{
-				Process: &model.Process{
-					ArgsEntry: &argsEntry,
-				},
+	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
+		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+
+	e := model.Event{
+		Exec: model.ExecEvent{
+			Process: &model.Process{
+				ArgsEntry: &argsEntry,
+			},
+		},
+		FieldHandlers: &FieldHandlers{
+			resolvers: &Resolvers{
+				ProcessResolver: resolver,
 			},
 		},
 	}
 
-	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&pconfig.DataScrubber{}, nil, NewProcessResolverOpts(nil))
-	e.resolvers = &Resolvers{
-		ProcessResolver: resolver,
-	}
-
-	options := e.ResolveProcessArgsOptions(e.Exec.Process)
+	options := e.FieldHandlers.ResolveProcessArgsOptions(&e, e.Exec.Process)
 	sort.Strings(options)
 
 	hasOption := func(options []string, option string) bool {

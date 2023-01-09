@@ -11,7 +11,6 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
@@ -23,23 +22,24 @@ var ProcessDiscovery = &ProcessDiscoveryCheck{}
 // The goal of this check is to collect information about possible integrations that may be enabled by the end user.
 type ProcessDiscoveryCheck struct {
 	probe      procutil.Probe
-	info       *model.SystemInfo
+	info       *HostInfo
 	initCalled bool
 
 	maxBatchSize int
 }
 
 // Init initializes the ProcessDiscoveryCheck. It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) {
+func (d *ProcessDiscoveryCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	d.info = info
 	d.initCalled = true
 	d.probe = newProcessProbe(procutil.WithPermission(Process.SysprobeProcessModuleEnabled))
 
 	d.maxBatchSize = getMaxBatchSize()
+	return nil
 }
 
 // Name returns the name of the ProcessDiscoveryCheck.
-func (d *ProcessDiscoveryCheck) Name() string { return config.DiscoveryCheckName }
+func (d *ProcessDiscoveryCheck) Name() string { return DiscoveryCheckName }
 
 // RealTime returns a value that says whether this check should be run in real time.
 func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
@@ -49,7 +49,7 @@ func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (d *ProcessDiscoveryCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	if !d.initCalled {
 		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
 	}
@@ -61,15 +61,15 @@ func (d *ProcessDiscoveryCheck) Run(cfg *config.AgentConfig, groupID int32) ([]m
 	}
 
 	host := &model.Host{
-		Name:        cfg.HostName,
-		NumCpus:     calculateNumCores(d.info),
-		TotalMemory: d.info.TotalMemory,
+		Name:        d.info.HostName,
+		NumCpus:     calculateNumCores(d.info.SystemInfo),
+		TotalMemory: d.info.SystemInfo.TotalMemory,
 	}
 	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{
-			HostName:           cfg.HostName,
+			HostName:           d.info.HostName,
 			GroupId:            groupID,
 			GroupSize:          int32(len(procDiscoveryChunks)),
 			ProcessDiscoveries: procDiscoveryChunk,

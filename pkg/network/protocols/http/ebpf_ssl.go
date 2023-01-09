@@ -253,14 +253,11 @@ func newSSLProgram(c *config.Config, sockFDMap *ebpf.Map) *sslProgram {
 	return &sslProgram{
 		cfg:         c,
 		sockFDMap:   sockFDMap,
-		perfHandler: ddebpf.NewPerfHandler(batchNotificationsChanSize),
+		perfHandler: ddebpf.NewPerfHandler(100),
 	}
 }
 
 func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
-	if o == nil {
-		return
-	}
 
 	o.manager = m
 
@@ -294,9 +291,6 @@ func (o *sslProgram) ConfigureManager(m *errtelemetry.Manager) {
 }
 
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
-	if o == nil {
-		return
-	}
 
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		Type:       ebpf.Hash,
@@ -328,10 +322,6 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 }
 
 func (o *sslProgram) Start() {
-	if o == nil {
-		return
-	}
-
 	// Setup shared library watcher and configure the appropriate callbacks
 	o.watcher = newSOWatcher(o.cfg.ProcRoot, o.perfHandler,
 		soRule{
@@ -355,10 +345,6 @@ func (o *sslProgram) Start() {
 }
 
 func (o *sslProgram) Stop() {
-	if o == nil {
-		return
-	}
-
 	o.perfHandler.Stop()
 }
 
@@ -441,7 +427,7 @@ func getUID(libPath string) string {
 	return libPath
 }
 
-func (o *sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
+func (*sslProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
 	var probeList []manager.ProbeIdentificationPair
 
 	for _, sslProbeList := range [][]manager.ProbesSelector{openSSLProbes, cryptoProbes, gnuTLSProbes} {
