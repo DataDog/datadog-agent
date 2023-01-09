@@ -117,6 +117,16 @@ func (s *Store) ListImages() []*workloadmeta.ContainerImageMetadata {
 	return images
 }
 
+// GetImage implements Store#GetImage
+func (s *Store) GetImage(id string) (*workloadmeta.ContainerImageMetadata, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindContainerImageMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.ContainerImageMetadata), nil
+}
+
 // Set sets an entity in the store.
 func (s *Store) Set(entity workloadmeta.Entity) {
 	s.mu.Lock()

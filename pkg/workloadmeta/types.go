@@ -78,6 +78,10 @@ type Store interface {
 	// entities with kind KindContainerImageMetadata.
 	ListImages() []*ContainerImageMetadata
 
+	// GetImage returns metadata about a container image. It fetches the entity
+	// with kind KindContainerImageMetadata and the given ID.
+	GetImage(id string) (*ContainerImageMetadata, error)
+
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.
 	Notify(events []CollectorEvent)
