@@ -497,7 +497,7 @@ int kprobe__tcp_set_state(struct pt_regs *ctx) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_INCREMENT);
+    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_NONE);
 
     return 0;
 }
