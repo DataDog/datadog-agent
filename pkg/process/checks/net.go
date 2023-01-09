@@ -12,7 +12,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
@@ -23,13 +22,12 @@ import (
 	putil "github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 var (
 	// Connections is a singleton ConnectionsCheck.
-	Connections = &ConnectionsCheck{
-		lastConnsByPID: &atomic.Value{},
-	}
+	Connections = &ConnectionsCheck{}
 
 	// LocalResolver is a singleton LocalResolver
 	LocalResolver = &resolver.LocalResolver{}
@@ -48,13 +46,16 @@ type ConnectionsCheck struct {
 	tracerClientID         string
 	networkID              string
 	notInitializedLogLimit *putil.LogLimit
-	// store the last collection result by PID, currently used to populate network data for processes
-	// it's in format map[int32][]*model.Connections
-	lastConnsByPID   *atomic.Value
+
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
 	processData      *ProcessData
+
+	processConnRatesTransmitter subscriptions.Transmitter[ProcessConnRates]
 }
+
+// ProcessConnRates describes connection rates for processes
+type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
 func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) error {
@@ -90,6 +91,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 	c.serviceExtractor = parser.NewServiceExtractor()
 	c.processData.Register(c.dockerFilter)
 	c.processData.Register(c.serviceExtractor)
+
 	return nil
 }
 
@@ -129,7 +131,7 @@ func (c *ConnectionsCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	// Resolve the Raddr side of connections for local containers
 	LocalResolver.Resolve(conns)
 
-	c.lastConnsByPID.Store(getConnectionsByPID(conns))
+	c.notifyProcessConnRates(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
 	return batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
@@ -149,11 +151,22 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) getLastConnectionsByPID() map[int32][]*model.Connection {
-	if result := c.lastConnsByPID.Load(); result != nil {
-		return result.(map[int32][]*model.Connection)
+func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
+	if len(c.processConnRatesTransmitter.Chs) == 0 {
+		return
 	}
-	return nil
+
+	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
+
+	connByPID := getConnectionsByPID(conns)
+
+	connRates := make(ProcessConnRates)
+
+	for pid, conns := range connByPID {
+		connRates[pid] = formatNetworks(conns, connCheckIntervalS)
+	}
+
+	c.processConnRatesTransmitter.Notify(connRates)
 }
 
 // getConnectionsByPID groups a list of connection objects by PID

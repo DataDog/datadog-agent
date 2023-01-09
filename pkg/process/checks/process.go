@@ -14,6 +14,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/gopsutil/cpu"
+	"go.uber.org/atomic"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 const (
@@ -77,6 +79,9 @@ type ProcessCheck struct {
 
 	maxBatchSize  int
 	maxBatchBytes int
+
+	lastConnRates     *atomic.Pointer[ProcessConnRates]
+	connRatesReceiver subscriptions.Receiver[ProcessConnRates]
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -99,6 +104,31 @@ func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	initScrubber(p.scrubber)
 
 	p.disallowList = initDisallowList()
+
+	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
+	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
+
+	if p.connRatesReceiver.Ch != nil {
+		go func() {
+			for {
+				connRates, ok := <-p.connRatesReceiver.Ch
+				if !ok {
+					return
+				}
+				p.lastConnRates.Store(&connRates)
+			}
+		}()
+	}
+	return nil
+}
+
+func (c *ProcessCheck) getLastConnRates() ProcessConnRates {
+	if c.lastConnRates == nil {
+		return nil
+	}
+	if result := c.lastConnRates.Load(); result != nil {
+		return *result
+	}
 	return nil
 }
 
@@ -190,8 +220,8 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 		return &RunResult{}, nil
 	}
 
-	connsByPID := Connections.getLastConnectionsByPID()
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsByPID)
+	connsRates := p.getLastConnRates()
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, connsRates)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID)
 
 	// Store the last state for comparison on the next run.
@@ -208,7 +238,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (*RunResult, err
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsRates)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -323,10 +353,9 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connsByPID map[int32][]*model.Connection,
+	connRates ProcessConnRates,
 ) map[string][]*model.Process {
 	procsByCtr := make(map[string][]*model.Process)
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
 	for _, fp := range procs {
 		if skipProcess(disallowList, fp, lastProcs) {
@@ -350,7 +379,10 @@ func fmtProcesses(
 			VoluntaryCtxSwitches:   uint64(fp.Stats.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.Stats.CtxSwitches.Involuntary),
 			ContainerId:            ctrByProc[int(fp.Pid)],
-			Networks:               formatNetworks(connsByPID[fp.Pid], connCheckIntervalS),
+		}
+
+		if connRates != nil {
+			proc.Networks = connRates[fp.Pid]
 		}
 		_, ok := procsByCtr[proc.ContainerId]
 		if !ok {

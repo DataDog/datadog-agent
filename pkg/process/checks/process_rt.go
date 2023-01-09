@@ -61,9 +61,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (*RunResult, error) {
 		return &RunResult{}, nil
 	}
 
-	connsByPID := Connections.getLastConnectionsByPID()
-
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, connsByPID)
+	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.getLastConnRates())
 	groupSize := len(chunkedStats)
 	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
@@ -99,10 +97,8 @@ func fmtProcessStats(
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	connsByPID map[int32][]*model.Connection,
+	connRates ProcessConnRates,
 ) [][]*model.ProcessStat {
-	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
-
 	chunked := make([][]*model.ProcessStat, 0)
 	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
 
@@ -125,7 +121,7 @@ func fmtProcessStats(
 			ioStat = formatIO(fp, lastProcs[pid].IOStat, lastRun)
 		}
 
-		chunk = append(chunk, &model.ProcessStat{
+		stat := &model.ProcessStat{
 			Pid:                    pid,
 			CreateTime:             fp.CreateTime,
 			Memory:                 formatMemory(fp),
@@ -138,8 +134,13 @@ func fmtProcessStats(
 			VoluntaryCtxSwitches:   uint64(fp.CtxSwitches.Voluntary),
 			InvoluntaryCtxSwitches: uint64(fp.CtxSwitches.Involuntary),
 			ContainerId:            pidToCid[int(pid)],
-			Networks:               formatNetworks(connsByPID[pid], connCheckIntervalS),
-		})
+		}
+		if connRates != nil {
+			stat.Networks = connRates[pid]
+		}
+
+		chunk = append(chunk, stat)
+
 		if len(chunk) == maxBatchSize {
 			chunked = append(chunked, chunk)
 			chunk = make([]*model.ProcessStat, 0, maxBatchSize)
