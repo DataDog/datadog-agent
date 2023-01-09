@@ -1,0 +1,3 @@
+---
+enhancements:
+  - Allow profiling for the process agent to be dynamically enabled from the CLI with `process-agent config set internal_profiling`.
