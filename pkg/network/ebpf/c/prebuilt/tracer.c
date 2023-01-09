@@ -465,7 +465,7 @@ SEC("kretprobe/tcp_retransmit_skb")
 int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     int ret = PT_REGS_RC(ctx);
     __u64 tid = bpf_get_current_pid_tgid();
-    if (ret != 0) {
+    if (ret < 0) {
         bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
         return 0;
     }
