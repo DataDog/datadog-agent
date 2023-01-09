@@ -474,7 +474,7 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 		return false, &ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	return IsDiscarder(ctx, field, bucket.rules)
@@ -521,7 +521,7 @@ func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
 
 // Evaluate the specified event against the set of rules
 func (rs *RuleSet) Evaluate(event eval.Event) bool {
-	ctx := rs.pool.Get(event.GetPointer())
+	ctx := rs.pool.Get(event)
 	defer rs.pool.Put(ctx)
 
 	eventType := event.GetType()
@@ -672,7 +672,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 					varName = string(action.Set.Scope) + "." + varName
 				}
 
-				if _, err := rs.model.NewEvent().GetFieldValue(varName); err == nil {
+				if _, err := rs.eventCtor().GetFieldValue(varName); err == nil {
 					errs = multierror.Append(errs, fmt.Errorf("variable '%s' conflicts with field", varName))
 					continue
 				}
@@ -769,6 +769,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	}
 
 	return errs
+}
+
+// NewEvent returns a new event using the embedded constructor
+func (rs *RuleSet) NewEvent() eval.Event {
+	return rs.eventCtor()
 }
 
 // NewRuleSet returns a new ruleset for the specified data model

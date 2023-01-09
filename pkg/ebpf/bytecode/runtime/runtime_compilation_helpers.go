@@ -117,9 +117,10 @@ func compileToObjectFile(in io.Reader, outputDir, filename, inHash string, addit
 }
 
 func computeFlagsAndHash(additionalFlags []string) ([]string, string) {
-	flags := make([]string, len(defaultFlags)+len(additionalFlags))
-	copy(flags, defaultFlags)
-	copy(flags[len(defaultFlags):], additionalFlags)
+	flags := make([]string, 0, len(defaultFlags)+len(additionalFlags)+1)
+	flags = append(flags, fmt.Sprintf("-D__TARGET_ARCH_%s", kernel.Arch()))
+	flags = append(flags, defaultFlags...)
+	flags = append(flags, additionalFlags...)
 
 	hasher := sha256.New()
 	for _, f := range flags {

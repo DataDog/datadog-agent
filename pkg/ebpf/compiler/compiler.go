@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -47,12 +46,8 @@ func writeStdarg() (string, error) {
 	return tmpIncludeDir, nil
 }
 
-func kernelHeaderPaths(headerDirs []string) ([]string, error) {
+func kernelHeaderPaths(headerDirs []string) []string {
 	arch := kernel.Arch()
-	if arch == "" {
-		return nil, fmt.Errorf("unable to get kernel arch for %s", runtime.GOARCH)
-	}
-
 	var paths []string
 	for _, d := range headerDirs {
 		paths = append(paths,
@@ -65,7 +60,7 @@ func kernelHeaderPaths(headerDirs []string) ([]string, error) {
 			fmt.Sprintf("%s/include/generated/uapi", d),
 		)
 	}
-	return paths, nil
+	return paths
 }
 
 // CompileToObjectFile compiles an eBPF program
@@ -81,10 +76,7 @@ func CompileToObjectFile(in io.Reader, outputFile string, cflags []string, heade
 	defer os.RemoveAll(tmpIncludeDir)
 	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
 
-	kps, err := kernelHeaderPaths(headerDirs)
-	if err != nil {
-		return err
-	}
+	kps := kernelHeaderPaths(headerDirs)
 	for _, p := range kps {
 		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
 	}
@@ -172,10 +164,7 @@ func Preprocess(in io.Reader, out io.Writer, cflags []string, headerDirs []strin
 	defer os.RemoveAll(tmpIncludeDir)
 	cflags = append(cflags, fmt.Sprintf("-isystem%s", tmpIncludeDir))
 
-	kps, err := kernelHeaderPaths(headerDirs)
-	if err != nil {
-		return fmt.Errorf("format kernel header paths: %w", err)
-	}
+	kps := kernelHeaderPaths(headerDirs)
 	for _, p := range kps {
 		cflags = append(cflags, fmt.Sprintf("-isystem%s", p))
 	}

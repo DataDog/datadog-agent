@@ -935,9 +935,6 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
-	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
-
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -1085,6 +1082,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
 
+	// workloadmeta
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
+
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
@@ -1111,7 +1111,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)

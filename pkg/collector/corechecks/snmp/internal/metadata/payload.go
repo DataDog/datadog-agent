@@ -5,6 +5,8 @@
 
 package metadata
 
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+
 // PayloadMetadataBatchSize is the number of resources per event payload
 // Resources are devices, interfaces, etc
 const PayloadMetadataBatchSize = 100
@@ -67,15 +69,15 @@ type DeviceMetadata struct {
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
-	DeviceID    string   `json:"device_id"`
-	IDTags      []string `json:"id_tags"` // used to correlate with interface metrics
-	Index       int32    `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
-	Name        string   `json:"name,omitempty"`
-	Alias       string   `json:"alias,omitempty"`
-	Description string   `json:"description,omitempty"`
-	MacAddress  string   `json:"mac_address,omitempty"`
-	AdminStatus int32    `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus  int32    `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
+	DeviceID    string               `json:"device_id"`
+	IDTags      []string             `json:"id_tags"` // used to correlate with interface metrics
+	Index       int32                `json:"index"`   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	Name        string               `json:"name,omitempty"`
+	Alias       string               `json:"alias,omitempty"`
+	Description string               `json:"description,omitempty"`
+	MacAddress  string               `json:"mac_address,omitempty"`
+	AdminStatus common.IfAdminStatus `json:"admin_status,omitempty"` // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus  common.IfOperStatus  `json:"oper_status,omitempty"`  // IF-MIB ifOperStatus type is INTEGER
 }
 
 // IPAddressMetadata contains ip address metadata

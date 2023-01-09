@@ -583,27 +583,13 @@ static __always_inline int sys_enter_bind(struct socket *sock, struct sockaddr *
         return 0;
     }
 
-    u16 sin_port = 0;
-    sa_family_t family = 0;
-    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
-    if (family == AF_INET) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
-    } else if (family == AF_INET6) {
-        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
-    }
-
-    sin_port = bpf_ntohs(sin_port);
-    if (sin_port == 0) {
-        log_debug("ERR(sys_enter_bind): sin_port is 0\n");
-        return 0;
-    }
-
     // write to pending_binds so the retprobe knows we can mark this as binding.
     bind_syscall_args_t args = {};
-    args.port = sin_port;
+    bpf_probe_read_kernel_with_telemetry(&args.sk, sizeof(args.sk), &sock->sk);
+    args.addr = addr;
 
     bpf_map_update_with_telemetry(pending_bind, &tid, &args, BPF_ANY);
-    log_debug("sys_enter_bind: started a bind on UDP port=%d sock=%llx tid=%u\n", sin_port, sock, tid);
+    log_debug("sys_enter_bind: started a bind on UDP sock=%llx tid=%u\n", sock, tid);
 
     return 0;
 }
@@ -632,8 +618,7 @@ static __always_inline int sys_exit_bind(__s64 ret) {
     __u64 tid = bpf_get_current_pid_tgid();
 
     // bail if this bind() is not the one we're instrumenting
-    bind_syscall_args_t *args;
-    args = bpf_map_lookup_elem(&pending_bind, &tid);
+    bind_syscall_args_t *args = bpf_map_lookup_elem(&pending_bind, &tid);
 
     log_debug("sys_exit_bind: tid=%u, ret=%d\n", tid, ret);
 
@@ -641,10 +626,31 @@ static __always_inline int sys_exit_bind(__s64 ret) {
         log_debug("sys_exit_bind: was not a UDP bind, will not process\n");
         return 0;
     }
-    __u16 sin_port = args->port;
+
+    struct sock * sk = args->sk;
+    struct sockaddr *addr = args->addr;
     bpf_map_delete_elem(&pending_bind, &tid);
 
     if (ret != 0) {
+        return 0;
+    }
+
+    u16 sin_port = 0;
+    sa_family_t family = 0;
+    bpf_probe_read_kernel_with_telemetry(&family, sizeof(sa_family_t), &addr->sa_family);
+    if (family == AF_INET) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in *)addr)->sin_port));
+    } else if (family == AF_INET6) {
+        bpf_probe_read_kernel_with_telemetry(&sin_port, sizeof(u16), &(((struct sockaddr_in6 *)addr)->sin6_port));
+    }
+
+    sin_port = bpf_ntohs(sin_port);
+    if (sin_port == 0) {
+        sin_port = read_sport(sk);
+    }
+
+    if (sin_port == 0) {
+        log_debug("ERR(sys_exit_bind): sin_port is 0\n");
         return 0;
     }
 

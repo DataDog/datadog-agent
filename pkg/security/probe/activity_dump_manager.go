@@ -38,12 +38,13 @@ func areCGroupADsEnabled(c *config.Config) bool {
 // ActivityDumpManager is used to manage ActivityDumps
 type ActivityDumpManager struct {
 	sync.RWMutex
-	config        *config.Config
-	statsdClient  statsd.ClientInterface
-	resolvers     *Resolvers
-	kernelVersion *kernel.Version
-	scrubber      *procutil.DataScrubber
-	manager       *manager.Manager
+	config         *config.Config
+	statsdClient   statsd.ClientInterface
+	fieldHandlers  *FieldHandlers
+	EventMarshaler *EventMarshaler
+	resolvers      *Resolvers
+	kernelVersion  *kernel.Version
+	manager        *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
 	tracedCommsMap         *ebpf.Map
@@ -202,9 +203,10 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
+		fieldHandlers:          p.fieldHandlers,
+		EventMarshaler:         p.eventMarshaler,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
-		scrubber:               scrubber,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
@@ -423,7 +425,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
-func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
+func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
 		return
