@@ -37,7 +37,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
-	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore)
+	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
 	metadataPayloads := batchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, metadata.PayloadMetadataBatchSize, device, interfaces, ipAddresses, topologyLinks)
 
@@ -257,11 +257,20 @@ func buildNetworkIPAddressesMetadata(deviceID string, store *metadata.Store) []m
 	return ipAddresses
 }
 
-func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []metadata.TopologyLinkMetadata {
+func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []metadata.InterfaceMetadata) []metadata.TopologyLinkMetadata {
 	if store == nil {
 		// it's expected that the value store is nil if we can't reach the device
 		// in that case, we just return a nil slice.
 		return nil
+	}
+
+	interfaceByMacAddress := make(map[string]int32)
+	interfaceByName := make(map[string]int32)
+	interfaceByAlias := make(map[string]int32)
+	for _, devInterface := range interfaces {
+		interfaceByMacAddress[devInterface.MacAddress] = devInterface.Index
+		interfaceByName[devInterface.Name] = devInterface.Index
+		interfaceByAlias[devInterface.Alias] = devInterface.Index
 	}
 
 	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
@@ -295,6 +304,31 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
+
+		switch localInterfaceIDType {
+		case "mac_address":
+			// TODO: TEST ME
+			// TODO: Factor
+			ifIndex, ok := interfaceByMacAddress[localInterfaceID]
+			if ok {
+				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
+				localInterfaceIDType = metadata.IDTypeNDM
+			}
+		case "interface_name":
+			// TODO: TEST ME
+			ifIndex, ok := interfaceByName[localInterfaceID]
+			if ok {
+				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
+				localInterfaceIDType = metadata.IDTypeNDM
+			}
+		case "interface_alias":
+			// TODO: TEST ME
+			ifIndex, ok := interfaceByAlias[localInterfaceID]
+			if ok {
+				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
+				localInterfaceIDType = metadata.IDTypeNDM
+			}
+		}
 
 		newLink := metadata.TopologyLinkMetadata{
 			Remote: &metadata.TopologyLinkSide{
