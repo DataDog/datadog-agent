@@ -201,7 +201,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats, RETRANSMIT_COUNT_INCREMENT);
+    update_tcp_stats(t, stats, RETRANSMIT_COUNT_NONE);
 }
 
 
