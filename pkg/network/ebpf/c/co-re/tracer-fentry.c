@@ -19,9 +19,88 @@
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
-static __always_inline void get_tcp_segment_counts(struct sock *skp, __u32 *packets_in, __u32 *packets_out) {
-    *packets_in = BPF_CORE_READ(tcp_sk(skp), segs_in);
-    *packets_out = BPF_CORE_READ(tcp_sk(skp), segs_out);
+static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
+    t->pid = pid_tgid >> 32;
+    t->metadata = type;
+
+    if (t->saddr_l == 0) {
+        t->saddr_l = BPF_CORE_READ(fl4, saddr);
+    }
+    if (t->daddr_l == 0) {
+        t->daddr_l = BPF_CORE_READ(fl4, daddr);
+    }
+
+    if (t->saddr_l == 0 || t->daddr_l == 0) {
+        log_debug("ERR(fl4): src/dst addr not set src:%d,dst:%d\n", t->saddr_l, t->daddr_l);
+        return 0;
+    }
+
+    if (t->sport == 0) {
+        t->sport = BPF_CORE_READ(fl4, fl4_sport);
+        t->sport = bpf_ntohs(t->sport);
+    }
+    if (t->dport == 0) {
+        t->dport = BPF_CORE_READ(fl4, fl4_dport);
+        t->dport = bpf_ntohs(t->dport);
+    }
+
+    if (t->sport == 0 || t->dport == 0) {
+        log_debug("ERR(fl4): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+        return 0;
+    }
+
+    return 1;
+}
+
+static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, struct flowi6 *fl6, u64 pid_tgid, metadata_mask_t type) {
+    t->pid = pid_tgid >> 32;
+    t->metadata = type;
+
+    struct in6_addr addr = BPF_CORE_READ(fl6, saddr);
+    if (t->saddr_l == 0 || t->saddr_h == 0) {
+        read_in6_addr(&t->saddr_h, &t->saddr_l, &addr);
+    }
+    if (t->daddr_l == 0 || t->daddr_h == 0) {
+        addr = BPF_CORE_READ(fl6, daddr);
+        read_in6_addr(&t->daddr_h, &t->daddr_l, &addr);
+    }
+
+    if (!(t->saddr_h || t->saddr_l)) {
+        log_debug("ERR(fl6): src addr not set src_l:%d,src_h:%d\n", t->saddr_l, t->saddr_h);
+        return 0;
+    }
+    if (!(t->daddr_h || t->daddr_l)) {
+        log_debug("ERR(fl6): dst addr not set dst_l:%d,dst_h:%d\n", t->daddr_l, t->daddr_h);
+        return 0;
+    }
+
+    // Check if we can map IPv6 to IPv4
+    if (is_ipv4_mapped_ipv6(t->saddr_h, t->saddr_l, t->daddr_h, t->daddr_l)) {
+        t->metadata |= CONN_V4;
+        t->saddr_h = 0;
+        t->daddr_h = 0;
+        t->saddr_l = (u32)(t->saddr_l >> 32);
+        t->daddr_l = (u32)(t->daddr_l >> 32);
+    } else {
+        t->metadata |= CONN_V6;
+    }
+
+    if (t->sport == 0) {
+        t->sport = BPF_CORE_READ(fl6, fl6_sport);
+        t->sport = bpf_ntohs(t->sport);
+    }
+    if (t->dport == 0) {
+        t->dport = BPF_CORE_READ(fl6, fl6_dport);
+        t->dport = bpf_ntohs(t->dport);
+    }
+
+    if (t->sport == 0 || t->dport == 0) {
+        log_debug("ERR(fl6): src/dst port not set: src:%d, dst:%d\n", t->sport, t->dport);
+        return 0;
+    }
+
+
+    return 1;
 }
 
 SEC("fexit/tcp_sendmsg")

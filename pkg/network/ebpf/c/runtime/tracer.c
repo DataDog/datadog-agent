@@ -37,7 +37,6 @@
 #error "kernel version not included?"
 #endif
 
-#include "conn-tuple.h"
 #include "sock.h"
 
 // The entrypoint for all packets.

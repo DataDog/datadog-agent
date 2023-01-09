@@ -265,12 +265,5 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
-    // counting segments/packets not currently supported on prebuilt
-    // to implement, would need to do the offset-guess on the following
-    // fields in the tcp_sk: packets_in & packets_out (respectively)
-    *packets_in = 0;
-    *packets_out = 0;
-}
 
 #endif // __SOCK_IMPL_H

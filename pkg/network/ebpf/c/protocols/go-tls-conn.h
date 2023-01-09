@@ -7,7 +7,7 @@
 #include "ip.h"
 #include "port_range.h"
 
-// Implemented either in c/runtime/conn-tuple.h or from c/sockfd.h
+// Implemented either in c/sock.h or c/prebuilt/sock.h
 static int read_conn_tuple(conn_tuple_t *t, struct sock *skp, u64 pid_tgid, metadata_mask_t type);
 
 // get_conn_fd returns the poll.FD field offset in the nested conn struct.

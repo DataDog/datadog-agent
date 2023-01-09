@@ -5,6 +5,7 @@
 #include "bpf_telemetry.h"
 #include "tracer-stats.h"
 #include "tracer-maps.h"
+#include "sock.h"
 
 int __always_inline handle_tcp_recv(u64 pid_tgid, struct sock *skp, int recv) {
     conn_tuple_t t = {};

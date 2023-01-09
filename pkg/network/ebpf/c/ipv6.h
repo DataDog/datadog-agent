@@ -1,6 +1,8 @@
 #ifndef __IPV6_H
 #define __IPV6_H
 
+#include "bpf_core_read.h"
+
 #include "defs.h"
 
 /* check if IPs are IPv4 mapped to IPv6 ::ffff:xxxx:xxxx
@@ -22,8 +24,16 @@ __maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __
 }
 
 static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
+#ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
     bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
+#else
+#ifdef COMPILE_CORE
+#  define s6_addr32 in6_u.u6_addr32
+#endif
+    *addr_h = BPF_CORE_READ(in6, s6_addr32[0]);
+    *addr_l = BPF_CORE_READ(in6, s6_addr32[2]);
+#endif
 }
 
 #endif
