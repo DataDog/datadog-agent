@@ -333,6 +333,16 @@ func getRemManIPAddrByLLDPRemIndex(store *metadata.Store) map[string]string {
 	remManIndexes := store.GetColumnIndexes("lldp_remote_management.interface_id_type")
 	for _, fullIndex := range remManIndexes {
 		indexElems := strings.Split(fullIndex, ".")
+		if len(indexElems) < 9 {
+			// We expect the index to be at least 9 elements (IPv4)
+			// 1 lldpRemTimeMark
+			// 1 lldpRemLocalPortNum
+			// 1 lldpRemIndex
+			// 1 lldpRemManAddrSubtype (1 for IPv4, 2 for IPv6)
+			// 5|17 lldpRemManAddr (4 for IPv4 and 17 for IPv6)
+			//      the first elements is the IP type e.g. 4 for IPv4
+			continue
+		}
 		lldpRemIndex := indexElems[2]
 		lldpRemManAddrSubtype := indexElems[3]
 		ipAddrType := indexElems[4]
