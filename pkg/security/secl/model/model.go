@@ -8,7 +8,6 @@
 package model
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -300,7 +299,7 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 	if ev.JSONMarshaler != nil {
 		return ev.JSONMarshaler(ev)
 	}
-	return json.Marshal(ev)
+	return nil, errors.New("no json marshaller defined for this event")
 }
 
 // Retain the event
