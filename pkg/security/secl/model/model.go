@@ -8,7 +8,6 @@
 package model
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -38,10 +37,11 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// NewEventWithType returns a new Event for the given type
-func (m *Model) NewEventWithType(kind EventType) eval.Event {
+// NewDefaultEventWithType returns a new Event for the given type
+func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
-		Type: uint32(kind),
+		Type:          uint32(kind),
+		FieldHandlers: &DefaultFieldHandlers{},
 	}
 }
 
@@ -299,7 +299,7 @@ func (ev *Event) MarshalJSON() ([]byte, error) {
 	if ev.JSONMarshaler != nil {
 		return ev.JSONMarshaler(ev)
 	}
-	return json.Marshal(ev)
+	return nil, errors.New("no json marshaller defined for this event")
 }
 
 // Retain the event
