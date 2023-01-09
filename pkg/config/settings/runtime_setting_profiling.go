@@ -16,7 +16,10 @@ import (
 )
 
 // ProfilingRuntimeSetting wraps operations to change log level at runtime
-type ProfilingRuntimeSetting string
+type ProfilingRuntimeSetting struct {
+	SettingName string
+	Service     string
+}
 
 // Description returns the runtime setting's description
 func (l ProfilingRuntimeSetting) Description() string {
@@ -30,7 +33,7 @@ func (l ProfilingRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting
 func (l ProfilingRuntimeSetting) Name() string {
-	return string(l)
+	return l.SettingName
 }
 
 // Get returns the current value of the runtime setting
@@ -72,10 +75,7 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
 		v, _ := version.Agent()
-		service := "datadog-agent"
-		if flavor.GetFlavor() == flavor.ClusterAgent {
-			service = "datadog-cluster-agent"
-		}
+		service := l.GetService()
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,
@@ -98,4 +98,12 @@ func (l ProfilingRuntimeSetting) Set(v interface{}) error {
 	}
 
 	return nil
+}
+
+func (l ProfilingRuntimeSetting) GetService() string {
+	service := l.Service
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		service = "datadog-cluster-agent"
+	}
+	return service
 }
