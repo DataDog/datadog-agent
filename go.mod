@@ -179,7 +179,7 @@ require (
 	go.opentelemetry.io/collector/confmap v0.68.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.68.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.68.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rc2
+	go.opentelemetry.io/collector/pdata v1.0.0-rc3
 	go.opentelemetry.io/collector/processor/batchprocessor v0.68.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.68.0
 	go.uber.org/atomic v1.10.0
