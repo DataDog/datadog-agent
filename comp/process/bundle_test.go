@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,23 +22,7 @@ func TestBundleDependencies(t *testing.T) {
 		// automatically.
 		fx.Invoke(func(r runner.Component) {}),
 		fx.Invoke(func(r submitter.Component) {}),
-		fx.Invoke(func(r processcheck.Component) {}),
-		fx.Invoke(func(r containercheck.Component) {}),
-
 		Bundle))
-}
-
-func TestMockBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-
-		// instantiate all of the process components, since this is not done
-		// automatically.
-		fx.Invoke(func(runner.Component) {}),
-		fx.Invoke(func(r submitter.Component) {}),
-		fx.Invoke(func(r processcheck.Component) {}),
-		fx.Invoke(func(r containercheck.Component) {}),
-		MockBundle))
 }
 
 func TestBundleOneShot(t *testing.T) {

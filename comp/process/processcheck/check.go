@@ -16,8 +16,6 @@ import (
 type provides struct {
 	fx.Out
 
-	Component
-
 	Check runner.Check `group:"check"`
 }
 

@@ -28,11 +28,3 @@ var Bundle = fxutil.Bundle(
 	processcheck.Module,
 	containercheck.Module,
 )
-
-// MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	runner.Module,
-	submitter.Module,
-	processcheck.Module,
-	containercheck.Module,
-)
