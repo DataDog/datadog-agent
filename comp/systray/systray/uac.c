@@ -72,6 +72,7 @@ BOOL LaunchUnelevated(LPCWSTR CommandLine)
                                 }
                             }
                         }
+                        DeleteProcThreadAttributeList(p);
                         free(p);
                     }
                 }
