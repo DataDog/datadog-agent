@@ -25,5 +25,6 @@ build do
 
   make "-j #{workers}", env: env, cwd: "#{project_dir}/build_unix"
   make "install", env: env, cwd: "#{project_dir}/build_unix"
+  make "uninstall_docs", env: env, cwd: "#{project_dir}/build_unix"
 end
 

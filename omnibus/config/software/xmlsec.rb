@@ -43,7 +43,8 @@ build do
   update_config_guess
 
   command "./configure" \
-          " --prefix=#{install_dir}/embedded", env: env
+          " --prefix=#{install_dir}/embedded" \
+          " --enable-docs", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env
