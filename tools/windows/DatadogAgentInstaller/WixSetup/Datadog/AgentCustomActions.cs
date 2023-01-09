@@ -1,27 +1,17 @@
-using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
 using WixSharp;
-using Action = WixSharp.Action;
 
 namespace WixSetup.Datadog
 {
-    public static class AgentCustomActionsProjectExtensions
-    {
-        public static Project SetCustomActions(this Project project, AgentCustomActions agentCustomActions)
-        {
-            project.Actions = project.Actions.Combine(
-                agentCustomActions.GetType()
-                    .GetProperties()
-                    .Where(p => p.PropertyType.IsAssignableFrom(typeof(ManagedAction)))
-                    .Select(p => (Action)p.GetValue(agentCustomActions, null))
-                    .ToArray()
-            );
-            return project;
-        }
-    }
-
     public class AgentCustomActions
     {
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private static readonly Condition Being_Reinstalled = Condition.Create("(REINSTALL<>\"\")");
+
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        private static readonly Condition NOT_Being_Reinstalled = Condition.NOT(Being_Reinstalled);
+
         public ManagedAction ReadConfig { get; }
 
         public ManagedAction WriteConfig { get; }
@@ -87,7 +77,7 @@ namespace WixSetup.Datadog
                     Return.check,
                     When.Before,
                     Step.StartServices,
-                    Condition.NOT_BeingRemoved
+                    Condition.NOT_BeingRemoved & NOT_Being_Reinstalled
                 )
                 {
                     Execute = Execute.deferred
@@ -130,7 +120,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(WriteConfig.Id),
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
             )
             {
                 Execute = Execute.rollback
@@ -143,7 +133,7 @@ namespace WixSetup.Datadog
                 Return.check,
                 When.After,
                 new Step(RollbackDecompressPythonDistributions.Id),
-                Condition.NOT_Installed & Condition.NOT_BeingRemoved
+                (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
             )
             {
                 Execute = Execute.deferred
