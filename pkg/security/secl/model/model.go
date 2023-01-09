@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go -doc ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
