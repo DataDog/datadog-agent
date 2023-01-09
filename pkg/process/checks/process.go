@@ -105,21 +105,25 @@ func (p *ProcessCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 
 	p.disallowList = initDisallowList()
 
-	p.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
-	p.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
-
-	if p.connRatesReceiver.Ch != nil {
-		go func() {
-			for {
-				connRates, ok := <-p.connRatesReceiver.Ch
-				if !ok {
-					return
-				}
-				p.lastConnRates.Store(&connRates)
-			}
-		}()
-	}
+	p.initConnRates()
 	return nil
+}
+
+func (c *ProcessCheck) initConnRates() {
+	c.lastConnRates = atomic.NewPointer[ProcessConnRates](nil)
+	c.connRatesReceiver = subscriptions.NewReceiver[ProcessConnRates]()
+
+	go c.updateConnRates()
+}
+
+func (c *ProcessCheck) updateConnRates() {
+	for {
+		connRates, ok := <-c.connRatesReceiver.Ch
+		if !ok {
+			return
+		}
+		c.lastConnRates.Store(&connRates)
+	}
 }
 
 func (c *ProcessCheck) getLastConnRates() ProcessConnRates {
