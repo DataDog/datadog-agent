@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -110,7 +109,7 @@ func TestProfiling(t *testing.T) {
 
 	ll := ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-agent"}
 	assert.Equal(t, "internal_profiling", ll.Name())
-	assert.Equal(t, "datadog-agent", ll.GetService())
+	assert.Equal(t, "datadog-agent", ll.Service)
 
 	err := ll.Set("false")
 	assert.Nil(t, err)
@@ -123,11 +122,10 @@ func TestProfiling(t *testing.T) {
 	assert.NotNil(t, err)
 
 	ll = ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"}
-	assert.Equal(t, "process-agent", ll.GetService())
+	assert.Equal(t, "process-agent", ll.Service)
 
-	ll = ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-agent"}
-	flavor.SetFlavor(flavor.ClusterAgent)
-	assert.Equal(t, "datadog-cluster-agent", ll.GetService())
+	ll = ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"}
+	assert.Equal(t, "datadog-cluster-agent", ll.Service)
 }
 
 func TestGetInt(t *testing.T) {
