@@ -38,6 +38,11 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 #define fl6_sport uli.ports.sport
 #define fl6_dport uli.ports.dport
 
+#elif defined(COMPILE_RUNTIME)
+
+#include <linux/tcp.h>
+#include <net/inet_sock.h>
+
 #endif // COMPILE_CORE
 
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {

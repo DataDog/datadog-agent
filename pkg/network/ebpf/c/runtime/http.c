@@ -12,6 +12,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "sockfd.h"
+#include "sock.h"
 #include "port_range.h"
 #include "protocols/http.h"
 #include "protocols/http-buffer.h"
