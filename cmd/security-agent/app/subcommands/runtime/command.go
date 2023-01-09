@@ -464,14 +464,13 @@ func checkPoliciesInner(dir string) error {
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+					return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
 				}, nil)
 			},
 		}).
 		WithLogger(seclog.DefaultLogger)
 
-	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -555,7 +554,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 
 	m := &model.Model{}
-	event := m.NewEventWithType(kind)
+	event := m.NewDefaultEventWithType(kind)
 	event.Init()
 
 	for k, v := range eventData.Values {
@@ -603,8 +602,8 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 		WithReservedRuleIDs(events.AllCustomRuleIDs()).
 		WithLogger(seclog.DefaultLogger)
 
-	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
+	m := &model.Model{}
+	ruleSet := rules.NewRuleSet(m, model.NewDefaultEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -639,7 +638,7 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 	}
 
 	report := EvalReport{
-		Event: event,
+		// Event: event,
 	}
 
 	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())

@@ -130,7 +130,7 @@ func (mr *MountResolver) SyncCache(pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if err := mr.syncCache(pid); err != nil {
+	if err := mr.syncCache(0, pid); err != nil {
 		return err
 	}
 
@@ -152,11 +152,13 @@ func (mr *MountResolver) syncCache(mountID uint32, pids ...uint32) error {
 	var mnts []*mountinfo.Info
 
 	now := time.Now()
-	if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
-		if now.After(ts) {
-			mr.fallbackLimiter.Remove(mountID)
-		} else {
-			return ErrMountNotFound
+	if mountID != 0 {
+		if ts, ok := mr.fallbackLimiter.Get(mountID); ok {
+			if now.After(ts) {
+				mr.fallbackLimiter.Remove(mountID)
+			} else {
+				return ErrMountNotFound
+			}
 		}
 	}
 
@@ -179,8 +181,10 @@ func (mr *MountResolver) syncCache(mountID uint32, pids ...uint32) error {
 		return nil
 	}
 
-	// add to fallback limiter to avoid storm of file access
-	mr.fallbackLimiter.Add(mountID, now.Add(fallbackLimiterPeriod))
+	if mountID != 0 {
+		// add to fallback limiter to avoid storm of file access
+		mr.fallbackLimiter.Add(mountID, now.Add(fallbackLimiterPeriod))
+	}
 
 	return err
 }

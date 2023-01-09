@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -109,15 +108,6 @@ func runCheck(log log.Component, config config.Component, checkArgs *checkCliPar
 			checks.MayFail(checks.WithDocker()),
 			checks.MayFail(checks.WithAudit()),
 		}...)
-
-		if pkgconfig.IsKubernetes() {
-			nodeLabels, err := agent.WaitGetNodeLabels()
-			if err != nil {
-				log.Error(err)
-			} else {
-				options = append(options, checks.WithNodeLabels(nodeLabels))
-			}
-		}
 	}
 
 	var ruleID string

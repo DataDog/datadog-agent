@@ -30,8 +30,7 @@ func TestApproverAncestors1(t *testing.T) {
 		WithEventTypeEnabled(enabled).
 		WithLogger(seclog.DefaultLogger)
 
-	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts)
+	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 	addRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
@@ -62,8 +61,7 @@ func TestApproverAncestors2(t *testing.T) {
 		WithEventTypeEnabled(enabled).
 		WithLogger(seclog.DefaultLogger)
 
-	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts)
+	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 	addRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
@@ -91,8 +89,7 @@ func TestApproverAncestors3(t *testing.T) {
 		WithEventTypeEnabled(enabled).
 		WithLogger(seclog.DefaultLogger)
 
-	m := &model.Model{}
-	rs := rules.NewRuleSet(m, m.NewEvent, &opts, &evalOpts)
+	rs := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 	addRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {

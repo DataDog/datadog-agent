@@ -157,22 +157,6 @@ func (_m *Env) MaxEventsPerRun() int {
 	return r0
 }
 
-// NodeLabels provides a mock function with given fields:
-func (_m *Env) NodeLabels() map[string]string {
-	ret := _m.Called()
-
-	var r0 map[string]string
-	if rf, ok := ret.Get(0).(func() map[string]string); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[string]string)
-		}
-	}
-
-	return r0
-}
-
 // NormalizeToHostRoot provides a mock function with given fields: path
 func (_m *Env) NormalizeToHostRoot(path string) string {
 	ret := _m.Called(path)

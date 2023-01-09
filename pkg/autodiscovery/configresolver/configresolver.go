@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -83,30 +82,6 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	}
 	copy(resolvedConfig.InitConfig, tpl.InitConfig)
 	copy(resolvedConfig.Instances, tpl.Instances)
-
-	// Ignore the config from file if it's overridden by an empty config or by
-	// a different config for the same check.  If
-	// `logs_config.cca_in_ad` is set, this is not necessary as the
-	// relevant services will filter out these configs.
-	if !util.CcaInAD() {
-		if tpl.Provider == names.File && svc.GetCheckNames(ctx) != nil {
-			checkNames := svc.GetCheckNames(ctx)
-			lenCheckNames := len(checkNames)
-			if lenCheckNames == 0 || (lenCheckNames == 1 && checkNames[0] == "") {
-				// Empty check names on k8s annotations or container labels override the check config from file
-				// Used to deactivate unneeded OOTB autodiscovery checks defined in files
-				// The checkNames slice is considered empty also if it contains one single empty string
-				return resolvedConfig, fmt.Errorf("ignoring config from %s: another empty config is defined with the same AD identifier: %v", tpl.Source, tpl.ADIdentifiers)
-			}
-			for _, checkName := range checkNames {
-				if tpl.Name == checkName {
-					// Ignore config from file when the same check is activated on the same service via other config providers (k8s annotations or container labels)
-					return resolvedConfig, fmt.Errorf("ignoring config from %s: another config is defined for the check %s", tpl.Source, tpl.Name)
-				}
-			}
-
-		}
-	}
 
 	if resolvedConfig.IsCheckConfig() && !svc.IsReady(ctx) {
 		return resolvedConfig, errors.New("unable to resolve, service not ready")

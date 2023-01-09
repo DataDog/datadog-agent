@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -67,7 +66,7 @@ func TestMount(t *testing.T) {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
 
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
@@ -102,7 +101,7 @@ func TestMount(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0707)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
@@ -121,7 +120,7 @@ func TestMount(t *testing.T) {
 				return fmt.Errorf("could not unmount test-mount: %w", err)
 			}
 			return nil
-		}, func(event *sprobe.Event) bool {
+		}, func(event *model.Event) bool {
 			if !assert.Equal(t, "umount", event.GetType(), "wrong event type") {
 				return true
 			}
@@ -141,7 +140,7 @@ func TestMount(t *testing.T) {
 	t.Run("release-mount", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_pending")
 		})
@@ -225,7 +224,7 @@ func TestMountPropagated(t *testing.T) {
 	t.Run("bind-mounted-chmod", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			t.Log(event.Open.File.PathnameStr)
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
@@ -434,7 +433,7 @@ func TestMountEvent(t *testing.T) {
 				return err
 			}
 			return tmpfsMount.unmount(syscall.MNT_FORCE)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
@@ -457,7 +456,7 @@ func TestMountEvent(t *testing.T) {
 				return err
 			}
 			return bindMount.unmount(syscall.MNT_FORCE)
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_bind")
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
@@ -485,7 +484,7 @@ func TestMountEvent(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_in_container_root")
 			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
@@ -515,7 +514,7 @@ func TestMountEvent(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: event %s matched rule %s", event, rule.Expression)
 		})
 		if err == nil {
