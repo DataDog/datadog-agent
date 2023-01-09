@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	pmodel "github.com/DataDog/datadog-agent/pkg/process/events/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -77,8 +78,8 @@ system_probe_config:
   enable_runtime_compiler: true
 
 runtime_security_config:
-  enabled: true
-  fim_enabled: true
+  enabled: {{ .RuntimeSecurityEnabled }}
+  event_monitoring.enabled: {{ .EventMonitoringEnabled }}
   runtime_compilation:
     enabled: true
   remote_tagger: false
@@ -197,6 +198,8 @@ type testOpts struct {
 	disableMapDentryResolution          bool
 	envsWithValue                       []string
 	disableAbnormalPathCheck            bool
+	disableRuntimeSecurity              bool
+	enableEventMonitoring               bool
 }
 
 func (s *stringSlice) String() string {
@@ -224,7 +227,10 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
-		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue)
+		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
+		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
+		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
+		to.enableEventMonitoring == opts.enableEventMonitoring
 }
 
 type testModule struct {
@@ -247,13 +253,15 @@ type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
+type onProcessEventSendDataHandler func([]byte)
 
 type eventHandlers struct {
 	sync.RWMutex
-	onRuleMatch       onRuleHandler
-	onProbeEvent      onProbeEventHandler
-	onCustomSendEvent onCustomSendEventHandler
-	onDiscarderPushed onDiscarderPushedHandler
+	onRuleMatch            onRuleHandler
+	onProbeEvent           onProbeEventHandler
+	onCustomSendEvent      onCustomSendEventHandler
+	onDiscarderPushed      onDiscarderPushedHandler
+	onProcessEventSendData onProcessEventSendDataHandler
 }
 
 //nolint:deadcode,unused
@@ -324,14 +332,20 @@ func assertRights(tb testing.TB, actualMode, expectedMode uint16, msgAndArgs ...
 }
 
 //nolint:deadcode,unused
-func assertNearTime(tb testing.TB, ns uint64) bool {
+func assertNearTimeObject(tb testing.TB, eventTime time.Time) bool {
 	tb.Helper()
-	now, event := time.Now(), time.Unix(0, int64(ns))
-	if event.After(now) || event.Before(now.Add(-1*time.Hour)) {
-		tb.Errorf("expected time close to %s, got %s", now, event)
+	now := time.Now()
+	if eventTime.After(now) || eventTime.Before(now.Add(-1*time.Hour)) {
+		tb.Errorf("expected time close to %s, got %s", now, eventTime)
 		return false
 	}
 	return true
+}
+
+//nolint:deadcode,unused
+func assertNearTime(tb testing.TB, ns uint64) bool {
+	tb.Helper()
+	return assertNearTimeObject(tb, time.Unix(0, int64(ns)))
 }
 
 //nolint:deadcode,unused
@@ -652,6 +666,11 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		mapDentryResolutionEnabled = false
 	}
 
+	runtimeSecurityEnabled := true
+	if opts.disableRuntimeSecurity {
+		runtimeSecurityEnabled = false
+	}
+
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
 		"TestPoliciesDir":                     dir,
@@ -670,6 +689,8 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"LogPatterns":                         logPatterns,
 		"LogTags":                             logTags,
 		"EnvsWithValue":                       opts.envsWithValue,
+		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
+		"EventMonitoringEnabled":              opts.enableEventMonitoring,
 	}); err != nil {
 		return nil, err
 	}
@@ -852,6 +873,15 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb 
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
 		}
+	}
+}
+
+func (tm *testModule) SendProcessEventData(data []byte) {
+	tm.eventHandlers.RLock()
+	defer tm.eventHandlers.RUnlock()
+
+	if tm.eventHandlers.onProcessEventSendData != nil {
+		tm.eventHandlers.onProcessEventSendData(data)
 	}
 }
 
@@ -1145,6 +1175,12 @@ func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler
 	tm.eventHandlers.Unlock()
 }
 
+func (tm *testModule) RegisterProcessEventSendDataHandler(cb onProcessEventSendDataHandler) {
+	tm.eventHandlers.Lock()
+	tm.eventHandlers.onProcessEventSendData = cb
+	tm.eventHandlers.Unlock()
+}
+
 func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1182,6 +1218,72 @@ func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Ev
 		}
 	})
 	defer tm.RegisterProbeEventHandler(nil)
+
+	if action == nil {
+		message <- Continue
+	} else {
+		if err := action(); err != nil {
+			message <- Skip
+			return err
+		}
+		message <- Continue
+	}
+
+	select {
+	case <-time.After(timeout):
+		return NewTimeoutError(tm.probe)
+	case <-ctx.Done():
+		return nil
+	}
+}
+
+func (tm *testModule) GetProcessEvent(action func() error, cb func(event *pmodel.ProcessEvent) bool, timeout time.Duration, executablePath string, eventTypes ...pmodel.EventType) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	message := make(chan ActionMessage, 1)
+	var event pmodel.ProcessEvent
+
+	tm.RegisterProcessEventSendDataHandler(func(data []byte) {
+		if _, err := event.UnmarshalMsg(data); err != nil {
+			tm.t.Logf("failed to unmarshall process event: %v\n", err)
+			return
+		}
+
+		if len(eventTypes) > 0 {
+			match := false
+			for _, eventType := range eventTypes {
+				if event.EventType == eventType {
+					match = true
+					break
+				}
+			}
+			if !match {
+				return
+			}
+		}
+
+		if executablePath != "" && event.Exe != executablePath {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-message:
+			switch msg {
+			case Continue:
+				if cb(&event) {
+					cancel()
+				} else {
+					message <- Continue
+				}
+			case Skip:
+				cancel()
+			}
+		}
+	})
+	defer tm.RegisterProcessEventSendDataHandler(nil)
 
 	if action == nil {
 		message <- Continue
@@ -1322,7 +1424,9 @@ func (tm *testModule) validateAbnormalPaths() {
 }
 
 func (tm *testModule) Close() {
-	tm.module.SendStats()
+	if tm.config.RuntimeEnabled {
+		tm.module.SendStats()
+	}
 
 	if !tm.opts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()

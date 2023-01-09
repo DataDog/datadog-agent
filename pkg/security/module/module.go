@@ -556,6 +556,16 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	}
 }
 
+// SendProcessEvent sends a process event using the provided EventSender interface
+func (m *Module) SendProcessEvent(data []byte) {
+	m.eventSender.SendProcessEventData(data)
+}
+
+// SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
+func (m *Module) SendProcessEventData(data []byte) {
+	m.apiServer.SendProcessEvent(data)
+}
+
 // HandleActivityDump sends an activity dump to the backend
 func (m *Module) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
 	m.apiServer.SendActivityDump(dump)
