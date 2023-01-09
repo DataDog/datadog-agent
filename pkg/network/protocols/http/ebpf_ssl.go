@@ -399,7 +399,10 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 				if len(symbol) == 0 {
 					continue
 				}
-				offset, err := bininspect.SymbolToOffset(elfFile, symbolMap[symbol])
+
+				sym := symbolMap[symbol]
+				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
 					return err
 				}
