@@ -421,9 +421,12 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
         return 0;
     }
     struct sock* sk = args->sk;
+    u32 retrans_out;
+    bpf_probe_read(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
+
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
     
-    return handle_retransmit(sk, 0, RETRANSMIT_COUNT_ABSOLUTE);
+    return handle_retransmit(sk, retrans_out, RETRANSMIT_COUNT_ABSOLUTE);
 }
 
 SEC("kprobe/tcp_set_state")

@@ -177,7 +177,7 @@ static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, si
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock *sk, int segs, retransmit_count_increment_t retrans_type) {
+static __always_inline int handle_retransmit(struct sock *sk, int count, retransmit_count_increment_t retrans_type) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -185,12 +185,7 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs, retransm
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
-    if (retrans_type == RETRANSMIT_COUNT_ABSOLUTE) {
-        u32 retrans_out;
-        bpf_probe_read(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
-        stats.retransmits = retrans_out;
-    }
+    tcp_stats_t stats = { .retransmits = count, .rtt = 0, .rtt_var = 0 };
     update_tcp_stats(&t, stats, retrans_type);
 
     return 0;
