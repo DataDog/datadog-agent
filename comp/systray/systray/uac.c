@@ -6,8 +6,8 @@
 #include "uac.h"
 
 // Attempts to drop privileges from an elevated process by creating a new process and
-// spoofing the parent PID to be explorer.exe. This causes the new process to inherit
-// its access token from explorer.exe.
+// setting the parent process to be the user's explorer.exe. This causes the new process to
+// inherit its access token from explorer.exe.
 //
 // Technique relies on having permission to open explorer.exe with PROCESS_CREATE_PROCESS,
 // this access is verified against the explorer.exe process DACL.
