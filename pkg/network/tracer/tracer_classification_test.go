@@ -712,7 +712,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunInsertQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
 			validation: validateProtocolConnection,
 		},
@@ -730,7 +730,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				pgutils.RunPostgresServer(t, addr, port)
 				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDeleteQuery(t, ctx.extras)
@@ -771,7 +771,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				pgutils.RunPostgresServer(t, addr, port)
 				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunUpdateQuery(t, ctx.extras)
@@ -792,7 +792,7 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 				pgutils.RunPostgresServer(t, addr, port)
 				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
 				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pgutils.RunDropQuery(t, ctx.extras)
@@ -842,6 +842,31 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 
 				// This will fail but it should make a query and be classified
 				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
+			},
+			validation: validateProtocolConnection,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long response",
+			context: testContext{
+				serverPort:       "5432",
+				clientDialer:     defaultDialer,
+				expectedProtocol: network.ProtocolPostgres,
+				extras:           make(map[string]interface{}),
+			},
+			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				addr, port, _ := net.SplitHostPort(ctx.serverAddress)
+				pgutils.RunPostgresServer(t, addr, port)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				for i := int64(1); i < 200; i++ {
+					pgutils.RunInsertQuery(t, i, ctx.extras)
+				}
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
 			},
 			validation: validateProtocolConnection,
 		},

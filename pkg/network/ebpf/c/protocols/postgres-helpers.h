@@ -26,7 +26,7 @@ static __always_inline bool is_postgres_query(const char *buf, __u32 buf_size) {
     struct pg_message_header *hdr = (struct pg_message_header *)buf;
 
     // We only classify queries for now
-    if (hdr->message_tag != POSTGRES_QUERY_MAGIC_BYTE && hdr->message_tag != POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
+    if (hdr->message_tag != POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
         return false;
     }
 

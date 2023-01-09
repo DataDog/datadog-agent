@@ -109,11 +109,14 @@ func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
-func RunInsertQuery(t *testing.T, extras map[string]interface{}) {
+func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
 
-	_, err := db.NewInsert().Model(dummyModel).Exec(ctx)
+	model := *dummyModel
+	model.ID = id
+
+	_, err := db.NewInsert().Model(&model).Exec(ctx)
 	require.NoError(t, err)
 }
 
@@ -121,7 +124,7 @@ func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
 
-	_, err := db.NewSelect().Model(dummyModel).WherePK().Exec(ctx)
+	_, err := db.NewSelect().Model(dummyModel).Exec(ctx)
 	require.NoError(t, err)
 }
 
