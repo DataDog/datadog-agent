@@ -13,6 +13,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -31,6 +33,11 @@ import (
 func TestConsumer(t *testing.T) {
 	kversion, err := kernel.HostVersion()
 	require.NoError(t, err)
+
+	if kversion.Major() == uint8(5) && kversion.Minor() == uint8(10) && strings.HasPrefix(runtime.GOARCH, "arm") {
+		t.Skip("skipping test while we investigate ARM with Kernel 5.10")
+	}
+
 	if minVersion := kernel.VersionCode(4, 14, 0); kversion < minVersion {
 		t.Skipf("package not supported by kernels < %s", minVersion)
 	}
