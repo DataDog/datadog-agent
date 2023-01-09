@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
@@ -636,6 +637,7 @@ type ContainerImageMetadata struct {
 	Architecture string
 	Variant      string
 	Layers       []ContainerImageLayer
+	CycloneDXBOM *cyclonedx.BOM
 }
 
 // ContainerImageLayer represents a layer of a container image

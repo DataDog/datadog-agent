@@ -220,6 +220,7 @@
 /pkg/collector/corechecks/embed/apm*.go            @Datadog/agent-platform @DataDog/agent-apm
 /pkg/collector/corechecks/embed/process_agent*.go  @Datadog/agent-platform @DataDog/processes
 /pkg/collector/corechecks/net/          @DataDog/agent-platform
+/pkg/collector/corechecks/sbom/         @DataDog/container-integrations
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/agent-platform
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/agent-platform @DataDog/windows-agent
