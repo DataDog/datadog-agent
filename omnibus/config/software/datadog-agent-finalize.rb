@@ -197,6 +197,7 @@ build do
             strip_exclude("*runtime-security*")
             strip_exclude("*dns*")
             strip_exclude("*oom-kill*")
+            strip_exclude("*tcp-queue-length*")
         end
 
         if osx?
