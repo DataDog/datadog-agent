@@ -243,8 +243,8 @@ type testModule struct {
 
 var testMod *testModule
 
-type onRuleHandler func(*sprobe.Event, *rules.Rule)
-type onProbeEventHandler func(*sprobe.Event)
+type onRuleHandler func(*model.Event, *rules.Rule)
+type onProbeEventHandler func(*model.Event)
 type onCustomSendEventHandler func(*rules.Rule, *events.CustomEvent)
 type onDiscarderPushedHandler func(event eval.Event, field eval.Field, eventType eval.EventType) bool
 
@@ -347,7 +347,7 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 }
 
 //nolint:deadcode,unused
-func assertFieldEqual(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -358,7 +358,7 @@ func assertFieldEqual(tb testing.TB, e *sprobe.Event, field string, value interf
 }
 
 //nolint:deadcode,unused
-func assertFieldNotEqual(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldNotEqual(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -369,7 +369,7 @@ func assertFieldNotEqual(tb testing.TB, e *sprobe.Event, field string, value int
 }
 
 //nolint:deadcode,unused
-func assertFieldNotEmpty(tb testing.TB, e *sprobe.Event, field string, msgAndArgs ...interface{}) bool {
+func assertFieldNotEmpty(tb testing.TB, e *model.Event, field string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -380,7 +380,7 @@ func assertFieldNotEmpty(tb testing.TB, e *sprobe.Event, field string, msgAndArg
 }
 
 //nolint:deadcode,unused
-func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldContains(tb testing.TB, e *model.Event, field string, value interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -391,7 +391,7 @@ func assertFieldContains(tb testing.TB, e *sprobe.Event, field string, value int
 }
 
 //nolint:deadcode,unused
-func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
+func assertFieldIsOneOf(tb testing.TB, e *model.Event, field string, possibleValues interface{}, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -402,7 +402,7 @@ func assertFieldIsOneOf(tb testing.TB, e *sprobe.Event, field string, possibleVa
 }
 
 //nolint:deadcode,unused
-func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
+func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field string, index int, values []string, msgAndArgs ...interface{}) bool {
 	tb.Helper()
 	fieldValue, err := e.GetFieldValue(field)
 	if err != nil {
@@ -419,7 +419,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *sprobe.Event, field st
 }
 
 //nolint:deadcode,unused
-func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
+func validateProcessContextLineage(tb testing.TB, event *model.Event) bool {
 	var data interface{}
 	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
 		tb.Error(err)
@@ -472,7 +472,7 @@ func validateProcessContextLineage(tb testing.TB, event *sprobe.Event) bool {
 }
 
 //nolint:deadcode,unused
-func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
+func validateProcessContextSECL(tb testing.TB, event *model.Event) bool {
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
@@ -497,7 +497,7 @@ func validateProcessContextSECL(tb testing.TB, event *sprobe.Event) bool {
 	return nameFieldValid && pathFieldValid
 }
 
-func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event, fieldNamesToCheck []string) (bool, bool) {
+func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, fieldNamesToCheck []string) (bool, bool) {
 	validField := true
 	hasPath := true
 
@@ -538,7 +538,7 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *sprobe.Event,
 }
 
 //nolint:deadcode,unused
-func validateProcessContext(tb testing.TB, event *sprobe.Event) {
+func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return
 	}
@@ -553,16 +553,16 @@ func validateProcessContext(tb testing.TB, event *sprobe.Event) {
 }
 
 //nolint:deadcode,unused
-func validateEvent(tb testing.TB, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
-	return func(event *sprobe.Event, rule *rules.Rule) {
+func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
+	return func(event *model.Event, rule *rules.Rule) {
 		validateProcessContext(tb, event)
 		validate(event, rule)
 	}
 }
 
 //nolint:deadcode,unused
-func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *sprobe.Event, rule *rules.Rule)) func(event *sprobe.Event, rule *rules.Rule) {
-	return func(event *sprobe.Event, rule *rules.Rule) {
+func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
+	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
 
 		if kind == dockerWrapperType {
@@ -831,7 +831,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	return testMod, nil
 }
 
-func (tm *testModule) HandleEvent(event *sprobe.Event) {
+func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
 	defer tm.eventHandlers.RUnlock()
 
@@ -847,7 +847,7 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event module.Event, extTagsCb 
 	defer tm.eventHandlers.RUnlock()
 
 	switch ev := event.(type) {
-	case *sprobe.Event:
+	case *model.Event:
 	case *events.CustomEvent:
 		if tm.eventHandlers.onCustomSendEvent != nil {
 			tm.eventHandlers.onCustomSendEvent(rule, ev)
@@ -885,7 +885,7 @@ func (tm *testModule) RuleMatch(rule *rules.Rule, event eval.Event) {
 	tm.eventHandlers.RUnlock()
 
 	if callback != nil {
-		callback(event.(*sprobe.Event), rule)
+		callback(event.(*model.Event), rule)
 	}
 }
 
@@ -898,7 +898,7 @@ func (tm *testModule) RegisterDiscarderPushedHandler(cb onDiscarderPushedHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *sprobe.Event, field string) {
+func (tm *testModule) NotifyDiscarderPushedCallback(eventType string, event *model.Event, field string) {
 	tm.eventHandlers.RLock()
 	callback := tm.eventHandlers.onDiscarderPushed
 	tm.eventHandlers.RUnlock()
@@ -1042,7 +1042,7 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 	message := make(chan ActionMessage, 1)
 	failNow := make(chan bool, 1)
 
-	tm.RegisterRuleEventHandler(func(e *sprobe.Event, r *rules.Rule) {
+	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
 		select {
 		case <-ctx.Done():
@@ -1145,13 +1145,13 @@ func (tm *testModule) RegisterCustomSendEventHandler(cb onCustomSendEventHandler
 	tm.eventHandlers.Unlock()
 }
 
-func (tm *testModule) GetProbeEvent(action func() error, cb func(event *sprobe.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
+func (tm *testModule) GetProbeEvent(action func() error, cb func(event *model.Event) bool, timeout time.Duration, eventTypes ...model.EventType) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	message := make(chan ActionMessage, 1)
 
-	tm.RegisterProbeEventHandler(func(event *sprobe.Event) {
+	tm.RegisterProbeEventHandler(func(event *model.Event) {
 		if len(eventTypes) > 0 {
 			match := false
 			for _, eventType := range eventTypes {
@@ -1485,7 +1485,7 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 //
 //nolint:deadcode,unused
 func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
-	return test.GetProbeEvent(action, func(event *sprobe.Event) bool {
+	return test.GetProbeEvent(action, func(event *model.Event) bool {
 		if v, _ := event.GetFieldValue(key); v == value {
 			return true
 		}

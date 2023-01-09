@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -54,7 +54,7 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGUSR1), event.Signal.Type, "wrong signal")
 			assert.Equal(t, int64(0), event.Signal.Retval, "wrong retval")
@@ -77,7 +77,7 @@ func TestSignalEvent(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "signal", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(unix.SIGKILL), event.Signal.Type, "wrong signal")
 			assert.Equal(t, -int64(unix.EPERM), event.Signal.Retval, "wrong retval")

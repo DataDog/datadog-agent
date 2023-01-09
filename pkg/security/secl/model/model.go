@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -mock -output accessors.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags linux -output ../../probe/accessors.go -doc ../../../../docs/cloud-workload-security/secl.json -fields-resolver ../../probe/fields_resolver.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go
 
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -29,7 +29,9 @@ const (
 )
 
 // Model describes the data model for the runtime security agent events
-type Model struct{}
+type Model struct {
+	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
+}
 
 // NewEvent returns a new Event
 func (m *Model) NewEvent() eval.Event {
@@ -117,6 +119,10 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 		}
 	}
 
+	if m.ExtraValidateFieldFnc != nil {
+		return m.ExtraValidateFieldFnc(field, fieldValue)
+	}
+
 	return nil
 }
 
@@ -200,14 +206,21 @@ type Event struct {
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] [Experimental] A bind was executed
 
 	// internal usage
-	Umount           UmountEvent           `field:"-" json:"-"`
-	InvalidateDentry InvalidateDentryEvent `field:"-" json:"-"`
-	ArgsEnvs         ArgsEnvsEvent         `field:"-" json:"-"`
-	MountReleased    MountReleasedEvent    `field:"-" json:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-" json:"-"`
-	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
-	VethPair         VethPairEvent         `field:"-" json:"-"`
-	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	Umount              UmountEvent           `field:"-" json:"-"`
+	InvalidateDentry    InvalidateDentryEvent `field:"-" json:"-"`
+	ArgsEnvs            ArgsEnvsEvent         `field:"-" json:"-"`
+	MountReleased       MountReleasedEvent    `field:"-" json:"-"`
+	CgroupTracing       CgroupTracingEvent    `field:"-" json:"-"`
+	NetDevice           NetDeviceEvent        `field:"-" json:"-"`
+	VethPair            VethPairEvent         `field:"-" json:"-"`
+	UnshareMountNS      UnshareMountNSEvent   `field:"-" json:"-"`
+	PathResolutionError error                 `field:"-" json:"-"` // hold one of the path resolution error
+
+	// field resolution
+	FieldHandlers FieldHandlers `field:"-" json:"-"`
+
+	// Serializer
+	JSONMarshaler func(ev *Event) ([]byte, error) `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -240,6 +253,13 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
+// NewDefaultEvent returns a new event using the default field handlers
+func NewDefaultEvent() eval.Event {
+	return &Event{
+		FieldHandlers: &DefaultFieldHandlers{},
+	}
+}
+
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
@@ -266,9 +286,67 @@ func (e *Event) GetTags() []string {
 	return tags
 }
 
-// GetPointer return an unsafe.Pointer of the Event
-func (e *Event) GetPointer() unsafe.Pointer {
-	return unsafe.Pointer(e)
+func (ev *Event) String() string {
+	d, err := ev.MarshalJSON()
+	if err != nil {
+		return err.Error()
+	}
+	return string(d)
+}
+
+// MarshalJSON returns the JSON encoding of the event
+func (ev *Event) MarshalJSON() ([]byte, error) {
+	if ev.JSONMarshaler != nil {
+		return ev.JSONMarshaler(ev)
+	}
+	return json.Marshal(ev)
+}
+
+// Retain the event
+func (ev *Event) Retain() Event {
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Retain()
+	}
+	return *ev
+}
+
+// Release the event
+func (ev *Event) Release() {
+	if ev.ProcessCacheEntry != nil {
+		ev.ProcessCacheEntry.Release()
+	}
+}
+
+// NewEmptyProcessCacheEntry returns an empty process cache entry for kworker events
+func (ev *Event) NewEmptyProcessCacheEntry() *ProcessCacheEntry {
+	return &ProcessCacheEntry{
+		ProcessContext: ProcessContext{
+			Process: Process{
+				PIDContext: ev.PIDContext,
+			},
+		},
+	}
+}
+
+// SetPathResolutionError sets the Event.pathResolutionError
+func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
+	fileFields.PathResolutionError = err
+	ev.PathResolutionError = err
+}
+
+// ResolveProcessCacheEntry uses the field handler
+func (ev *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
+	return ev.FieldHandlers.ResolveProcessCacheEntry(ev)
+}
+
+// ResolveEventTimestamp uses the field handler
+func (ev *Event) ResolveEventTimestamp() time.Time {
+	return ev.FieldHandlers.ResolveEventTimestamp(ev)
+}
+
+// GetProcessServiceTag uses the field handler
+func (ev *Event) GetProcessServiceTag() string {
+	return ev.FieldHandlers.GetProcessServiceTag(ev)
 }
 
 // SetuidEvent represents a setuid event
@@ -651,7 +729,7 @@ type ProcessAncestorsIterator struct {
 
 // Front returns the first element
 func (it *ProcessAncestorsIterator) Front(ctx *eval.Context) unsafe.Pointer {
-	if front := (*Event)(ctx.Object).ProcessContext.Ancestor; front != nil {
+	if front := ctx.Event.(*Event).ProcessContext.Ancestor; front != nil {
 		it.prev = front
 		return unsafe.Pointer(front)
 	}
@@ -757,12 +835,12 @@ type BPFMap struct {
 
 // BPFProgram represents a BPF program
 type BPFProgram struct {
-	ID         uint32   `field:"-" json:"-"`                                                      // ID of the eBPF program
-	Type       uint32   `field:"type" constants:"BPF program types"`                              // Type of the eBPF program
-	AttachType uint32   `field:"attach_type" constants:"BPF attach types"`                        // Attach type of the eBPF program
-	Helpers    []uint32 `field:"helpers,handler:ResolveHelpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
-	Name       string   `field:"name"`                                                            // Name of the eBPF program (added in 7.35)
-	Tag        string   `field:"tag"`                                                             // Hash (sha1) of the eBPF program (added in 7.35)
+	ID         uint32   `field:"-" json:"-"`                               // ID of the eBPF program
+	Type       uint32   `field:"type" constants:"BPF program types"`       // Type of the eBPF program
+	AttachType uint32   `field:"attach_type" constants:"BPF attach types"` // Attach type of the eBPF program
+	Helpers    []uint32 `field:"helpers" constants:"BPF helper functions"` // eBPF helpers used by the eBPF program (added in 7.35)
+	Name       string   `field:"name"`                                     // Name of the eBPF program (added in 7.35)
+	Tag        string   `field:"tag"`                                      // Hash (sha1) of the eBPF program (added in 7.35)
 }
 
 // PTraceEvent represents a ptrace event
@@ -929,4 +1007,26 @@ type VethPairEvent struct {
 // SyscallsEvent represents a syscalls event
 type SyscallsEvent struct {
 	Syscalls []Syscall // 64 * 8 = 512 > 450, bytes should be enough to hold all 450 syscalls
+}
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
+	ResolveEventTimestamp(ev *Event) time.Time
+	GetProcessServiceTag(ev *Event) string
+}
+
+// ResolveProcessCacheEntry stub implementation
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+	return nil, false
+}
+
+// ResolveEventTimestamp stub implementation
+func (dfh *DefaultFieldHandlers) ResolveEventTimestamp(ev *Event) time.Time {
+	return ev.Timestamp
+}
+
+// GetProcessServiceTag stub implementation
+func (dfh *DefaultFieldHandlers) GetProcessServiceTag(ev *Event) string {
+	return ""
 }

@@ -56,7 +56,7 @@ type ActivityDumpHandler interface {
 
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
-	HandleEvent(event *Event)
+	HandleEvent(event *model.Event)
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
@@ -70,7 +70,7 @@ type EventStream interface {
 }
 
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
-type NotifyDiscarderPushedCallback func(eventType string, event *Event, field string)
+type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -87,12 +87,16 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers    [model.MaxAllEventType][]EventHandler
-	monitor     *Monitor
-	resolvers   *Resolvers
-	event       *Event
+	handlers       [model.MaxAllEventType][]EventHandler
+	monitor        *Monitor
+	resolvers      *Resolvers
+	event          *model.Event
+	fieldHandlers  *FieldHandlers
+	eventMarshaler *EventMarshaler
+	scrubber       *procutil.DataScrubber
+
+	// Ring
 	eventStream EventStream
-	scrubber    *procutil.DataScrubber
 
 	// ActivityDumps section
 	activityDumpHandler ActivityDumpHandler
@@ -311,7 +315,7 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 }
 
 // DispatchEvent sends an event to the probe event handler
-func (p *Probe) DispatchEvent(event *Event) {
+func (p *Probe) DispatchEvent(event *model.Event) {
 	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
 
 	// send wildcard first
@@ -365,12 +369,14 @@ func (p *Probe) GetMonitor() *Monitor {
 	return p.monitor
 }
 
-func (p *Probe) zeroEvent() *Event {
+func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
+	p.event.FieldHandlers = p.fieldHandlers
+	p.event.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
 	return p.event
 }
 
-func (p *Probe) unmarshalContexts(data []byte, event *Event) (int, error) {
+func (p *Probe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
 	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ContainerContext)
 	if err != nil {
 		return 0, err
@@ -388,6 +394,20 @@ func (p *Probe) invalidateDentry(mountID uint32, inode uint64) {
 
 	seclog.Tracef("remove dentry cache entry for inode %d", inode)
 	p.resolvers.DentryResolver.DelCacheEntry(mountID, inode)
+}
+
+// UnmarshalProcessCacheEntry unmarshal a Process
+func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
+	ev.ProcessCacheEntry = entry
+
+	n, err := entry.Process.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+	entry.Process.ContainerID = ev.ContainerContext.ID
+
+	return n, nil
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
@@ -597,7 +617,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 	case model.ForkEventType:
-		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
+		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -612,7 +632,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = event.UnmarshalProcessCacheEntry(data[offset:]); err != nil {
+		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
@@ -636,7 +656,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		}
 
 		var exists bool
-		event.ProcessCacheEntry, exists = event.ResolveProcessCacheEntry()
+		event.ProcessCacheEntry, exists = p.fieldHandlers.ResolveProcessCacheEntry(event)
 		if !exists {
 			// no need to dispatch an exit event that don't have the corresponding cache entry
 			return
@@ -645,7 +665,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// Use the event timestamp as exit time
 		// The local process cache hasn't been updated yet with the exit time when the exit event is first seen
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
-		event.ProcessCacheEntry.Process.ExitTime = event.ResolveEventTimestamp()
+		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTimestamp(event)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
 	case model.SetuidEventType:
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
@@ -681,7 +701,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve tracee process context
-		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
 		if cacheEntry != nil {
 			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
@@ -722,7 +742,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve target process context
-		cacheEntry := event.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
 		if cacheEntry != nil {
 			event.Signal.Target = &cacheEntry.ProcessContext
 		}
@@ -769,7 +789,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the process cache entry
-	event.ProcessCacheEntry, _ = event.ResolveProcessCacheEntry()
+	event.ProcessCacheEntry, _ = p.fieldHandlers.ResolveProcessCacheEntry(event)
 
 	// use ProcessCacheEntry process context as process context
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
@@ -779,7 +799,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	}
 
 	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, event.ResolveEventTimestamp())
+		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessCacheEntry.Pid, p.fieldHandlers.ResolveEventTimestamp(event))
 	}
 
 	p.DispatchEvent(event)
@@ -789,10 +809,10 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 }
 
 // OnRuleMatch is called when a rule matches just before sending
-func (p *Probe) OnRuleMatch(rule *rules.Rule, event *Event) {
+func (p *Probe) OnRuleMatch(rule *rules.Rule, ev *model.Event) {
 	// ensure that all the fields are resolved before sending
-	event.ResolveContainerID(&event.ContainerContext)
-	event.ResolveContainerTags(&event.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 }
 
 // AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -804,14 +824,14 @@ func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCall
 }
 
 // OnNewDiscarder is called when a new discarder is found
-func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field, eventType eval.EventType) error {
+func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) error {
 	// discarders disabled
 	if !p.Config.EnableDiscarders {
 		return nil
 	}
 
 	if p.isRuntimeDiscarded {
-		fakeTime := time.Unix(0, int64(event.TimestampRaw))
+		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
 			return nil
 		}
@@ -821,13 +841,13 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, event *Event, field eval.Field
 
 	if handlers, ok := allDiscarderHandlers[eventType]; ok {
 		for _, handler := range handlers {
-			discarderPushed, _ := handler(rs, event, p, Discarder{Field: field})
+			discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
 
 			if discarderPushed {
 				p.notifyDiscarderPushedCallbacksLock.Lock()
 				defer p.notifyDiscarderPushedCallbacksLock.Unlock()
 				for _, cb := range p.notifyDiscarderPushedCallbacks {
-					cb(eventType, event, field)
+					cb(eventType, ev, field)
 				}
 			}
 		}
@@ -1089,12 +1109,16 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 
 // NewRuleSet returns a new rule set
 func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
-	eventCtor := func() eval.Event {
-		return NewEvent(p.resolvers, p.scrubber)
-	}
 	opts.WithLogger(seclog.DefaultLogger)
 
-	return rules.NewRuleSet(&Model{probe: p}, eventCtor, opts, evalOpts)
+	eventCtor := func() eval.Event {
+		return &model.Event{
+			FieldHandlers: p.fieldHandlers,
+			JSONMarshaler: p.eventMarshaler.MarshalJSONEvent,
+		}
+	}
+
+	return rules.NewRuleSet(NewModel(p), eventCtor, opts, evalOpts)
 }
 
 // QueuedNetworkDeviceError is used to indicate that the new network device was queued until its namespace handle is
@@ -1133,7 +1157,7 @@ func (p *Probe) FlushNetworkNamespace(namespace *NetworkNamespace) {
 	p.resolvers.TCResolver.FlushNetworkNamespaceID(namespace.nsID, p.Manager)
 }
 
-func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
+func (p *Probe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// There could be entries of a previous mount_id in the cache for instance,
 	// runc does the following : it bind mounts itself (using /proc/exe/self),
 	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
@@ -1143,18 +1167,18 @@ func (p *Probe) handleNewMount(event *Event, m *model.Mount) error {
 	p.resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
 	// Resolve mount point
-	if err := event.SetMountPoint(m); err != nil {
+	if err := p.fieldHandlers.SetMountPoint(ev, m); err != nil {
 		seclog.Debugf("failed to set mount point: %v", err)
 		return err
 	}
 	// Resolve root
-	if err := event.SetMountRoot(m); err != nil {
+	if err := p.fieldHandlers.SetMountRoot(ev, m); err != nil {
 		seclog.Debugf("failed to set mount root: %v", err)
 		return err
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.resolvers.MountResolver.Insert(*m, event.PIDContext.Pid, event.ResolveContainerID(&event.ContainerContext)); err != nil {
+	if err := p.resolvers.MountResolver.Insert(*m, ev.PIDContext.Pid, ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1182,6 +1206,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 		StatsdClient:         statsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
 		isRuntimeDiscarded:   os.Getenv("RUNTIME_SECURITY_TESTSUITE") != "true",
+		event:                &model.Event{},
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -1355,10 +1380,11 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.event = NewEvent(p.resolvers, p.scrubber)
+	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
+	p.eventMarshaler = &EventMarshaler{probe: p}
 
-	eventZero.resolvers = p.resolvers
-	eventZero.scrubber = p.scrubber
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	if useRingBuffers {
 		p.eventStream = NewRingBuffer(p.handleEvent)
