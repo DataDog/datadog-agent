@@ -263,6 +263,22 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		// in that case, we just return a nil slice.
 		return nil
 	}
+
+	remManAddrByRemIndex := make(map[string]string)
+	remManIndexes := store.GetColumnIndexes("lldp_remote_management.interface_id_type")
+	for _, fullIndex := range remManIndexes {
+		indexElems := strings.Split(fullIndex, ".")
+		lldpRemIndex := indexElems[2]
+		lldpRemManAddrSubtype := indexElems[3]
+		ipAddrType := indexElems[4]
+		lldpRemManAddr := indexElems[5:]
+
+		// Only support IPv6 for the moment
+		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
+			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+		}
+	}
+
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
@@ -282,6 +298,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		//       See https://www.rfc-editor.org/rfc/rfc2021
 
 		localPortNum := indexElems[1]
+		lldpRemIndex := indexElems[2]
 
 		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
 		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
@@ -299,6 +316,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
+					IPAddress:   remManAddrByRemIndex[lldpRemIndex],
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
