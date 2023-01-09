@@ -35,8 +35,7 @@ BOOL LaunchUnelevated(LPCWSTR CommandLine)
 
             if (process != NULL)
             {
-                // Create thread attribute list containing PROC_THREAD_ATTRIBUTE_PARENT_PROCESS
-                // to spoof the parent process.
+                // To set the parent process, create a thread attribute list containing PROC_THREAD_ATTRIBUTE_PARENT_PROCESS
                 SIZE_T size;
                 if ((!InitializeProcThreadAttributeList(NULL, 1, 0, &size)) && (GetLastError() == ERROR_INSUFFICIENT_BUFFER))
                 {
