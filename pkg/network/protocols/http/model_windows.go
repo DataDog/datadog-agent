@@ -12,8 +12,6 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	//"encoding/hex"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,9 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
-
-// errLostBatch isn't a valid error in windows
-var errLostBatch = errors.New("invalid error")
 
 // StatusClass returns an integer representing the status code class
 // Example: a 404 would return 400

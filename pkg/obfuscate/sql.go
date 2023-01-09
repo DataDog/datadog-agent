@@ -57,9 +57,9 @@ func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte)
 			// SELECT ... FROM [tableName]
 			// DELETE FROM [tableName]
 			// ... JOIN [tableName]
-			if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) && !strings.ContainsRune("\"'`", r) {
-				// first character in buffer is not a letter, nor a quote, meaning it is not an identifier;
-				// we might have a nested query like SELECT * FROM (SELECT ...)
+			if r, _ := utf8.DecodeRune(buffer); !unicode.IsLetter(r) {
+				// first character in buffer is not a letter; we might have a nested
+				// query like SELECT * FROM (SELECT ...)
 				break
 			}
 			fallthrough
@@ -381,8 +381,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 		if buff != nil {
 			if out.Len() != 0 {
 				switch token {
-				case '.', ']', ',':
-					// skip adding a space before dots, closing square brackets, and commas.
+				case ',':
 				case '=':
 					if lastToken == ':' {
 						// do not add a space before an equals if a colon was
@@ -391,12 +390,7 @@ func attemptObfuscation(tokenizer *SQLTokenizer) (*ObfuscatedQuery, error) {
 					}
 					fallthrough
 				default:
-					switch lastToken {
-					case '[', '.':
-						// skip adding a space after dots and opening square brackets.
-					default:
-						out.WriteRune(' ')
-					}
+					out.WriteRune(' ')
 				}
 			}
 			out.Write(buff)

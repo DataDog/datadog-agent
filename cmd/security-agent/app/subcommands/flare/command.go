@@ -13,7 +13,8 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -24,14 +25,14 @@ import (
 )
 
 type flareCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	customerEmail string
 	autoconfirm   bool
 	caseID        string
 }
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &flareCliParams{
 		GlobalParams: globalParams,
 	}
@@ -49,15 +50,15 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfPathArray), config.WithConfigLoadSecurityAgent(true)),
-					LogParams:    log.LogForOneShot(common.LoggerName, "off", true)}),
+					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfigFilePaths), config.WithConfigLoadSecurityAgent(true)),
+					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	flareCmd.Flags().StringVarP(&cliParams.customerEmail, "email", "e", "", "Your email")
-	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, "send", "s", false, "Automatically send flare (don't prompt for confirmation)")
+	flareCmd.Flags().StringVarP(&cliParams.customerEmail, flags.Email, "e", "", "Your email")
+	flareCmd.Flags().BoolVarP(&cliParams.autoconfirm, flags.Send, "s", false, "Automatically send flare (don't prompt for confirmation)")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
