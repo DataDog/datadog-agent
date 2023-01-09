@@ -176,7 +176,7 @@ require (
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.opentelemetry.io/collector v0.68.0
 	go.opentelemetry.io/collector/component v0.68.0
-	go.opentelemetry.io/collector/confmap v0.68.0
+	go.opentelemetry.io/collector/confmap v0.69.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.68.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.68.0
 	go.opentelemetry.io/collector/pdata v1.0.0-rc2
