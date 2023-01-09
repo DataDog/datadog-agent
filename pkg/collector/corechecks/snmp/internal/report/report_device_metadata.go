@@ -264,20 +264,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		return nil
 	}
 
-	remManAddrByRemIndex := make(map[string]string)
-	remManIndexes := store.GetColumnIndexes("lldp_remote_management.interface_id_type")
-	for _, fullIndex := range remManIndexes {
-		indexElems := strings.Split(fullIndex, ".")
-		lldpRemIndex := indexElems[2]
-		lldpRemManAddrSubtype := indexElems[3]
-		ipAddrType := indexElems[4]
-		lldpRemManAddr := indexElems[5:]
-
-		// Only support IPv6 for the moment
-		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
-			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
-		}
-	}
+	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store)
 
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -316,7 +303,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByRemIndex[lldpRemIndex],
+					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -339,6 +326,25 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func getRemManIPAddrByLLDPRemIndex(store *metadata.Store) map[string]string {
+	remManAddrByRemIndex := make(map[string]string)
+	remManIndexes := store.GetColumnIndexes("lldp_remote_management.interface_id_type")
+	for _, fullIndex := range remManIndexes {
+		indexElems := strings.Split(fullIndex, ".")
+		lldpRemIndex := indexElems[2]
+		lldpRemManAddrSubtype := indexElems[3]
+		ipAddrType := indexElems[4]
+		lldpRemManAddr := indexElems[5:]
+
+		// We only support IPv4 for the moment
+		// TODO: Support IPv6
+		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
+			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+		}
+	}
+	return remManAddrByRemIndex
 }
 
 func formatID(idType string, store *metadata.Store, field string, strIndex string) string {
