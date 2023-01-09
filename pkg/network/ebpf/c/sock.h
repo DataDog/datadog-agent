@@ -3,6 +3,8 @@
 
 #include "ktypes.h"
 
+#include "ipv6.h"
+
 // source include/linux/socket.h
 #define __AF_INET   2
 #define __AF_INET6 10
@@ -203,6 +205,10 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     bpf_memset(t, 0, sizeof(conn_tuple_t));
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
+
+#else
+
+static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type);
 
 #endif // defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
 

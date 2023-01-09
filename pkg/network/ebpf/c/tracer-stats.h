@@ -7,14 +7,12 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
-#include "sock-defines.h"
 #include "cookie.h"
+#include "sock.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
-#elif defined(COMPILE_CORE)
-static __always_inline struct tcp_sock * tcp_sk(const struct sock *sk);
 #endif
 
 static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct sock *sk) {

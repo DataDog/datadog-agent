@@ -28,11 +28,8 @@ static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct
     bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
     bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
 #else
-#ifdef COMPILE_CORE
-#  define s6_addr32 in6_u.u6_addr32
-#endif
-    *addr_h = BPF_CORE_READ(in6, s6_addr32[0]);
-    *addr_l = BPF_CORE_READ(in6, s6_addr32[2]);
+    *addr_h = BPF_CORE_READ(in6, in6_u.u6_addr32[0]);
+    *addr_l = BPF_CORE_READ(in6, in6_u.u6_addr32[2]);
 #endif
 }
 
