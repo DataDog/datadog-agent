@@ -67,6 +67,7 @@ func NewHotspot(pid int, nsPid int) (*Hotspot, error) {
 	if err != nil {
 		return nil, err
 	}
+	h.socketPath = fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid)
 	return h, nil
 }
 
@@ -267,7 +268,6 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 		return fmt.Errorf("process %d/%d SIGQUIT failed : %s", h.pid, h.nsPid, err)
 	}
 
-	h.socketPath = fmt.Sprintf("%s/.java_pid%d", h.tmpPath(), h.nsPid)
 	end := time.Now().Add(6 * time.Second)
 	for end.After(time.Now()) {
 		time.Sleep(200 * time.Millisecond)
@@ -280,10 +280,11 @@ func (h *Hotspot) attachJVMProtocol(uid int, gid int) error {
 
 // Attach an agent to the hotspot, uid/gid must be accessible read-only by the targeted hotspot
 func (h *Hotspot) Attach(agentPath string, args string, uid int, gid int) error {
-
-	// ask JVM to create a socket to communicate
-	if err := h.attachJVMProtocol(uid, gid); err != nil {
-		return err
+	if !h.isSocketExists() {
+		// ask JVM to create a socket to communicate
+		if err := h.attachJVMProtocol(uid, gid); err != nil {
+			return err
+		}
 	}
 
 	// copy the agent in the cwd of the process and change his owner/group
