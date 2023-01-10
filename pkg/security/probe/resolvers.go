@@ -74,6 +74,12 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 
 	tcResolver := resolvers.NewTCResolver(config)
 
+	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
+		probe.scrubber, NewProcessResolverOpts(probe.Config.EnvsWithValue))
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		probe:             probe,
 		MountResolver:     mountResolver,
@@ -85,14 +91,10 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		NamespaceResolver: namespaceResolver,
 		CgroupsResolver:   cgroupsResolver,
 		TCResolver:        tcResolver,
+		ProcessResolver:   processResolver,
 	}
 
-	processResolver, err := NewProcessResolver(probe.Manager, probe.Config, probe.StatsdClient,
-		probe.scrubber, resolvers, NewProcessResolverOpts(probe.Config.EnvsWithValue))
-	if err != nil {
-		return nil, err
-	}
-	resolvers.ProcessResolver = processResolver
+	resolvers.ProcessResolver.resolvers = resolvers
 
 	return resolvers, nil
 }
