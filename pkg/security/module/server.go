@@ -479,20 +479,19 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 }
 
 func marshalEvent(event Event, probe *sprobe.Probe) ([]byte, error) {
-	var s easyjson.Marshaler
 	if ev, ok := event.(*model.Event); ok {
-		s = sprobe.NewEventSerializer(ev, probe)
-	} else if m, ok := event.(easyjson.Marshaler); ok {
-		s = m
-	} else {
-		return json.Marshal(event)
+		return sprobe.MarshalEvent(ev, probe)
 	}
 
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	if m, ok := event.(easyjson.Marshaler); ok {
+		w := &jwriter.Writer{
+			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+		}
+		m.MarshalEasyJSON(w)
+		return w.BuildBytes()
 	}
-	s.MarshalEasyJSON(w)
-	return w.BuildBytes()
+
+	return json.Marshal(event)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule
