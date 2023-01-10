@@ -7,12 +7,12 @@ package compliance
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"os"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -60,15 +60,6 @@ func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
 		checks.WithStatsd(statsdClient),
-	}
-
-	if coreconfig.IsKubernetes() {
-		nodeLabels, err := agent.WaitGetNodeLabels()
-		if err != nil {
-			log.Error(err)
-		} else {
-			options = append(options, checks.WithNodeLabels(nodeLabels))
-		}
 	}
 
 	agent, err := agent.New(

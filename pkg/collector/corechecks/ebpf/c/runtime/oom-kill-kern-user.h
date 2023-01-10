@@ -1,7 +1,7 @@
 #ifndef OOM_KILL_KERN_USER_H
 #define OOM_KILL_KERN_USER_H
 
-#include <linux/types.h>
+#include "ktypes.h"
 
 #ifndef TASK_COMM_LEN
 #define TASK_COMM_LEN 16

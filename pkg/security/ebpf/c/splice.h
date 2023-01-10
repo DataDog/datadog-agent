@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/splice_entry_flags_approvers") splice_entry_flags_a
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_splice_by_entry_flags(struct syscall_cache_t *syscall) {
@@ -24,8 +22,6 @@ struct bpf_map_def SEC("maps/splice_exit_flags_approvers") splice_exit_flags_app
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 int __attribute__((always_inline)) approve_splice_by_exit_flags(struct syscall_cache_t *syscall) {

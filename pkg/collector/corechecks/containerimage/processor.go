@@ -23,12 +23,12 @@ type processor struct {
 func newProcessor(sender aggregator.Sender, maxNbItem int, maxRetentionTime time.Duration) *processor {
 	return &processor{
 		queue: newQueue(maxNbItem, maxRetentionTime, func(images []*model.ContainerImage) {
-			payload := model.ContainerImagePayload{
-				Version: "v1",
-				Images:  images,
-			}
-
-			sender.ContainerImage([]contimage.ContainerImagePayload{payload})
+			sender.ContainerImage([]contimage.ContainerImagePayload{
+				{
+					Version: "v1",
+					Images:  images,
+				},
+			})
 		}),
 	}
 }
@@ -57,7 +57,7 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 			Urls:      layer.URLs,
 			MediaType: layer.MediaType,
 			Digest:    layer.Digest,
-			Size_:     layer.SizeBytes,
+			Size:      layer.SizeBytes,
 		})
 	}
 
@@ -67,7 +67,7 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		ShortName:   img.ShortName,
 		Tags:        img.RepoTags,
 		Digest:      img.ID,
-		Size_:       img.SizeBytes,
+		Size:        img.SizeBytes,
 		RepoDigests: img.RepoDigests,
 		Os: &model.ContainerImage_OperatingSystem{
 			Name:         img.OS,

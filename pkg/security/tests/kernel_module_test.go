@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -166,10 +165,12 @@ func TestLoadModule(t *testing.T) {
 			}
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_from_memory", r.ID, "invalid rule triggered")
-			assert.Equal(t, "", event.ResolveFilePath(&event.LoadModule.File), "shouldn't get a path")
 			assert.Equal(t, event.Async, false)
+
+			event.ResolveFields(false)
+			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
 
 			if !validateLoadModuleNoFileSchema(t, event) {
 				t.Error(event.String())
@@ -191,7 +192,7 @@ func TestLoadModule(t *testing.T) {
 			}
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
 			if !validateLoadModuleSchema(t, event) {
@@ -223,7 +224,7 @@ func TestLoadModule(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module_kworker", r.ID, "invalid rule triggered")
 		})
 	})
@@ -284,7 +285,7 @@ func TestUnloadModule(t *testing.T) {
 			}
 
 			return unix.DeleteModule(testModuleName, unix.O_NONBLOCK)
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_unload_module", r.ID, "invalid rule triggered")
 
 			if !validateUnloadModuleSchema(t, event) {

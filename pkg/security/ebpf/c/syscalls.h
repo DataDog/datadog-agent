@@ -14,7 +14,7 @@ enum {
 
 struct str_array_ref_t {
     u32 id;
-    u8 index;
+    u32 index;
     u8 truncated;
     const char **array;
 };
@@ -108,9 +108,11 @@ struct syscall_cache_t {
         struct {
             struct mount *src_mnt;
             struct mount *dest_mnt;
+            struct mount *bind_src_mnt;
             struct mountpoint *dest_mountpoint;
             struct path_key_t root_key;
             struct path_key_t path_key;
+            struct path_key_t bind_src_key;
             const char *fstype;
         } mount;
 
@@ -139,7 +141,6 @@ struct syscall_cache_t {
             struct str_array_ref_t envs;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
-            u32 next_tail;
             u8 is_parsed;
         } exec;
 
@@ -216,6 +217,16 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
         } bind;
+
+        struct {
+            struct mount *mnt;
+            struct mount *parent;
+            struct dentry *mp_dentry;
+            const char *fstype;
+            struct path_key_t root_key;
+            struct path_key_t path_key;
+            unsigned long flags;
+        } unshare_mntns;
     };
 };
 
@@ -224,8 +235,6 @@ struct bpf_map_def SEC("maps/syscalls") syscalls = {
     .key_size = sizeof(u64),
     .value_size = sizeof(struct syscall_cache_t),
     .max_entries = 1024,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {

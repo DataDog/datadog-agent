@@ -28,8 +28,6 @@ struct bpf_map_def SEC("maps/filter_policy") filter_policy = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct policy_t),
     .max_entries = EVENT_MAX,
-    .pinning = 0,
-    .namespace = "",
 };
 
 #endif

@@ -25,13 +25,9 @@ var (
 		Dest:   util.AddressFromString("192.168.0.103"),
 		SPort:  123,
 		DPort:  35000,
-		Monotonic: StatCountersByCookie{
-			{
-				StatCounters: StatCounters{
-					SentBytes: 123123,
-					RecvBytes: 312312,
-				},
-			},
+		Monotonic: StatCounters{
+			SentBytes: 123123,
+			RecvBytes: 312312,
 		},
 	}
 )
@@ -48,6 +44,7 @@ func TestBeautifyKey(t *testing.T) {
 			Dest:   util.AddressFromNetIP(net.ParseIP("2001:db8::2:1")),
 			SPort:  4444,
 			DPort:  8888,
+			Cookie: 1,
 		},
 		{
 			Pid:       32065,
@@ -58,6 +55,7 @@ func TestBeautifyKey(t *testing.T) {
 			Dest:      util.AddressFromString("130.211.21.187"),
 			SPort:     52012,
 			DPort:     443,
+			Cookie:    2,
 		},
 	} {
 		bk := c.ByteKey(buf)

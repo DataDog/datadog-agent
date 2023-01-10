@@ -16,10 +16,11 @@ import (
 
 func TestStaticTags(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("eks_fargate", false)
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+
+	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})
@@ -58,10 +59,11 @@ func TestStaticTags(t *testing.T) {
 
 func TestStaticTagsSlice(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("eks_fargate", true) // pretend this is a hostless environment
 	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("eks_fargate", false)
 	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+
+	config.SetDetectedFeatures(config.FeatureMap{config.EKSFargate: struct{}{}})
+	defer config.SetDetectedFeatures(nil)
 
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})

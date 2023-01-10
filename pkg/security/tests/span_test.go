@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -30,7 +30,7 @@ func TestSpan(t *testing.T) {
 		},
 		{
 			ID:         "test_span_rule_exec",
-			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ]`, executable),
+			Expression: fmt.Sprintf(`exec.file.path in [ "/usr/bin/touch", "%s" ] && exec.args_flags == "reference"`, executable),
 		},
 	}
 
@@ -64,7 +64,7 @@ func TestSpan(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
 			if !validateSpanSchema(t, event) {
@@ -86,9 +86,9 @@ func TestSpan(t *testing.T) {
 		var args []string
 		var envs []string
 		if kind == dockerWrapperType {
-			args = []string{"span-exec", "104", "204", "/usr/bin/touch", testFile}
+			args = []string{"span-exec", "104", "204", "/usr/bin/touch", "--reference", "/etc/passwd", testFile}
 		} else if kind == stdWrapperType {
-			args = []string{"span-exec", "104", "204", executable, testFile}
+			args = []string{"span-exec", "104", "204", executable, "--reference", "/etc/passwd", testFile}
 		}
 
 		test.WaitSignal(t, func() error {
@@ -98,7 +98,7 @@ func TestSpan(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
 			if !validateSpanSchema(t, event) {

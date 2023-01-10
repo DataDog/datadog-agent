@@ -39,11 +39,14 @@ type JobCollector struct {
 func NewJobCollector() *JobCollector {
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion: true,
-			IsStable:         true,
-			Name:             "jobs",
-			NodeType:         orchestrator.K8sJob,
-			Version:          "batch/v1",
+			IsDefaultVersion:          true,
+			IsStable:                  true,
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      "jobs",
+			NodeType:                  orchestrator.K8sJob,
+			Version:                   "batch/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}

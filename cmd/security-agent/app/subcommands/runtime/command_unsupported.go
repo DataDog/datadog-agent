@@ -18,16 +18,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 

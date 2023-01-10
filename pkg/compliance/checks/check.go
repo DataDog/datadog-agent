@@ -60,7 +60,7 @@ func (c *complianceCheck) String() string {
 	return compliance.CheckName(c.ruleID, c.description)
 }
 
-func (c *complianceCheck) Configure(config, initConfig integration.Data, source string) error {
+func (c *complianceCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	return nil
 }
 

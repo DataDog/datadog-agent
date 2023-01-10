@@ -385,6 +385,10 @@ func TestSQLUTF8(t *testing.T) {
 			"SELECT Cli_Establiments.CODCLI, Cli_Establiments.Id_ESTAB_CLI, Cli_Establiments.CODIGO_CENTRO_AXAPTA, Cli_Establiments.NOMESTAB, Cli_Establiments.ADRECA, Cli_Establiments.CodPostal, Cli_Establiments.Poblacio, Cli_Establiments.Provincia, Cli_Establiments.TEL, Cli_Establiments.EMAIL, Cli_Establiments.PERS_CONTACTE, Cli_Establiments.PERS_CONTACTE_CARREC, Cli_Establiments.NumTreb, Cli_Establiments.Localitzacio, Tipus_Activitat.CNAE, Tipus_Activitat.Nom_ES, ACTIVO FROM Cli_Establiments LEFT OUTER JOIN Tipus_Activitat ON Cli_Establiments.Id_ACTIVITAT = Tipus_Activitat.IdActivitat Where CODCLI = ? AND CENTRE_CORRECTE = ? AND ACTIVO = ? ORDER BY Cli_Establiments.CODIGO_CENTRO_AXAPTA",
 		},
 		{
+			`select * from dollarField$ as df from some$dollar$filled_thing$$;`,
+			`select * from dollarField$ from some$dollar$filled_thing$$`,
+		},
+		{
 			"select * from `構わない`;",
 			"select * from 構わない",
 		},
@@ -1172,6 +1176,14 @@ LIMIT 1
 			query:    `SELECT * FROM Items WHERE id = -1 OR id = -01 OR id = -108 OR id = -.018 OR id = -.08 OR id = -908129`,
 			expected: `SELECT * FROM Items WHERE id = ? OR id = ? OR id = ? OR id = ? OR id = ? OR id = ?`,
 		},
+		{
+			query:    "USING $09 SELECT",
+			expected: `USING ? SELECT`,
+		},
+		{
+			query:    "USING - SELECT",
+			expected: `USING - SELECT`,
+		},
 	}
 	o := NewObfuscator(Config{})
 	for _, c := range cases {
@@ -1609,11 +1621,6 @@ func TestSQLErrors(t *testing.T) {
 		},
 
 		{
-			"USING $09 SELECT",
-			`at position 9: invalid number`,
-		},
-
-		{
 			"INSERT VALUES (1, 2) INTO {ABC",
 			`at position 30: unexpected EOF in escape sequence`,
 		},
@@ -1667,7 +1674,7 @@ func TestSQLErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run("", func(t *testing.T) {
 			_, err := NewObfuscator(Config{}).ObfuscateSQLString(tc.query)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Equal(t, tc.expected, err.Error())
 		})
 	}
@@ -1941,6 +1948,32 @@ func TestUnicodeDigit(t *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
+}
+
+func TestParseNumber(t *testing.T) {
+	var testCases = []string{
+		"1234",
+		"-1234",
+		"1234e12",
+		"0xfa",
+		"01234567",
+		"09",
+		// Negatives are always parsed as decimals (not octal).
+		"-01234567",
+		"-012345678",
+	}
+
+	o := NewObfuscator(Config{})
+	for _, testCase := range testCases {
+		t.Run(testCase, func(t *testing.T) {
+			assert := assert.New(t)
+			oq, err := o.ObfuscateSQLString(testCase)
+			require.NoError(t, err)
+			if assert.NotNil(oq) {
+				assert.Equal("?", oq.Query)
+			}
+		})
+	}
 }
 
 // TestToUpper contains test data lifted from Go's bytes/bytes_test.go, but we test

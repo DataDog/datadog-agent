@@ -500,9 +500,9 @@ func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname s
 
 	payloads := make([]*[]byte, 0, len(msgs))
 
-	for _, msg := range msgs {
-		msg.Host = hostname
-		encoded, err := proto.Marshal(&msg)
+	for i := range msgs {
+		msgs[i].Host = hostname
+		encoded, err := proto.Marshal(&msgs[i])
 		if err != nil {
 			return log.Errorf("Unable to encode message: %+v", err)
 		}

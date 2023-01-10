@@ -11,9 +11,9 @@
 
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
-#define MAX_ARRAY_ELEMENT_PER_TAIL 23
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARGS_ELEMENTS 140
+#define MAX_ARRAY_ELEMENT_PER_TAIL 23
+#define MAX_ARGS_ENVS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit in half
 
 struct args_envs_event_t {
     struct kevent_t event;
@@ -30,7 +30,7 @@ struct bpf_map_def SEC("maps/args_envs_progs") args_envs_progs = {
     .type = BPF_MAP_TYPE_PROG_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u32),
-    .max_entries = 10,
+    .max_entries = 1,
 };
 
 struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
@@ -38,8 +38,6 @@ struct bpf_map_def SEC("maps/str_array_buffers") str_array_buffers = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct str_array_buffer_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct exec_event_t {
@@ -62,8 +60,6 @@ struct bpf_map_def SEC("maps/exec_event_gen") exec_event_gen = {
     .key_size = sizeof(u32),
     .value_size = sizeof(struct exec_event_t),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) struct exec_event_t *new_exec_event() {
@@ -120,8 +116,6 @@ struct bpf_map_def SEC("maps/exec_count_fb") exec_count_fb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
@@ -129,8 +123,6 @@ struct bpf_map_def SEC("maps/exec_count_bb") exec_count_bb = {
     .key_size = sizeof(struct exec_path),
     .value_size = sizeof(u64),
     .max_entries = 2048,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/tasks_in_coredump") tasks_in_coredump = {
@@ -139,8 +131,6 @@ struct bpf_map_def SEC("maps/tasks_in_coredump") tasks_in_coredump = {
     .value_size = sizeof(u8),
     .max_entries = 64,
     .map_flags = BPF_F_NO_COMMON_LRU,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
@@ -148,8 +138,6 @@ struct bpf_map_def SEC("maps/exec_pid_transfer") exec_pid_transfer = {
     .key_size = sizeof(u32),
     .value_size = sizeof(u64),
     .max_entries = 512,
-    .pinning = 0,
-    .namespace = "",
 };
 
 struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 cookie) {
@@ -163,9 +151,6 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u32 coo
 void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct str_array_ref_t *array_ref, u64 event_type) {
     const char **array = array_ref->array;
     int index = array_ref->index;
-    if (index == 255) {
-        return;
-    }
 
     array_ref->truncated = 0;
 
@@ -218,7 +203,7 @@ void __attribute__((always_inline)) parse_str_array(struct pt_regs *ctx, struct 
 
             bpf_probe_read(&str, sizeof(str), (void *)&array[index]);
         } else {
-            index = 255; // stop here
+            array_ref->array = NULL; // array->array == NULL indicates that we reached the end of the string array
             break;
         }
     }
@@ -241,15 +226,16 @@ int kprobe_parse_args_envs(struct pt_regs *ctx) {
     }
 
     struct str_array_ref_t *array = &syscall->exec.args;
-    if (syscall->exec.next_tail > MAX_ARGS_ELEMENTS / MAX_ARRAY_ELEMENT_PER_TAIL) {
+    if (array->array == NULL || array->index > MAX_ARGS_ENVS_ELEMENTS) { // args are parsed
         array = &syscall->exec.envs;
+        if (array->array == NULL || array->index > MAX_ARGS_ENVS_ELEMENTS) { // envs are parsed
+            return 0;
+        }
     }
 
     parse_str_array(ctx, array, EVENT_ARGS_ENVS);
 
-    syscall->exec.next_tail++;
-
-    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
+    bpf_tail_call_compat(ctx, &args_envs_progs, 0);
 
     return 0;
 }
@@ -301,7 +287,12 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
     syscall->exec.is_parsed = 1;
 
     syscall->exec.dentry = get_file_dentry(file);
-    syscall->exec.file.path_key = get_inode_key_path(inode, path);
+
+    // set mount_id to 0 is this is a fileless exec, meaning that the vfs type is tmpfs and that is an internal mount
+    u32 mount_id = is_tmpfs(syscall->exec.dentry) && get_path_mount_flags(path) & MNT_INTERNAL ? 0 : get_path_mount_id(path);
+
+    syscall->exec.file.path_key.ino = get_inode_ino(inode);
+    syscall->exec.file.path_key.mount_id = mount_id;
     syscall->exec.file.path_key.path_id = get_path_id(0);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -313,7 +304,7 @@ int __attribute__((always_inline)) handle_exec_event(struct pt_regs *ctx, struct
             .executable = {
                 .path_key = {
                     .ino = syscall->exec.file.path_key.ino,
-                    .mount_id = get_path_mount_id(path),
+                    .mount_id = mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
                 },
                 .flags = syscall->exec.file.flags
@@ -685,7 +676,11 @@ int __attribute__((always_inline)) parse_args_and_env(struct pt_regs *ctx) {
     // call it here before the memory get replaced
     fill_span_context(&syscall->exec.span_context);
 
-    bpf_tail_call_compat(ctx, &args_envs_progs, syscall->exec.next_tail);
+    // avoid tail call if we have nothing to parse (or already did)
+    if (syscall->exec.args.array != NULL || syscall->exec.envs.array != NULL) {
+        bpf_tail_call_compat(ctx, &args_envs_progs, 0);
+    }
+
     return 0;
 }
 

@@ -373,34 +373,37 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent)
-	if err != nil {
-		return n, err
-	}
-
-	data = data[n:]
+func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = ByteOrder.Uint32(data[0:4])
-	e.GroupID = ByteOrder.Uint32(data[4:8])
-	e.Device = ByteOrder.Uint32(data[8:12])
-	e.ParentMountID = ByteOrder.Uint32(data[12:16])
-	e.ParentInode = ByteOrder.Uint64(data[16:24])
-	e.RootInode = ByteOrder.Uint64(data[24:32])
-	e.RootMountID = ByteOrder.Uint32(data[32:36])
+	m.MountID = ByteOrder.Uint32(data[0:4])
+	m.GroupID = ByteOrder.Uint32(data[4:8])
+	m.Device = ByteOrder.Uint32(data[8:12])
+	m.ParentMountID = ByteOrder.Uint32(data[12:16])
+	m.ParentInode = ByteOrder.Uint64(data[16:24])
+	m.RootInode = ByteOrder.Uint64(data[24:32])
+	m.RootMountID = ByteOrder.Uint32(data[32:36])
+	m.BindSrcMountID = ByteOrder.Uint32(data[36:40])
 
-	// Notes: bytes 36 to 40 are used to pad the structure
-
-	SliceToArray(data[40:56], e.FSTypeRaw[:])
-	e.FSType, err = UnmarshalString(e.FSTypeRaw[:], 16)
+	var err error
+	m.FSType, err = UnmarshalString(data[40:56], 16)
 	if err != nil {
 		return 0, err
 	}
 
 	return 56, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.Mount)
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
+	return e.Mount.UnmarshalBinary(data)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

@@ -46,7 +46,8 @@ type ContainerdItf interface {
 	Labels(namespace string, ctn containerd.Container) (map[string]string, error)
 	LabelsWithContext(ctx context.Context, namespace string, ctn containerd.Container) (map[string]string, error)
 	ListImages(namespace string) ([]containerd.Image, error)
-	Image(namespace string, ctn containerd.Container) (containerd.Image, error)
+	Image(namespace string, name string) (containerd.Image, error)
+	ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error)
 	ImageSize(namespace string, ctn containerd.Container) (int64, error)
 	Spec(namespace string, ctn containerd.Container) (*oci.Spec, error)
 	SpecWithContext(ctx context.Context, namespace string, ctn containerd.Container) (*oci.Spec, error)
@@ -231,7 +232,16 @@ func (c *ContainerdUtil) ListImages(namespace string) ([]containerd.Image, error
 }
 
 // Image interfaces with the containerd api to get an image
-func (c *ContainerdUtil) Image(namespace string, ctn containerd.Container) (containerd.Image, error) {
+func (c *ContainerdUtil) Image(namespace string, name string) (containerd.Image, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
+	defer cancel()
+	ctxNamespace := namespaces.WithNamespace(ctx, namespace)
+
+	return c.cl.GetImage(ctxNamespace, name)
+}
+
+// ImageOfContainer interfaces with the containerd api to get an image
+func (c *ContainerdUtil) ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.queryTimeout)
 	defer cancel()
 	ctxNamespace := namespaces.WithNamespace(ctx, namespace)

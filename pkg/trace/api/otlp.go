@@ -39,6 +39,10 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// keyStatsComputed specifies the resource attribute key which indicates if stats have been
+// computed for the resource spans.
+const keyStatsComputed = "_dd.stats_computed"
+
 const (
 	// otlpProtocolHTTP specifies that the incoming connection was made over plain HTTP.
 	otlpProtocolHTTP = "http"
@@ -59,7 +63,7 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -299,7 +303,8 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	traceChunks := make([]*pb.TraceChunk, 0, len(tracesByID))
 	p := Payload{
-		Source: tagstats,
+		Source:              tagstats,
+		ClientComputedStats: rattr[keyStatsComputed] != "",
 	}
 	for k, spans := range tracesByID {
 		prio := int32(sampler.PriorityAutoKeep)
@@ -354,7 +359,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	select {
 	case o.out <- &p:
-		// 👍
+		// success
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}

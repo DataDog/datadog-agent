@@ -207,9 +207,9 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
-func (c *PythonCheck) Configure(data integration.Data, initConfig integration.Data, source string) error {
+func (c *PythonCheck) Configure(integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = check.Identify(c, data, initConfig)
+	c.id = check.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {

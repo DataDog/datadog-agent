@@ -102,12 +102,12 @@ func CheckFactory() check.Check {
 }
 
 // Configure parses the check configuration and initializes the container_image check
-func (c *Check) Configure(config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	if !ddConfig.Datadog.GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 
-	if err := c.CommonConfigure(initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(integrationConfigDigest, initConfig, config, source); err != nil {
 		return err
 	}
 

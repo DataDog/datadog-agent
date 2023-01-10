@@ -25,7 +25,7 @@ def gen_datadog_agent_config(hostname="myhost", log_level="INFO", tags=None):
     if not tags:
         tags = []
 
-    data = {"log_level": log_level, "hostname": hostname, "tags": tags}
+    data = {"log_level": log_level, "hostname": hostname, "tags": tags, "security_agent.remote_workloadmeta": True}
     yaml.dump(data, fp)
     fp.close()
 

@@ -340,7 +340,8 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0), http.Header{}, "agent_tests")
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -350,6 +351,28 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ClientComputedStats", func(t *testing.T) {
+		rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+			{
+				LibName:    "libname",
+				LibVersion: "1.2",
+				Attributes: map[string]interface{}{},
+				Spans: []*testutil.OTLPSpan{
+					{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}},
+				},
+			},
+		}).Traces().ResourceSpans().At(0)
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		timeout := time.After(500 * time.Millisecond)
+		select {
+		case <-timeout:
+			t.Fatal("timed out")
+		case p := <-out:
+			// stats are computed this time
+			require.False(p.ClientComputedStats)
+		}
+	})
 }
 
 func TestOTLPSetAttributes(t *testing.T) {

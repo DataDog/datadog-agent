@@ -240,7 +240,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 				orchestrator:       orchestratorForwarder,
 				eventPlatform:      eventPlatformForwarder,
 				containerLifecycle: containerLifecycleForwarder,
-				containerImage: containerImageForwarder,
+				containerImage:     containerImageForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
