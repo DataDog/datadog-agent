@@ -332,12 +332,25 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 }
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
-	interfaceIndexByIDValue, ok := interfaceIndexByIDType[localInterfaceIDType]
-	if ok {
-		ifIndex, ok := interfaceIndexByIDValue[localInterfaceID]
+	if localInterfaceID == "" {
+		return localInterfaceIDType, localInterfaceID
+	}
+
+	var typesToTry []string
+	if localInterfaceIDType == "" {
+		// "smart resolution" by multiple types when localInterfaceIDType is not provided
+		// CAVEAT: in case the smart resolution returns false positives, the solution is to configure the device to provide a proper localInterfaceIDType
+		typesToTry = []string{"interface_name", "mac_address", "interface_name", "interface_alias", "interface_index"}
+	} else {
+		typesToTry = []string{localInterfaceIDType}
+	}
+	for _, idType := range typesToTry {
+		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
 		if ok {
-			localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
-			localInterfaceIDType = metadata.IDTypeNDM
+			ifIndex, ok := interfaceIndexByIDValue[localInterfaceID]
+			if ok {
+				return metadata.IDTypeNDM, deviceID + ":" + strconv.Itoa(int(ifIndex))
+			}
 		}
 	}
 	return localInterfaceIDType, localInterfaceID
@@ -345,13 +358,16 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 
 func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string]int32 {
 	interfaceIndexByIDType := make(map[string]map[string]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
-	for _, idType := range []string{"mac_address", "interface_name", "interface_alias"} {
+	for _, idType := range []string{"mac_address", "interface_name", "interface_alias", "interface_index"} {
 		interfaceIndexByIDType[idType] = make(map[string]int32)
 	}
 	for _, devInterface := range interfaces {
 		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = devInterface.Index
 		interfaceIndexByIDType["interface_name"][devInterface.Name] = devInterface.Index
 		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = devInterface.Index
+
+		// interface_index is not a type defined by LLDP, it's used in local interface "smart resolution" when the idType is not present
+		interfaceIndexByIDType["interface_index"][strconv.Itoa(int(devInterface.Index))] = devInterface.Index
 	}
 	return interfaceIndexByIDType
 }

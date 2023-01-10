@@ -567,6 +567,10 @@ func Test_resolveLocalInterface(t *testing.T) {
 			"alias1": 1,
 			"alias2": 2,
 		},
+		"interface_index": {
+			"1": 1,
+			"2": 2,
+		},
 	}
 	deviceID := "default:1.2.3.4"
 
@@ -595,6 +599,41 @@ func Test_resolveLocalInterface(t *testing.T) {
 			name:           "interface_alias",
 			localIDType:    "interface_alias",
 			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "mac_address by trying",
+			localIDType:    "",
+			localID:        "00:00:00:00:00:01",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:1",
+		},
+		{
+			name:           "interface_name by trying",
+			localIDType:    "",
+			localID:        "eth2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_alias by trying",
+			localIDType:    "",
+			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_alias by trying",
+			localIDType:    "",
+			localID:        "alias2",
+			expectedIDType: "ndm",
+			expectedID:     "default:1.2.3.4:2",
+		},
+		{
+			name:           "interface_index by trying",
+			localIDType:    "",
+			localID:        "2",
 			expectedIDType: "ndm",
 			expectedID:     "default:1.2.3.4:2",
 		},
@@ -657,6 +696,10 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		"interface_alias": {
 			"alias1": 1,
 			"alias2": 2,
+		},
+		"interface_index": {
+			"1": 1,
+			"2": 2,
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
