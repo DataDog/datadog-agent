@@ -358,23 +358,37 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 		}
 		defer elfFile.Close()
 
-		symbolsSet := make(common.StringSet, len(probes))
+		symbolsSet := make(common.StringSet, 0)
+		symbolsSetBestEffort := make(common.StringSet, 0)
 		for _, singleProbe := range probes {
+			_, isBestEffort := singleProbe.(*manager.BestEffort)
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				sp := strings.Split(selector.EBPFSection, "/")
 				symbol := sp[len(sp)-1]
 				if len(symbol) == 0 {
 					continue
 				}
-				symbolsSet[symbol] = struct{}{}
+				if isBestEffort {
+					symbolsSetBestEffort[symbol] = struct{}{}
+				} else {
+					symbolsSet[symbol] = struct{}{}
+				}
 			}
 		}
 		symbolMap, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSet)
 		if err != nil {
 			return err
 		}
+		/* apply best effort symbols */
+		symbolMapBestEffort, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
+		if err == nil {
+			for sym, offset := range symbolMapBestEffort {
+				symbolMap[sym] = offset
+			}
+		}
 
 		for _, singleProbe := range probes {
+			_, isBestEffort := singleProbe.(*manager.BestEffort)
 			for _, selector := range singleProbe.GetProbesIdentificationPairList() {
 				identifier := manager.ProbeIdentificationPair{
 					EBPFSection:  selector.EBPFSection,
@@ -404,6 +418,9 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
+					if isBestEffort {
+						continue
+					}
 					return err
 				}
 
