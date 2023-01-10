@@ -63,7 +63,8 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 
 	p.queue <- &model.ContainerImage{
 		Id:          img.ID,
-		Registry:    "",
+		Name:        img.Name,
+		Registry:    img.Registry,
 		ShortName:   img.ShortName,
 		Tags:        img.RepoTags,
 		Digest:      img.ID,
