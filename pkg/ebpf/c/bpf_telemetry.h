@@ -112,7 +112,6 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define bpf_probe_read_kernel_str_with_telemetry(...) \
     helper_with_telemetry(bpf_probe_read_kernel_str, __VA_ARGS__)
 
-// TODO: determine if we really need to conditionally determine these helpers
 #define bpf_skb_load_bytes_with_telemetry(...) \
     helper_with_telemetry(bpf_skb_load_bytes, __VA_ARGS__)
 

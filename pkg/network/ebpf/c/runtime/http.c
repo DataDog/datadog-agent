@@ -2,7 +2,7 @@
 #include "ktypes.h"
 
 #ifdef COMPILE_RUNTIME
-#include <linux/kconfig.h>
+#include "kconfig.h"
 #endif
 
 #include "bpf_tracing.h"

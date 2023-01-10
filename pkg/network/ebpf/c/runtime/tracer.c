@@ -43,7 +43,9 @@
 // The entrypoint for all packets.
 SEC("socket/classifier")
 int socket__classifier(struct __sk_buff *skb) {
+    #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
     protocol_classifier_entrypoint(skb);
+    #endif
     return 0;
 }
 

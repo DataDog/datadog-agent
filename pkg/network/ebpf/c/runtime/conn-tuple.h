@@ -4,14 +4,14 @@
 #include "ktypes.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
-// FIX THIS
-// #include "netns.h"
+#include "netns.h"
 
 #ifdef FEATURE_IPV6_ENABLED
 #include "ipv6.h"
 #endif
 
-#if defined(COMPILE_RUNTIME) || defined(COMPILE_PREBUILT)
+#ifdef COMPILE_RUNTIME
+#include "kconfig.h"
 #include <net/inet_sock.h>
 #endif
 
@@ -54,7 +54,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
-    /* t->netns = get_netns(&skp->sk_net); */
+    t->netns = get_netns(&skp->sk_net);
     u16 family = 0;
     bpf_probe_read_kernel_with_telemetry(&family, sizeof(family), &skp->sk_family);
 

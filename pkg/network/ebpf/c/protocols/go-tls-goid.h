@@ -2,7 +2,8 @@
 #define __GO_TLS_GOID_H
 
 #include "ktypes.h"
-#ifdef COMPILE_RUNTIME
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_RUNTIME)
+#include "kconfig.h"
 #include <linux/sched.h>
 #endif
 

@@ -2,7 +2,7 @@
 #define __HTTP_BUFFER_H
 
 #include "ktypes.h"
-#ifdef COMPILE_RUNTIME
+#if defined(COMPILE_PREBUILT) || defined(COMPILE_RUNTIME)
 #include <linux/err.h>
 #endif
 

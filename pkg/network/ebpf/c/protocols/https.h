@@ -2,6 +2,7 @@
 #define __HTTPS_H
 
 #ifdef COMPILE_CORE
+#include "ktypes.h"
 #define MAJOR(dev) ((dev)>>8)
 #define MINOR(dev) ((dev) & 0xff)
 #else

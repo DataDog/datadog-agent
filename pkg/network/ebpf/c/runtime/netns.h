@@ -2,7 +2,7 @@
 #define __NETNS_H
 
 #include "ktypes.h"
-#ifdef COMPILATION_RUNTIME
+#ifdef COMPILE_RUNTIME
 #include <net/net_namespace.h>
 #endif
 
