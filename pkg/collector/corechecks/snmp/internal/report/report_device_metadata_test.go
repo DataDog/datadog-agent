@@ -532,3 +532,23 @@ func TestComputeInterfaceStatus(t *testing.T) {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
 	}
 }
+
+func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+	indexes := []string{
+		// IPv4
+		"0.102.2.1.4.10.250.0.7",
+		"0.102.99.1.4.10.250.0.8",
+
+		// IPv6
+		"370.5.1.2.16.254.128.0.0.0.0.0.0.26.146.164.255.254.48.12.1",
+
+		// Invalid
+		"0.102.2.1.4.10.250", // too short, ignored
+	}
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	expectedResult := map[string]string{
+		"2":  "10.250.0.7",
+		"99": "10.250.0.8",
+	}
+	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
+}

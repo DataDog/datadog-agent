@@ -264,7 +264,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		return nil
 	}
 
-	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store)
+	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
 
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -328,9 +328,8 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 	return links
 }
 
-func getRemManIPAddrByLLDPRemIndex(store *metadata.Store) map[string]string {
+func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 	remManAddrByRemIndex := make(map[string]string)
-	remManIndexes := store.GetColumnIndexes("lldp_remote_management.interface_id_type")
 	for _, fullIndex := range remManIndexes {
 		indexElems := strings.Split(fullIndex, ".")
 		if len(indexElems) < 9 {
