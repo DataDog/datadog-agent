@@ -188,7 +188,7 @@ func TestProcessContext(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Errorf("shouldn't get an event: got event: %s", event)
+			t.Errorf("shouldn't get an event: got event: %s", test.debugEvent(event))
 		})
 		if err == nil {
 			t.Fatal("shouldn't get an event")
@@ -2152,7 +2152,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 					cmd := exec.Command(testFile)
 					return cmd.Run()
 				}, func(event *model.Event, rule *rules.Rule) {
-					t.Errorf("shouldn't get an event: got event: %s", event)
+					t.Errorf("shouldn't get an event: got event: %s", testModule.debugEvent(event))
 				})
 				if err == nil {
 					t.Fatal("shouldn't get an event")

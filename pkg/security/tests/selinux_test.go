@@ -133,7 +133,7 @@ func TestSELinux(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Errorf("expected error and got an event: %s", event)
+			t.Errorf("expected error and got an event: %s", test.debugEvent(event))
 		})
 		if err == nil {
 			t.Fatal("expected error")

@@ -998,6 +998,14 @@ func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	return string(b), err
 }
 
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}
+
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
