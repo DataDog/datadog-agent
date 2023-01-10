@@ -599,6 +599,13 @@ func Test_resolveLocalInterface(t *testing.T) {
 			expectedID:     "default:1.2.3.4:2",
 		},
 		{
+			name:           "mac_address not found",
+			localIDType:    "mac_address",
+			localID:        "00:00:00:00:00:99",
+			expectedIDType: "mac_address",
+			expectedID:     "00:00:00:00:00:99",
+		},
+		{
 			name:           "invalid",
 			localIDType:    "invalid_type",
 			localID:        "invalidID",
