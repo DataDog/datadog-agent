@@ -264,14 +264,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		return nil
 	}
 
-	interfaceByMacAddress := make(map[string]int32)
-	interfaceByName := make(map[string]int32)
-	interfaceByAlias := make(map[string]int32)
-	for _, devInterface := range interfaces {
-		interfaceByMacAddress[devInterface.MacAddress] = devInterface.Index
-		interfaceByName[devInterface.Name] = devInterface.Index
-		interfaceByAlias[devInterface.Alias] = devInterface.Index
-	}
+	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
 	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
 
@@ -305,30 +298,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
 
-		switch localInterfaceIDType {
-		case "mac_address":
-			// TODO: TEST ME
-			// TODO: Factor
-			ifIndex, ok := interfaceByMacAddress[localInterfaceID]
-			if ok {
-				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
-				localInterfaceIDType = metadata.IDTypeNDM
-			}
-		case "interface_name":
-			// TODO: TEST ME
-			ifIndex, ok := interfaceByName[localInterfaceID]
-			if ok {
-				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
-				localInterfaceIDType = metadata.IDTypeNDM
-			}
-		case "interface_alias":
-			// TODO: TEST ME
-			ifIndex, ok := interfaceByAlias[localInterfaceID]
-			if ok {
-				localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
-				localInterfaceIDType = metadata.IDTypeNDM
-			}
-		}
+		localInterfaceIDType, localInterfaceID = resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
 
 		newLink := metadata.TopologyLinkMetadata{
 			Remote: &metadata.TopologyLinkSide{
@@ -349,7 +319,6 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 				Interface: &metadata.TopologyLinkInterface{
 					ID:     localInterfaceID,
 					IDType: localInterfaceIDType,
-					// TODO: We can possibly resolve locally to ifIndex to avoid having to resolve on backend side
 				},
 				Device: &metadata.TopologyLinkDevice{
 					ID:     deviceID,
@@ -360,6 +329,31 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string]int32, localInterfaceIDType string, localInterfaceID string) (string, string) {
+	interfaceIndexByIDValue, ok := interfaceIndexByIDType[localInterfaceIDType]
+	if ok {
+		ifIndex, ok := interfaceIndexByIDValue[localInterfaceID]
+		if ok {
+			localInterfaceID = deviceID + ":" + strconv.Itoa(int(ifIndex))
+			localInterfaceIDType = metadata.IDTypeNDM
+		}
+	}
+	return localInterfaceIDType, localInterfaceID
+}
+
+func buildInterfaceIndexByIDType(interfaces []metadata.InterfaceMetadata) map[string]map[string]int32 {
+	interfaceIndexByIDType := make(map[string]map[string]int32) // map[ID_TYPE]map[ID_VALUE]IF_INDEX
+	for _, idType := range []string{"mac_address", "interface_name", "interface_alias"} {
+		interfaceIndexByIDType[idType] = make(map[string]int32)
+	}
+	for _, devInterface := range interfaces {
+		interfaceIndexByIDType["mac_address"][devInterface.MacAddress] = devInterface.Index
+		interfaceIndexByIDType["interface_name"][devInterface.Name] = devInterface.Index
+		interfaceIndexByIDType["interface_alias"][devInterface.Alias] = devInterface.Index
+	}
+	return interfaceIndexByIDType
 }
 
 func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
