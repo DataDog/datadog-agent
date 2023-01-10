@@ -87,13 +87,12 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers       [model.MaxAllEventType][]EventHandler
-	monitor        *Monitor
-	resolvers      *Resolvers
-	event          *model.Event
-	fieldHandlers  *FieldHandlers
-	eventMarshaler *EventMarshaler
-	scrubber       *procutil.DataScrubber
+	handlers      [model.MaxAllEventType][]EventHandler
+	monitor       *Monitor
+	resolvers     *Resolvers
+	event         *model.Event
+	fieldHandlers *FieldHandlers
+	scrubber      *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -372,7 +371,6 @@ func (p *Probe) GetMonitor() *Monitor {
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
 	return p.event
 }
 
@@ -1114,7 +1112,6 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 	eventCtor := func() eval.Event {
 		return &model.Event{
 			FieldHandlers: p.fieldHandlers,
-			JSONMarshaler: p.eventMarshaler.MarshalJSONEvent,
 		}
 	}
 
@@ -1381,7 +1378,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	p.resolvers = resolvers
 
 	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
-	p.eventMarshaler = &EventMarshaler{probe: p}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
