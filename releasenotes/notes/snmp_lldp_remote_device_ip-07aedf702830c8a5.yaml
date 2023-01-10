@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    [corechecks/snmp] Add LLDP remote device IP address
+    [corechecks/snmp] Add LLDP remote device IP address.
