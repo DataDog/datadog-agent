@@ -37,7 +37,7 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
 // The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
 // We check that the given buffer is not empty and its size is at least 24 bytes.
 static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_MARKER_SIZE);
 
 #define HTTP2_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
@@ -51,7 +51,7 @@ static __always_inline bool is_http2_preface(const char* buf, __u32 buf_size) {
 // The settings frame must not be related to the connection (stream_id == 0) and the length should be a multiplication
 // of 6 bytes.
 static __always_inline bool is_http2_server_settings(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, HTTP2_FRAME_HEADER_SIZE);
 
     struct http2_frame frame_header;
     if (!read_http2_frame_header(buf, buf_size, &frame_header)) {
