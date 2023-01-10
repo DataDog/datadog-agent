@@ -315,7 +315,10 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
+	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalEvent(event, p)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send wildcard first
 	for _, handler := range p.handlers[model.UnknownEventType] {
@@ -340,7 +343,10 @@ func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
+	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalCustomEvent(event)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
@@ -354,6 +360,20 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
+}
+
+func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+	if !seclog.DefaultLogger.IsTracing() {
+		return
+	}
+
+	eventJSON, eventType, err := marshaller()
+	if err != nil {
+		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
+		return
+	}
+
+	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
 }
 
 // SendStats sends statistics about the probe to Datadog
