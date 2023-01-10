@@ -23,11 +23,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	probe             *Probe
+	manager           *manager.Manager
 	MountResolver     *resolvers.MountResolver
 	ContainerResolver *resolvers.ContainerResolver
 	TimeResolver      *resolvers.TimeResolver
@@ -81,7 +82,7 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 	}
 
 	resolvers := &Resolvers{
-		probe:             probe,
+		manager:           probe.Manager,
 		MountResolver:     mountResolver,
 		ContainerResolver: &resolvers.ContainerResolver{},
 		TimeResolver:      timeResolver,
@@ -201,7 +202,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := r.DentryResolver.Start(r.probe.Manager); err != nil {
+	if err := r.DentryResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -217,7 +218,7 @@ func (r *Resolvers) Snapshot() error {
 	r.ProcessResolver.SetState(snapshotted)
 	r.NamespaceResolver.SetState(snapshotted)
 
-	selinuxStatusMap, err := managerhelper.Map(r.probe.Manager, "selinux_enforce_status")
+	selinuxStatusMap, err := managerhelper.Map(r.manager, "selinux_enforce_status")
 	if err != nil {
 		return fmt.Errorf("unable to snapshot SELinux: %w", err)
 	}
