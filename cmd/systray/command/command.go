@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/systray"
+	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"go.uber.org/fx"
@@ -33,8 +33,9 @@ var (
 	// set by the build task and used to configure the logger to output to console when debugging.
 	// This value should correspond to the subsystem in the PE header.
 	//
-	// There will only be console output if the PE subsystem is "console", but the GUI functions will
-	// also fail, so this is really only useful for debugging setup/initialization or cmdline setup.
+	// In normal circumstances, we don't want the systray to launch a console window when it runs
+	// so the default subsystem is "windows". However, console output can be useful for debugging.
+	// Console output can be viewd by setting the PE subsystem to "console".
 	subsystem = "windows"
 )
 
@@ -45,7 +46,7 @@ func init() {
 
 // MakeCommand makes the top-level Cobra command for this app.
 func MakeCommand() *cobra.Command {
-	systrayParams := systray.BundleParams{}
+	systrayParams := systray.Params{}
 
 	// log file path
 	var logFilePath string
@@ -70,13 +71,17 @@ func MakeCommand() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.Run(
+				// core
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewParams(common.DefaultConfPath),
 					LogParams:    logParams,
 				}),
 				core.Bundle,
+				// systray
 				fx.Supply(systrayParams),
-				systray.Bundle,
+				systray.Module,
+				// require the systray component, causing it to start
+				fx.Invoke(func(_ systray.Component) {}),
 			)
 		},
 	}

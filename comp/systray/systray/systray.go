@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/systray/internal"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -44,7 +43,7 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 	Flare  flare.Component
-	Params internal.BundleParams
+	Params Params
 }
 
 type systray struct {
@@ -54,7 +53,7 @@ type systray struct {
 	log    log.Component
 	config config.Component
 	flare  flare.Component
-	params internal.BundleParams
+	params Params
 
 	isUserAdmin bool
 

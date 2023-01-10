@@ -15,6 +15,12 @@ import (
 
 // team: windows-agent
 
+type Params struct {
+	LaunchGuiFlag      bool
+	LaunchElevatedFlag bool
+	LaunchCommand      string
+}
+
 type Component interface {
 }
 
