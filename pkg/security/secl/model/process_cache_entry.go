@@ -54,6 +54,17 @@ func (pc *ProcessCacheEntry) GetNextAncestorBinary() *ProcessCacheEntry {
 	return nil
 }
 
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	for pc != nil {
+		if pc.Pid == 1 {
+			return true
+		}
+		pc = pc.Ancestor
+	}
+	return false
+}
+
 // Exit a process
 func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 	pc.ExitTime = exitTime

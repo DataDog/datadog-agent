@@ -102,6 +102,7 @@ type ActivityDump struct {
 	processedCount     map[model.EventType]*atomic.Uint64
 	addedRuntimeCount  map[model.EventType]*atomic.Uint64
 	addedSnapshotCount map[model.EventType]*atomic.Uint64
+	brokenLineageDrop  *atomic.Uint64
 
 	shouldMergePaths bool
 	pathMergedCount  *atomic.Uint64
@@ -149,6 +150,7 @@ func NewEmptyActivityDump() *ActivityDump {
 		processedCount:     make(map[model.EventType]*atomic.Uint64),
 		addedRuntimeCount:  make(map[model.EventType]*atomic.Uint64),
 		addedSnapshotCount: make(map[model.EventType]*atomic.Uint64),
+		brokenLineageDrop:  atomic.NewUint64(0),
 		pathMergedCount:    atomic.NewUint64(0),
 		StorageRequests:    make(map[config.StorageFormat][]config.StorageRequest),
 	}
@@ -513,6 +515,13 @@ func (ad *ActivityDump) isEventTypeTraced(event *model.Event) bool {
 	return false
 }
 
+// IsEmpty return true if the dump did not contain any nodes
+func (ad *ActivityDump) IsEmpty() bool {
+	ad.Lock()
+	defer ad.Unlock()
+	return len(ad.ProcessActivityTree) == 0
+}
+
 // Insert inserts the provided event in the active ActivityDump. This function returns true if a new entry was added,
 // false if the event was dropped.
 func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
@@ -542,6 +551,13 @@ func (ad *ActivityDump) Insert(event *model.Event) (newEntry bool) {
 
 	// find the node where the event should be inserted
 	entry, _ := event.FieldHandlers.ResolveProcessCacheEntry(event)
+	if entry == nil {
+		return false
+	}
+	if !entry.HasCompleteLineage() { // check that the process context lineage is complete, otherwise drop it
+		ad.brokenLineageDrop.Inc()
+		return false
+	}
 	node := ad.findOrCreateProcessActivityNode(entry, Runtime)
 	if node == nil {
 		// a process node couldn't be found for the provided event as it doesn't match the ActivityDump query
@@ -616,6 +632,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 				return root
 			}
 		}
+
 		// if it doesn't, create a new ProcessActivityNode for the input ProcessCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
 		// insert in the list of root entries
@@ -634,7 +651,7 @@ func (ad *ActivityDump) findOrCreateProcessActivityNode(entry *model.ProcessCach
 
 		// if none of them matched, create a new ProcessActivityNode for the input processCacheEntry
 		node = NewProcessActivityNode(entry, generationType, &ad.nodeStats)
-		// insert in the list of root entries
+		// insert in the list of children
 		parentNode.Children = append(parentNode.Children, node)
 	}
 
@@ -729,6 +746,12 @@ func (ad *ActivityDump) SendStats() error {
 			if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpEventAdded, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpEventAdded, err)
 			}
+		}
+	}
+
+	if value := ad.brokenLineageDrop.Swap(0); value > 0 {
+		if err := ad.adm.statsdClient.Count(metrics.MetricActivityDumpBrokenLineageDrop, int64(value), nil, 1.0); err != nil {
+			return fmt.Errorf("couldn't send %s metric: %w", metrics.MetricActivityDumpBrokenLineageDrop, err)
 		}
 	}
 
