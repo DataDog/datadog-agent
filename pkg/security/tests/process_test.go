@@ -1289,10 +1289,7 @@ func TestProcessExecExit(t *testing.T) {
 
 			validate := test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 				validateProcessContextLineage(t, event, test.probe)
-
-				if !validateProcessContextSECL(t, event) {
-					t.Error(event)
-				}
+				validateProcessContextSECL(t, event, test.probe)
 
 				assertFieldEqual(t, event, "exec.file.name", "touch")
 				assertFieldContains(t, event, "exec.args", "01010101")

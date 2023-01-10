@@ -498,7 +498,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 }
 
 //nolint:deadcode,unused
-func validateProcessContextSECL(tb testing.TB, event *model.Event) bool {
+func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
@@ -520,7 +520,16 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) bool {
 		pathFieldValid, _ = checkProcessContextFieldsForBlankValues(tb, event, pathFields)
 	}
 
-	return nameFieldValid && pathFieldValid
+	valid := nameFieldValid && pathFieldValid
+
+	if !valid {
+		eventJSON, err := sprobe.MarshalEvent(event, probe)
+		if err != nil {
+			tb.Errorf("failed to marshal event: %v", err)
+			return
+		}
+		tb.Error(eventJSON)
+	}
 }
 
 func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, fieldNamesToCheck []string) (bool, bool) {
@@ -570,10 +579,7 @@ func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Pro
 	}
 
 	validateProcessContextLineage(tb, event, probe)
-
-	if !validateProcessContextSECL(tb, event) {
-		tb.Error(event)
-	}
+	validateProcessContextSECL(tb, event, probe)
 }
 
 //nolint:deadcode,unused
