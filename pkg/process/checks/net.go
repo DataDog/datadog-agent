@@ -158,24 +158,24 @@ func (c *ConnectionsCheck) notifyProcessConnRates(conns *model.Connections) {
 
 	connCheckIntervalS := int(GetInterval(ConnectionsCheckName) / time.Second)
 
-	connByPID := getConnectionsByPID(conns)
-
 	connRates := make(ProcessConnRates)
+	for _, c := range conns.Conns {
+		rates, ok := connRates[c.Pid]
+		if !ok {
+			connRates[c.Pid] = &model.ProcessNetworks{ConnectionRate: 1, BytesRate: float32(c.LastBytesReceived) + float32(c.LastBytesSent)}
+			continue
+		}
 
-	for pid, conns := range connByPID {
-		connRates[pid] = formatNetworks(conns, connCheckIntervalS)
+		rates.BytesRate += float32(c.LastBytesSent) + float32(c.LastBytesReceived)
+		rates.ConnectionRate++
+	}
+
+	for _, rates := range connRates {
+		rates.BytesRate /= float32(connCheckIntervalS)
+		rates.ConnectionRate /= float32(connCheckIntervalS)
 	}
 
 	c.processConnRatesTransmitter.Notify(connRates)
-}
-
-// getConnectionsByPID groups a list of connection objects by PID
-func getConnectionsByPID(conns *model.Connections) map[int32][]*model.Connection {
-	result := make(map[int32][]*model.Connection)
-	for _, conn := range conns.Conns {
-		result[conn.Pid] = append(result[conn.Pid], conn)
-	}
-	return result
 }
 
 func convertDNSEntry(dnstable map[string]*model.DNSDatabaseEntry, namemap map[string]int32, namedb *[]string, ip string, entry *model.DNSEntry) {
