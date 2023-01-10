@@ -18,6 +18,7 @@ build do
 
   configure_args = [
     "--disable-readline",
+    "--disable-static",
   ]
 
   configure_command = configure_args.unshift("./configure").join(" ")

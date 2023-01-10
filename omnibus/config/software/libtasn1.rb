@@ -31,7 +31,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   env["CFLAGS"] << " -fPIC"
 
-  configure "", env: env
+  configure "--disable-static", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

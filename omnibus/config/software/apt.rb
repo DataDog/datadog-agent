@@ -58,6 +58,7 @@ build do
   cmake_options = [
     "-DDPKG_DATADIR=/usr/share/dpkg",
     "-DCMAKE_INSTALL_FULL_SYSCONFDIR:PATH=/etc",
+    "-DBUILD_STATIC_LIBS=OFF",
     "-DCONF_DIR:PATH=/etc/apt",
     "-DCACHE_DIR:PATH=/opt/datadog-agent/run",
     "-DSTATE_DIR:PATH=/var/lib/apt",

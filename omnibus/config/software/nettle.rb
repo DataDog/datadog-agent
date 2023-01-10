@@ -34,7 +34,7 @@ build do
   patch source: "install_to_lib.patch", env: env
 
   env["CFLAGS"] << " -fPIC"
-  configure "--disable-assembler --enable-mini-gmp", env: env
+  configure "--disable-assembler --enable-mini-gmp --disable-static", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

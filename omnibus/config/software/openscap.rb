@@ -52,6 +52,7 @@ build do
   configure_options = [
     "--disable-python",
     "--disable-python3",
+    "--disable-static",
   ]
   configure(*configure_options, env: env)
 

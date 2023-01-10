@@ -35,7 +35,7 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
   env["CFLAGS"] << " -fPIC"
 
-  configure "--disable-non-suiteb-curves --with-included-unistring --without-p11-kit --disable-hardware-acceleration", env: env
+  configure "--disable-non-suiteb-curves --with-included-unistring --without-p11-kit --disable-hardware-acceleration --disable-static", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

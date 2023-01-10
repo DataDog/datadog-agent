@@ -44,7 +44,8 @@ build do
 
   command "./configure" \
           " --prefix=#{install_dir}/embedded" \
-          " --enable-docs", env: env
+          " --enable-docs" \
+          " --disable-static", env: env
 
   make "-j #{workers}", env: env
   make "install", env: env

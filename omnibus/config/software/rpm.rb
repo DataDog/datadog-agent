@@ -74,6 +74,7 @@ build do
     "--without-lua",
     "--without-audit",
     "--with-crypto=openssl",
+    "--disable-static",
   ]
   configure(*configure_options, env: env)
 

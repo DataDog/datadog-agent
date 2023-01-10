@@ -20,7 +20,7 @@ build do
 
   update_config_guess(target: "dist")
 
-  configure_options = []
+  configure_options = ["--disable-static"]
   configure(*configure_options, bin: "../dist/configure", env: env, cwd: "#{project_dir}/build_unix")
 
   make "-j #{workers}", env: env, cwd: "#{project_dir}/build_unix"
