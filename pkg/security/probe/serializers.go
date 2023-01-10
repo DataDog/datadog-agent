@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -991,6 +992,14 @@ func MarshalEvent(event *model.Event, probe *Probe) ([]byte, error) {
 		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
 	}
 	s.MarshalEasyJSON(w)
+	return w.BuildBytes()
+}
+
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	event.MarshalEasyJSON(w)
 	return w.BuildBytes()
 }
 

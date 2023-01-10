@@ -65,9 +65,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLinkSchema(t, event)
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -93,9 +91,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLinkSchema(t, event)
 		})
 
 		if err = os.Remove(testNewFile); err != nil {

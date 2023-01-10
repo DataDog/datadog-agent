@@ -76,9 +76,7 @@ func TestSELinux(t *testing.T) {
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.enforce.status", "permissive", "wrong enforce value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
@@ -92,9 +90,7 @@ func TestSELinux(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_selinux_enforce")
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
@@ -110,9 +106,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.name", TestBoolName, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "on", "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
@@ -128,9 +122,7 @@ func TestSELinux(t *testing.T) {
 			assertFieldEqual(t, event, "selinux.bool.name", TestBoolName, "wrong bool name")
 			assertFieldEqual(t, event, "selinux.bool.state", "off", "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 
@@ -187,9 +179,7 @@ func TestSELinuxCommitBools(t *testing.T) {
 			assert.Equal(t, "selinux", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "selinux.bool_commit.state", true, "wrong bool value")
 
-			if !validateSELinuxSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSELinuxSchema(t, event)
 		})
 	})
 }
