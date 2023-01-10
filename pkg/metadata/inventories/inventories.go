@@ -92,7 +92,7 @@ const (
 	AgentNetworksEnabled               AgentMetadataName = "feature_networks_enabled"
 	AgentNetworksHTTPEnabled           AgentMetadataName = "feature_networks_http_enabled"
 	AgentNetworksHTTPSEnabled          AgentMetadataName = "feature_networks_https_enabled"
-	AgentNetworksGoTLSEnabled          AgentMetadataName = "feature_networks_go_tls_enabled"
+	AgentNetworksGoTLSEnabled          AgentMetadataName = "feature_networks_gotls_enabled"
 	AgentUSMJavaTLSEnabled             AgentMetadataName = "feature_usm_java_tls_enabled"
 	AgentLogsEnabled                   AgentMetadataName = "feature_logs_enabled"
 	AgentCSPMEnabled                   AgentMetadataName = "feature_cspm_enabled"
