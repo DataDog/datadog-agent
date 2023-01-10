@@ -24,6 +24,14 @@
 // This determines the size of the payload fragment that is captured for each HTTP request
 #define HTTP2_BUFFER_SIZE (8 * 20)
 
+#define HTTP2_BATCH_SIZE 15
+
+// HTTP_BATCH_PAGES controls how many `http_batch_t` instances exist for each CPU core
+// It's desirable to set this >= 1 to allow batch insertion and flushing to happen idependently
+// without risk of overriding data.
+#define HTTP2_BATCH_PAGES 3
+
+
 typedef enum {
     kAuthority = 1,
     kMethod = 2,
@@ -109,11 +117,25 @@ typedef struct {
     __u16 response_status_code;
     __u16 owned_by_src_port;
 
+    bool end_of_stream;
     __u8  request_method;
     __u8  packet_type;
     __u8  schema;
     char path[32] __attribute__ ((aligned (8)));
     char authority[32] __attribute__ ((aligned (8)));
 } http2_transaction_t;
+
+// This struct is used in the map lookup that returns the active batch for a certain CPU core
+typedef struct {
+    __u32 cpu;
+    // page_num can be obtained from (http_batch_state_t->idx % HTTP_BATCHES_PER_CPU)
+    __u32 page_num;
+} http2_batch_key_t;
+
+typedef struct {
+    __u64 idx;
+    __u8 pos;
+    http2_transaction_t txs[HTTP2_BATCH_SIZE];
+} http2_batch_t;
 
 #endif

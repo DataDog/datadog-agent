@@ -30,11 +30,12 @@ import (
 )
 
 const (
-	httpInFlightMap   = "http_in_flight"
-	http2InFlightMap  = "http2_in_flight"
-	httpBatchesMap    = "http_batches"
-	httpBatchStateMap = "http_batch_state"
-	httpBatchEvents   = "http_batch_events"
+	httpInFlightMap    = "http_in_flight"
+	http2InFlightMap   = "http2_in_flight"
+	httpBatchesMap     = "http_batches"
+	httpBatchStateMap  = "http_batch_state"
+	http2BatchStateMap = "http2_batch_state"
+	httpBatchEvents    = "http_batch_events"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -131,6 +132,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 			{Name: http2InFlightMap},
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
+			{Name: http2BatchStateMap},
 			{Name: sslSockByCtxMap},
 			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},

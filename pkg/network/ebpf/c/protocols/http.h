@@ -64,7 +64,7 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     if (http_batch_full(batch)) {
         // this scenario should never happen and indicates a bug
         // TODO: turn this into telemetry for release 7.41
-        log_debug("http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
+        log_debug("[tasik2] http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
         return;
     }
 
@@ -74,8 +74,8 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
     }
 
     bpf_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
-    log_debug("http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
-    log_debug("http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+    log_debug("[tasik2] http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
+    log_debug("[tasik2] http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;
     batch->idx = batch_state->idx;
 

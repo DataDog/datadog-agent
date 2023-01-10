@@ -19,7 +19,20 @@
 /* thread_struct id too big for allocation on stack in eBPF function, we use an array as a heap allocator */
 BPF_PERCPU_ARRAY_MAP(http2_trans_alloc, __u32, http2_transaction_t, 1)
 
-// Struct which represent the http2 frame by its fields.
+/* This map holds one entry per CPU storing state associated to current http batch*/
+BPF_PERCPU_ARRAY_MAP(http2_batch_state, __u32, http_batch_state_t, 1)
+
+typedef struct {
+    // idx is a monotonic counter used for uniquely determinng a batch within a CPU core
+    // this is useful for detecting race conditions that result in a batch being overrriden
+    // before it gets consumed from userspace
+    __u64 idx;
+    // idx_to_flush is used to track which batches were flushed to userspace
+    // * if idx_to_flush == idx, the current index is still being appended to;
+    // * if idx_to_flush < idx, the batch at idx_to_notify needs to be sent to userspace;
+    // (note that idx will never be less than idx_to_flush);
+    __u64 idx_to_flush;
+} http2_batch_state_t;
 
 static __always_inline void http2_parse_data(char const *p, http_packet_t *packet_type, http_method_t *method) {
     // parse the http2 data over here?!
@@ -47,8 +60,78 @@ static __always_inline bool http2_seen_before(http2_transaction_t *http2, skb_in
     return http2->tcp_seq == skb_info->tcp_seq;
 }
 
+static __always_inline void http2_update_seen_before(http2_transaction_t *http2, skb_info_t *skb_info) {
+    if (!skb_info || !skb_info->tcp_seq) {
+        return;
+    }
+
+    log_debug("http2_update_seen_before: htx=%llx old_seq=%d seq=%d\n", http2, http2->tcp_seq, skb_info->tcp_seq);
+    http2->tcp_seq = skb_info->tcp_seq;
+}
+
+
+static __always_inline void http2_begin_request(http2_transaction_t *http2, http2_method_t method, char *buffer) {
+    http2->request_method = method;
+    http2->request_started = bpf_ktime_get_ns();
+    http2->response_last_seen = 0;
+    http2->response_status_code = 0;
+    bpf_memcpy(&http2->request_fragment, buffer, HTTP2_BUFFER_SIZE);
+    log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http2, http2->request_method, http2->request_started);
+}
+
+static __always_inline int http2_responding(http2_transaction_t *http2) {
+    return (http2 != NULL && http2->response_status_code != 0);
+}
+
+//static __always_inline http2_batch_key_t http2_get_batch_key(u64 batch_idx) {
+//    http_batch_key_t key = { 0 };
+//    key.cpu = bpf_get_smp_processor_id();
+//    key.page_num = batch_idx % HTTP_BATCH_PAGES;
+//    return key;
+//}
+
+//static __always_inline void http2_enqueue(http2_transaction_t *http2) {
+//    // Retrieve the active batch number for this CPU
+//    u32 zero = 0;
+//    http2_batch_state_t *batch_state = bpf_map_lookup_elem(&http2_batch_state, &zero);
+//    if (batch_state == NULL) {
+//        return;
+//    }
+//
+//    // Retrieve the batch object
+//    http_batch_key_t key = http_get_batch_key(batch_state->idx);
+//    http_batch_t *batch = bpf_map_lookup_elem(&http_batches, &key);
+//    if (batch == NULL) {
+//        return;
+//    }
+//
+//    if (http_batch_full(batch)) {
+//        // this scenario should never happen and indicates a bug
+//        // TODO: turn this into telemetry for release 7.41
+//        log_debug("[tasik] http_enqueue error: dropping request because batch is full. cpu=%d batch_idx=%d\n", bpf_get_smp_processor_id(), batch->idx);
+//        return;
+//    }
+//
+//    // Bounds check to make verifier happy
+//    if (batch->pos < 0 || batch->pos >= HTTP2_BATCH_SIZE) {
+//        return;
+//    }
+//
+//    bpf_memcpy(&batch->txs[batch->pos], http2, sizeof(http_transaction_t));
+//    log_debug("[tasik] http2_enqueue: htx=%llx path=%s\n", http2, http2->request_fragment);
+//    log_debug("[tasik] http2 transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
+//    batch->pos++;
+//    batch->idx = batch_state->idx;
+//
+//    // If we have filled the batch we move to the next one
+//    // Notice that we don't flush it directly because we can't do so from socket filter programs.
+//    if (http_batch_full(batch)) {
+//        batch_state->idx++;
+//    }
+//}
+
 static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_info_t *skb_info,__u64 tags) {
-//    char *buffer = (char *)http2_stack->request_fragment;
+    char *buffer = (char *)http2_stack->request_fragment;
     http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
     http2_method_t method = HTTP2_METHOD_UNKNOWN;
     http2_schema_t schema = HTTP2_SCHEMA_UNKNOWN;
@@ -91,31 +174,53 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
              log_debug("[tasik] ------------ first char of the authority bla in 5 spot is %c", http2_stack->authority[5]);
     }
 
+    if (packet_type == 3) {
+        packet_type = HTTP2_RESPONSE;
+    }
+
     http2_transaction_t *http2 = http2_fetch_state(http2_stack, packet_type);
     if (!http2 || http2_seen_before(http2, skb_info)) {
         return 0;
     }
-//
-//    log_debug("http2_process: type=%d method=%d\n", packet_type, method);
-//    if (packet_type == HTTP_REQUEST) {
-//        http_begin_request(http, method, buffer);
-//        http_update_seen_before(http, skb_info);
-//    } else if (packet_type == HTTP_RESPONSE) {
-//        http_begin_response(http, buffer);
-//        http_update_seen_before(http, skb_info);
-//    }
-//
-//    http->tags |= tags;
-//
-//    if (http_responding(http)) {
-//        http->response_last_seen = bpf_ktime_get_ns();
-//    }
-//
-//    if (http_closed(http, skb_info, http_stack->owned_by_src_port)) {
-//        http_enqueue(http);
-//        bpf_map_delete_elem(&http_in_flight, &http_stack->tup);
-//    }
 
+    log_debug("[tasik] http2_process: type=%d method=%d\n", packet_type, method);
+    if (packet_type == HTTP2_REQUEST) {
+        http2_begin_request(http2, method, buffer);
+        http2_update_seen_before(http2, skb_info);
+    }
+   else if (packet_type == HTTP2_RESPONSE) {
+//        http2->response_status_code = status_code;
+        log_debug("[tasik] http2_begin_response: htx=%llx status=%d\n", http2, http2->response_status_code);
+        http2_update_seen_before(http2, skb_info);
+    }
+
+    http2->tags |= tags;
+
+    log_debug("[tasik] we are here! 1");
+    if (http2_responding(http2)) {
+        http2->response_last_seen = bpf_ktime_get_ns();
+    }
+
+    log_debug("[tasik] we are here! 2");
+    if (http2_stack->end_of_stream) {
+        log_debug("[tasik] we are here! 2.1");
+
+        http_transaction_t http;
+        bpf_memset(&http, 0, sizeof(http));
+        bpf_memcpy(&http.tup, &http2_stack->tup, sizeof(conn_tuple_t));
+        http.request_started = http2->request_started;
+        http.request_method = http2->request_method;
+        http.response_status_code = 200;
+        http.response_last_seen = http2-> response_last_seen;
+        http.owned_by_src_port = http2->owned_by_src_port;
+        http.tcp_seq = http2->tcp_seq;
+        http.tags = http2->tags;
+
+        http_enqueue(&http);
+        bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
+    }
+
+    log_debug("[tasik] we are here! 3");
     return 0;
 }
 
@@ -380,6 +485,7 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
 
         // End of stream my apper in the data frame as well as the header frame.
         if (current_frame.type == kDataFrame && current_frame.flags == 1){
+           http2_transaction->end_of_stream = true;
            log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
         }
 
@@ -395,6 +501,7 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
 
         // End of stream my apper in the header frame as well.
         if (current_frame.flags == 1){
+           http2_transaction->end_of_stream = true;
            log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
         }
 
