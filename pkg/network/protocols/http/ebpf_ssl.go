@@ -379,13 +379,8 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 		if err != nil {
 			return err
 		}
-		/* apply best effort symbols */
-		symbolMapBestEffort, err := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
-		if err == nil {
-			for sym, offset := range symbolMapBestEffort {
-				symbolMap[sym] = offset
-			}
-		}
+		/* Best effort to resolve symbols, so we don't care about the error */
+		symbolMapBestEffort, _ := bininspect.GetAllSymbolsByName(elfFile, symbolsSetBestEffort)
 
 		for _, singleProbe := range probes {
 			_, isBestEffort := singleProbe.(*manager.BestEffort)
@@ -415,12 +410,15 @@ func addHooks(m *errtelemetry.Manager, probes []manager.ProbesSelector) func(pat
 				}
 
 				sym := symbolMap[symbol]
+				if isBestEffort {
+					sym, found = symbolMapBestEffort[symbol]
+					if !found {
+						continue
+					}
+				}
 				manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
 				offset, err := bininspect.SymbolToOffset(elfFile, sym)
 				if err != nil {
-					if isBestEffort {
-						continue
-					}
 					return err
 				}
 
