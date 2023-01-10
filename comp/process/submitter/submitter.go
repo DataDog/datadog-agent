@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
 // submitter implements the Component.
@@ -24,7 +26,7 @@ func newSubmitter(deps dependencies) (Component, error) {
 	return &submitter{}, nil
 }
 
-func (s *submitter) Submit(start time.Time, checkName string, payload *Payload) {
+func (s *submitter) Submit(start time.Time, checkName string, payload *types.Payload) {
 
 }
 

@@ -3,15 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package types
 
 import (
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"go.uber.org/fx"
 )
+
+// Payload defines payload from the check
+type Payload struct {
+}
 
 // Check defines an interface implemented by checks
 type Check interface {
 	IsEnabled() bool
 	Name() string
-	Run() (*submitter.Payload, error)
+	Run() (*Payload, error)
+}
+
+// ProvidesCheck wraps a check implementation for consumption in components
+type ProvidesCheck struct {
+	fx.Out
+
+	Check Check `group:"check"`
 }

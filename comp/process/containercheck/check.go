@@ -8,16 +8,8 @@ package containercheck
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 )
-
-// provides wraps the check implementation
-type provides struct {
-	fx.Out
-
-	Check runner.Check `group:"check"`
-}
 
 type check struct {
 }
@@ -26,8 +18,8 @@ func (c *check) IsEnabled() bool {
 	return true
 }
 
-func (c *check) Run() (*submitter.Payload, error) {
-	return &submitter.Payload{}, nil
+func (c *check) Run() (*types.Payload, error) {
+	return &types.Payload{}, nil
 }
 
 func (c *check) Name() string {
@@ -38,8 +30,8 @@ type dependencies struct {
 	fx.In
 }
 
-func newCheck(deps dependencies) provides {
-	return provides{
+func newCheck(deps dependencies) types.ProvidesCheck {
+	return types.ProvidesCheck{
 		Check: &check{},
 	}
 }

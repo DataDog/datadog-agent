@@ -12,18 +12,15 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: processes
 
-// Payload defines payload to be submitted
-type Payload struct {
-}
-
 // Component is the component type.
 type Component interface {
-	Submit(start time.Time, checkName string, payload *Payload)
+	Submit(start time.Time, checkName string, payload *types.Payload)
 	Start() error
 	Stop()
 }

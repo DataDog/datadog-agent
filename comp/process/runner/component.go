@@ -9,6 +9,7 @@ package runner
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,7 +17,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	GetChecks() []Check
+	GetChecks() []types.Check
 	Run(exit <-chan struct{}) error
 }
 

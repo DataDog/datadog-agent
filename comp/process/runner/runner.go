@@ -12,18 +12,19 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 )
 
 // runner implements the Component.
 type runner struct {
-	checks    []Check
+	checks    []types.Check
 	submitter submitter.Component
 }
 
 type dependencies struct {
 	fx.In
 
-	Checks    []Check `group:"check"`
+	Checks    []types.Check `group:"check"`
 	Submitter submitter.Component
 }
 
@@ -50,7 +51,7 @@ func (r *runner) Run(exit <-chan struct{}) error {
 	return nil
 }
 
-func (r *runner) GetChecks() []Check {
+func (r *runner) GetChecks() []types.Check {
 	return r.checks
 }
 
