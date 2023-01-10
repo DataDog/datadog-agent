@@ -323,7 +323,12 @@ func (tkn *SQLTokenizer) Scan() (TokenKind, []byte) {
 				}
 			}
 			fallthrough
-		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', '[', ']':
+		case '=', ',', ';', '(', ')', '+', '*', '&', '|', '^', ']':
+			return TokenKind(ch), tkn.bytes()
+		case '[':
+			if tkn.cfg.DBMS == DBMSSQLServer {
+				return tkn.scanString(']', DoubleQuotedString)
+			}
 			return TokenKind(ch), tkn.bytes()
 		case '.':
 			if isDigit(tkn.lastChar) {
