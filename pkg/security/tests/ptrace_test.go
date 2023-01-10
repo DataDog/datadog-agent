@@ -54,9 +54,7 @@ func TestPTraceEvent(t *testing.T) {
 			assert.Equal(t, uint64(42), event.PTrace.Address, "wrong address")
 			assert.Equal(t, event.Async, false)
 
-			if !validatePTraceSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validatePTraceSchema(t, event)
 		})
 	})
 }

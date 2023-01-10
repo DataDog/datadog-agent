@@ -74,9 +74,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateRenameSchema(t, event)
 		})
 	}))
 
@@ -105,9 +103,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateRenameSchema(t, event)
 		})
 	})
 
@@ -137,9 +133,7 @@ func TestRename(t *testing.T) {
 			assertNearTime(t, event.Rename.New.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateRenameSchema(t, event)
 		})
 	})
 
@@ -241,9 +235,7 @@ func TestRenameInvalidate(t *testing.T) {
 			assert.Equal(t, "rename", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "rename.file.destination.path", testNewFile)
 
-			if !validateRenameSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateRenameSchema(t, event)
 		})
 
 		// swap
@@ -340,9 +332,7 @@ func TestRenameReuseInode(t *testing.T) {
 		assertFieldEqual(t, event, "open.file.inode", int(testNewFileInode))
 		assertFieldEqual(t, event, "open.file.path", testReuseInodeFile)
 
-		if !validateOpenSchema(t, event) {
-			t.Error(event.String())
-		}
+		test.validateOpenSchema(t, event)
 	})
 }
 
@@ -384,9 +374,7 @@ func TestRenameFolder(t *testing.T) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertFieldEqual(t, event, "open.file.path", filename)
 
-			if !validateOpenSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateOpenSchema(t, event)
 
 			// swap
 			if err := os.Rename(testOldFolder, testNewFolder); err != nil {

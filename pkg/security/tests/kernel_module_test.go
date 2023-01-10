@@ -172,9 +172,7 @@ func TestLoadModule(t *testing.T) {
 			event.ResolveFields(false)
 			assert.Equal(t, "", event.LoadModule.File.PathnameStr, "shouldn't get a path")
 
-			if !validateLoadModuleNoFileSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLoadModuleNoFileSchema(t, event)
 		})
 	})
 
@@ -195,9 +193,7 @@ func TestLoadModule(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_load_module", r.ID, "invalid rule triggered")
 
-			if !validateLoadModuleSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLoadModuleSchema(t, event)
 		})
 	})
 
@@ -288,9 +284,7 @@ func TestUnloadModule(t *testing.T) {
 		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "test_unload_module", r.ID, "invalid rule triggered")
 
-			if !validateUnloadModuleSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateUnloadModuleSchema(t, event)
 		})
 	})
 }

@@ -18,9 +18,11 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	jwriter "github.com/mailru/easyjson/jwriter"
 )
 
 // FileSerializer serializes a file to JSON
@@ -982,6 +984,23 @@ func serializeSyscallRetval(retval int64) string {
 	default:
 		return "Success"
 	}
+}
+
+func MarshalEvent(event *model.Event, probe *Probe) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	s.MarshalEasyJSON(w)
+	return w.BuildBytes()
+}
+
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	w := &jwriter.Writer{
+		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+	}
+	event.MarshalEasyJSON(w)
+	return w.BuildBytes()
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
