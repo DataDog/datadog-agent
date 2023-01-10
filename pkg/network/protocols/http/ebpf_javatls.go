@@ -54,6 +54,12 @@ func newJavaTLSProgram(c *config.Config) *JavaTLSProgram {
 		return nil
 	}
 	javaUSMAgentJarPath = filepath.Join(c.JavaDir, AgentUSMJar)
+	jar, err := os.Open(javaUSMAgentJarPath)
+	if err != nil {
+		log.Errorf("java TLS can't access to agent-usm.jar file %s : %s", javaUSMAgentJarPath, err)
+		return nil
+	}
+	jar.Close()
 
 	mon := monitor.GetProcessMonitor()
 	return &JavaTLSProgram{
