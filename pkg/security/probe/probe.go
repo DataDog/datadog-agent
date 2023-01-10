@@ -1329,10 +1329,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(p.Config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
-		manager.ConstantEditor{
-			Name:  "setup_new_exec_is_last",
-			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel() && p.kernelVersion.Code >= kernel.Kernel5_5), // the setup_new_exec kprobe is after security_bprm_committed_creds in kernels that are not RH7, and additionally, have a kernel version of at least 5.5
-		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -1435,7 +1431,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
-
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
