@@ -993,11 +993,13 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 	}
 }
 
+//nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
 	b, err := sprobe.MarshalEvent(ev, tm.probe)
 	return string(b), err
 }
 
+//nolint:deadcode,unused
 func (tm *testModule) debugEvent(ev *model.Event) string {
 	b, err := tm.marshalEvent(ev)
 	if err != nil {
