@@ -12,6 +12,7 @@
 #include "tracer.h"
 #include "ip.h"
 #include "ipv6.h"
+#include "conn-tuple.h"
 #include "sock.h"
 #include "sockfd.h"
 #include "port_range.h"

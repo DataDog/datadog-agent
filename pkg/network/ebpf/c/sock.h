@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 
+#include "tracer.h"
 #include "ipv6.h"
 
 // source include/linux/socket.h
@@ -47,6 +48,12 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 
 #endif // COMPILE_CORE
 
+static __always_inline bool is_ipv6_enabled() {
+    __u64 val = 0;
+    LOAD_CONSTANT("ipv6_enabled", val);
+    return val == ENABLED;
+}
+
 static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* packets_in, __u32* packets_out) {
 #ifdef COMPILE_PREBUILT
     // counting segments/packets not currently supported on prebuilt
@@ -55,47 +62,43 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
     *packets_in = 0;
     *packets_out = 0;
 #else
-    *packets_out = BPF_CORE_READ(tcp_sk(skp), segs_out);
-    *packets_in = BPF_CORE_READ(tcp_sk(skp), segs_in);
+    BPF_CORE_READ_INTO(packets_out, tcp_sk(skp), segs_out);
+    BPF_CORE_READ_INTO(packets_in, tcp_sk(skp), segs_in);
 #endif
 }
 
 #if defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
 
-static __always_inline bool is_ipv6_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("ipv6_enabled", val);
-    return val == ENABLED;
-}
-
-static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
-    return BPF_CORE_READ(sk, sk_net.net, ns.inum);
-}
-
 static __always_inline __u16 read_sport(struct sock* sk) {
     // try skc_num, then inet_sport
-    __u16 sport = BPF_CORE_READ(sk, sk_num);
+    __u16 sport = 0;
+    BPF_CORE_READ_INTO(&sport, sk, sk_num);
     if (sport == 0) {
-        sport = BPF_CORE_READ(inet_sk(sk), inet_sport);
+        BPF_CORE_READ_INTO(&sport, inet_sk(sk), inet_sport);
         sport = bpf_ntohs(sport);
     }
 
     return sport;
 }
 
+static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
+    __u32 netns = 0;
+    possible_net_t pnet = {};
+    BPF_CORE_READ_INTO(&pnet, sk, sk_net);
+    BPF_CORE_READ_INTO(&netns, pnet.net, ns.inum);
+    return netns;
+}
+
 static __always_inline __u16 read_dport(struct sock *sk) {
-    __u16 dport = bpf_ntohs(BPF_CORE_READ(sk, sk_dport));
+    __u16 dport = 0;
+    BPF_CORE_READ_INTO(&dport, sk, sk_dport);
+    dport = bpf_ntohs(dport);
     if (dport == 0) {
-        dport = BPF_CORE_READ(inet_sk(sk), inet_dport);
+        BPF_CORE_READ_INTO(&dport, inet_sk(sk), inet_dport);
         dport = bpf_ntohs(dport);
     }
 
     return dport;
-}
-
-static __always_inline bool check_family(struct sock* sk, u16 expected_family) {
-    unsigned short family = BPF_PROBE_READ(sk, sk_family);
-    return family == expected_family;
 }
 
 /**
@@ -110,28 +113,29 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP
     // sends
     t->netns = get_netns_from_sock(skp);
+    unsigned short family = 0;
+    BPF_PROBE_READ_INTO(&family, skp, sk_family);
     // Retrieve addresses
-    if (check_family(skp, __AF_INET)) {
+    if (family == __AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            t->saddr_l = BPF_CORE_READ(skp, sk_rcv_saddr);
+            BPF_CORE_READ_INTO(&t->saddr_l, skp, sk_rcv_saddr);
         }
         if (t->saddr_l == 0) {
-            t->saddr_l = BPF_CORE_READ(inet_sk(skp), inet_saddr);
+            BPF_CORE_READ_INTO(&t->saddr_l, inet_sk(skp), inet_saddr);
         }
         if (t->daddr_l == 0) {
-            t->daddr_l = BPF_CORE_READ(skp, sk_daddr);
+            BPF_CORE_READ_INTO(&t->daddr_l, skp, sk_daddr);
         }
         if (t->daddr_l == 0) {
-            t->daddr_l = BPF_CORE_READ(inet_sk(skp), inet_daddr);
+            BPF_CORE_READ_INTO(&t->daddr_l, inet_sk(skp), inet_daddr);
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
             log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d\n", t->saddr_l, t->daddr_l);
             err = 1;
         }
-    }
-    else if (check_family(skp, AF_INET6)) {
+    } else if (family == __AF_INET6) {
         if (!is_ipv6_enabled()) {
             return 0;
         }
@@ -143,8 +147,8 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
             read_in6_addr(&t->daddr_h, &t->daddr_l, &skp->sk_v6_daddr);
         }
 
-        // We can only pass 4 args to bpf_trace_printk
-        // so split those 2 statements to be able to log everything
+        /* We can only pass 4 args to bpf_trace_printk */
+        /* so split those 2 statements to be able to log everything */
         if (!(t->saddr_h || t->saddr_l)) {
             log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d\n",
                 t->saddr_l, t->saddr_h);

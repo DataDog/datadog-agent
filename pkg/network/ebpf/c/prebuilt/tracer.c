@@ -17,6 +17,8 @@
 #include <uapi/linux/tcp.h>
 #include <uapi/linux/udp.h>
 
+#include "conn-tuple.h"
+
 #include "tracer.h"
 #include "protocols/protocol-classification.h"
 #include "tracer-events.h"

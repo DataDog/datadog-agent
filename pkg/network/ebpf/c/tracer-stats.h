@@ -86,8 +86,7 @@ static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
     __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
-    conn_stats_ts_t *val;
-
+    conn_stats_ts_t *val = NULL;
     val = get_conn_stats(t, sk);
     if (!val) {
         return;
@@ -175,9 +174,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
     __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
     u64 ts = bpf_ktime_get_ns();
-
     update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);
-
     return 0;
 }
 
@@ -201,8 +198,8 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     bpf_probe_read_kernel(&rtt, sizeof(rtt), (char*)sk + offset_rtt());
     bpf_probe_read_kernel(&rtt_var, sizeof(rtt_var), (char*)sk + offset_rtt_var());
 #else
-    rtt = BPF_CORE_READ(tcp_sk(sk), srtt_us);
-    rtt_var = BPF_CORE_READ(tcp_sk(sk), mdev_us);
+    BPF_CORE_READ_INTO(&rtt, tcp_sk(sk), srtt_us);
+    BPF_CORE_READ_INTO(&rtt_var, tcp_sk(sk), mdev_us);
 #endif
 
     tcp_stats_t stats = { .retransmits = 0, .rtt = rtt, .rtt_var = rtt_var };

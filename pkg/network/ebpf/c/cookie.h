@@ -2,15 +2,19 @@
 #define __COOKIE_H__
 
 #include "ktypes.h"
-#include "bpf_core_read.h"
+#include "bpf_helpers.h"
+
+#include "defs.h"
 
 static __always_inline u32 get_sk_cookie(struct sock *sk) {
-#if defined(RUNTIME_COMPILED) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
     return bpf_get_prandom_u32();
 #endif
 
-    u64 t = bpf_ktime_get_ns();
-    return (u32)((u64)sk ^ t);
+    __u64 t = bpf_ktime_get_ns();
+    __u64 _sk = 0;
+    bpf_probe_read_with_telemetry(&_sk, sizeof(_sk), &sk);
+    return (u32)(_sk ^ t);
 }
 
 #endif // __COOKIE_H__

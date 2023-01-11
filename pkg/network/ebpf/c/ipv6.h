@@ -2,6 +2,7 @@
 #define __IPV6_H
 
 #include "bpf_core_read.h"
+#include "bpf_telemetry.h"
 
 #include "defs.h"
 
@@ -28,8 +29,8 @@ static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct
     bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
     bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
 #else
-    *addr_h = BPF_CORE_READ(in6, in6_u.u6_addr32[0]);
-    *addr_l = BPF_CORE_READ(in6, in6_u.u6_addr32[2]);
+    BPF_CORE_READ_INTO(addr_h, in6, in6_u.u6_addr32[0]);
+    BPF_CORE_READ_INTO(addr_l, in6, in6_u.u6_addr32[2]);
 #endif
 }
 

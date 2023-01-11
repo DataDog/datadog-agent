@@ -12,6 +12,7 @@
 #include "ip.h"
 #include "defs.h"
 #include "sock.h"
+#include "offsets.h"
 
 // This function is meant to be used as a BPF_PROG_TYPE_SOCKET_FILTER.
 // When attached to a RAW_SOCKET, this code filters out everything but DNS traffic.

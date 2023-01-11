@@ -1,153 +1,19 @@
-#ifndef __SOCK_IMPL_H
-#define __SOCK_IMPL_H
+#ifndef __CONN_TUPLE_H
+#define __CONN_TUPLE_H
 
 #include "kconfig.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
+
+#include "offsets.h"
+
+#include "tracer.h"
 #include "defs.h"
 #include "ipv6.h"
 
 // source include/linux/socket.h
 #define __AF_INET   2
 #define __AF_INET6 10
-
-static __always_inline bool dns_stats_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("dns_stats_enabled", val);
-    return val == ENABLED;
-}
-
-static __always_inline __u64 offset_family() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_family", val);
-    return val;
-}
-
-static __always_inline __u64 offset_saddr() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_daddr", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_ipv6() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_daddr_ipv6", val);
-    return val;
-}
-
-static __always_inline __u64 offset_sport() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_dport", val);
-    return val;
-}
-
-static __always_inline __u64 offset_netns() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_netns", val);
-    return val;
-}
-
-static __always_inline __u64 offset_ino() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_ino", val);
-    return val;
-}
-
-static __always_inline __u64 offset_rtt() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_rtt", val);
-    return val;
-}
-
-static __always_inline __u64 offset_rtt_var() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_rtt_var", val);
-    return val;
-}
-
-static __always_inline bool is_ipv6_enabled() {
-    __u64 val = 0;
-    LOAD_CONSTANT("ipv6_enabled", val);
-    return val == ENABLED;
-}
-
-static __always_inline bool are_fl4_offsets_known() {
-    __u64 val = 0;
-    LOAD_CONSTANT("fl4_offsets", val);
-    return val == ENABLED;
-}
-
-static __always_inline __u64 offset_saddr_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_daddr_fl4", val);
-     return val;
-}
-
-static __always_inline __u64 offset_sport_fl4() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport_fl4", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport_fl4() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_dport_fl4", val);
-     return val;
-}
-
-static __always_inline bool are_fl6_offsets_known() {
-    __u64 val = 0;
-    LOAD_CONSTANT("fl6_offsets", val);
-    return val == ENABLED;
-}
-
-static __always_inline __u64 offset_saddr_fl6() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_saddr_fl6", val);
-    return val;
-}
-
-static __always_inline __u64 offset_daddr_fl6() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_daddr_fl6", val);
-     return val;
-}
-
-static __always_inline __u64 offset_sport_fl6() {
-    __u64 val = 0;
-    LOAD_CONSTANT("offset_sport_fl6", val);
-    return val;
-}
-
-static __always_inline __u64 offset_dport_fl6() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_dport_fl6", val);
-     return val;
-}
-
-static __always_inline __u64 offset_socket_sk() {
-     __u64 val = 0;
-     LOAD_CONSTANT("offset_socket_sk", val);
-     return val;
-}
 
 static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
     void* skc_net = NULL;
@@ -265,5 +131,4 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
     return read_conn_tuple_partial(t, skp, pid_tgid, type);
 }
 
-
-#endif // __SOCK_IMPL_H
+#endif // __CONN_TUPLE_H
