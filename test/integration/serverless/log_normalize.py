@@ -4,7 +4,6 @@ import re
 
 
 def normalize_metrics(stage):
-
     def clear_dogsketches(log):
         log["dogsketches"] = []
 
@@ -34,7 +33,6 @@ def normalize_metrics(stage):
 
 
 def normalize_logs(stage):
-
     rmvs = (
         "DATADOG TRACER CONFIGURATION",
         # TODO: these messages may be an indication of a real problem and
