@@ -50,6 +50,14 @@ func (cgce *CGroupCacheEntry) GetRootPIDs() []uint32 {
 	return cgce.PIDs.Keys()
 }
 
+// RemoveRootPID removes the provided root pid from the list of pids
+func (cgce *CGroupCacheEntry) RemoveRootPID(pid uint32) {
+	cgce.Lock()
+	defer cgce.Unlock()
+
+	cgce.PIDs.Remove(pid)
+}
+
 // CGroupsResolver defines a cgroup monitor
 type CGroupsResolver struct {
 	sync.RWMutex
@@ -62,9 +70,9 @@ func (cr *CGroupsResolver) AddPID(process *model.ProcessCacheEntry) {
 	cr.Lock()
 	defer cr.Unlock()
 
-	if !process.IsContainerRoot() {
-		return
-	}
+	// if !process.IsContainerRoot() {
+	// 	return
+	// }
 
 	entry, exists := cr.workloads.Get(process.ContainerID)
 	if exists {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	trivyReport "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -38,7 +39,7 @@ type Package struct {
 }
 
 type SBOM struct {
-	sbomMutex sync.RWMutex
+	sync.RWMutex
 
 	report *trivyReport.Report
 	files  map[string]*Package
@@ -49,24 +50,28 @@ type SBOM struct {
 	Tags        []string
 	ContainerID string
 
-	shouldScan      bool
-	doNotSendBefore time.Time
-	sent            bool
+	doNotSendBefore *atomic.Time
+	sent            *atomic.Bool
+	deleted         *atomic.Bool
 	cgroup          *CGroupCacheEntry
 }
 
-func (s *SBOM) Lock() {
-	s.sbomMutex.Lock()
-	if s.cgroup != nil {
-		s.cgroup.Lock()
-	}
+// getWorkloadKey (thread unsafe) returns a key to indentify the workload
+func (s *SBOM) getWorkloadKey() string {
+	return utils.GetTagValue("image_name", s.Tags) + ":" + utils.GetTagValue("image_tag", s.Tags)
 }
 
-func (s *SBOM) Unlock() {
-	s.sbomMutex.Unlock()
-	if s.cgroup != nil {
-		s.cgroup.Unlock()
-	}
+// reset (thread unsafe) cleans up internal fields before a SBOM is inserted in cache, the goal is to save space and delete references
+// to structs that will be GCed
+func (s *SBOM) reset() {
+	s.Host = ""
+	s.Source = ""
+	s.Service = ""
+	s.Tags = nil
+	s.ContainerID = ""
+	s.cgroup = nil
+	s.deleted.Store(true)
+	s.sent.Store(false)
 }
 
 // NewSBOM returns a new empty instance of SBOM
@@ -76,23 +81,31 @@ func NewSBOM(host string, source string, id string, doNotSendBefore time.Time, c
 		Host:            host,
 		Source:          source,
 		ContainerID:     id,
-		shouldScan:      true,
-		doNotSendBefore: doNotSendBefore,
+		doNotSendBefore: atomic.NewTime(doNotSendBefore),
+		sent:            atomic.NewBool(false),
+		deleted:         atomic.NewBool(false),
 		cgroup:          cgroup,
 	}, nil
 }
 
 // SBOMResolver is the Software Bill-Of-material resolver
 type SBOMResolver struct {
-	workloadsLock   sync.RWMutex
-	workloads       map[string]*SBOM
-	scannerChan     chan *SBOM
-	config          *config.Config
-	statsdClient    statsd.ClientInterface
-	tagsResolver    *TagsResolver
-	trivyScanner    *sbom.TrivyCollector
-	dispatcher      SBOMDispatcher
-	sbomGenerations *atomic.Uint64
+	workloadsLock      sync.RWMutex
+	workloads          map[string]*SBOM
+	workloadsCacheLock sync.RWMutex
+	workloadsCache     *simplelru.LRU[string, *SBOM]
+	scannerChan        chan *SBOM
+	delayedWorkloads   chan *SBOM
+	config             *config.Config
+	statsdClient       statsd.ClientInterface
+	tagsResolver       *TagsResolver
+	trivyScanner       *sbom.TrivyCollector
+	dispatcher         SBOMDispatcher
+
+	sbomGenerations       *atomic.Uint64
+	failedSBOMGenerations *atomic.Uint64
+	workloadsCacheHit     *atomic.Uint64
+	workloadsCacheMiss    *atomic.Uint64
 
 	// context tags and attributes
 	hostname    string
@@ -107,15 +120,25 @@ func NewSBOMResolver(c *config.Config, tagsResolver *TagsResolver, dispatcher SB
 		return nil, err
 	}
 
+	workloadsCache, err := simplelru.NewLRU[string, *SBOM](c.SBOMResolverWorkloadsCacheSize, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	resolver := &SBOMResolver{
-		config:          c,
-		statsdClient:    statsdClient,
-		tagsResolver:    tagsResolver,
-		dispatcher:      dispatcher,
-		workloads:       make(map[string]*SBOM),
-		scannerChan:     make(chan *SBOM, 100),
-		trivyScanner:    trivyScanner,
-		sbomGenerations: atomic.NewUint64(0),
+		config:                c,
+		statsdClient:          statsdClient,
+		tagsResolver:          tagsResolver,
+		dispatcher:            dispatcher,
+		workloads:             make(map[string]*SBOM),
+		workloadsCache:        workloadsCache,
+		scannerChan:           make(chan *SBOM, 100),
+		delayedWorkloads:      make(chan *SBOM, 100),
+		trivyScanner:          trivyScanner,
+		sbomGenerations:       atomic.NewUint64(0),
+		workloadsCacheHit:     atomic.NewUint64(0),
+		workloadsCacheMiss:    atomic.NewUint64(0),
+		failedSBOMGenerations: atomic.NewUint64(0),
 	}
 
 	if !c.SBOMResolverEnabled {
@@ -126,16 +149,18 @@ func NewSBOMResolver(c *config.Config, tagsResolver *TagsResolver, dispatcher SB
 	return resolver, nil
 }
 
-// resolveTags resolve the tags of a SBOM
+// resolveTags (thread unsafe) resolve the tags of a SBOM
 func (r *SBOMResolver) resolveTags(s *SBOM) error {
 	if len(s.Tags) >= 10 || len(s.ContainerID) == 0 {
 		return nil
 	}
 
-	var err error
-	s.Tags, err = r.tagsResolver.ResolveWithErr(s.ContainerID)
+	newTags, err := r.tagsResolver.ResolveWithErr(s.ContainerID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", s.ContainerID, err)
+	}
+	if len(newTags) > len(s.Tags) {
+		s.Tags = newTags
 	}
 	return nil
 }
@@ -178,6 +203,9 @@ func (r *SBOMResolver) Start(ctx context.Context) {
 		senderTick := time.NewTicker(r.config.SBOMResolverSBOMSenderTick)
 		defer senderTick.Stop()
 
+		delayerTick := time.NewTicker(10 * time.Second)
+		defer delayerTick.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -192,6 +220,12 @@ func (r *SBOMResolver) Start(ctx context.Context) {
 						seclog.Errorf("couldn't send SBOMs: %v", err)
 					}
 				}
+			case <-delayerTick.C:
+				select {
+				case workload := <-r.delayedWorkloads:
+					r.queueWorkload(workload)
+				default:
+				}
 
 			}
 		}
@@ -201,15 +235,15 @@ func (r *SBOMResolver) Start(ctx context.Context) {
 // generateSBOM calls Trivy to generate the SBOM of a workload
 func (r *SBOMResolver) generateSBOM(root string, workload *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
-	r.sbomGenerations.Add(1)
+	r.sbomGenerations.Inc()
 
 	report, err := r.trivyScanner.ScanRootfs(context.Background(), root)
 	if err != nil {
+		r.failedSBOMGenerations.Inc()
 		return fmt.Errorf("failed to generate SBOM for %s: %w", root, err)
 	}
 
 	workload.report = report
-	workload.shouldScan = false
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
@@ -222,23 +256,30 @@ func (r *SBOMResolver) analyzeWorkload(workload *SBOM) error {
 	workload.Lock()
 	defer workload.Unlock()
 
+	if workload.deleted.Load() {
+		// this workload has been deleted, ignore
+		return nil
+	}
+
 	var lastErr error
-	for _, rootCandidatePID := range workload.cgroup.PIDs.Keys() {
+	var scanned bool
+	for _, rootCandidatePID := range workload.cgroup.GetRootPIDs() {
 		// check if this pid still exists and is in the expected container ID (if we loose an exit and need to wait for
 		// the flush to remove a pid, there might be a significant delay before a PID is removed from this list. Checking
 		// the container ID reduces drastically the likelihood of this race)
 		computedID, err := utils.GetProcContainerID(rootCandidatePID, rootCandidatePID)
 		if err != nil {
-			workload.cgroup.PIDs.Remove(rootCandidatePID)
+			workload.cgroup.RemoveRootPID(rootCandidatePID)
 			continue
 		}
 		if string(computedID) != workload.ContainerID {
-			workload.cgroup.PIDs.Remove(rootCandidatePID)
+			workload.cgroup.RemoveRootPID(rootCandidatePID)
 			continue
 		}
 
 		lastErr = r.generateSBOM(utils.ProcRootPath(int32(rootCandidatePID)), workload)
 		if lastErr == nil {
+			scanned = true
 			break
 		} else {
 			seclog.Errorf("couldn't generate SBOM: %v", lastErr)
@@ -247,9 +288,12 @@ func (r *SBOMResolver) analyzeWorkload(workload *SBOM) error {
 	if lastErr != nil {
 		return lastErr
 	}
-	if workload.shouldScan {
+	if !scanned {
 		return fmt.Errorf("couldn't generate workload: all root candidates failed")
 	}
+
+	// cleanup file cache
+	workload.files = make(map[string]*Package)
 
 	// build file cache
 	for _, result := range workload.report.Results {
@@ -283,11 +327,7 @@ func (r *SBOMResolver) RefreshSBOM(id string, cgroup *CGroupCacheEntry) error {
 	r.workloadsLock.Lock()
 	defer r.workloadsLock.Unlock()
 	workload, ok := r.workloads[id]
-	if ok {
-		workload.Lock()
-		defer workload.Unlock()
-		workload.shouldScan = true
-	} else {
+	if !ok {
 		var err error
 		workload, err = r.newWorkloadEntry(id, cgroup)
 		if err != nil {
@@ -337,6 +377,49 @@ func (r *SBOMResolver) newWorkloadEntry(id string, cgroup *CGroupCacheEntry) (*S
 	return workload, nil
 }
 
+// queueWorkload inserts the provided workload in a SBOM resolver chan, it will be inserted in the scannerChan or the
+// delayerChan depending on the tags that have been resolved
+func (r *SBOMResolver) queueWorkload(workload *SBOM) {
+	workload.Lock()
+	defer workload.Unlock()
+
+	if workload.deleted.Load() {
+		// this workload was deleted before we could scan it, ignore it
+		return
+	}
+
+	_ = r.resolveTags(workload)
+
+	workloadKey := workload.getWorkloadKey()
+	if workloadKey == ":" {
+		// this workload doesn't have its tags yet, delay its processing
+		select {
+		case r.delayedWorkloads <- workload:
+		default:
+		}
+		return
+	}
+
+	// check if this workload has been scanned before
+	r.workloadsCacheLock.Lock()
+	defer r.workloadsCacheLock.Unlock()
+	cachedSBOM, ok := r.workloadsCache.Get(workloadKey)
+	if ok {
+		// copy report and file cache (keeping a reference is fine, we won't be modifying the content)
+		workload.files = cachedSBOM.files
+		workload.report = cachedSBOM.report
+		r.workloadsCacheHit.Inc()
+		return
+	}
+	r.workloadsCacheMiss.Inc()
+
+	// push workload to the scanner chan
+	select {
+	case r.scannerChan <- workload:
+	default:
+	}
+}
+
 // Retain increments the reference counter of the SBOM of a workload
 func (r *SBOMResolver) Retain(id string, cgroup *CGroupCacheEntry) {
 	if !r.config.SBOMResolverEnabled {
@@ -357,15 +440,17 @@ func (r *SBOMResolver) Retain(id string, cgroup *CGroupCacheEntry) {
 		if err != nil {
 			seclog.Errorf("couldn't create new SBOM entry for workload '%s': %v", id, err)
 		}
-
-		// push workload to the scanner chan
-		select {
-		case r.scannerChan <- workload:
-		default:
-		}
-		return
+		r.queueWorkload(workload)
 	}
 	return
+}
+
+// GetWorkload returns the workload of a provided ID
+func (r *SBOMResolver) GetWorkload(id string) *SBOM {
+	r.workloadsLock.RLock()
+	defer r.workloadsLock.RUnlock()
+
+	return r.workloads[id]
 }
 
 // Release decrements the reference counter of the SBOM of a workload
@@ -374,25 +459,38 @@ func (r *SBOMResolver) Release(id string) {
 		return
 	}
 
-	r.workloadsLock.RLock()
-	defer r.workloadsLock.RUnlock()
-
-	workload, ok := r.workloads[id]
-	if !ok {
+	workload := r.GetWorkload(id)
+	if workload == nil {
 		return
 	}
+	workload.Lock()
+	defer workload.Unlock()
 
 	// only delete sbom if it has already been sent, delay the deletion to the sender otherwise
-	if !r.config.SBOMResolverSBOMSenderEnabled || workload.cgroup.PIDs.Len() <= 0 && workload.sent {
-		r.deleteSBOM(id)
+	if !r.config.SBOMResolverSBOMSenderEnabled || (!workload.deleted.Load() && len(workload.cgroup.GetRootPIDs()) <= 0 && workload.sent.Load()) {
+		r.DeleteSBOM(workload)
 	}
 }
 
-// deleteSBOM thread unsafe delete all data indexed by the provided container ID
-func (r *SBOMResolver) deleteSBOM(containerID string) {
-	seclog.Infof("deleting SBOM entry for '%s'", containerID)
+// DeleteSBOM delete all data indexed by the provided container ID
+func (r *SBOMResolver) DeleteSBOM(workload *SBOM) {
+	r.workloadsLock.Lock()
+	defer r.workloadsLock.Unlock()
+
+	seclog.Infof("deleting SBOM entry for '%s'", workload.ContainerID)
 	// remove SBOM entry
-	delete(r.workloads, containerID)
+	delete(r.workloads, workload.ContainerID)
+
+	// compute workload key before reset
+	workloadKey := workload.getWorkloadKey()
+
+	// cleanup and insert SBOM in cache
+	workload.reset()
+
+	// push the workload to the cache
+	r.workloadsCacheLock.Lock()
+	defer r.workloadsCacheLock.Unlock()
+	r.workloadsCache.Add(workloadKey, workload)
 }
 
 // AddContextTags Adds the tags resolved by the resolver to the provided SBOM
@@ -452,20 +550,20 @@ func (r *SBOMResolver) processWorkload(workload *SBOM, now time.Time) error {
 	workload.Lock()
 	defer workload.Unlock()
 
-	if !workload.sent {
+	if !workload.sent.Load() {
 		// resolve tags
 		_ = r.resolveTags(workload)
 	}
 
-	if now.After(workload.doNotSendBefore) {
+	if now.After(workload.doNotSendBefore.Load()) {
 
 		// if this is the first time we send the SBOM, resolve the context tags
-		if !workload.sent {
+		if !workload.sent.Load() {
 			r.AddContextTags(workload)
 
 			// resolve the service if it is defined
 			workload.Service = utils.GetTagValue("service", workload.Tags)
-			workload.sent = true
+			workload.sent.Store(true)
 		}
 
 		// send SBOM to the security agent
@@ -477,10 +575,8 @@ func (r *SBOMResolver) processWorkload(workload *SBOM, now time.Time) error {
 		r.dispatcher.DispatchSBOM(sbomMsg)
 
 		// check if we should delete the sbom
-		if workload.cgroup.PIDs.Len() == 0 {
-			r.workloadsLock.Lock()
-			r.deleteSBOM(workload.ContainerID)
-			r.workloadsLock.Unlock()
+		if workload.deleted.Load() || (!workload.deleted.Load() && len(workload.cgroup.GetRootPIDs()) == 0) {
+			r.DeleteSBOM(workload)
 		}
 	}
 	return nil
@@ -498,6 +594,30 @@ func (r *SBOMResolver) SendStats() error {
 	if val := r.sbomGenerations.Swap(0); val > 0 {
 		if err := r.statsdClient.Count(metrics.MetricSBOMResolverSBOMGenerations, int64(val), []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMGenerations: %w", err)
+		}
+	}
+
+	if val := float64(r.workloadsCache.Len()); val > 0 {
+		if err := r.statsdClient.Gauge(metrics.MetricSBOMResolverSBOMCacheLen, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheLen: %w", err)
+		}
+	}
+
+	if val := int64(r.workloadsCacheHit.Swap(0)); val > 0 {
+		if err := r.statsdClient.Count(metrics.MetricSBOMResolverSBOMCacheHit, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheHit: %w", err)
+		}
+	}
+
+	if val := int64(r.workloadsCacheMiss.Swap(0)); val > 0 {
+		if err := r.statsdClient.Count(metrics.MetricSBOMResolverSBOMCacheMiss, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverSBOMCacheMiss: %w", err)
+		}
+	}
+
+	if val := int64(r.failedSBOMGenerations.Swap(0)); val > 0 {
+		if err := r.statsdClient.Count(metrics.MetricSBOMResolverFailedSBOMGenerations, val, []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricSBOMResolverFailedSBOMGenerations: %w", err)
 		}
 	}
 

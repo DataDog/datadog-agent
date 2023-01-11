@@ -1183,6 +1183,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.delay", 30)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.tick", 10)
 	config.BindEnvAndSetDefault("runtime_security_config.sbom.sbom_sender.enabled", false)
+	config.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)

@@ -189,6 +189,9 @@ type Config struct {
 	SBOMResolverSBOMSenderTick time.Duration
 	// SBOMResolverSBOMSenderEnabled defines if SBOMs should be sent to the backend
 	SBOMResolverSBOMSenderEnabled bool
+	// SBOMResolverWorkloadsCacheSize defines the count of SBOMs to keep in memory in order to prevent re-computing
+	// the SBOMs of short-lived and periodical workloads
+	SBOMResolverWorkloadsCacheSize int
 }
 
 // IsRuntimeEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -286,10 +289,11 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		},
 
 		// SBOM resolver
-		SBOMResolverEnabled:           coreconfig.Datadog.GetBool("runtime_security_config.sbom.enabled"),
-		SBOMResolverSBOMSenderDelay:   time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.delay")) * time.Second,
-		SBOMResolverSBOMSenderTick:    time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.tick")) * time.Minute,
-		SBOMResolverSBOMSenderEnabled: coreconfig.Datadog.GetBool("runtime_security_config.sbom.sbom_sender.enabled"),
+		SBOMResolverEnabled:            coreconfig.Datadog.GetBool("runtime_security_config.sbom.enabled"),
+		SBOMResolverSBOMSenderDelay:    time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.delay")) * time.Second,
+		SBOMResolverSBOMSenderTick:     time.Duration(coreconfig.Datadog.GetInt("runtime_security_config.sbom.sbom_sender.tick")) * time.Minute,
+		SBOMResolverSBOMSenderEnabled:  coreconfig.Datadog.GetBool("runtime_security_config.sbom.sbom_sender.enabled"),
+		SBOMResolverWorkloadsCacheSize: coreconfig.Datadog.GetInt("runtime_security_config.sbom.workloads_cache_size"),
 	}
 
 	if err := c.sanitize(); err != nil {
