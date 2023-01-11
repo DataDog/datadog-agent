@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -56,6 +57,7 @@ type cliParams struct {
 	checkTimes                int
 	checkPause                int
 	checkName                 string
+	instanceFilter            string
 	checkDelay                int
 	logLevel                  string
 	formatJSON                bool
@@ -118,6 +120,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&cliParams.logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&cliParams.checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
+	cmd.Flags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "TODO:XXX")
 	cmd.Flags().BoolVarP(&cliParams.formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&cliParams.formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&cliParams.breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -192,6 +195,25 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 	allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances))
 	cancelTimeout()
+
+	if cliParams.instanceFilter != "" {
+		var newAllConfigs []integration.Config
+		for _, conf := range allConfigs {
+			var newInstances []integration.Data
+			for _, instance := range conf.Instances {
+				exist, err := YAMLExistQuery(instance, cliParams.instanceFilter)
+				if err != nil {
+					return fmt.Errorf("instance filter error: %v", err)
+				}
+				if exist {
+					newInstances = append(newInstances, instance)
+				}
+			}
+			conf.Instances = newInstances
+			newAllConfigs = append(newAllConfigs, conf)
+		}
+		allConfigs = newAllConfigs
+	}
 
 	// make sure the checks in cs are not JMX checks
 	for idx := range allConfigs {
@@ -627,4 +649,19 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // in place for some time.
 func disableCmdPort() {
 	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+}
+
+// YAMLExistQuery check a property/value from a YAML exist (jq style syntax)
+func YAMLExistQuery(data []byte, query string) (bool, error) {
+	var yamlContent interface{}
+	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
+		return false, err
+	}
+	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
+	output, _, err := jsonquery.RunSingleOutput(query, yamlContent)
+	var exist bool
+	if err := yaml.Unmarshal([]byte(output), &exist); err != nil {
+		return false, fmt.Errorf("filter query must return a boolean: %s", err)
+	}
+	return exist, err
 }
