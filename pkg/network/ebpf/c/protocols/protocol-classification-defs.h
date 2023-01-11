@@ -4,10 +4,11 @@
 #include "ktypes.h"
 
 #include "amqp-defs.h"
-#include "http2-defs.h"
 #include "http-classification-defs.h"
+#include "http2-defs.h"
 #include "mongo-defs.h"
 #include "redis-defs.h"
+#include "sql-defs.h"
 
 // Represents the max buffer size required to classify protocols .
 // We need to round it to be multiplication of 16 since we are reading blocks of 16 bytes in read_into_buffer_skb_all_kernels.
@@ -25,6 +26,7 @@ typedef enum {
     PROTOCOL_HTTP2,
     PROTOCOL_TLS,
     PROTOCOL_MONGO = 6,
+    PROTOCOL_POSTGRES = 7,
     PROTOCOL_AMQP = 8,
     PROTOCOL_REDIS = 9,
     //  Add new protocols before that line.

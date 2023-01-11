@@ -54,7 +54,7 @@ func TestFieldsResolver(t *testing.T) {
 			cmd := exec.Command(lsExecutable, "test-fields")
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_fields_exec")
 
 			event.ResolveFields(false)

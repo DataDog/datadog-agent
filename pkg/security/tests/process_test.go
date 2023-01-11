@@ -188,7 +188,7 @@ func TestProcessContext(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Errorf("shouldn't get an event: got event: %s", event)
+			t.Errorf("shouldn't get an event: got event: %s", test.debugEvent(event))
 		})
 		if err == nil {
 			t.Fatal("shouldn't get an event")
@@ -248,7 +248,7 @@ func TestProcessContext(t *testing.T) {
 			// we need to ignore the error because "--password" is not a valid option for ls
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			argv0, err := event.GetFieldValue("exec.argv0")
 			if err != nil {
 				t.Errorf("not able to get argv0")
@@ -294,7 +294,10 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			// trigger serialization to test scrubber
-			str := event.String()
+			str, err := test.marshalEvent(event)
+			if err != nil {
+				t.Error(err)
+			}
 
 			if !strings.Contains(str, "password") || !strings.Contains(str, "custom") {
 				t.Error("args not serialized")
@@ -314,7 +317,7 @@ func TestProcessContext(t *testing.T) {
 			cmd := cmdFunc("ls", args, envs)
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_envp", rule.ID, "wrong rule triggered")
 		}))
 	})
@@ -325,7 +328,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ll")
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_argv")
 		}))
 	})
@@ -336,7 +339,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "-ls", "--escape")
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_flags")
 		}))
 	})
@@ -347,7 +350,7 @@ func TestProcessContext(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(lsExecutable, "--block-size", "123")
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}))
 	})
@@ -368,7 +371,7 @@ func TestProcessContext(t *testing.T) {
 			// we need to ignore the error because the string of "a" generates a "File name too long" error
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			args, err := event.GetFieldValue("exec.args")
 			if err != nil {
 				t.Errorf("not able to get args")
@@ -420,9 +423,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 379, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 379; i++ {
+			for i := 0; i != 459; i++ {
 				assert.Equal(t, args[i], argv[i], "expected arg not found")
 			}
 
@@ -461,9 +464,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			argv := strings.Split(execArgs.(string), " ")
-			assert.Equal(t, 389, len(argv), "incorrect number of args: %s", argv)
+			assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
 
-			for i := 0; i != 389; i++ {
+			for i := 0; i != 474; i++ {
 				expected := args[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -505,7 +508,7 @@ func TestProcessContext(t *testing.T) {
 			}
 			cmd := cmdFunc(bin, args, envs)
 			return cmd.Run()
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			execEnvp, err := event.GetFieldValue("exec.envp")
 			if err != nil {
 				t.Errorf("not able to get exec.envp")
@@ -563,9 +566,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 380, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 380; i++ {
+			for i := 0; i != 736; i++ {
 				assert.Equal(t, envs[i], envp[i], "expected env not found")
 			}
 
@@ -614,9 +617,9 @@ func TestProcessContext(t *testing.T) {
 			}
 
 			envp := (execEnvp.([]string))
-			assert.Equal(t, 390, len(envp), "incorrect number of envs: %s", envp)
+			assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
 
-			for i := 0; i != 390; i++ {
+			for i := 0; i != 895; i++ {
 				expected := envs[i]
 				if len(expected) > model.MaxArgEnvSize {
 					expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -696,7 +699,10 @@ func TestProcessContext(t *testing.T) {
 				t.Errorf("expected inode %d, got %d => %+v", entry.FileEvent.Inode, inode, event)
 			}
 
-			str := event.String()
+			str, err := test.marshalEvent(event)
+			if err != nil {
+				t.Error(err)
+			}
 
 			if !strings.Contains(str, "pts") {
 				t.Error("tty not serialized")
@@ -830,11 +836,15 @@ func TestProcessContext(t *testing.T) {
 			cmd := cmdFunc(shell, args, envs)
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_args_envs_dedup", rule.ID, "wrong rule triggered")
 
 			var data interface{}
-			serialized := event.String()
+			serialized, err := test.marshalEvent(event)
+			if err != nil {
+				t.Error(err)
+			}
+
 			if err := json.Unmarshal([]byte(serialized), &data); err != nil {
 				t.Error(err)
 			}
@@ -864,7 +874,7 @@ func TestProcessContext(t *testing.T) {
 			cmd := exec.Command(lsExecutable, "glob")
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors_glob")
 		}))
 	})
@@ -878,7 +888,7 @@ func TestProcessContext(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_self_exec")
 		}))
 	})
@@ -899,7 +909,7 @@ func TestProcessContext(t *testing.T) {
 				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
-		}, validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
@@ -964,7 +974,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 			cmd.Env = envp
 			_ = cmd.Run()
 			return nil
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_ldpreload_from_tmp_with_envs")
 			assertFieldEqual(t, event, "exec.file.path", lsExec)
 			assertFieldStringArrayIndexedOneOf(t, event, "exec.envs", 0, []string{"LD_PRELOAD=/tmp/dyn.so"})
@@ -995,7 +1005,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 		cmd := exec.Command(testFile, "/tmp/test")
 		return cmd.Run()
-	}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+	}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "test_exec_ctime", rule.ID, "wrong rule triggered")
 	}))
 }
@@ -1157,7 +1167,7 @@ func TestProcessExec(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command("sh", "-c", executable+" /dev/null")
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
 			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
@@ -1169,7 +1179,7 @@ func TestProcessExec(t *testing.T) {
 			args := []string{"exec-in-pthread", executable, "/dev/null"}
 			cmd := exec.Command(syscallTester, args...)
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
 		}))
@@ -1215,7 +1225,7 @@ func TestProcessMetadata(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command(testFile)
 			return cmd.Run()
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assertRights(t, event.Exec.FileEvent.Mode, fileMode)
 			assertNearTime(t, event.Exec.FileEvent.MTime)
@@ -1235,7 +1245,7 @@ func TestProcessMetadata(t *testing.T) {
 			}
 			_, err := syscall.ForkExec(testFile, []string{}, attr)
 			return err
-		}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.EUID), "wrong euid")
@@ -1277,14 +1287,9 @@ func TestProcessExecExit(t *testing.T) {
 				return false
 			}
 
-			validate := validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
-				if !validateProcessContextLineage(t, event) {
-					t.Error(event.String())
-				}
-
-				if !validateProcessContextSECL(t, event) {
-					t.Error(event.String())
-				}
+			validate := test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+				validateProcessContextLineage(t, event, test.probe)
+				validateProcessContextSECL(t, event, test.probe)
 
 				assertFieldEqual(t, event, "exec.file.name", "touch")
 				assertFieldContains(t, event, "exec.args", "01010101")
@@ -1604,9 +1609,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_ok")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1625,9 +1628,7 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_error")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1646,9 +1647,7 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_coredump")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitCoreDumped), event.Exit.Cause, "wrong exit cause")
@@ -1667,9 +1666,7 @@ func TestProcessExit(t *testing.T) {
 			_ = cmd.Run()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitSignaled), event.Exit.Cause, "wrong exit cause")
@@ -1687,9 +1684,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_1")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1707,9 +1702,7 @@ func TestProcessExit(t *testing.T) {
 			cmd.Env = envp
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
-			if !validateExitSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateExitSchema(t, event)
 			assertTriggeredRule(t, rule, "test_exit_time_2")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(model.ExitExited), event.Exit.Cause, "wrong exit cause")
@@ -1964,7 +1957,7 @@ chmod 755 pyscript.py
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
-			}, validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			}, testModule.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 				assertTriggeredRule(t, rule, test.rule.ID)
 				test.check(event)
 			}))
@@ -2156,7 +2149,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 					cmd := exec.Command(testFile)
 					return cmd.Run()
 				}, func(event *model.Event, rule *rules.Rule) {
-					t.Errorf("shouldn't get an event: got event: %s", event)
+					t.Errorf("shouldn't get an event: got event: %s", testModule.debugEvent(event))
 				})
 				if err == nil {
 					t.Fatal("shouldn't get an event")

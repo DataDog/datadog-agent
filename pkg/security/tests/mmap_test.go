@@ -56,9 +56,7 @@ func TestMMapEvent(t *testing.T) {
 			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			if !validateMMapSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateMMapSchema(t, event)
 		})
 	})
 }

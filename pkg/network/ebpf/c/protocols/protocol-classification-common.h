@@ -12,14 +12,16 @@
 long bpf_skb_load_bytes_with_telemetry(const void *skb, u32 offset, void *to, u32 len) {return 0;}
 #endif
 
-#define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size)   \
-    if (buf_size < min_buff_size) {                                         \
-        return false;                                                       \
-    }                                                                       \
-                                                                            \
-    if (buf == NULL) {                                                      \
-        return false;                                                       \
-    }                                                                       \
+#define CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, min_buff_size) \
+    do {                                                                  \
+        if (buf_size < min_buff_size) {                                   \
+            return false;                                                 \
+        }                                                                 \
+                                                                          \
+        if (buf == NULL) {                                                \
+            return false;                                                 \
+        }                                                                 \
+    } while (0)
 
 // Returns true if the packet is TCP.
 static __always_inline bool is_tcp(conn_tuple_t *tup) {

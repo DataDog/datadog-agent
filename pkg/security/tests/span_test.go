@@ -67,9 +67,7 @@ func TestSpan(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_open")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)
@@ -101,9 +99,7 @@ func TestSpan(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_span_rule_exec")
 
-			if !validateSpanSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpanSchema(t, event)
 
 			assert.Equal(t, uint64(204), event.SpanContext.SpanID)
 			assert.Equal(t, uint64(104), event.SpanContext.TraceID)

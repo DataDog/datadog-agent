@@ -48,9 +48,7 @@ func TestBPFEventLoad(t *testing.T) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfProgTypeKprobe), event.BPF.Program.Type, "wrong program type")
 
-			if !validateBPFSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBPFSchema(t, event)
 		})
 	})
 }
@@ -85,9 +83,7 @@ func TestBPFEventMap(t *testing.T) {
 			assert.Equal(t, "bpf", event.GetType(), "wrong event type")
 			assert.Equal(t, uint32(model.BpfMapTypeHash), event.BPF.Map.Type, "wrong map type")
 
-			if !validateBPFSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBPFSchema(t, event)
 		})
 	})
 }

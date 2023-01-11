@@ -90,9 +90,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	})
 
@@ -119,9 +117,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	})
 
@@ -158,9 +154,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -184,9 +178,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -206,9 +198,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -228,9 +218,7 @@ func TestChown(t *testing.T) {
 			assert.Equal(t, int64(204), event.Chown.GID, "wrong group")
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 

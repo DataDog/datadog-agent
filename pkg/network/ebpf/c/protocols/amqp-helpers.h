@@ -7,7 +7,7 @@
 // The method checks if the given buffer includes the protocol header which must be sent in the start of a new connection.
 // Ref: https://www.rabbitmq.com/resources/specs/amqp0-9-1.pdf
 static __always_inline bool is_amqp_protocol_header(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, AMQP_MIN_FRAME_LENGTH);
 
 #define AMQP_PREFACE "AMQP"
 
