@@ -40,11 +40,6 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
-const (
-	// otlpProtocolGRPC specifies that the incoming connection was made over gRPC.
-	otlpProtocolGRPC = "grpc"
-)
-
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
@@ -94,13 +89,13 @@ func (o *OTLPReceiver) Stop() {
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
+	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
+	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
 }
 
-func tagsFromHeaders(h http.Header, protocol string) []string {
-	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
+func tagsFromHeaders(h http.Header) []string {
+	tags := []string{"endpoint_version:opentelemetry_grpc_v1"}
 	if v := fastHeaderGet(h, headerLang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
@@ -129,17 +124,16 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 	return v[0]
 }
 
-// processRequest processes the incoming request in. It marks it as received by the given protocol
-// using the given headers.
-func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
+// processRequest processes the incoming request in.
+func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -178,7 +172,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
 			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
-			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+			EndpointVersion: fmt.Sprintf("opentelemetry_grpc_v1"),
 		},
 		Stats: info.NewStats(),
 	}
