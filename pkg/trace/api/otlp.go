@@ -172,7 +172,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
 			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
-			EndpointVersion: fmt.Sprintf("opentelemetry_grpc_v1"),
+			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
 	}
