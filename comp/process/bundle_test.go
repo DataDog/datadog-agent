@@ -6,6 +6,7 @@
 package process
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -37,7 +38,7 @@ func TestBundleOneShot(t *testing.T) {
 		}
 		require.ElementsMatch(t, []string{"process", "container"}, names)
 
-		require.NoError(t, r.Run(nil))
+		require.NoError(t, r.Run(context.TODO()))
 	}
 
 	err := fxutil.OneShot(runCmd,

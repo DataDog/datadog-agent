@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -35,7 +36,7 @@ func newRunner(deps dependencies) (Component, error) {
 	}, nil
 }
 
-func (r *runner) Run(exit <-chan struct{}) error {
+func (r *runner) Run(ctx context.Context) error {
 
 	for _, c := range r.checks {
 		if !c.IsEnabled() {
