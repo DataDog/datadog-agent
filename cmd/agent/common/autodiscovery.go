@@ -269,6 +269,7 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		for _, cfg := range configs {
+			// TODO: apply --instance-filter here
 			if match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
