@@ -60,7 +60,7 @@ func MakeCommand() *cobra.Command {
 	// log params
 	var logParams log.Params
 	if subsystem == "windows" {
-		logParams = log.LogForDaemon("TRAY", "log_file", logFilePath)
+		logParams = log.LogForDaemon("TRAY", "system_tray.log_file", logFilePath)
 	} else if subsystem == "console" {
 		logParams = log.LogForOneShot("TRAY", "info", true)
 	}
