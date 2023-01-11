@@ -6,6 +6,7 @@
 package util
 
 import (
+	"strconv"
 	"sync"
 	"time"
 )
@@ -159,5 +160,23 @@ func (s *StatsTracker) dropOldPoints(now int64) {
 		s.aggregatedPeakPoints = append(s.aggregatedPeakPoints, s.peakPointsHead)
 		s.avgPointsHead = nil
 		s.peakPointsHead = nil
+	}
+}
+
+func (s *StatsTracker) InfoKey() string {
+	return "Latency Stats"
+}
+
+func (s *StatsTracker) Info() []string {
+	AllTimeAvgLatency := s.AllTimeAvg() / int64(time.Millisecond)
+	AllTimePeakLatency := s.AllTimePeak() / int64(time.Millisecond)
+	RecentAvgLatency := s.MovingAvg() / int64(time.Millisecond)
+	RecentPeakLatency := s.MovingPeak() / int64(time.Millisecond)
+
+	return []string{
+		"Average Latency (ms): " + strconv.FormatInt(RecentAvgLatency, 10),
+		"24h Average Latency (ms): " + strconv.FormatInt(AllTimeAvgLatency, 10),
+		"Peak Latency (ms): " + strconv.FormatInt(RecentPeakLatency, 10),
+		"24h Peak Latency (ms): " + strconv.FormatInt(AllTimePeakLatency, 10),
 	}
 }
