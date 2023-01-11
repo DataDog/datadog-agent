@@ -550,6 +550,10 @@ shared_examples_for "a running Agent with no errors" do
 end
 
 shared_examples_for "a running Agent with APM" do
+  it 'has the apm agent running' do
+    expect(is_process_running?("trace-agent.exe")).to be_truthy
+    expect(is_service_running?("datadog-trace-agent")).to be_truthy
+  end
   it 'is bound to the port that receives traces by default' do
     expect(is_port_bound(8126)).to be_truthy
   end
@@ -845,11 +849,6 @@ shared_examples_for 'an Agent with APM enabled' do
     expect(confYaml).to have_key("apm_config")
     expect(confYaml["apm_config"]).to have_key("enabled")
     expect(confYaml["apm_config"]["enabled"]).to be_truthy
-    expect(is_port_bound(8126)).to be_truthy
-  end
-  it 'has the apm agent running' do
-    expect(is_process_running?("trace-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-trace-agent")).to be_truthy
   end
 end
 
