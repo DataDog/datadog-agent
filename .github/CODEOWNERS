@@ -176,6 +176,7 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
+/comp/process @DataDog/processes
 # END COMPONENTS
 
 # pkg
