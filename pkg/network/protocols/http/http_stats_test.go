@@ -22,7 +22,7 @@ func TestAddRequest(t *testing.T) {
 	stats.AddRequest(405, 20.0, 3, nil)
 
 	for i := 100; i <= 500; i += 100 {
-		s := stats.Stats(i)
+		s := stats.stats(i)
 		if i == 400 {
 			if assert.NotNil(t, s) {
 				assert.Equal(t, 3, s.Count)
@@ -41,7 +41,7 @@ func TestAddRequest(t *testing.T) {
 func TestCombineWith(t *testing.T) {
 	var stats RequestStats
 	for i := 100; i <= 500; i += 100 {
-		s := stats.Stats(i)
+		s := stats.stats(i)
 		assert.Nil(t, s)
 	}
 
@@ -55,7 +55,7 @@ func TestCombineWith(t *testing.T) {
 	stats.CombineWith(&stats4)
 
 	for i := 100; i <= 500; i += 100 {
-		s := stats.Stats(i)
+		s := stats.stats(i)
 		if i == 400 {
 			if assert.NotNil(t, s) {
 				assert.Equal(t, 3, s.Count)

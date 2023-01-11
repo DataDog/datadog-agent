@@ -172,6 +172,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_java_tls_support"), false)
 	cfg.BindEnvAndSetDefault(join(smNS, "java_agent_args"), defaultServiceMonitoringJavaAgentArgs)
+	cfg.BindEnvAndSetDefault(join(smNS, "enable_http_status_code_aggregation"), false)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_gateway_lookup"), true, "DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP")
 	cfg.BindEnvAndSetDefault(join(netNS, "max_http_stats_buffered"), 100000, "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
@@ -96,6 +95,15 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 }
 
 func TestHTTPStats(t *testing.T) {
+	t.Run("status code", func(t *testing.T) {
+		testHTTPStats(t, true)
+	})
+	t.Run("status class", func(t *testing.T) {
+		testHTTPStats(t, false)
+	})
+}
+
+func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
 	if !httpSupported(t) {
 		t.Skip("HTTP monitoring feature not available")
 		return
@@ -103,6 +111,7 @@ func TestHTTPStats(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTPStatusCodeAggregation = aggregateByStatusCode
 	tr := setupTracer(t, cfg)
 
 	// Start an HTTP server on localhost:8080
@@ -111,7 +120,7 @@ func TestHTTPStats(t *testing.T) {
 		Addr: serverAddr,
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
 			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(200)
+			w.WriteHeader(204)
 		}),
 		ReadTimeout:  time.Second,
 		WriteTimeout: time.Second,
@@ -147,11 +156,9 @@ func TestHTTPStats(t *testing.T) {
 
 	// Verify HTTP stats
 	require.NotNil(t, httpReqStats)
-	assert.Nil(t, httpReqStats.Stats(100), "100s")            // number of requests with response status 100
-	assert.Equal(t, 1, httpReqStats.Stats(200).Count, "200s") // 200
-	assert.Nil(t, httpReqStats.Stats(300), "300s")            // 300
-	assert.Nil(t, httpReqStats.Stats(400), "400s")            // 400
-	assert.Nil(t, httpReqStats.Stats(500), "500s")            // 500
+	require.Len(t, httpReqStats.Data, 1)
+	require.NotNil(t, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)])
+	require.Equal(t, 1, httpReqStats.Data[httpReqStats.NormalizeStatusCode(204)].Count)
 }
 
 func TestHTTPSViaLibraryIntegration(t *testing.T) {
@@ -220,7 +227,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -228,9 +235,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
-	for _, lib := range prefechLibs {
-		f, _ := os.Open(lib)
-		defer f.Close()
+	for _, lib := range prefetchLibs {
+		f, err := os.Open(lib)
+		if err != nil {
+			t.Cleanup(func() { f.Close() })
+		}
 	}
 	time.Sleep(time.Second)
 
@@ -246,11 +255,12 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	require.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		for key, stats := range payload.HTTP {
-			if !stats.HasStats(200) {
+			req, exists := stats.Data[200]
+			if !exists {
 				continue
 			}
 
-			statsTags := stats.Stats(200).StaticTags
+			statsTags := req.StaticTags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
 			foundPathAndHTTPTag := false
@@ -463,7 +473,10 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 func isRequestIncluded(allStats map[http.Key]*http.RequestStats, req *nethttp.Request) bool {
 	expectedStatus := testutil.StatusFromPath(req.URL.Path)
 	for key, stats := range allStats {
-		if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+		if key.Path.Content != req.URL.Path {
+			continue
+		}
+		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 			return true
 		}
 	}
@@ -792,7 +805,10 @@ func countRequestsOccurrences(t *testing.T, conns *network.Connections, reqs map
 			}
 
 			expectedStatus := testutil.StatusFromPath(req.URL.Path)
-			if key.Path.Content == req.URL.Path && stats.HasStats(expectedStatus) {
+			if key.Path.Content != req.URL.Path {
+				continue
+			}
+			if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {
 				occurrences++
 				reqs[req] = true
 				break

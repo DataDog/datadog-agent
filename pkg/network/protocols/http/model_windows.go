@@ -72,10 +72,6 @@ func dstIPHigh(tup *driver.ConnTupleType) uint64 {
 // driverHttpTX interface
 //
 
-func (tx *WinHttpTransaction) StatusClass() int {
-	return statusClass(tx.Txn.ResponseStatusCode)
-}
-
 func (tx *WinHttpTransaction) RequestLatency() float64 {
 	return requestLatency(tx.Txn.ResponseLastSeen, tx.Txn.RequestStarted)
 }

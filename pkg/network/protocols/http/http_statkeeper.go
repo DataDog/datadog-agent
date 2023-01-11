@@ -19,11 +19,12 @@ import (
 )
 
 type httpStatKeeper struct {
-	mux        sync.Mutex
-	stats      map[Key]*RequestStats
-	incomplete *incompleteBuffer
-	maxEntries int
-	telemetry  *telemetry
+	mux                             sync.Mutex
+	stats                           map[Key]*RequestStats
+	incomplete                      *incompleteBuffer
+	maxEntries                      int
+	telemetry                       *telemetry
+	enableHTTPStatusCodeAggregation bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -39,16 +40,16 @@ type httpStatKeeper struct {
 }
 
 func newHTTPStatkeeper(c *config.Config, telemetry *telemetry) *httpStatKeeper {
-
 	return &httpStatKeeper{
-		stats:             make(map[Key]*RequestStats),
-		incomplete:        newIncompleteBuffer(c, telemetry),
-		maxEntries:        c.MaxHTTPStatsBuffered,
-		replaceRules:      c.HTTPReplaceRules,
-		buffer:            make([]byte, getPathBufferSize(c)),
-		interned:          make(map[string]string),
-		telemetry:         telemetry,
-		oversizedLogLimit: util.NewLogLimit(10, time.Minute*10),
+		stats:                           make(map[Key]*RequestStats),
+		incomplete:                      newIncompleteBuffer(c, telemetry),
+		maxEntries:                      c.MaxHTTPStatsBuffered,
+		replaceRules:                    c.HTTPReplaceRules,
+		enableHTTPStatusCodeAggregation: c.EnableHTTPStatusCodeAggregation,
+		buffer:                          make([]byte, getPathBufferSize(c)),
+		interned:                        make(map[string]string),
+		telemetry:                       telemetry,
+		oversizedLogLimit:               util.NewLogLimit(10, time.Minute*10),
 	}
 }
 
@@ -114,11 +115,11 @@ func (h *httpStatKeeper) add(tx httpTX) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = new(RequestStats)
+		stats = NewRequestStats(h.enableHTTPStatusCodeAggregation)
 		h.stats[key] = stats
 	}
 
-	stats.AddRequest(tx.StatusClass(), latency, tx.StaticTags(), tx.DynamicTags())
+	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
 func (h *httpStatKeeper) newKey(tx httpTX, path string, fullPath bool) Key {
