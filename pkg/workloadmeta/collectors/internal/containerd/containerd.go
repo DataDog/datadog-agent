@@ -31,7 +31,9 @@ const (
 	collectorID   = "containerd"
 	componentName = "workloadmeta-containerd"
 
-	imagesToScanBufferSize = 50
+	// scan buffer needs to be very large as we cannot block containerd collector
+	imagesToScanBufferSize = 5000
+	imageScanTimeout       = 60 * time.Second
 
 	containerCreationTopic = "/containers/create"
 	containerUpdateTopic   = "/containers/update"
@@ -95,13 +97,14 @@ type collector struct {
 	// Map of image ID => array of repo tags
 	repoTags map[string][]string
 
-	trivyClient  *trivy.Client
-	imagesToScan chan namespacedImageName
+	trivyClient  trivy.Collector
+	imagesToScan chan namespacedImage
 }
 
-type namespacedImageName struct {
+type namespacedImage struct {
 	namespace string
-	name      string
+	image     containerd.Image
+	imageID   string
 }
 
 func init() {
@@ -119,30 +122,40 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return agentErrors.NewDisabled(componentName, "Agent is not running on containerd")
 	}
 
-	if imageMetadataCollectionIsEnabled() {
-		var err error
-		c.trivyClient, err = trivy.NewClient(ctx)
-		if err != nil {
-			return fmt.Errorf("error initializing trivy client: %w", err)
-		}
-
-		c.imagesToScan = make(chan namespacedImageName, imagesToScanBufferSize)
-
-		go func() {
-			for imageToScan := range c.imagesToScan {
-				if err := c.extractBOMWithTrivy(ctx, imageToScan); err != nil {
-					log.Warnf("error extracting SBOM for image: namespace=%s name=%s, err: %w", imageToScan.namespace, imageToScan.name, err)
-				}
-			}
-		}()
-	}
-
 	c.store = store
 
 	var err error
 	c.containerdClient, err = cutil.NewContainerdUtil()
 	if err != nil {
 		return err
+	}
+
+	if imageMetadataCollectionIsEnabled() {
+		var err error
+		trivyConfiguration, err := trivy.DefaultCollectorConfig()
+		if err != nil {
+			return fmt.Errorf("error initializing trivy client: %w", err)
+		}
+
+		trivyConfiguration.ContainerdAccessor = func() (*containerd.Client, error) {
+			return c.containerdClient.RawClient(), nil
+		}
+		c.trivyClient, err = trivy.NewCollector(trivyConfiguration)
+		if err != nil {
+			return fmt.Errorf("error initializing trivy client: %w", err)
+		}
+
+		c.imagesToScan = make(chan namespacedImage, imagesToScanBufferSize)
+
+		go func() {
+			for imageToScan := range c.imagesToScan {
+				scanContext, cancel := context.WithTimeout(context.Background(), imageScanTimeout)
+				if err := c.extractBOMWithTrivy(scanContext, imageToScan); err != nil {
+					log.Warnf("error extracting SBOM for image: namespace=%s name=%s, err: %w", imageToScan.namespace, imageToScan.image.Name(), err)
+				}
+				cancel()
+			}
+		}()
 	}
 
 	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
@@ -279,11 +292,6 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 	for _, image := range existingImages {
 		if err := c.notifyEventForImage(ctx, namespace, image); err != nil {
 			return err
-		}
-
-		c.imagesToScan <- namespacedImageName{
-			namespace: namespace,
-			name:      image.Name(),
 		}
 	}
 

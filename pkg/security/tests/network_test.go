@@ -14,13 +14,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/docker/docker/libnetwork/resolvconf"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/tests/resolvconf"
 )
 
 func TestNetworkCIDR(t *testing.T) {
