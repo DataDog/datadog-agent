@@ -292,6 +292,7 @@
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
 /pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
