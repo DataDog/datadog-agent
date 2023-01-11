@@ -45,9 +45,7 @@ func TestSpliceEvent(t *testing.T) {
 			assert.Equal(t, uint32(0), event.Splice.PipeExitFlag, "wrong pipe exit flag")
 			assert.Equal(t, event.Async, false)
 
-			if !validateSpliceSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSpliceSchema(t, event)
 		})
 	})
 }

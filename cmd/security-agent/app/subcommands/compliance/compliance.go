@@ -80,7 +80,7 @@ func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *d
 	}
 	stopper.Add(agent)
 
-	log.Infof("Running compliance checks every %s", checkInterval.String())
+	log.Infof("Running compliance checks every %s", checkInterval)
 
 	// Send the compliance 'running' metrics periodically
 	ticker := sendRunningMetrics(statsdClient, "compliance")

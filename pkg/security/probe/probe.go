@@ -87,13 +87,12 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers       [model.MaxAllEventType][]EventHandler
-	monitor        *Monitor
-	resolvers      *Resolvers
-	event          *model.Event
-	fieldHandlers  *FieldHandlers
-	eventMarshaler *EventMarshaler
-	scrubber       *procutil.DataScrubber
+	handlers      [model.MaxAllEventType][]EventHandler
+	monitor       *Monitor
+	resolvers     *Resolvers
+	event         *model.Event
+	fieldHandlers *FieldHandlers
+	scrubber      *procutil.DataScrubber
 
 	// Ring
 	eventStream EventStream
@@ -316,7 +315,10 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching event %s", event)
+	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalEvent(event, p)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send wildcard first
 	for _, handler := range p.handlers[model.UnknownEventType] {
@@ -341,7 +343,10 @@ func (p *Probe) DispatchActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	seclog.TraceTagf(event.GetEventType(), "Dispatching custom event %s", event)
+	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := MarshalCustomEvent(event)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
@@ -355,6 +360,20 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
+}
+
+func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+	if !seclog.DefaultLogger.IsTracing() {
+		return
+	}
+
+	eventJSON, eventType, err := marshaller()
+	if err != nil {
+		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
+		return
+	}
+
+	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -372,7 +391,6 @@ func (p *Probe) GetMonitor() *Monitor {
 func (p *Probe) zeroEvent() *model.Event {
 	*p.event = eventZero
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.JSONMarshaler = p.eventMarshaler.MarshalJSONEvent
 	return p.event
 }
 
@@ -1114,7 +1132,6 @@ func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet
 	eventCtor := func() eval.Event {
 		return &model.Event{
 			FieldHandlers: p.fieldHandlers,
-			JSONMarshaler: p.eventMarshaler.MarshalJSONEvent,
 		}
 	}
 
@@ -1329,10 +1346,6 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 			Name:  "syscall_monitor_event_period",
 			Value: uint64(p.Config.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
-		manager.ConstantEditor{
-			Name:  "setup_new_exec_is_last",
-			Value: utils.BoolTouint64(!p.kernelVersion.IsRH7Kernel() && p.kernelVersion.Code >= kernel.Kernel5_5), // the setup_new_exec kprobe is after security_bprm_committed_creds in kernels that are not RH7, and additionally, have a kernel version of at least 5.5
-		},
 	)
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -1380,8 +1393,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
-	p.eventMarshaler = &EventMarshaler{probe: p}
+	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()
@@ -1435,7 +1447,9 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSignalStructStructTTY, "struct signal_struct", "tty", "linux/sched/signal.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameTTYStructStructName, "struct tty_struct", "name", "linux/tty.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameCredStructUID, "struct cred", "uid", "linux/cred.h")
-
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmP, "struct linux_binprm", "p", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {

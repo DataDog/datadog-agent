@@ -1289,7 +1289,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *procutil.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1300,7 +1300,6 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		config:         config,
 		statsdClient:   statsdClient,
 		scrubber:       scrubber,
-		resolvers:      resolvers,
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,

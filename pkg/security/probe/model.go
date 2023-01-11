@@ -11,8 +11,6 @@ package probe
 import (
 	"fmt"
 
-	"github.com/mailru/easyjson/jwriter"
-
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -47,23 +45,8 @@ func NewModel(probe *Probe) *model.Model {
 }
 
 // NewEvent returns a new event
-func NewEvent(fh *FieldHandlers, marshaler *EventMarshaler) *model.Event {
+func NewEvent(fh *FieldHandlers) *model.Event {
 	return &model.Event{
 		FieldHandlers: fh,
-		JSONMarshaler: marshaler.MarshalJSONEvent,
 	}
-}
-
-type EventMarshaler struct {
-	probe *Probe
-}
-
-// MarshalJSONEvent returns the JSON encoding of the event
-func (em *EventMarshaler) MarshalJSONEvent(ev *model.Event) ([]byte, error) {
-	s := NewEventSerializer(ev, em.probe)
-	w := &jwriter.Writer{
-		Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-	}
-	s.MarshalEasyJSON(w)
-	return w.BuildBytes()
 }

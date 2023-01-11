@@ -62,9 +62,7 @@ func TestOpen(t *testing.T) {
 			assert.Equal(t, getInode(t, testFile), event.Open.File.Inode, "wrong inode")
 			assert.Equal(t, event.Async, false)
 
-			if !validateOpenSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateOpenSchema(t, event)
 		})
 	}))
 
