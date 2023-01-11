@@ -550,9 +550,11 @@ shared_examples_for "a running Agent with no errors" do
 end
 
 shared_examples_for "a running Agent with APM" do
-  it 'has the apm agent running' do
-    expect(is_process_running?("trace-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-trace-agent")).to be_truthy
+  if os == :windows
+    it 'has the apm agent running' do
+      expect(is_process_running?("trace-agent.exe")).to be_truthy
+      expect(is_service_running?("datadog-trace-agent")).to be_truthy
+    end
   end
   it 'is bound to the port that receives traces by default' do
     expect(is_port_bound(8126)).to be_truthy
