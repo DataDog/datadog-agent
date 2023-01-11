@@ -48,13 +48,13 @@ func (p *pathIdentifier) String() string {
 }
 
 func (p *pathIdentifier) Key() string {
-	b := make([]byte, 16)
-	binary.LittleEndian.PutUint64(b, p.dev)
-	binary.LittleEndian.PutUint64(b[8:], p.inode)
-	m := murmur3.Sum64(b)
-	bsum := make([]byte, 8)
-	binary.LittleEndian.PutUint64(bsum, m)
-	return base64.StdEncoding.EncodeToString(bsum)
+	buffer := make([]byte, 16)
+	binary.LittleEndian.PutUint64(buffer, p.dev)
+	binary.LittleEndian.PutUint64(buffer[8:], p.inode)
+	m := murmur3.Sum64(buffer)
+	bufferSum := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bufferSum, m)
+	return base64.StdEncoding.EncodeToString(bufferSum)
 }
 
 // path must be an absolute path
@@ -130,14 +130,15 @@ type soRegistration struct {
 	unregisterCB func(pathIdentifier) error
 }
 
-func (r *soRegistration) Unregister() (cleanup bool) {
+// Unregister return true if there are no more reference to this registration
+func (r *soRegistration) Unregister() bool {
 	r.refcount--
 	if r.refcount > 0 {
 		return false
 	}
 	if r.unregisterCB != nil {
 		if err := r.unregisterCB(r.pathID); err != nil {
-			log.Debugf("unregisterCB %s : %s", r.pathID.String(), err)
+			log.Debugf("error while unregisterin %s : %s", r.pathID.String(), err)
 		}
 	}
 	return true
@@ -157,7 +158,10 @@ func (w *soWatcher) processExit(pid uint32) {
 
 // Start consuming shared-library events
 func (w *soWatcher) Start() {
-	thisPID, _ := util.GetRootNSPID()
+	thisPID, err := util.GetRootNSPID()
+	if err != nil {
+		log.Warnf("soWatcher Start can't get root namespace pid %s", err)
+	}
 
 	_ = util.WithAllProcs(w.procRoot, func(pid int) error {
 		if pid == thisPID { // don't uprobes ourself
@@ -180,19 +184,17 @@ func (w *soWatcher) Start() {
 		root := fmt.Sprintf("%s/%d/root", w.procRoot, pid)
 		for _, m := range *mmaps {
 			for _, r := range w.rules {
-				if !r.re.MatchString(m.Path) {
-					continue
+				if r.re.MatchString(m.Path) {
+					w.registry.Register(root, m.Path, uint32(pid), r)
+					break
 				}
-
-				w.registry.Register(root, m.Path, uint32(pid), r)
 			}
 		}
 
 		return nil
 	})
 
-	err := w.processMonitor.Initialize()
-	if err != nil {
+	if err := w.processMonitor.Initialize(); err != nil {
 		log.Errorf("can't initialize process monitor %s", err)
 		return
 	}
@@ -208,8 +210,9 @@ func (w *soWatcher) Start() {
 
 	go func() {
 		defer cleanupExit()
-		//TODO(nplanel) deregister uprobes() (unlikely error path)
 		defer w.processMonitor.Stop()
+		// cleanup all the uprobes
+		defer w.registry.cleanup()
 
 		for {
 			select {
@@ -219,13 +222,11 @@ func (w *soWatcher) Start() {
 				}
 
 				lib := toLibPath(event.Data)
-				var (
-					path    = lib.Bytes()
-					libPath = string(path)
-					procPid = fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
-					root    = procPid + "/root"
-					cwd     = procPid + "/cwd"
-				)
+				path := lib.Bytes()
+				libPath := string(path)
+				procPid := fmt.Sprintf("%s/%d", w.procRoot, lib.Pid)
+				root := procPid + "/root"
+				cwd := procPid + "/cwd"
 
 				if strings.HasPrefix(libPath, "/proc/") {
 					// don't scan ourself when we resolve offsets via debug.elf.Open()
@@ -259,6 +260,17 @@ func (w *soWatcher) Start() {
 	}()
 }
 
+// call all the unregisterCB
+func (r *soRegistry) cleanup() {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	for _, reg := range r.byID {
+		reg.Unregister()
+	}
+}
+
+// Unregister a pid if exist, unregisterCB will be called if his refcount == 0
 func (r *soRegistry) Unregister(pid uint32) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -274,6 +286,8 @@ func (r *soRegistry) Unregister(pid uint32) {
 	delete(r.byPID, pid)
 }
 
+// Register a ELF library root/libPath as be used by the pid
+// Only one registration will be done per ELF (system wide)
 func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRule) {
 	hostLibPath := root + libPath
 	pathID, err := newPathIdentifier(hostLibPath)
