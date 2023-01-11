@@ -55,8 +55,8 @@ func testInject(t *testing.T, prefix string) {
 		}
 		t.Log(o)
 	}()
+	time.Sleep(500 * time.Millisecond) // java is slow to start
 
-	time.Sleep(200 * time.Millisecond)
 	pid := findJustWait(t)
 	require.NotEqual(t, pid, 0, "Can't find java JustWait process")
 	t.Log(pid)
