@@ -11,6 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
+func (e *RuleFilterEvent) Init() {}
+
 func (e *RuleFilterEvent) GetFieldEventType(field eval.Field) (string, error) {
 	return "*", nil
 }

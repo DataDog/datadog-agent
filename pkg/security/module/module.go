@@ -186,11 +186,7 @@ func (m *Module) Start() error {
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	kv, err := m.probe.GetKernelVersion()
-	if err != nil {
-		seclog.Errorf("failed to create rule filter model: %v", err)
-	}
-	ruleFilterModel := NewRuleFilterModel(kv)
+	ruleFilterModel := NewRuleFilterModel()
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)

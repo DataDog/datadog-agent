@@ -23,7 +23,8 @@ type RuleFilterModel struct {
 	kv *kernel.Version
 }
 
-func NewRuleFilterModel(kv *kernel.Version) *RuleFilterModel {
+func NewRuleFilterModel() *RuleFilterModel {
+	kv, _ := kernel.NewKernelVersion()
 	return &RuleFilterModel{
 		kv: kv,
 	}
@@ -169,8 +170,6 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
-
-func (e *RuleFilterEvent) Init() {}
 
 func (e *RuleFilterEvent) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {

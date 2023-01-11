@@ -34,6 +34,8 @@ import (
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -477,6 +479,21 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 	regoCheck := rego.NewCheck(rule)
 	if err := regoCheck.CompileRule(rule, ruleScope, meta, m); err != nil {
 		return nil, err
+	}
+
+	ruleFilterModel := module.NewRuleFilterModel()
+	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+
+	accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+		Filters: rule.Filters,
+	})
+	if err != nil {
+		log.Errorf("failed to apply rule filters: %s", err)
+	}
+
+	if !accepted {
+		log.Infof("rule %s skipped - not matching constraints", rule.ID)
+		return nil, ErrRuleDoesNotApply
 	}
 
 	var notify eventNotify
