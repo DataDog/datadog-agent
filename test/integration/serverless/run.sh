@@ -183,8 +183,8 @@ sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
 
-RAWLOGS_DIR=".serverless/rawlogs/$stage"
-mkdir -p $RAWLOGS_DIR
+RAWLOGS_DIR=$(mktemp -d)
+echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
 for function_name in "${all_functions[@]}"; do
     echo "Fetching logs for ${function_name}..."
