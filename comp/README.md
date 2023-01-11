@@ -51,7 +51,7 @@ supported Datadog intakes.
 
 *Datadog Team*: windows-agent
 
-Package systray implements the "systray" bundle for the Datadog Agent Manager tray application.
+Package systray implements the Datadog Agent Manager System Tray
 
 ### [comp/systray/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray/systray)
 
