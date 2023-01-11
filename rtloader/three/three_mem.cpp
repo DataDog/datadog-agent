@@ -51,7 +51,7 @@ void Three::getPymemStats(pymem_stats_t &s)
 
 // Tracking allocations by Pymalloc. Pymalloc is the optimized
 // allocator used for small-sized allocations in OBJ and MEM
-// domains. These functions track amount of memory requested by the
+// domains. These functions track the amount of memory requested by the
 // allocator from the OS, not how much is actually used by currently
 // reachable python objects (IOW, pymalloc keeps some unused memory
 // around internally to speed up allocations).
