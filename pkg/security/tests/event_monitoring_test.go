@@ -63,7 +63,7 @@ func TestProcessMonitoring(t *testing.T) {
 			return cmd.Run()
 		}, func(event *pmodel.ProcessEvent) bool {
 			return assert.Equal(t, pmodel.Fork.String(), event.EventType.String(), "wrong process event type") &&
-				assert.Equal(t, syscallTester, event.Exe, "wrong executable name") &&
+				assert.Equal(t, syscallTester, event.Exe, "wrong executable path") &&
 				assert.Equal(t, []string{syscallTester, "fork"}, event.Cmdline, "wrong command line") &&
 				assertNearTimeObject(t, event.ForkTime)
 		}, getEventTimeout, syscallTester, pmodel.Fork)
@@ -73,32 +73,34 @@ func TestProcessMonitoring(t *testing.T) {
 	})
 
 	t.Run("exec", func(t *testing.T) {
+		lsExecutable := which(t, "ls")
 		err = test.GetProcessEvent(func() error {
-			cmd := exec.Command(syscallTester, "check")
+			cmd := exec.Command(lsExecutable, "-l")
 			return cmd.Run()
 		}, func(event *pmodel.ProcessEvent) bool {
 			return assert.Equal(t, pmodel.Exec.String(), event.EventType.String(), "wrong process event type") &&
-				assert.Equal(t, syscallTester, event.Exe, "wrong executable name") &&
-				assert.Equal(t, []string{syscallTester, "check"}, event.Cmdline, "wrong command line") &&
+				assert.Equal(t, lsExecutable, event.Exe, "wrong executable path") &&
+				assert.Equal(t, []string{lsExecutable, "-l"}, event.Cmdline, "wrong command line") &&
 				assertNearTimeObject(t, event.ExecTime)
-		}, getEventTimeout, syscallTester, pmodel.Exec)
+		}, getEventTimeout, lsExecutable, pmodel.Exec)
 		if err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("exit", func(t *testing.T) {
+		sleepExecutable := which(t, "sleep")
 		err = test.GetProcessEvent(func() error {
-			cmd := exec.Command(syscallTester, "this-is-a-non-existing-command")
+			cmd := exec.Command(sleepExecutable)
 			_ = cmd.Run()
 			return nil
 		}, func(event *pmodel.ProcessEvent) bool {
 			return assert.Equal(t, pmodel.Exit.String(), event.EventType.String(), "wrong process event type") &&
-				assert.Equal(t, syscallTester, event.Exe, "wrong executable name") &&
-				assert.Equal(t, []string{syscallTester, "this-is-a-non-existing-command"}, event.Cmdline, "wrong command line") &&
+				assert.Equal(t, sleepExecutable, event.Exe, "wrong executable path") &&
+				assert.Equal(t, []string{sleepExecutable}, event.Cmdline, "wrong command line") &&
 				assertNearTimeObject(t, event.ExitTime) &&
 				assert.Equal(t, uint32(1), event.ExitCode, "wrong exit code")
-		}, getEventTimeout, syscallTester, pmodel.Exit)
+		}, getEventTimeout, sleepExecutable, pmodel.Exit)
 		if err != nil {
 			t.Fatal(err)
 		}

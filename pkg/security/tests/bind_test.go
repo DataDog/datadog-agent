@@ -66,9 +66,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBindSchema(t, event)
 		})
 	})
 
@@ -90,9 +88,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, string("0.0.0.0/32"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBindSchema(t, event)
 		})
 	})
 
@@ -114,9 +110,7 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, string("::/128"), event.Bind.Addr.IPNet.String(), "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBindSchema(t, event)
 		})
 	})
 
@@ -139,9 +133,7 @@ func TestBindEvent(t *testing.T) {
 				event.Bind.Addr.IPNet, "wrong address")
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
-			if !validateBindSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateBindSchema(t, event)
 		})
 	})
 }

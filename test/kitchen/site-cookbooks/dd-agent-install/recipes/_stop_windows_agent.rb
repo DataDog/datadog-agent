@@ -6,6 +6,7 @@
 
 powershell_script 'stop-datadog-agent' do
   code <<-EOH
-    Stop-Service -Force -Name "#{node['dd-agent-install']['agent_name']}"
+    sc.exe query "#{node['dd-agent-install']['agent_name']}"
+    sc.exe stop "#{node['dd-agent-install']['agent_name']}"
   EOH
 end

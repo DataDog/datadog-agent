@@ -638,7 +638,7 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 	}
 
 	report := EvalReport{
-		// Event: event,
+		Event: event,
 	}
 
 	approvers, err := ruleSet.GetApprovers(sprobe.GetCapababilities())

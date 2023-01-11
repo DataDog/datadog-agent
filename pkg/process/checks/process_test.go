@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -307,4 +308,23 @@ func TestDisallowList(t *testing.T) {
 		assert.Equal(t, c.disallowListed, isDisallowListed(c.cmdline, disallowList),
 			fmt.Sprintf("Case %v failed", c))
 	}
+}
+
+func TestConnRates(t *testing.T) {
+	p := &ProcessCheck{}
+
+	p.initConnRates()
+
+	var transmitter subscriptions.Transmitter[ProcessConnRates]
+	transmitter.Chs = append(transmitter.Chs, p.connRatesReceiver.Ch)
+
+	rates := ProcessConnRates{
+		1: &model.ProcessNetworks{},
+	}
+	transmitter.Notify(rates)
+
+	close(p.connRatesReceiver.Ch)
+
+	assert.Eventually(t, func() bool { return p.getLastConnRates() != nil }, 10*time.Second, time.Millisecond)
+	assert.Equal(t, rates, p.getLastConnRates())
 }

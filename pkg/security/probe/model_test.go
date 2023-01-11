@@ -74,7 +74,7 @@ func TestProcessArgsFlags(t *testing.T) {
 	})
 
 	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{
@@ -135,7 +135,7 @@ func TestProcessArgsOptions(t *testing.T) {
 	})
 
 	resolver, _ := NewProcessResolver(&manager.Manager{}, &config.Config{}, &statsd.NoOpClient{},
-		&procutil.DataScrubber{}, nil, NewProcessResolverOpts(nil))
+		&procutil.DataScrubber{}, NewProcessResolverOpts(nil))
 
 	e := model.Event{
 		Exec: model.ExecEvent{

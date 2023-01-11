@@ -218,9 +218,6 @@ type Event struct {
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-"`
-
-	// Serializer
-	JSONMarshaler func(ev *Event) ([]byte, error) `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -284,22 +281,6 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
-}
-
-func (ev *Event) String() string {
-	d, err := ev.MarshalJSON()
-	if err != nil {
-		return err.Error()
-	}
-	return string(d)
-}
-
-// MarshalJSON returns the JSON encoding of the event
-func (ev *Event) MarshalJSON() ([]byte, error) {
-	if ev.JSONMarshaler != nil {
-		return ev.JSONMarshaler(ev)
-	}
-	return nil, errors.New("no json marshaller defined for this event")
 }
 
 // Retain the event

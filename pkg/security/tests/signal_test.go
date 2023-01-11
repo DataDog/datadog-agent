@@ -60,9 +60,7 @@ func TestSignalEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Signal.Retval, "wrong retval")
 			assert.Equal(t, event.Async, false)
 
-			if !validateSignalSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSignalSchema(t, event)
 		})
 	})
 
@@ -83,9 +81,7 @@ func TestSignalEvent(t *testing.T) {
 			assert.Equal(t, -int64(unix.EPERM), event.Signal.Retval, "wrong retval")
 			assert.Equal(t, event.Async, false)
 
-			if !validateSignalSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateSignalSchema(t, event)
 		})
 	})
 }

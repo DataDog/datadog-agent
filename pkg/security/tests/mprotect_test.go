@@ -58,9 +58,7 @@ func TestMProtectEvent(t *testing.T) {
 			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
-			if !validateMProtectSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateMProtectSchema(t, event)
 		})
 	})
 }
