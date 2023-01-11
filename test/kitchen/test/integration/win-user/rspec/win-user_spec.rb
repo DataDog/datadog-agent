@@ -153,5 +153,6 @@ describe 'dd-agent-win-user' do
   it_behaves_like 'an Agent with valid permissions'
   it_behaves_like 'a running Agent with no errors'
   it_behaves_like 'a running Agent with APM'
+  it_behaves_like 'a running Agent with process enabled'
 end
   

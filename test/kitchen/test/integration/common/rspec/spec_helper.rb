@@ -559,6 +559,13 @@ shared_examples_for "a running Agent with APM" do
   end
 end
 
+shared_examples_for "a running Agent with process enabled" do
+  it 'has the process agent running' do
+    expect(is_process_running?("process-agent.exe")).to be_truthy
+    expect(is_service_running?("datadog-process-agent")).to be_truthy
+  end
+end
+
 shared_examples_for "a running Agent with APM manually disabled" do
   it 'is not bound to the port that receives traces when apm_enabled is set to false' do
     conf_path = ""
@@ -868,10 +875,6 @@ shared_examples_for 'an Agent with process enabled' do
     expect(confYaml["process_config"]).to have_key("process_collection")
     expect(confYaml["process_config"]["process_collection"]).to have_key("enabled")
     expect(confYaml["process_config"]["process_collection"]["enabled"]).to be_truthy
-  end
-  it 'has the process agent running' do
-    expect(is_process_running?("process-agent.exe")).to be_truthy
-    expect(is_service_running?("datadog-process-agent")).to be_truthy
   end
 end
 
