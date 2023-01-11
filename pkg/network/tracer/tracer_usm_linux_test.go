@@ -199,19 +199,22 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 					}
 					linked, _ := exec.Command(ldd, fetch).Output()
 
+					var prefechLibs []string
 					foundSSLLib := false
 					for _, lib := range tlsLibs {
 						libSSLPath := lib.FindString(string(linked))
 						if _, err := os.Stat(libSSLPath); err == nil {
 							foundSSLLib = true
-							break
+
+							prefechLibs = append(prefechLibs, libSSLPath)
 						}
+
 					}
 					if !foundSSLLib {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
 
-					testHTTPSLibrary(t, test.fetchCmd)
+					testHTTPSLibrary(t, test.fetchCmd, prefechLibs)
 
 				})
 			}
@@ -219,7 +222,7 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -230,13 +233,11 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	err = tr.RegisterClient("1")
 	require.NoError(t, err)
 
-	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
-	go func() {
-		pipesleep := fetchCmd[0] + " | sleep 2"
-		exec.Command("bash", "-c", pipesleep).Run()
-	}()
-	// Give 1 second delay to analyze the ELF binary
-	time.Sleep(1 * time.Second)
+	for _, lib := range prefechLibs {
+		f, _ := os.Open(lib)
+		defer f.Close()
+	}
+	time.Sleep(time.Second)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
