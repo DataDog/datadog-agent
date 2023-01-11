@@ -32,6 +32,8 @@ import (
 	fileutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/file"
 	processutils "github.com/DataDog/datadog-agent/pkg/compliance/utils/process"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
@@ -442,6 +444,22 @@ func (b *builder) checkFromRegoRule(meta *compliance.SuiteMeta, rule *compliance
 	// skip rules with Xccdf input if compliance_config.xccdf.enabled is no optin
 	if !config.Datadog.GetBool("compliance_config.xccdf.enabled") && rule.HasResourceKind(compliance.KindXccdf) {
 		return nil, ErrRuleDoesNotApply
+	}
+
+	if len(rule.Filters) > 0 {
+		ruleFilterModel := module.NewRuleFilterModel()
+		seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
+
+		accepted, err := seclRuleFilter.IsRuleAccepted(&rules.RuleDefinition{
+			Filters: rule.Filters,
+		})
+		if err != nil {
+			log.Errorf("failed to apply rule filters: %s", err)
+		}
+		if !accepted {
+			log.Infof("rule %s skipped - not matching constraints", rule.ID)
+			return nil, ErrRuleDoesNotApply
+		}
 	}
 
 	ruleScope, err := getRuleScope(meta, rule.Scope)
