@@ -92,7 +92,7 @@ var (
 
 // newSystray creates a new systray component, which will start and stop based on
 // the fx Lifecycle
-func newSystray(deps dependencies) (Component, error) {
+func newSystray(deps dependencies) Component {
 	// fx init
 	s := &systray{
 		log:        deps.Log,
@@ -115,7 +115,7 @@ func newSystray(deps dependencies) (Component, error) {
 		s.isUserAdmin = isAdmin
 	}
 
-	return s, nil
+	return s
 }
 
 // start hook has a fx enforced timeout, so don't do long running things

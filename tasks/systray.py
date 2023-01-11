@@ -90,6 +90,6 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove systray executable")
     try:
-        os.remove('./bin/agent/ddtray.exe')
+        os.remove(os.path.join(BIN_PATH, bin_name("ddtray")))
     except Exception as e:
         print(e)
