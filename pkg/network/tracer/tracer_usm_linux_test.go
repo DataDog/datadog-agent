@@ -233,6 +233,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefechLibs []string) {
 	err = tr.RegisterClient("1")
 	require.NoError(t, err)
 
+	// not ideal but, short process are hard to catch
 	for _, lib := range prefechLibs {
 		f, _ := os.Open(lib)
 		defer f.Close()
