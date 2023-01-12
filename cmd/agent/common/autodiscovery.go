@@ -8,7 +8,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"time"
 
 	"go.uber.org/atomic"
@@ -20,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	confad "github.com/DataDog/datadog-agent/pkg/config/autodiscovery"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
