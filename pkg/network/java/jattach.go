@@ -9,6 +9,9 @@
 package java
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/DataDog/gopsutil/process"
 )
 
@@ -24,6 +27,27 @@ func InjectAgent(pid int, agent string, args string) error {
 	gids, err := proc.Gids()
 	if err != nil {
 		return err
+	}
+
+	end := time.Now().Add(2 * time.Second)
+	for end.After(time.Now()) {
+		// wait the java process start the JVM
+		// issue describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
+		// if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
+		// SIGQUIT is sent as part of the hotspot protocol handshake
+		// JVM Threads : "VM Thread", "Reference Handl", "Finalizer", "Signal Dispatch"
+		// "Signal Dispatch" is thread number 19 (x86_64 openjdk 1.8.0_352), so a new magic number ;)
+		nThreads, err := proc.NumThreads()
+		if err != nil {
+			return err
+		}
+		if nThreads > 19 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if time.Now().After(end) {
+		return fmt.Errorf("java process %d didn't start in time, can't inject the agent : timeout", pid)
 	}
 
 	// attach
