@@ -95,7 +95,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (http2_marker_prefix(http2->request_fragment, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE)) {
         // Validate that the extra 15 bytes after the prefix is the suffix of the magic.
         if (is_http2_preface(http2->request_fragment,  skb->len)) {
-            log_debug("[http2] http2 magic was found");
+            log_debug("[http2 - logs] http2 magic was found");
         }
         // Validate that there are more frames after the magic.
         if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {

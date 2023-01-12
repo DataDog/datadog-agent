@@ -11,6 +11,7 @@ package http
 import (
 	"bytes"
 	"encoding/hex"
+	"golang.org/x/net/http2/hpack"
 	"strconv"
 	"strings"
 )
@@ -20,6 +21,14 @@ import (
 // Example:
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx *ebpfHttpTx) Path(buffer []byte) ([]byte, bool) {
+	isHTTP2Patch := tx.Request_fragment[0] == 'z'
+	if isHTTP2Patch {
+		str, err := hpack.HuffmanDecodeToString(tx.Request_fragment[8 : 8+tx.Request_fragment[1]])
+		if err != nil {
+			return nil, false
+		}
+		return []byte(str), true
+	}
 	bLen := bytes.IndexByte(tx.Request_fragment[:], 0)
 	if bLen == -1 {
 		bLen = len(tx.Request_fragment)

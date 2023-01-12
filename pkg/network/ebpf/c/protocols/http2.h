@@ -2,7 +2,6 @@
 #define __HTTP2_H
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
-#define HTTP2_FRAME_HEADER_SIZE 9
 #define HTTP2_SETTINGS_SIZE 6
 
 #include "bpf_builtins.h"
@@ -36,6 +35,7 @@ struct http2_frame {
     frame_type_t type;
     uint8_t flags;
     uint32_t stream_id;
+    bool end_of_stream;
 };
 
 static __always_inline uint32_t as_uint32_t(unsigned char input) {
@@ -57,14 +57,17 @@ static __always_inline bool is_empty_frame_header(const char *frame) {
 // This function reads the http2 frame header and validate the frame.
 static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_size, struct http2_frame *out) {
     if (buf == NULL) {
+        log_debug("[http2 - error] the buffer is null");
         return false;
     }
 
     if (buf_size < HTTP2_FRAME_HEADER_SIZE) {
+        log_debug("[http2 - error] the buffer is smaller then the HTTP2_FRAME_HEADER_SIZE");
         return false;
     }
 
     if (is_empty_frame_header(buf)) {
+        log_debug("[http2 - error] the buf is empty!");
         return false;
     }
 
@@ -77,7 +80,6 @@ static __always_inline bool read_http2_frame_header(const char *buf, size_t buf_
                       as_uint32_t(buf[6]) << 16 |
                       as_uint32_t(buf[7]) << 8 |
                       as_uint32_t(buf[8])) & 2147483647;
-
     return true;
 }
 

@@ -73,8 +73,14 @@ static __always_inline void http_enqueue(http_transaction_t *http) {
         return;
     }
 
+//    if (sizeof(http->request_fragment)> 2){
+//        log_debug("[tasik2] ------------ first char of in http transaction the path bla in 0 spot is %c", http->request_fragment[0]);
+//        log_debug("[tasik2] ------------ first char of the path http transaction  bla in 1 spot is %c", http->request_fragment[1]);
+//        log_debug("[tasik2] ------------ first char of in http transaction the path bla in 3 spot is %c", http->request_fragment[2]);
+//    }
+
     bpf_memcpy(&batch->txs[batch->pos], http, sizeof(http_transaction_t));
-    log_debug("[tasik2] http_enqueue: htx=%llx path=%s\n", http, http->request_fragment);
+    log_debug("[tasik2] http_enqueue: htx=%llx path=%s, method=%d\n", http, http->request_fragment, http->request_method);
     log_debug("[tasik2] http transaction enqueued: cpu: %d batch_idx: %d pos: %d\n", key.cpu, batch_state->idx, batch->pos);
     batch->pos++;
     batch->idx = batch_state->idx;

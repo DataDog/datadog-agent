@@ -2,7 +2,6 @@
 #define __HTTP2_DECODING_H
 
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Format" section
-#define HTTP2_FRAME_HEADER_SIZE 9
 #define HTTP2_SETTINGS_SIZE 6
 
 #include "bpf_builtins.h"
@@ -65,7 +64,6 @@ static __always_inline void http2_update_seen_before(http2_transaction_t *http2,
         return;
     }
 
-    log_debug("http2_update_seen_before: htx=%llx old_seq=%d seq=%d\n", http2, http2->tcp_seq, skb_info->tcp_seq);
     http2->tcp_seq = skb_info->tcp_seq;
 }
 
@@ -149,26 +147,26 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
     }
 
     if (packet_type != 0){
-        log_debug("[tasik] ----------------------------------");
-        log_debug("[tasik] XXXXXXXXXXXXXXXXXXXXXXXXXX The method is %d", method);
-        log_debug("[tasik] XXXXXXXXXXXXXXXXXXXXXXXXXX The packet_type is %d", packet_type);
-        log_debug("[tasik] XXXXXXXXXXXXXXXXXXXXXXXXXX The schema is %d", schema);
-        log_debug("[tasik] ----------------------------------");
+        log_debug("[tasik2] ----------------------------------");
+        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The method is %d", method);
+        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The packet_type is %d", packet_type);
+        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The schema is %d", schema);
+        log_debug("[tasik2] ----------------------------------");
     }
 
     if (packet_type == 2) {
         packet_type = HTTP2_REQUEST;
-             log_debug("[tasik] ------------ first char of the path bla in 0 spot is %c", http2_stack->path[0]);
-             log_debug("[tasik] ------------ first char of the path bla in 1 spot is %c", http2_stack->path[1]);
-             log_debug("[tasik] ------------ first char of the path bla in 2 spot is %c", http2_stack->path[2]);
+             log_debug("[tasik2] ------------ first char of the path bla in 0 spot is %c", http2_stack->path[0]);
+             log_debug("[tasik2] ------------ first char of the path bla in 1 spot is %c", http2_stack->path[1]);
+             log_debug("[tasik2] ------------ first char of the path bla in 2 spot is %c", http2_stack->path[2]);
              log_debug("[tasik] ------------ first char of the path bla in 3 spot is %c", http2_stack->path[3]);
              log_debug("[tasik] ------------ first char of the path bla in 4 spot is %c", http2_stack->path[4]);
              log_debug("[tasik] ------------ first char of the path bla in 5 spot is %c", http2_stack->path[5]);
              log_debug("[tasik] ----------------------------------");
 
-             log_debug("[tasik] ------------ first char of the authority bla in 0 spot is %c", http2_stack->authority[0]);
-             log_debug("[tasik] ------------ first char of the authority bla in 1 spot is %c", http2_stack->authority[1]);
-             log_debug("[tasik] ------------ first char of the authority bla in 2 spot is %c", http2_stack->authority[2]);
+             log_debug("[tasik2] ------------ first char of the authority bla in 0 spot is %c", http2_stack->authority[0]);
+             log_debug("[tasik2] ------------ first char of the authority bla in 1 spot is %c", http2_stack->authority[1]);
+             log_debug("[tasik2] ------------ first char of the authority bla in 2 spot is %c", http2_stack->authority[2]);
              log_debug("[tasik] ------------ first char of the authority bla in 3 spot is %c", http2_stack->authority[3]);
              log_debug("[tasik] ------------ first char of the authority bla in 4 spot is %c", http2_stack->authority[4]);
              log_debug("[tasik] ------------ first char of the authority bla in 5 spot is %c", http2_stack->authority[5]);
@@ -180,6 +178,7 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
 
     http2_transaction_t *http2 = http2_fetch_state(http2_stack, packet_type);
     if (!http2 || http2_seen_before(http2, skb_info)) {
+        log_debug("[tasik2] the http2 have been seens before!");
         return 0;
     }
 
@@ -196,21 +195,30 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
 
     http2->tags |= tags;
 
-    log_debug("[tasik] we are here! 1");
     if (http2_responding(http2)) {
         http2->response_last_seen = bpf_ktime_get_ns();
     }
 
-    log_debug("[tasik] we are here! 2");
     if (http2_stack->end_of_stream) {
-        log_debug("[tasik] we are here! 2.1");
-
         http_transaction_t http;
         bpf_memset(&http, 0, sizeof(http));
         bpf_memcpy(&http.tup, &http2_stack->tup, sizeof(conn_tuple_t));
+
+        dynamic_table_index dynamic_index = {};
+        dynamic_index.index = 1;
+        dynamic_index.old_tup = http2_stack->tup;
+
+        // todo: fix the issue with the path size
+        http2_transaction_t *trans = bpf_map_lookup_elem(&http2_in_flight, &http2->old_tup);
+        if (trans != NULL) {
+            http.request_fragment[0] = 'z';
+            http.request_fragment[1] = http2->path_size;
+            bpf_memcpy(&http.request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
+        }
+
         http.request_started = http2->request_started;
         http.request_method = http2->request_method;
-        http.response_status_code = 200;
+        http.response_status_code = k200;
         http.response_last_seen = http2-> response_last_seen;
         http.owned_by_src_port = http2->owned_by_src_port;
         http.tcp_seq = http2->tcp_seq;
@@ -296,12 +304,6 @@ static __always_inline void parse_field_indexed(http2_transaction_t* http2_trans
             // we change the index to fit our internal dynamic table implementation index.
             // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
             __u64 new_index = *global_counter - (index - 62);
-//            log_debug("[tasik] ------------");
-//            log_debug("[tasik] the global_counter is %d", *global_counter);
-//            log_debug("[tasik] the hpack index is %d", index);
-//            log_debug("[tasik] the new_index is %d", new_index);
-//            log_debug("[tasik] ------------");
-
             dynamic_table_index dynamic_index = {};
             dynamic_index.index = new_index;
             dynamic_index.old_tup = http2_transaction->old_tup;
@@ -311,6 +313,7 @@ static __always_inline void parse_field_indexed(http2_transaction_t* http2_trans
                 // index 5 represents the :path header - from dynamic table
                 if ((dynamic_value_new->index == 5) && (sizeof(dynamic_value_new->value.buffer)>0)){
                     bpf_memcpy(http2_transaction->path, dynamic_value_new->value.buffer, HTTP2_MAX_PATH_LEN);
+                    http2_transaction->path_size = dynamic_value_new->value.string_len;
                 }
 
                 // index 1 represents the :path header - from dynamic table
@@ -400,6 +403,7 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
         // index 5 represents the :path header - from static table
         if ((index == 5) && (sizeof(dynamic_value.value.buffer)>0)){
             bpf_memcpy(http2_transaction->path, dynamic_value.value.buffer, HTTP2_MAX_PATH_LEN);
+            http2_transaction->path_size = str_len;
         }
 
         // index 1 represents the :authority header - from static table
@@ -460,15 +464,17 @@ static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http
 
 // This function filters the needed frames from the http2 session.
 static __always_inline void process_http2_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
-    log_debug("[http2] http2 process_http2_frames");
-
     struct http2_frame current_frame = {};
 
 #pragma unroll
     // Iterate till max frames to avoid high connection rate.
     for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; ++i) {
+        log_debug("[tasik2] the current spot in the http2_transaction->current_offset_in_request_fragment is %d", http2_transaction->current_offset_in_request_fragment);
         if (http2_transaction->current_offset_in_request_fragment + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-        log_debug("[http2] size is too big!");
+            log_debug("[tasik2] ----------");
+            log_debug("[tasik2] skb len is%d", skb->len);
+            log_debug("[tasik2] the fragment with the header size  is %d", http2_transaction->current_offset_in_request_fragment + HTTP2_FRAME_HEADER_SIZE);
+            log_debug("[tasik2] ----------");
           return;
         }
 
@@ -483,10 +489,18 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
 
         http2_transaction->current_offset_in_request_fragment += HTTP2_FRAME_HEADER_SIZE;
 
+        http2_transaction->stream_id = current_frame.stream_id;
+
         // End of stream my apper in the data frame as well as the header frame.
-        if (current_frame.type == kDataFrame && current_frame.flags == 1){
+        log_debug("[tasik2] ----------");
+        log_debug("[tasik2] flag is %d", current_frame.flags);
+        log_debug("[tasik2] length is %d", current_frame.length);
+        log_debug("[tasik2] type is %d", current_frame.type);
+        log_debug("[tasik2] ----------");
+
+        if (current_frame.type == kDataFrame && ((current_frame.flags&1) == 1)){
+           log_debug("[tasik2] *********--------- found end of stream in data frame!!!!");
            http2_transaction->end_of_stream = true;
-           log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
         }
 
         if (current_frame.length == 0) {
@@ -500,9 +514,10 @@ static __always_inline void process_http2_frames(http2_transaction_t* http2_tran
         }
 
         // End of stream my apper in the header frame as well.
-        if (current_frame.flags == 1){
+        if ((current_frame.flags&1) == 1) {
+           log_debug("[tasik2] *********--------- found end of stream in header frame!!!!");
            http2_transaction->end_of_stream = true;
-           log_debug("[http2] ********* End of stream flag was found!!! *********", current_frame.stream_id);
+//           log_debug("[http3] ********* End of stream flag2 was found for stream id: %d!!! *********", current_frame.stream_id, http2_transaction->stream_id);
         }
 
         // Verify size of pos with max of XX not bigger then the packet.

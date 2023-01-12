@@ -5,7 +5,7 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 5
+#define HTTP2_MAX_FRAMES 10
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.
@@ -121,6 +121,8 @@ typedef struct {
     __u8  request_method;
     __u8  packet_type;
     __u8  schema;
+    __u8  stream_id;
+    __u64  path_size;
     char path[32] __attribute__ ((aligned (8)));
     char authority[32] __attribute__ ((aligned (8)));
 } http2_transaction_t;
