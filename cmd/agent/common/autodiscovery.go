@@ -309,7 +309,7 @@ func filterInstances(instances []integration.Data, instanceFilter string) ([]int
 	for _, instance := range instances {
 		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
 		if err != nil {
-			return nil, fmt.Errorf("instance filter errorxx: %v", err)
+			return nil, fmt.Errorf("instance filter error: %v", err)
 		}
 		if exist {
 			newInstances = append(newInstances, instance)
