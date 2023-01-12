@@ -195,8 +195,8 @@ require (
 	golang.org/x/text v0.6.0
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306
 	golang.org/x/tools v0.5.0
-	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
-	google.golang.org/grpc v1.51.0
+	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
+	google.golang.org/grpc v1.52.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/DataDog/dd-trace-go.v1 v1.37.0
@@ -224,7 +224,7 @@ require (
 	cloud.google.com/go v0.105.0 // indirect
 	cloud.google.com/go/compute v1.12.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
-	cloud.google.com/go/iam v0.6.0 // indirect
+	cloud.google.com/go/iam v0.7.0 // indirect
 	cloud.google.com/go/storage v1.28.0 // indirect
 	code.cloudfoundry.org/cfhttp/v2 v2.0.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
