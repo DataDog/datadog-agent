@@ -27,10 +27,14 @@ func CPUInfo() (map[string]string, error) {
 func TestCPUCheckWindows(t *testing.T) {
 	cpuInfo = CPUInfo
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
-	pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Interrupt Time", 0.1)
-	pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Idle Time", 80.1)
-	pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% User Time", 11.3)
-	pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
+	// The counters will have GetValue called twice because of the "Processor Information" issue workaround
+	// see AddToQuery() in cpu_windows.go
+	for i := 0; i < 2; i++ {
+		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Interrupt Time", 0.1)
+		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Idle Time", 80.1)
+		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% User Time", 11.3)
+		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
+	}
 
 	cpuCheck := new(Check)
 	cpuCheck.Configure(integration.FakeConfigHash, nil, nil, "test")

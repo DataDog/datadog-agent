@@ -4,12 +4,16 @@
 #include <linux/types.h>
 
 #include "protocol-dispatcher-maps.h"
-#include "protocol-classification-helpers.h"
+#include "protocol-classification.h"
 #include "ip.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
     return skb_info->tcp_flags & (TCPHDR_FIN | TCPHDR_RST);
+}
+
+static __always_inline bool is_tcp_ack(skb_info_t *skb_info) {
+    return skb_info->tcp_flags == TCPHDR_ACK;
 }
 
 // checks if we have seen that tcp packet before. It can happen if a packet travels multiple interfaces or retransmissions.
@@ -41,8 +45,8 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         return;
     }
 
-    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets.
-    if (!is_tcp(&skb_tup) || (is_payload_empty(skb, &skb_info) && !is_tcp_termination(&skb_info))) {
+    // We don't process non tcp packets, nor empty tcp packets which are not tcp termination packets, nor ACK only packets.
+    if (!is_tcp(&skb_tup) || is_tcp_ack(&skb_info) || (is_payload_empty(skb, &skb_info) && !is_tcp_termination(&skb_info))) {
         return;
     }
 
@@ -56,26 +60,20 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
     // TODO: Share with protocol classification
     protocol_t *cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &skb_tup);
     if (cur_fragment_protocol_ptr == NULL) {
-        conn_tuple_t inverse_skb_conn_tup = skb_tup;
-        flip_tuple(&inverse_skb_conn_tup);
-
-        cur_fragment_protocol_ptr = bpf_map_lookup_elem(&dispatcher_connection_protocol, &inverse_skb_conn_tup);
-
-        // If we've already identified the protocol of the socket, no need to read the buffer and try to classify it.
-        if (cur_fragment_protocol_ptr == NULL) {
-            log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
-            char request_fragment[CLASSIFICATION_MAX_BUFFER];
-            bpf_memset(request_fragment, 0, sizeof(request_fragment));
-            read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
-            const size_t payload_length = skb->len - skb_info.data_off;
-            const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-            classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
-            log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
-            // If there has been a change in the classification, save the new protocol.
-            if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
-                bpf_map_update_with_telemetry(dispatcher_connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
-                bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
-            }
+        log_debug("[protocol_dispatcher_entrypoint]: %p was not classified\n", skb);
+        char request_fragment[CLASSIFICATION_MAX_BUFFER];
+        bpf_memset(request_fragment, 0, sizeof(request_fragment));
+        read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
+        const size_t payload_length = skb->len - skb_info.data_off;
+        const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
+        classify_protocol(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
+        log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
+        // If there has been a change in the classification, save the new protocol.
+        if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {
+            bpf_map_update_with_telemetry(dispatcher_connection_protocol, &skb_tup, &cur_fragment_protocol, BPF_NOEXIST);
+            conn_tuple_t inverse_skb_conn_tup = skb_tup;
+            flip_tuple(&inverse_skb_conn_tup);
+            bpf_map_update_with_telemetry(dispatcher_connection_protocol, &inverse_skb_conn_tup, &cur_fragment_protocol, BPF_NOEXIST);
         }
     } else {
         cur_fragment_protocol = *cur_fragment_protocol_ptr;
@@ -85,7 +83,6 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         // dispatch if possible
         bpf_tail_call_compat(skb, &protocols_progs, cur_fragment_protocol);
     }
-
 }
 
 #endif

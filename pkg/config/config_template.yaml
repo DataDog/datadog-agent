@@ -711,17 +711,6 @@ api_key:
 #
 # secret_backend_skip_checks: false
 
-## @param secret_backend_command_sha256 - string - optional
-## @env DD_SECRET_BACKEND_COMMAND_SHA256 - string - optional
-## `secret_backend_command_sha256` is the expected SHA256 of the backend command executable.
-## If `secret_backend_command_sha256` is used, the following restrictions are in place:
-## - Value specified in the `secret_backend_command` setting must be an absolute path.
-## - Permissions for the datadog.yaml config file must disallow write access by unprivileged accounts.
-## The agent will refuse to start if the actual SHA256 of 'secret_backend_command' executable is different
-## from the one specified by `secret_backend_command_sha256`.
-#
-# secret_backend_command_sha256: <SHA256>
-
 ## @param snmp_listener - custom object - optional
 ## Creates and schedules a listener to automatically discover your SNMP devices.
 ## Discovered devices can then be monitored with the SNMP integration by using
@@ -1536,6 +1525,20 @@ api_key:
   ## Set to true to enable the Network Module of the System Probe
   #
   # enabled: false
+
+{{ end -}}
+
+{{- if .UniversalServiceMonitoringModule }}
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
 
 {{ end -}}
 

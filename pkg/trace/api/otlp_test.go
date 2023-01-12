@@ -117,15 +117,15 @@ func TestOTLPMetrics(t *testing.T) {
 		},
 	}).Traces().ResourceSpans()
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, "")
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, "")
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
-	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry__v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 3, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.spans", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 1, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
+	assert.Contains(calls, teststatsd.MetricsArgs{Name: "datadog.trace_agent.otlp.traces", Value: 2, Tags: []string{"tracer_version:otlp-", "endpoint_version:opentelemetry_grpc_v1"}, Rate: 1})
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
@@ -142,7 +142,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 				{Name: "asd"},
 			},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{}, "")
+	}).Traces().ResourceSpans().At(0), http.Header{})
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -341,7 +341,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -363,9 +363,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 		}).Traces().ResourceSpans().At(0)
-		_, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
-		require.False(ok)
-		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
+		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
@@ -373,19 +371,6 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 		case p := <-out:
 			// stats are computed this time
 			require.False(p.ClientComputedStats)
-		}
-		// after the first receive, the keyStatsComputed attribute has to be applied,
-		// so that on the second run stats are skipped
-		v, ok := rspans.Resource().Attributes().Get(keyStatsComputed)
-		require.True(ok)
-		require.Equal("true", v.AsString())
-		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, "agent_tests")
-		select {
-		case <-timeout:
-			t.Fatal("timed out")
-		case p := <-out:
-			// stats are not computed the second time
-			require.True(p.ClientComputedStats)
 		}
 	})
 }
@@ -467,7 +452,7 @@ func TestOTLPHostname(t *testing.T) {
 				Attributes: rattr,
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
-		}).Traces().ResourceSpans().At(0), http.Header{}, "")
+		}).Traces().ResourceSpans().At(0), http.Header{})
 		assert.Equal(t, src.Kind, source.HostnameKind)
 		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
@@ -490,23 +475,7 @@ func TestOTLPReceiver(t *testing.T) {
 		o := NewOTLPReceiver(nil, config.New())
 		o.Start()
 		defer o.Stop()
-		assert.Nil(t, o.httpsrv)
 		assert.Nil(t, o.grpcsrv)
-	})
-
-	t.Run("Start/http", func(t *testing.T) {
-		port := testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.Nil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
-		assert.Equal(t, fmt.Sprintf("localhost:%d", port), o.httpsrv.Addr)
 	})
 
 	t.Run("Start/grpc", func(t *testing.T) {
@@ -520,7 +489,6 @@ func TestOTLPReceiver(t *testing.T) {
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
-		assert.Nil(o.httpsrv)
 		assert.NotNil(o.grpcsrv)
 		svc, ok := o.grpcsrv.GetServiceInfo()["opentelemetry.proto.collector.trace.v1.TraceService"]
 		assert.True(ok)
@@ -528,25 +496,10 @@ func TestOTLPReceiver(t *testing.T) {
 		assert.Equal("Export", svc.Methods[0].Name)
 	})
 
-	t.Run("Start/http+grpc", func(t *testing.T) {
-		port1, port2 := testutil.FreeTCPPort(t), testutil.FreeTCPPort(t)
-		cfg := config.New()
-		cfg.OTLPReceiver = &config.OTLP{
-			BindHost: "localhost",
-			HTTPPort: port1,
-			GRPCPort: port2,
-		}
-		o := NewOTLPReceiver(nil, cfg)
-		o.Start()
-		defer o.Stop()
-		assert.NotNil(t, o.grpcsrv)
-		assert.NotNil(t, o.httpsrv)
-	})
-
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
-		o.processRequest(context.Background(), otlpProtocolGRPC, http.Header(map[string][]string{
+		o.processRequest(context.Background(), http.Header(map[string][]string{
 			headerLang:        {"go"},
 			headerContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
@@ -783,7 +736,7 @@ func TestOTLPHelpers(t *testing.T) {
 			headerLangVersion:           {"1.14"},
 			headerLangInterpreter:       {"x"},
 			headerLangInterpreterVendor: {"y"},
-		}), otlpProtocolGRPC)
+		}))
 		assert.Equal(t, []string{"endpoint_version:opentelemetry_grpc_v1", "lang:go", "lang_version:1.14", "interpreter:x", "lang_vendor:y"}, out)
 	})
 }
@@ -1302,7 +1255,7 @@ func BenchmarkProcessRequest(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		r.processRequest(context.Background(), otlpProtocolHTTP, metadata, otlpTestTracesRequest)
+		r.processRequest(context.Background(), metadata, otlpTestTracesRequest)
 	}
 	b.StopTimer()
 	end <- struct{}{}

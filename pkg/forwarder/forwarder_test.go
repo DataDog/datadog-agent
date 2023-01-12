@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -141,7 +140,7 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 4)
 	assert.Equal(t, testVersionDomain, transactions[0].Domain)
 	assert.Equal(t, testVersionDomain, transactions[1].Domain)
@@ -161,13 +160,6 @@ func TestCreateHTTPTransactions(t *testing.T) {
 	assert.Equal(t, p1, transactions[1].Payload.GetContent())
 	assert.Equal(t, p2, transactions[2].Payload.GetContent())
 	assert.Equal(t, p2, transactions[3].Payload.GetContent())
-
-	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
-	require.Len(t, transactions, 4)
-	assert.Contains(t, transactions[0].Endpoint.Route, "api_key=api-key-1")
-	assert.Contains(t, transactions[1].Endpoint.Route, "api_key=api-key-2")
-	assert.Contains(t, transactions[2].Endpoint.Route, "api_key=api-key-1")
-	assert.Contains(t, transactions[3].Endpoint.Route, "api_key=api-key-2")
 }
 
 func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
@@ -178,7 +170,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 3, "should contain 3 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar []*transaction.HTTPTransaction
@@ -194,14 +186,15 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
+
+	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
 }
 
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
@@ -216,7 +209,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 4, "should contain 4 transactions, contains %d", len(transactions))
 
 	var txNormal, txBar, txVector []*transaction.HTTPTransaction
@@ -235,15 +228,15 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	assert.Equal(t, len(txNormal), 2, "Two transactions should target the normal domain")
 	assert.Equal(t, len(txBar), 1, "One transactions should target the normal domain")
 
-	if strings.HasSuffix(txNormal[0].Endpoint.Route, "api-key-1") {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-2")
+	if txNormal[0].Headers.Get("DD-Api-Key") == "api-key-1" {
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-1")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-2")
 	} else {
-		assert.Equal(t, txNormal[0].Endpoint.Route, "/api/foo?api_key=api-key-2")
-		assert.Equal(t, txNormal[1].Endpoint.Route, "/api/foo?api_key=api-key-1")
+		assert.Equal(t, txNormal[0].Headers.Get("DD-Api-Key"), "api-key-2")
+		assert.Equal(t, txNormal[1].Headers.Get("DD-Api-Key"), "api-key-1")
 	}
-	assert.Equal(t, txBar[0].Endpoint.Route, "/api/foo?api_key=api-key-3")
-	assert.Equal(t, txVector[0].Endpoint.Route, "/api/foo?api_key=api-key-4")
+	assert.Equal(t, txBar[0].Headers.Get("DD-Api-Key"), "api-key-3")
+	assert.Equal(t, txVector[0].Headers.Get("DD-Api-Key"), "api-key-4")
 }
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
@@ -259,17 +252,17 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	headers := make(http.Header)
 	headers.Set("HTTP-MAGIC", "foo")
 
-	transactions := forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
-	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
 	assert.Equal(t, transactions[0].Domain, testVersionDomain)
 
 	endpoint.Name = "diverted"
-	transactions = forwarder.createHTTPTransactions(endpoint, payloads, true, headers)
+	transactions = forwarder.createHTTPTransactions(endpoint, payloads, headers)
 	require.Len(t, transactions, 1, "should contain 1 transaction, contains %d", len(transactions))
 
-	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo?api_key=api-key-1")
+	assert.Equal(t, transactions[0].Endpoint.Route, "/api/foo")
 	assert.Equal(t, transactions[0].Domain, "vector.tld")
 }
 
@@ -283,7 +276,7 @@ func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	payload := []byte("A payload")
 	headers := make(http.Header)
 
-	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), false, headers)
+	transactions := forwarder.createHTTPTransactions(endpoint, transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload}), headers)
 	require.True(t, len(transactions) > 0)
 	assert.Equal(t, "true", transactions[0].Headers.Get(arbitraryTagHTTPHeaderKey))
 }
@@ -294,7 +287,7 @@ func TestSendHTTPTransactions(t *testing.T) {
 	p1 := []byte("A payload")
 	payloads := transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&p1})
 	headers := make(http.Header)
-	tr := forwarder.createHTTPTransactions(endpoint, payloads, false, headers)
+	tr := forwarder.createHTTPTransactions(endpoint, payloads, headers)
 
 	// fw is stopped, we should get an error
 	err := forwarder.sendHTTPTransactions(tr)
@@ -424,7 +417,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -482,7 +475,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -536,7 +529,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
 	attempts := atomic.NewInt64(0)
@@ -595,7 +588,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("key", "value")
 
-	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, false, headers)
+	transactions := f.createHTTPTransactions(endpoints.SeriesEndpoint, payload, headers)
 	require.Len(t, transactions, 1)
 
 	responses, err := f.submitProcessLikePayload(endpoints.SeriesEndpoint, payload, headers, true)

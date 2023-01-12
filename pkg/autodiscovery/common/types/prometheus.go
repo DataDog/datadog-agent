@@ -88,16 +88,18 @@ type OpenmetricsInstance struct {
 	MinCollectInterval            int                         `mapstructure:"min_collection_interval" yaml:"min_collection_interval,omitempty" json:"min_collection_interval,omitempty"`
 	EmptyDefaultHost              bool                        `mapstructure:"empty_default_hostname" yaml:"empty_default_hostname,omitempty" json:"empty_default_hostname,omitempty"`
 	MaxReturnedMetrics            int                         `mapstructure:"max_returned_metrics" yaml:"max_returned_metrics,omitempty" json:"max_returned_metrics,omitempty"`
+	TagByEndpoint                 *bool                       `mapstructure:"tag_by_endpoint" yaml:"tag_by_endpoint,omitempty" json:"tag_by_endpoint,omitempty"`
 
 	// openmetrics v2 specific fields
-	OpenMetricsEndpoint             string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                                           // Supersedes `prometheus_url`
-	ExcludeMetrics                  []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                                                          // Supersedes `ignore_metrics`
-	RawPrefix                       string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                                                    // Supersedes `prometheus_metrics_prefix`
-	EnableHealthCheck               *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"`                      // Supersedes `health_service_check`
-	RenameLabels                    map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                                                // Supersedes `labels_mapper`
-	ShareLabels                     map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                                                   // Supersedes `label_joins`
-	CollectHistogramBuckets         *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"`                            // Supersedes `send_histograms_buckets`
-	HistogramBucketsAsDistributions bool                         `mapstructure:"histogram_buckets_as_distributions" yaml:"histogram_buckets_as_distributions,omitempty" json:"histogram_buckets_as_distributions,omitempty"` // Supersedes `send_distribution_buckets`
+	OpenMetricsEndpoint              string                       `mapstructure:"openmetrics_endpoint" yaml:"openmetrics_endpoint,omitempty" json:"openmetrics_endpoint,omitempty"`                                           // Supersedes `prometheus_url`
+	ExcludeMetrics                   []string                     `mapstructure:"exclude_metrics" yaml:"exclude_metrics,omitempty" json:"exclude_metrics,omitempty"`                                                          // Supersedes `ignore_metrics`
+	RawPrefix                        string                       `mapstructure:"raw_metric_prefix" yaml:"raw_metric_prefix,omitempty" json:"raw_metric_prefix,omitempty"`                                                    // Supersedes `prometheus_metrics_prefix`
+	EnableHealthCheck                *bool                        `mapstructure:"enable_health_service_check" yaml:"enable_health_service_check,omitempty" json:"enable_health_service_check,omitempty"`                      // Supersedes `health_service_check`
+	RenameLabels                     map[string]string            `mapstructure:"rename_labels" yaml:"rename_labels,omitempty" json:"rename_labels,omitempty"`                                                                // Supersedes `labels_mapper`
+	ShareLabels                      map[string]ShareLabelsConfig `mapstructure:"share_labels" yaml:"share_labels,omitempty" json:"share_labels,omitempty"`                                                                   // Supersedes `label_joins`
+	CollectHistogramBuckets          *bool                        `mapstructure:"collect_histogram_buckets" yaml:"collect_histogram_buckets,omitempty" json:"collect_histogram_buckets,omitempty"`                            // Supersedes `send_histograms_buckets`
+	HistogramBucketsAsDistributions  bool                         `mapstructure:"histogram_buckets_as_distributions" yaml:"histogram_buckets_as_distributions,omitempty" json:"histogram_buckets_as_distributions,omitempty"` // Supersedes `send_distribution_buckets`
+	CollectCountersWithDistributions bool                         `mapstructure:"collect_counters_with_distributions" yaml:"collect_counters_with_distributions,omitempty" json:"collect_counters_with_distributions,omitempty"`
 }
 
 // LabelJoinsConfig contains the label join configuration fields

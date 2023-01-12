@@ -8,11 +8,10 @@
 package check
 
 import (
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 )
 
-func SecAgentCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }

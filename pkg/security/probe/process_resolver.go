@@ -29,7 +29,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
-	pconfig "github.com/DataDog/datadog-agent/pkg/process/config"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -103,7 +103,7 @@ type ProcessResolver struct {
 	manager      *manager.Manager
 	config       *config.Config
 	statsdClient statsd.ClientInterface
-	scrubber     *pconfig.DataScrubber
+	scrubber     *procutil.DataScrubber
 
 	resolvers        *Resolvers
 	execFileCacheMap *lib.Map
@@ -856,7 +856,7 @@ func (p *ProcessResolver) resolveFromProcfs(pid uint32, maxDepth int) *model.Pro
 	entry, inserted := p.syncCache(proc, filledProc)
 	if entry != nil {
 		// consider kworker processes with 0 as ppid
-		entry.IsKworker = filledProc.Ppid == 0
+		entry.IsKworker = filledProc.Ppid == 0 && filledProc.Pid != 1
 	}
 
 	ppid = uint32(filledProc.Ppid)
@@ -1012,7 +1012,7 @@ func (p *ProcessResolver) Get(pid uint32) *model.ProcessCacheEntry {
 }
 
 // UpdateUID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateUID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1022,16 +1022,16 @@ func (p *ProcessResolver) UpdateUID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.UID = e.SetUID.UID
-		entry.Credentials.User = e.ResolveSetuidUser(&e.SetUID)
+		entry.Credentials.User = e.FieldHandlers.ResolveSetuidUser(e, &e.SetUID)
 		entry.Credentials.EUID = e.SetUID.EUID
-		entry.Credentials.EUser = e.ResolveSetuidEUser(&e.SetUID)
+		entry.Credentials.EUser = e.FieldHandlers.ResolveSetuidEUser(e, &e.SetUID)
 		entry.Credentials.FSUID = e.SetUID.FSUID
-		entry.Credentials.FSUser = e.ResolveSetuidFSUser(&e.SetUID)
+		entry.Credentials.FSUser = e.FieldHandlers.ResolveSetuidFSUser(e, &e.SetUID)
 	}
 }
 
 // UpdateGID updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateGID(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1041,16 +1041,16 @@ func (p *ProcessResolver) UpdateGID(pid uint32, e *Event) {
 	entry := p.entryCache[pid]
 	if entry != nil {
 		entry.Credentials.GID = e.SetGID.GID
-		entry.Credentials.Group = e.ResolveSetgidGroup(&e.SetGID)
+		entry.Credentials.Group = e.FieldHandlers.ResolveSetgidGroup(e, &e.SetGID)
 		entry.Credentials.EGID = e.SetGID.EGID
-		entry.Credentials.EGroup = e.ResolveSetgidEGroup(&e.SetGID)
+		entry.Credentials.EGroup = e.FieldHandlers.ResolveSetgidEGroup(e, &e.SetGID)
 		entry.Credentials.FSGID = e.SetGID.FSGID
-		entry.Credentials.FSGroup = e.ResolveSetgidFSGroup(&e.SetGID)
+		entry.Credentials.FSGroup = e.FieldHandlers.ResolveSetgidFSGroup(e, &e.SetGID)
 	}
 }
 
 // UpdateCapset updates the credentials of the provided pid
-func (p *ProcessResolver) UpdateCapset(pid uint32, e *Event) {
+func (p *ProcessResolver) UpdateCapset(pid uint32, e *model.Event) {
 	if e.ProcessContext.Pid != e.ProcessContext.Tid {
 		return
 	}
@@ -1289,7 +1289,7 @@ func (p *ProcessResolver) NewProcessVariables(scoper func(ctx *eval.Context) uns
 
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *pconfig.DataScrubber, resolvers *Resolvers, opts ProcessResolverOpts) (*ProcessResolver, error) {
+	scrubber *procutil.DataScrubber, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint32, *model.ArgsEnvsCacheEntry](maxParallelArgsEnvs, nil)
 	if err != nil {
 		return nil, err
@@ -1300,7 +1300,6 @@ func NewProcessResolver(manager *manager.Manager, config *config.Config, statsdC
 		config:         config,
 		statsdClient:   statsdClient,
 		scrubber:       scrubber,
-		resolvers:      resolvers,
 		entryCache:     make(map[uint32]*model.ProcessCacheEntry),
 		opts:           opts,
 		argsEnvsCache:  argsEnvsCache,

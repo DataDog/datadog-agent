@@ -18,11 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const (
-	defaultSecretBackendTimeout       = 5
-	defaultSecretBackendOutputMaxSize = 1024 * 1024
-)
-
 var (
 	secretCache map[string]string
 	// list of handles and where they were found
@@ -30,13 +25,11 @@ var (
 
 	secretBackendCommand               string
 	secretBackendArguments             []string
-	secretBackendTimeout               = defaultSecretBackendTimeout
+	secretBackendTimeout               = 5
 	secretBackendCommandAllowGroupExec bool
-	secretBackendCommandSHA256         string
-	configFileUsed                     string
 
 	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
-	SecretBackendOutputMaxSize = defaultSecretBackendOutputMaxSize
+	SecretBackendOutputMaxSize = 1024 * 1024
 )
 
 func init() {
@@ -47,14 +40,12 @@ func init() {
 // Init initializes the command and other options of the secrets package. Since
 // this package is used by the 'config' package to decrypt itself we can't
 // directly use it.
-func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, sha256 string, configFile string) {
+func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool) {
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
 	SecretBackendOutputMaxSize = maxSize
 	secretBackendCommandAllowGroupExec = groupExecPerm
-	secretBackendCommandSHA256 = sha256
-	configFileUsed = configFile
 	if secretBackendCommandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
@@ -212,10 +203,7 @@ func GetDebugInfo() (*SecretInfo, error) {
 	if secretBackendCommand == "" {
 		return nil, fmt.Errorf("No secret_backend_command set: secrets feature is not enabled")
 	}
-	info := &SecretInfo{
-		ExecutablePath:       secretBackendCommand,
-		ExecutablePathSHA256: secretBackendCommandSHA256,
-	}
+	info := &SecretInfo{ExecutablePath: secretBackendCommand}
 	info.populateRights()
 
 	info.SecretsHandles = map[string][]string{}

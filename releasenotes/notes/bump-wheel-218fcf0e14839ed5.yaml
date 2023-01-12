@@ -1,0 +1,4 @@
+---
+security:
+  - Upgrade the wheel package to ``0.37.1`` for Python 2.
+  - Upgrade the wheel package to ``0.38.4`` for Python 3.

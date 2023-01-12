@@ -149,11 +149,6 @@ func (tx *ebpfHttpTx) String() string {
 	return output.String()
 }
 
-// Transactions returns the slice of HTTP transactions embedded in the batch
-func (batch *httpBatch) Transactions() []ebpfHttpTx {
-	return batch.Txs[:]
-}
-
 // below is copied from pkg/trace/stats/statsraw.go
 // 10 bits precision (any value will be +/- 1/1024)
 const roundMask uint64 = 1 << 10

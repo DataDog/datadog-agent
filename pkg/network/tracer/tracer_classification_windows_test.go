@@ -16,6 +16,6 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1:0")
+		testProtocolClassification(t, cfg, "localhost", "127.0.0.1", "127.0.0.1")
 	})
 }
