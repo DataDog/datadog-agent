@@ -119,16 +119,16 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
     if (family == __AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            BPF_CORE_READ_INTO(&t->saddr_l, skp, sk_rcv_saddr);
+            BPF_CORE_READ_INTO((u32*)(&t->saddr_l), skp, sk_rcv_saddr);
         }
         if (t->saddr_l == 0) {
-            BPF_CORE_READ_INTO(&t->saddr_l, inet_sk(skp), inet_saddr);
+            BPF_CORE_READ_INTO((u32*)(&t->saddr_l), inet_sk(skp), inet_saddr);
         }
         if (t->daddr_l == 0) {
-            BPF_CORE_READ_INTO(&t->daddr_l, skp, sk_daddr);
+            BPF_CORE_READ_INTO((u32*)(&t->daddr_l), skp, sk_daddr);
         }
         if (t->daddr_l == 0) {
-            BPF_CORE_READ_INTO(&t->daddr_l, inet_sk(skp), inet_daddr);
+            BPF_CORE_READ_INTO((u32*)(&t->daddr_l), inet_sk(skp), inet_daddr);
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
