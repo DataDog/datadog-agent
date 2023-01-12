@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Add ``--instance-filter`` option to agent check command.
+    Add an ``--instance-filter`` option to the Agent check command.
