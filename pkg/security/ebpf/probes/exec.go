@@ -15,6 +15,27 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/prepare_binprm",
+			EBPFFuncName: "kprobe_prepare_binprm",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/bprm_execve",
+			EBPFFuncName: "kprobe_bprm_execve",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/security_bprm_check",
+			EBPFFuncName: "kprobe_security_bprm_check",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
 			EBPFSection:  "tracepoint/sched/sched_process_fork",
 			EBPFFuncName: "sched_process_fork",
 		},
@@ -85,36 +106,29 @@ var execProbes = []*manager.Probe{
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/prepare_binprm",
-			EBPFFuncName: "kprobe_prepare_binprm",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/bprm_execve",
-			EBPFFuncName: "kprobe_bprm_execve",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_check",
-			EBPFFuncName: "kprobe_security_bprm_check",
-		},
-	},
-	{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID:          SecurityAgentUID,
 			EBPFSection:  "kprobe/setup_new_exec",
-			EBPFFuncName: "kprobe_setup_new_exec",
+			EBPFFuncName: "kprobe_setup_new_exec_interp",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID + "_a",
+			EBPFSection:  "kprobe/setup_new_exec",
+			EBPFFuncName: "kprobe_setup_new_exec_args_envs",
 		},
 	},
 	{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
-			EBPFSection:  "kprobe/security_bprm_committed_creds",
-			EBPFFuncName: "kprobe_security_bprm_committed_creds",
+			EBPFSection:  "kprobe/setup_arg_pages",
+			EBPFFuncName: "kprobe_setup_arg_pages",
+		},
+	},
+	{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFSection:  "kprobe/mprotect_fixup",
+			EBPFFuncName: "kprobe_mprotect_fixup",
 		},
 	},
 	{
@@ -227,19 +241,30 @@ func getExecProbes() []*manager.Probe {
 }
 
 func getExecTailCallRoutes() []manager.TailCallRoute {
-	var routes []manager.TailCallRoute
-
-	for i := uint32(0); i != 10; i++ {
-		route := manager.TailCallRoute{
+	return []manager.TailCallRoute{
+		{
 			ProgArrayName: "args_envs_progs",
-			Key:           i,
+			Key:           ExecGetEnvsOffsetKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/get_envs_offset",
+				EBPFFuncName: "kprobe_get_envs_offset",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsSplitKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/parse_args_envs_split",
+				EBPFFuncName: "kprobe_parse_args_envs_split",
+			},
+		},
+		{
+			ProgArrayName: "args_envs_progs",
+			Key:           ExecParseArgsEnvsKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFSection:  "kprobe/parse_args_envs",
 				EBPFFuncName: "kprobe_parse_args_envs",
 			},
-		}
-		routes = append(routes, route)
+		},
 	}
-
-	return routes
 }

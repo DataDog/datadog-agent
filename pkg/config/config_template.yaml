@@ -1528,6 +1528,20 @@ api_key:
 
 {{ end -}}
 
+{{- if .UniversalServiceMonitoringModule }}
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
+
+{{ end -}}
+
 {{- if .SecurityModule }}
 
 ##########################################

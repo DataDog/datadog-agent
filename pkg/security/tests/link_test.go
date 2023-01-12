@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -54,7 +54,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -65,9 +65,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLinkSchema(t, event)
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -82,7 +80,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -93,9 +91,7 @@ func TestLink(t *testing.T) {
 			assertNearTime(t, event.Link.Target.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateLinkSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateLinkSchema(t, event)
 		})
 
 		if err = os.Remove(testNewFile); err != nil {
@@ -138,7 +134,7 @@ func TestLink(t *testing.T) {
 				return fmt.Errorf("failed to create a link with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))

@@ -9,7 +9,6 @@
 package kernel
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +87,7 @@ func IsDebugFSMounted() (bool, error) {
 	}
 
 	// on fargate, kprobe_events is mounted as ro
-	if !fargate.IsFargateInstance(context.Background()) {
+	if !fargate.IsFargateInstance() {
 		options := strings.Split(mi.Options, ",")
 		for _, option := range options {
 			if option == "ro" {

@@ -13,7 +13,7 @@ import (
 
 // Context describes the context used during a rule evaluation
 type Context struct {
-	Object unsafe.Pointer
+	Event Event
 
 	Registers Registers
 
@@ -31,14 +31,14 @@ func (c *Context) Now() time.Time {
 	return c.now
 }
 
-// SetObject set the given object to the context
-func (c *Context) SetObject(obj unsafe.Pointer) {
-	c.Object = obj
+// SetEvent set the given event to the context
+func (c *Context) SetEvent(evt Event) {
+	c.Event = evt
 }
 
 // Reset the context
 func (c *Context) Reset() {
-	c.Object = nil
+	c.Event = nil
 	c.Registers = nil
 	c.now = time.Time{}
 
@@ -49,10 +49,10 @@ func (c *Context) Reset() {
 }
 
 // NewContext return a new Context
-func NewContext(obj unsafe.Pointer) *Context {
+func NewContext(evt Event) *Context {
 	return &Context{
-		Object: obj,
-		Cache:  make(map[string]unsafe.Pointer),
+		Event: evt,
+		Cache: make(map[string]unsafe.Pointer),
 	}
 }
 
@@ -61,10 +61,10 @@ type ContextPool struct {
 	pool sync.Pool
 }
 
-// Get returns a context with the given object
-func (c *ContextPool) Get(obj unsafe.Pointer) *Context {
+// Get returns a context with the given event
+func (c *ContextPool) Get(evt Event) *Context {
 	ctx := c.pool.Get().(*Context)
-	ctx.SetObject(obj)
+	ctx.SetEvent(evt)
 	return ctx
 }
 

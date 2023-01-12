@@ -6,12 +6,10 @@
 package api
 
 import (
-	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -21,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -43,18 +40,10 @@ import (
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
 
-const (
-	// otlpProtocolHTTP specifies that the incoming connection was made over plain HTTP.
-	otlpProtocolHTTP = "http"
-	// otlpProtocolGRPC specifies that the incoming connection was made over gRPC.
-	otlpProtocolGRPC = "grpc"
-)
-
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
 	wg          sync.WaitGroup      // waits for a graceful shutdown
-	httpsrv     *http.Server        // the running HTTP server on a started receiver, if enabled
 	grpcsrv     *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
@@ -63,29 +52,12 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider("/proc")}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
 func (o *OTLPReceiver) Start() {
 	cfg := o.conf.OTLPReceiver
-	if cfg.HTTPPort != 0 {
-		o.httpsrv = &http.Server{
-			Addr:        net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.HTTPPort)),
-			Handler:     o,
-			ConnContext: connContext,
-		}
-		o.wg.Add(1)
-		go func() {
-			defer o.wg.Done()
-			if err := o.httpsrv.ListenAndServe(); err != nil {
-				if err != http.ErrServerClosed {
-					log.Criticalf("Error starting OpenTelemetry HTTP server: %v", err)
-				}
-			}
-		}()
-		log.Debugf("Listening to core Agent for OTLP traces on internal HTTP port (http://%s:%d, internal use only). Check core Agent logs for information on the OTLP ingest status.", cfg.BindHost, cfg.HTTPPort)
-	}
 	if cfg.GRPCPort != 0 {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
 		if err != nil {
@@ -107,15 +79,6 @@ func (o *OTLPReceiver) Start() {
 
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
-	if o.httpsrv != nil {
-		timeout, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		go func() {
-			if err := o.httpsrv.Shutdown(timeout); err != nil {
-				log.Errorf("Error shutting down OTLP HTTP server: %v", err)
-			}
-			cancel()
-		}()
-	}
 	if o.grpcsrv != nil {
 		go o.grpcsrv.Stop()
 	}
@@ -126,57 +89,13 @@ func (o *OTLPReceiver) Stop() {
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
-	o.processRequest(ctx, otlpProtocolGRPC, http.Header(md), in)
+	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
+	o.processRequest(ctx, http.Header(md), in)
 	return ptraceotlp.NewExportResponse(), nil
 }
 
-// ServeHTTP implements http.Handler
-func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	defer timing.Since("datadog.trace_agent.otlp.process_http_request_ms", time.Now())
-	mtags := tagsFromHeaders(req.Header, otlpProtocolHTTP)
-	metrics.Count("datadog.trace_agent.otlp.payload", 1, mtags, 1)
-
-	r := req.Body
-	if req.Header.Get("Content-Encoding") == "gzip" {
-		gzipr, err := gzip.NewReader(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:corrupt_gzip"), 1)
-			return
-		}
-		r = gzipr
-	}
-	rd := apiutil.NewLimitedReader(r, o.conf.OTLPReceiver.MaxRequestBytes)
-	slurp, err := io.ReadAll(rd)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:read_body"), 1)
-		return
-	}
-	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	in := ptraceotlp.NewExportRequest()
-	switch getMediaType(req) {
-	case "application/x-protobuf":
-		if err := in.UnmarshalProto(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_proto"), 1)
-			return
-		}
-	case "application/json":
-		fallthrough
-	default:
-		if err := in.UnmarshalJSON(slurp); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			metrics.Count("datadog.trace_agent.otlp.error", 1, append(mtags, "reason:decode_json"), 1)
-			return
-		}
-	}
-	o.processRequest(req.Context(), otlpProtocolHTTP, req.Header, in)
-}
-
-func tagsFromHeaders(h http.Header, protocol string) []string {
-	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
+func tagsFromHeaders(h http.Header) []string {
+	tags := []string{"endpoint_version:opentelemetry_grpc_v1"}
 	if v := fastHeaderGet(h, headerLang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
@@ -205,17 +124,16 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 	return v[0]
 }
 
-// processRequest processes the incoming request in. It marks it as received by the given protocol
-// using the given headers.
-func (o *OTLPReceiver) processRequest(ctx context.Context, protocol string, header http.Header, in ptraceotlp.ExportRequest) {
+// processRequest processes the incoming request in.
+func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header, protocol)
+		o.ReceiveResourceSpans(ctx, rspans, header)
 	}
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header, protocol string) source.Source {
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, header http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
 	attr := rspans.Resource().Attributes()
@@ -254,7 +172,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			Interpreter:     fastHeaderGet(header, headerLangInterpreter),
 			LangVendor:      fastHeaderGet(header, headerLangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
-			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
+			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
 	}
@@ -359,14 +277,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	select {
 	case o.out <- &p:
-		// Stats will be computed for p. Mark the original resource spans to ensure that they don't
-		// get computed twice in case these spans pass through here again.
-		//
-		// Spans can pass through here multiple times because this code path gets used by the:
-		//  - OpenTelemetry Collector Datadog processor, when computing stats.
-		//  - OpenTelemetry Collector Datadog exporter, when flushing.
-		//  - Datadog Agent OTLP Ingest, when used in conjunction with an SDK or a Collector.
-		rspans.Resource().Attributes().PutBool(keyStatsComputed, true)
+		// success
 	default:
 		log.Warn("Payload in channel full. Dropped 1 payload.")
 	}

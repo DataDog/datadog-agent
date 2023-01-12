@@ -290,7 +290,7 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 		MockLabels: func(namespace string, ctn containerd.Container) (map[string]string, error) {
 			return labels, nil
 		},
-		MockImage: func(namespace string, ctn containerd.Container) (containerd.Image, error) {
+		MockImageOfContainer: func(namespace string, ctn containerd.Container) (containerd.Image, error) {
 			return &mockedImage{
 				mockName: func() string {
 					return imgName

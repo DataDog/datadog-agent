@@ -138,6 +138,22 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 				EBPFFuncName: "kprobe_dr_selinux_callback",
 			},
 		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_callbacks",
+			Key:           DentryResolverUnshareMntNSStageOneCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/dr_unshare_mntns_stage_one_callback",
+				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_one_callback",
+			},
+		},
+		{
+			ProgArrayName: "dentry_resolver_kprobe_callbacks",
+			Key:           DentryResolverUnshareMntNSStageTwoCallbackKprobeKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFSection:  "kprobe/dr_unshare_mntns_stage_two_callback",
+				EBPFFuncName: "kprobe_dr_unshare_mntns_stage_two_callback",
+			},
+		},
 
 		// dentry resolver tracepoint callbacks
 		{

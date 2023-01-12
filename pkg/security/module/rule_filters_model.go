@@ -7,7 +7,6 @@ package module
 
 import (
 	"reflect"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -41,10 +40,6 @@ func (e *RuleFilterEvent) GetType() string {
 
 func (e *RuleFilterEvent) GetTags() []string {
 	return []string{}
-}
-
-func (e *RuleFilterEvent) GetPointer() unsafe.Pointer {
-	return unsafe.Pointer(e)
 }
 
 func (m *RuleFilterModel) ValidateField(key string, value eval.FieldValue) error {

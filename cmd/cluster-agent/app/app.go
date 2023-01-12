@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate"
+	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -199,8 +200,9 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize remote configuration
+	var rcClient *remote.Client
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		rcClient, err := initializeRemoteConfig(mainCtx)
+		rcClient, err = initializeRemoteConfig(mainCtx)
 		if err != nil {
 			log.Errorf("Failed to start remote-configuration: %v", err)
 		} else {
@@ -277,6 +279,7 @@ func start(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	clusterName := clustername.GetClusterName(context.TODO(), hname)
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
@@ -287,7 +290,6 @@ func start(cmd *cobra.Command, args []string) error {
 			log.Errorf("Failed to generate or retrieve the cluster ID")
 		}
 
-		clusterName := clustername.GetClusterName(context.TODO(), hname)
 		if clusterName == "" {
 			log.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
 		}
@@ -350,6 +352,21 @@ func start(cmd *cobra.Command, args []string) error {
 	}
 
 	if config.Datadog.GetBool("admission_controller.enabled") {
+		if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
+			patchCtx := admissionpatch.ControllerContext{
+				IsLeaderFunc: le.IsLeader,
+				K8sClient:    apiCl.Cl,
+				RcClient:     rcClient,
+				ClusterName:  clusterName,
+				StopCh:       stopCh,
+			}
+			if err := admissionpatch.StartControllers(patchCtx); err != nil {
+				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
+			}
+		} else {
+			log.Info("Auto instrumentation patcher is disabled")
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			IsLeaderFunc:        le.IsLeader,
 			LeaderSubscribeFunc: le.Subscribe,
@@ -442,7 +459,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
 	}
 
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{}, time.Second*5)
+	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}

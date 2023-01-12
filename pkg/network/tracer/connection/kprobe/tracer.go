@@ -181,6 +181,15 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		if err != nil {
 			return nil, fmt.Errorf("error enabling protocol classifier: %s", err)
 		}
+	} else {
+		// Kernels < 4.7.0 do not know about the per-cpu array map used
+		// in classification, preventing the program to load even though
+		// we won't use it. We change the type to a simple array map to
+		// circumvent that.
+		mgrOptions.MapSpecEditors[string(probes.ProtocolClassificationBufMap)] = manager.MapSpecEditor{
+			Type:       ebpf.Array,
+			EditorFlag: manager.EditType,
+		}
 	}
 
 	currKernelVersion, err := kernel.HostVersion()
@@ -517,11 +526,9 @@ func updateTCPStats(conn *network.ConnectionStats, cookie uint32, tcpStats *nete
 		return
 	}
 
-	m, _ := conn.Monotonic.Get(cookie)
-	m.Retransmits = tcpStats.Retransmits
-	m.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
-	m.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
-	conn.Monotonic.Put(cookie, m)
+	conn.Monotonic.Retransmits = tcpStats.Retransmits
+	conn.Monotonic.TCPEstablished = uint32(tcpStats.State_transitions >> netebpf.Established & 1)
+	conn.Monotonic.TCPClosed = uint32(tcpStats.State_transitions >> netebpf.Close & 1)
 	conn.RTT = tcpStats.Rtt
 	conn.RTTVar = tcpStats.Rtt_var
 }
@@ -562,23 +569,23 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 		SPort:            t.Sport,
 		DPort:            t.Dport,
 		SPortIsEphemeral: network.IsPortInEphemeralRange(t.Sport),
-		Monotonic:        make(network.StatCountersByCookie, 0, 3),
 		LastUpdateEpoch:  s.Timestamp,
 		IsAssured:        s.IsAssured(),
+		Cookie:           s.Cookie,
 	}
 
-	if s.Protocol < uint8(network.MaxProtocols) {
+	if network.IsValidProtocolValue(s.Protocol) {
 		stats.Protocol = network.ProtocolType(s.Protocol)
 	} else {
 		log.Warnf("got protocol %d which is not recognized by the agent", s.Protocol)
 	}
 
-	stats.Monotonic.Put(s.Cookie, network.StatCounters{
+	stats.Monotonic = network.StatCounters{
 		SentBytes:   s.Sent_bytes,
 		RecvBytes:   s.Recv_bytes,
 		SentPackets: s.Sent_packets,
 		RecvPackets: s.Recv_packets,
-	})
+	}
 
 	if t.Type() == netebpf.TCP {
 		stats.Type = network.TCP

@@ -219,6 +219,17 @@ tags:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.8.2",
 				Type:  gosnmp.Integer,
 				Value: 1,
@@ -233,12 +244,30 @@ tags:
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
 			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
 		},
 	}
 
 	bulkBatch2Packe2 := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			// no more matching oids for batch 2
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
+			{
+				Name: "999",
+				Type: gosnmp.NoSuchObject,
+			},
 			{
 				Name: "999",
 				Type: gosnmp.NoSuchObject,
@@ -259,8 +288,8 @@ tags:
 	sess.On("Get", mock.Anything).Return(&packet, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.20", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet1, nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.14.2", "1.3.6.1.2.1.2.2.1.2.2", "1.3.6.1.2.1.2.2.1.20.2", "1.3.6.1.2.1.2.2.1.6.2", "1.3.6.1.2.1.2.2.1.7.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch1Packet2, nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packet1, nil)
-	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8.2", "1.3.6.1.2.1.31.1.1.1.1.2", "1.3.6.1.2.1.31.1.1.1.18.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packe2, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18", "1.3.6.1.2.1.4.20.1.2", "1.3.6.1.2.1.4.20.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packet1, nil)
+	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.8.2", "1.3.6.1.2.1.31.1.1.1.1.2", "1.3.6.1.2.1.31.1.1.1.18.2", "1.3.6.1.2.1.4.20.1.2.10.0.0.2", "1.3.6.1.2.1.4.20.1.3.10.0.0.2"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkBatch2Packe2, nil)
 
 	err = chk.Run()
 	assert.Nil(t, err)
@@ -498,6 +527,17 @@ profiles:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.2",
 				Type:  gosnmp.Integer,
 				Value: 132,
@@ -531,6 +571,27 @@ profiles:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -598,6 +659,8 @@ profiles:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()
@@ -683,6 +746,18 @@ profiles:
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
       "oper_status": 1
+    }
+  ],
+  "ip_addresses": [
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "prefixlen": 24
+    },
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "prefixlen": 24
     }
   ],
   "collect_timestamp":946684800
@@ -1136,6 +1211,17 @@ tags:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.2.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("ifDescRow2"),
@@ -1164,6 +1250,27 @@ tags:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -1216,6 +1323,8 @@ tags:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	err = chk.Run()
@@ -1275,6 +1384,18 @@ tags:
       "mac_address": "00:00:00:00:00:02",
       "admin_status": 1,
       "oper_status": 1
+    }
+  ],
+  "ip_addresses": [
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.1",
+      "prefixlen": 24
+    },
+    {
+      "interface_id": "default:1.2.3.4:1",
+      "ip_address": "10.0.0.2",
+      "prefixlen": 24
     }
   ],
   "collect_timestamp":946684800
@@ -1489,6 +1610,17 @@ metric_tags:
 				Value: []byte("descRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.2.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("ifDescRow2"),
@@ -1517,6 +1649,27 @@ metric_tags:
 				Name:  "1.3.6.1.2.1.31.1.1.1.18.2",
 				Type:  gosnmp.OctetString,
 				Value: []byte("descRow2"),
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.2",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.2",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
 			},
 			{
 				Name:  "9", // exit table
@@ -1569,6 +1722,8 @@ metric_tags:
 		"1.3.6.1.2.1.2.2.1.8",
 		"1.3.6.1.2.1.31.1.1.1.1",
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	deviceMap := []struct {
@@ -1647,9 +1802,21 @@ metric_tags:
       "oper_status": 1
     }
   ],
+  "ip_addresses": [
+    {
+      "interface_id": "%s:1",
+      "ip_address": "10.0.0.1",
+      "prefixlen": 24
+    },
+    {
+      "interface_id": "%s:1",
+      "ip_address": "10.0.0.2",
+      "prefixlen": 24
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -1854,6 +2021,27 @@ use_device_id_as_hostname: true
 					Value: []byte("ifDescRow1"),
 				},
 				{
+					Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+					Type:  gosnmp.Integer,
+					Value: 1,
+				},
+				{
+					Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+					Type:  gosnmp.IPAddress,
+					Value: "255.255.255.0",
+				},
+
+				{
+					Name:  "9", // exit table
+					Type:  gosnmp.Integer,
+					Value: 999,
+				},
+				{
+					Name:  "9", // exit table
+					Type:  gosnmp.Integer,
+					Value: 999,
+				},
+				{
 					Name:  "9", // exit table
 					Type:  gosnmp.Integer,
 					Value: 999,
@@ -1866,6 +2054,8 @@ use_device_id_as_hostname: true
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
 	sess.On("GetBulk", []string{
 		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
 	err = chk.Run()
@@ -2011,6 +2201,27 @@ metrics:
 				Value: []byte("ifDescRow1"),
 			},
 			{
+				Name:  "1.3.6.1.2.1.4.20.1.2.10.0.0.1",
+				Type:  gosnmp.Integer,
+				Value: 1,
+			},
+			{
+				Name:  "1.3.6.1.2.1.4.20.1.3.10.0.0.1",
+				Type:  gosnmp.IPAddress,
+				Value: "255.255.255.0",
+			},
+
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
+			{
 				Name:  "9", // exit table
 				Type:  gosnmp.Integer,
 				Value: 999,
@@ -2043,7 +2254,14 @@ metrics:
 		},
 	}
 	sess.On("GetBulk", []string{
-		"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.2.2.1.2",
+		"1.3.6.1.2.1.2.2.1.6",
+		"1.3.6.1.2.1.2.2.1.7",
+		"1.3.6.1.2.1.2.2.1.8",
+		"1.3.6.1.2.1.31.1.1.1.1",
+		"1.3.6.1.2.1.31.1.1.1.18",
+		"1.3.6.1.2.1.4.20.1.2",
+		"1.3.6.1.2.1.4.20.1.3",
 	}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPacket, nil)
 
 	deviceMap := []struct {

@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import shutil
+import string
 import sys
 import tarfile
 import tempfile
@@ -211,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     network_flags = "-Ipkg/network/ebpf/c -g"
     network_co_re_flags = f"-I{network_co_re_dir}"
-    network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
     network_co_re_programs = []
 
     for prog in network_programs:
@@ -228,7 +229,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -263,7 +264,6 @@ def ninja_runtime_compilation_files(nw):
             rule="headerincl",
         )
         rc_outputs.extend([c_file, hash_file])
-    nw.build(rule="phony", inputs=rc_outputs, outputs=["runtime-compilation"])
 
 
 def ninja_cgo_type_files(nw, windows):
@@ -310,6 +310,9 @@ def ninja_cgo_type_files(nw, windows):
             ],
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
+            ],
+            "pkg/network/protocols/events/types.go": [
+                "pkg/network/ebpf/c/protocols/events-types.h",
             ],
         }
         nw.rule(
@@ -569,7 +572,7 @@ def chdir(dirname=None):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False):
     """
     Compile test suite for kitchen
     """
@@ -643,6 +646,9 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None):
     for cf in copy_files:
         if os.path.exists(cf):
             shutil.copy(cf, files_dir)
+
+    if not ci:
+        kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
 
@@ -1051,8 +1057,8 @@ def build_object_files(
             ctx.run("which llvm-strip")
 
         check_for_inline(ctx)
-        ctx.run(f"mkdir -p {build_dir}/runtime")
-        ctx.run(f"mkdir -p {build_dir}/co-re")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
+        ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     run_ninja(
         ctx,
@@ -1070,6 +1076,7 @@ def build_object_files(
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} cp -R {build_dir}/* {EMBEDDED_SHARE_DIR}")
         ctx.run(f"{sudo} chown root:root -R {EMBEDDED_SHARE_DIR}")
+        ctx.run(f"{sudo} find {EMBEDDED_SHARE_DIR} ! -type d | {sudo} xargs chmod 0644")
 
 
 def build_cws_object_files(
@@ -1106,11 +1113,6 @@ def clean_object_files(
     )
 
 
-# deprecated: this function is only kept to prevent breaking security-agent.go-generate-check
-def generate_runtime_files(ctx):
-    run_ninja(ctx, explain=True, target="runtime-compilation")
-
-
 @task
 def generate_lookup_tables(ctx, windows=is_windows):
     if windows:
@@ -1135,6 +1137,14 @@ def check_for_ninja(ctx):
         ctx.run("which ninja")
 
 
+def is_bpftool_compatible(ctx):
+    try:
+        ctx.run("bpftool gen min_core_btf 2>&1 | grep -q \"'min_core_btf' needs at least 3 arguments, 0 found\"")
+        return True
+    except Exception:
+        return False
+
+
 @contextlib.contextmanager
 def tempdir():
     """
@@ -1145,6 +1155,51 @@ def tempdir():
         yield dirpath
     finally:
         shutil.rmtree(dirpath)
+
+
+def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
+    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
+
+    if arch == "x64":
+        arch = "x86_64"
+    elif arch == "arm64":
+        arch = "aarch64"
+
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}.tar.xz"):
+        exit("BTFs for kitchen test environments not found. Please update & re-provision your dev VM.")
+
+    sudo = "sudo" if not is_root() else ""
+    ctx.run(f"{sudo} chmod -R 0777 {btf_dir}")
+
+    if not os.path.exists(f"{btf_dir}/kitchen-btfs-{arch}"):
+        ctx.run(
+            f"mkdir {btf_dir}/kitchen-btfs-{arch} && "
+            + f"tar xf {btf_dir}/kitchen-btfs-{arch}.tar.xz -C {btf_dir}/kitchen-btfs-{arch}"
+        )
+
+    can_minimize = True
+    if not is_bpftool_compatible(ctx):
+        print(
+            "Cannot minimize BTFs: bpftool version 6 or higher is required: preparing kitchen environment with full sized BTFs instead."
+        )
+        can_minimize = False
+
+    if can_minimize:
+        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
+        generate_minimized_btfs(
+            ctx,
+            source_dir=f"{btf_dir}/kitchen-btfs-{arch}",
+            output_dir=f"{btf_dir}/minimized-btfs",
+            input_bpf_programs=co_re_programs,
+        )
+
+        ctx.run(
+            f"cd {btf_dir}/minimized-btfs && "
+            + "tar -cJf minimized-btfs.tar.xz * && "
+            + f"mv minimized-btfs.tar.xz {files_dir}"
+        )
+    else:
+        ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
 @task
@@ -1167,28 +1222,60 @@ def generate_minimized_btfs(
         return
 
     ctx.run(f"mkdir -p {output_dir}")
-    for root, dirs, files in os.walk(source_dir):
-        path_from_root = os.path.relpath(root, source_dir)
 
-        for dir in dirs:
-            output_subdir = os.path.join(output_dir, path_from_root, dir)
-            ctx.run(f"mkdir -p {output_subdir}")
+    check_for_ninja(ctx)
 
-        for file in files:
-            if not file.endswith(".tar.xz"):
-                continue
+    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+    with open(ninja_file_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file, width=180)
 
-            btf_filename = file[: -len(".tar.xz")]
-            compressed_source_btf_path = os.path.join(root, file)
-            output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
-            compressed_output_btf_path = output_btf_path + ".tar.xz"
+        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
+        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
-            ctx.run(f"tar -xf {compressed_source_btf_path}")
-            ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
+        for root, dirs, files in os.walk(source_dir):
+            path_from_root = os.path.relpath(root, source_dir)
 
-            tar_working_directory = os.path.join(output_dir, path_from_root)
-            ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
-            ctx.run(f"rm {output_btf_path}")
+            for d in dirs:
+                output_subdir = os.path.join(output_dir, path_from_root, d)
+                ctx.run(f"mkdir -p {output_subdir}")
+
+            for file in files:
+                if not file.endswith(".tar.xz"):
+                    continue
+
+                btf_filename = file[: -len(".tar.xz")]
+                minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+
+                nw.build(
+                    rule="decompress_btf",
+                    inputs=[os.path.join(root, file)],
+                    outputs=[os.path.join(root, btf_filename)],
+                    variables={
+                        "target_directory": root,
+                    },
+                )
+
+                nw.build(
+                    rule="minimize_btf",
+                    inputs=[os.path.join(root, btf_filename)],
+                    outputs=[minimized_btf_path],
+                    variables={
+                        "input_bpf_programs": input_bpf_programs,
+                    },
+                )
+
+                nw.build(
+                    rule="compress_minimized_btf",
+                    inputs=[minimized_btf_path],
+                    outputs=[f"{minimized_btf_path}.tar.xz"],
+                    variables={
+                        "tar_working_directory": os.path.join(output_dir, path_from_root),
+                        "rel_in": btf_filename,
+                    },
+                )
+
+    ctx.run(f"ninja -f {ninja_file_path}")
 
 
 @task
@@ -1217,3 +1304,28 @@ def print_failed_tests(_, output_dir):
 
     if fail_count > 0:
         raise Exit(code=1)
+
+
+@task
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
+    import yaml
+
+    if windows:
+        return
+
+    docker_compose_paths = glob.glob("./pkg/network/protocols/*/testdata/docker-compose.yml")
+    # Add relative docker-compose paths
+    # For example:
+    #   docker_compose_paths.append("./pkg/network/protocols/dockers/testdata/docker-compose.yml")
+
+    images = set()
+    for docker_compose_path in docker_compose_paths:
+        with open(docker_compose_path, "r") as f:
+            docker_compose = yaml.safe_load(f.read())
+        for component in docker_compose["services"]:
+            images.add(docker_compose["services"][component]["image"])
+
+    for image in images:
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        ctx.run(f"docker pull --platform linux/{arch} {image}")
+        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
