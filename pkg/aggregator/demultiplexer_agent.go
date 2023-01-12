@@ -169,7 +169,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		sharedForwarder = forwarder.NewDefaultForwarder(options.SharedForwarderOptions)
 	}
 
-	if config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
 		config.Datadog.Set("telemetry.dogstatsd_origin", false)
 	}

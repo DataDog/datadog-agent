@@ -235,7 +235,7 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
 	}
 
-	if config.Datadog.GetBool("telemetry.dogstatsd_origin") {
+	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") {
 		s.sendOriginTelemetry(timestamp, series)
 	}
 }
