@@ -402,8 +402,11 @@ def test(
 
         # Needed to fix an issue when using -race + gcc 10.x on Windows
         # https://github.com/bazelbuild/rules_go/issues/2614
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
+        # if sys.platform == 'win32':
+        #     ldflags += " -linkmode=external"
+
+        # try to use external linker to get around race problem
+        ldflags += " -linkmode=external"
 
     if coverage:
         if race:
