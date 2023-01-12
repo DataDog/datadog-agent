@@ -272,15 +272,20 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		for _, cfg := range configs {
-			instances, err := filterInstances(cfg.Instances, instanceFilter)
-			if err != nil {
-				returnErr = err
-				stopChan <- struct{}{}
-				break
+			if instanceFilter != "" {
+				instances, err := filterInstances(cfg.Instances, instanceFilter)
+				if err != nil {
+					returnErr = err
+					stopChan <- struct{}{}
+					break
+				}
+				if len(instances) == 0 {
+					continue
+				}
+				cfg.Instances = instances
 			}
-			cfg.Instances = instances
 
-			if len(cfg.Instances) > 0 && match(cfg) && waiting.Load() {
+			if match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
 		}
@@ -300,9 +305,6 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 }
 
 func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, error) {
-	if instanceFilter == "" {
-		return instances, nil
-	}
 	var newInstances []integration.Data
 	for _, instance := range instances {
 		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
