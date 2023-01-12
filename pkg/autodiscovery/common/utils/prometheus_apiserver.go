@@ -34,6 +34,13 @@ func ConfigsForService(pc *types.PrometheusCheck, svc *v1.Service) []integration
 		return configs
 	}
 
+	// Ignore headless services because we can't resolve the IP.
+	// Ref: https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+	if svc.Spec.ClusterIP == "None" {
+		log.Debugf("ignoring Prometheus-annotated headless service: %s", namespacedName)
+		return configs
+	}
+
 	instances, found := buildInstances(pc, svc.GetAnnotations(), namespacedName)
 	if found {
 		serviceID := apiserver.EntityForService(svc)
