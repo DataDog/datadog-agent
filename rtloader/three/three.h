@@ -256,25 +256,25 @@ private:
 
     //! pyrawMallocCb static member.
     /*!
-      \brief Trampoline function for pyrawMalloc to compily with the PyMemAllocatorEx API.
+      \brief Trampoline function for pyrawMalloc to comply with the PyMemAllocatorEx API.
     */
     static void *pyrawMallocCb(void *ctx, size_t size);
 
     //! pyrawCallocCb static member.
     /*!
-      \brief Trampoline function for pyrawCalloc to compily with the PyMemAllocatorEx API.
+      \brief Trampoline function for pyrawCalloc to comply with the PyMemAllocatorEx API.
     */
     static void *pyrawCallocCb(void *ctx, size_t nelem, size_t elsize);
 
     //! pyrawReallocCb static member.
     /*!
-      \brief Trampoline function for pyrawRealloc to compily with the PyMemAllocatorEx API.
+      \brief Trampoline function for pyrawRealloc to comply with the PyMemAllocatorEx API.
     */
     static void *pyrawReallocCb(void *ctx, void *ptr, size_t new_size);
 
     //! pyrawFreeCb static member.
     /*!
-      \brief Trampoline function for pyrawFree to compily with the PyMemAllocatorEx API.
+      \brief Trampoline function for pyrawFree to comply with the PyMemAllocatorEx API.
     */
     static void pyrawFreeCb(void *ctx, void *ptr);
 
