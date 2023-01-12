@@ -365,6 +365,7 @@ func InitConfig(config Config) {
 
 	config.BindEnvAndSetDefault("cluster_name", "")
 	config.BindEnvAndSetDefault("disable_cluster_name_tag_key", false)
+	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", false)
 
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")

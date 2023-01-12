@@ -143,6 +143,18 @@ func GetClusterName(ctx context.Context, hostname string) string {
 	return getClusterName(ctx, defaultClusterNameData, hostname)
 }
 
+// GetClusterNameTagValue  a k8s cluster name if it exists, either directly specified or autodiscovered
+//
+// This function also "normalize" the k8s cluster name if the configuration option
+// `enabled_rfc1123_compliant_cluster_name_tag`` is set to `true`
+// this allow to limit the risk of breaking user that currently rely on previous `kube_cluster_name` tag value.
+func GetClusterNameTagValue(ctx context.Context, hostname string) string {
+	if config.Datadog.GetBool("enabled_rfc1123_compliant_cluster_name_tag") {
+		return GetRFC1123CompliantClusterName(ctx, hostname)
+	}
+	return GetClusterName(ctx, hostname)
+}
+
 // GetRFC1123CompliantClusterName returns an RFC-1123 compliant k8s cluster
 // name if it exists, either directly specified or autodiscovered
 func GetRFC1123CompliantClusterName(ctx context.Context, hostname string) string {

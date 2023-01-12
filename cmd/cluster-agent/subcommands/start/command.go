@@ -223,7 +223,7 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 		}
 	}
 
-	clusterName := clustername.GetClusterName(context.TODO(), hname)
+	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	if pkgconfig.Datadog.GetBool("orchestrator_explorer.enabled") {
 		// Generate and persist a cluster ID
 		// this must be a UUID, and ideally be stable for the lifetime of a cluster,
