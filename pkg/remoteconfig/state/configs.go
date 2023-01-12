@@ -22,7 +22,7 @@ import (
 	4. Add a method on the `Repository` to retrieved typed configs for the product.
 */
 
-var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASMFeatures, ProductASMDD, ProductASMData}
+var allProducts = []string{ProductAPMSampling, ProductCWSDD, ProductCWSCustom, ProductASMFeatures, ProductASMDD, ProductASMData, ProductAPMTracing}
 
 const (
 	// ProductAPMSampling is the apm sampling product
@@ -37,6 +37,8 @@ const (
 	ProductASMDD = "ASM_DD"
 	// ProductASMData is the ASM product used to configure WAF rules data
 	ProductASMData = "ASM_DATA"
+	// ProductAPMTracing is the apm tracing product
+	ProductAPMTracing = "APM_TRACING"
 )
 
 // ErrNoConfigVersion occurs when a target file's custom meta is missing the config version
@@ -58,6 +60,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		c, err = parseConfigASMDD(raw, metadata)
 	case ProductASMData:
 		c, err = parseConfigASMData(raw, metadata)
+	case ProductAPMTracing:
+		c, err = parseConfigAPMTracing(raw, metadata)
 	default:
 		return nil, fmt.Errorf("unknown product - %s", product)
 	}
@@ -311,6 +315,34 @@ func (r *Repository) ASMDataConfigs() map[string]ASMDataConfig {
 		typedConfigs[path] = typed
 	}
 
+	return typedConfigs
+}
+
+type APMTracingConfig struct {
+	Config   []byte
+	Metadata Metadata
+}
+
+func parseConfigAPMTracing(data []byte, metadata Metadata) (APMTracingConfig, error) {
+	// Delegate the parsing responsibility to the cluster agent
+	return APMTracingConfig{
+		Config:   data,
+		Metadata: metadata,
+	}, nil
+}
+
+// APMTracingConfigs returns the currently active APMTracing configs
+func (r *Repository) APMTracingConfigs() map[string]APMTracingConfig {
+	typedConfigs := make(map[string]APMTracingConfig)
+	configs := r.getConfigs(ProductAPMTracing)
+	for path, conf := range configs {
+		// We control this, so if this has gone wrong something has gone horribly wrong
+		typed, ok := conf.(APMTracingConfig)
+		if !ok {
+			panic("unexpected config stored as APMTracingConfig")
+		}
+		typedConfigs[path] = typed
+	}
 	return typedConfigs
 }
 

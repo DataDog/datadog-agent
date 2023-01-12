@@ -20,4 +20,10 @@ const (
 
 	// LibConfigV1AnnotKeyFormat is the format of the library config annotation
 	LibConfigV1AnnotKeyFormat = "admission.datadoghq.com/%s-lib.config.v1"
+
+	// RcIDAnnotKey is the format of the RC ID annotation
+	RcIDAnnotKeyFormat = "admission.datadoghq.com/%s-lib.rc.id"
+
+	// RcRevisionAnnotKey is the format of the RC revision annotation
+	RcRevisionAnnotKeyFormat = "admission.datadoghq.com/%s-lib.rc.rev"
 )
