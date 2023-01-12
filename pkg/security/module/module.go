@@ -491,9 +491,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel

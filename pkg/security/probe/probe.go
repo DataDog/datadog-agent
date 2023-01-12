@@ -842,16 +842,16 @@ func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCall
 }
 
 // OnNewDiscarder is called when a new discarder is found
-func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) error {
+func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	// discarders disabled
 	if !p.Config.EnableDiscarders {
-		return nil
+		return
 	}
 
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
-			return nil
+			return
 		}
 	}
 
@@ -871,7 +871,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 		}
 	}
 
-	return nil
+	return
 }
 
 // ApplyFilterPolicy is called when a passing policy for an event type is applied
