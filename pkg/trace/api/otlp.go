@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	tracesemconv "github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -178,16 +178,16 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func tagsFromHeaders(h http.Header, protocol string) []string {
 	tags := []string{"endpoint_version:opentelemetry_" + protocol + "_v1"}
-	if v := fastHeaderGet(h, tracesemconv.HeaderLang); v != "" {
+	if v := fastHeaderGet(h, shared.HeaderLang); v != "" {
 		tags = append(tags, "lang:"+v)
 	}
-	if v := fastHeaderGet(h, tracesemconv.HeaderLangVersion); v != "" {
+	if v := fastHeaderGet(h, shared.HeaderLangVersion); v != "" {
 		tags = append(tags, "lang_version:"+v)
 	}
-	if v := fastHeaderGet(h, tracesemconv.HeaderLangInterpreter); v != "" {
+	if v := fastHeaderGet(h, shared.HeaderLangInterpreter); v != "" {
 		tags = append(tags, "interpreter:"+v)
 	}
-	if v := fastHeaderGet(h, tracesemconv.HeaderLangInterpreterVendor); v != "" {
+	if v := fastHeaderGet(h, shared.HeaderLangInterpreterVendor); v != "" {
 		tags = append(tags, "lang_vendor:"+v)
 	}
 	return tags
@@ -239,7 +239,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	env := rattr[string(semconv.AttributeDeploymentEnvironment)]
 	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
 	if lang == "" {
-		lang = fastHeaderGet(header, tracesemconv.HeaderLang)
+		lang = fastHeaderGet(header, shared.HeaderLang)
 	}
 	containerID := rattr[string(semconv.AttributeContainerID)]
 	if containerID == "" {
@@ -251,9 +251,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			LangVersion:     fastHeaderGet(header, tracesemconv.HeaderLangVersion),
-			Interpreter:     fastHeaderGet(header, tracesemconv.HeaderLangInterpreter),
-			LangVendor:      fastHeaderGet(header, tracesemconv.HeaderLangInterpreterVendor),
+			LangVersion:     fastHeaderGet(header, shared.HeaderLangVersion),
+			Interpreter:     fastHeaderGet(header, shared.HeaderLangInterpreter),
+			LangVendor:      fastHeaderGet(header, shared.HeaderLangInterpreterVendor),
 			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
 			EndpointVersion: fmt.Sprintf("opentelemetry_%s_v1", protocol),
 		},
@@ -347,14 +347,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
 		p.TracerPayload.Tags = map[string]string{
-			tracesemconv.TagContainersTags: ctags,
+			shared.TagContainersTags: ctags,
 		}
 	} else {
 		// we couldn't obtain any container tags
 		if src.Kind == source.AWSECSFargateKind {
 			// but we have some information from the source provider that we can add
 			p.TracerPayload.Tags = map[string]string{
-				tracesemconv.TagContainersTags: src.Tag(),
+				shared.TagContainersTags: src.Tag(),
 			}
 		}
 	}

@@ -3,13 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package semconv defines well-known header and attribute name semantic conventions.
-package semconv
-
-/*
-./otlp.go:77:17: undefined: connContext
-./otlp.go:160:9: undefined: getMediaType
-*/
+// package shared defines shared utilities used in the implementation of API components.
+package shared
 
 const (
 	// HeaderTraceCount is the header client implementation should fill

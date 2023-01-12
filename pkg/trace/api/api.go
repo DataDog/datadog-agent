@@ -30,7 +30,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/semconv"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -319,12 +319,12 @@ func (r *HTTPReceiver) handleWithVersion(v Version, f func(Version, http.Respons
 	}
 }
 
-var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", semconv.HeaderTraceCount)
+var errInvalidHeaderTraceCountValue = fmt.Errorf("%q header value is not a number", shared.HeaderTraceCount)
 
 func traceCount(req *http.Request) (int64, error) {
-	str := req.Header.Get(semconv.HeaderTraceCount)
+	str := req.Header.Get(shared.HeaderTraceCount)
 	if str == "" {
-		return 0, fmt.Errorf("HTTP header %q not found", semconv.HeaderTraceCount)
+		return 0, fmt.Errorf("HTTP header %q not found", shared.HeaderTraceCount)
 	}
 	n, err := strconv.Atoi(str)
 	if err != nil {
@@ -341,11 +341,11 @@ func (r *HTTPReceiver) TagStats(v Version, header http.Header) *info.TagStats {
 
 func (r *HTTPReceiver) tagStats(v Version, header http.Header) *info.TagStats {
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            header.Get(semconv.HeaderLang),
-		LangVersion:     header.Get(semconv.HeaderLangVersion),
-		Interpreter:     header.Get(semconv.HeaderLangInterpreter),
-		LangVendor:      header.Get(semconv.HeaderLangInterpreterVendor),
-		TracerVersion:   header.Get(semconv.HeaderTracerVersion),
+		Lang:            header.Get(shared.HeaderLang),
+		LangVersion:     header.Get(shared.HeaderLangVersion),
+		Interpreter:     header.Get(shared.HeaderLangInterpreter),
+		LangVendor:      header.Get(shared.HeaderLangInterpreterVendor),
+		TracerVersion:   header.Get(shared.HeaderTracerVersion),
 		EndpointVersion: string(v),
 	})
 }
@@ -415,7 +415,7 @@ func (r *HTTPReceiver) replyOK(req *http.Request, v Version, w http.ResponseWrit
 	case v01, v02, v03:
 		return httpOK(w)
 	default:
-		ratesVersion := req.Header.Get(semconv.HeaderRatesPayloadVersion)
+		ratesVersion := req.Header.Get(shared.HeaderRatesPayloadVersion)
 		return httpRateByService(ratesVersion, w, r.dynConf)
 	}
 }
@@ -457,7 +457,7 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 	metrics.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
 	metrics.Count("datadog.trace_agent.receiver.stats_buckets", int64(len(in.Stats)), ts.AsTags(), 1)
 
-	r.statsProcessor.ProcessStats(in, req.Header.Get(semconv.HeaderLang), req.Header.Get(semconv.HeaderTracerVersion))
+	r.statsProcessor.ProcessStats(in, req.Header.Get(shared.HeaderLang), req.Header.Get(shared.HeaderTracerVersion))
 }
 
 // handleTraces knows how to handle a bunch of traces
@@ -522,14 +522,14 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
-		tp.Tags[semconv.TagContainersTags] = ctags
+		tp.Tags[shared.TagContainersTags] = ctags
 	}
 
 	payload := &Payload{
 		Source:                 ts,
 		TracerPayload:          tp,
-		ClientComputedTopLevel: req.Header.Get(semconv.HeaderComputedTopLevel) != "",
-		ClientComputedStats:    req.Header.Get(semconv.HeaderComputedStats) != "",
+		ClientComputedTopLevel: req.Header.Get(shared.HeaderComputedTopLevel) != "",
+		ClientComputedStats:    req.Header.Get(shared.HeaderComputedStats) != "",
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 
@@ -574,14 +574,14 @@ func runMetaHook(chunks []*pb.TraceChunk) {
 
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	var dropped int64
-	if v := h.Get(semconv.HeaderDroppedP0Traces); v != "" {
+	if v := h.Get(shared.HeaderDroppedP0Traces); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			dropped = count
 			ts.ClientDroppedP0Traces.Add(count)
 		}
 	}
-	if v := h.Get(semconv.HeaderDroppedP0Spans); v != "" {
+	if v := h.Get(shared.HeaderDroppedP0Spans); v != "" {
 		count, err := strconv.ParseInt(v, 10, 64)
 		if err == nil {
 			ts.ClientDroppedP0Spans.Add(count)
