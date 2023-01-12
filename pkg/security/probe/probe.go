@@ -826,13 +826,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	p.resolvers.ProcessResolver.DequeueExited()
 }
 
-// OnRuleMatch is called when a rule matches just before sending
-func (p *Probe) OnRuleMatch(rule *rules.Rule, ev *model.Event) {
-	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
-}
-
 // AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *Probe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCallback) {
 	p.notifyDiscarderPushedCallbacksLock.Lock()
