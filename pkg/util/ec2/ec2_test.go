@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -39,6 +40,14 @@ func resetPackageVars() {
 	publicIPv4Fetcher.Reset()
 	hostnameFetcher.Reset()
 	networkIDFetcher.Reset()
+}
+
+func setupDMIForEC2(t *testing.T) {
+	dmi.SetupMock(t, "ec2something", "ec2something2", "i-myinstance", DMIBoardVendor)
+}
+
+func setupDMIForNotEC2(t *testing.T) {
+	dmi.SetupMock(t, "", "", "", "")
 }
 
 func TestIsDefaultHostname(t *testing.T) {
@@ -114,25 +123,63 @@ func TestGetInstanceID(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/instance-id")
 }
 
+func TestGetInstanceIDFromDMI(t *testing.T) {
+	setupDMIForNotEC2(t)
+	instanceID, err := getInstanceIDFromDMI()
+	assert.Error(t, err)
+	assert.Equal(t, "", instanceID)
+
+	setupDMIForEC2(t)
+	instanceID, err = getInstanceIDFromDMI()
+	assert.NoError(t, err)
+	assert.Equal(t, "i-myinstance", instanceID)
+}
+
 func TestGetHostAliases(t *testing.T) {
 	tests := []struct {
 		name          string
 		instanceID    string
 		expectedHosts []string
+		setupDMI      bool
+		disableDMI    bool
 	}{
 		{
 			name:          "Instance ID found",
 			instanceID:    "i-0b22a22eec53b9321",
 			expectedHosts: []string{"i-0b22a22eec53b9321"},
+			setupDMI:      false,
 		},
 		{
 			name:          "No Instance ID found",
 			expectedHosts: []string{},
+			setupDMI:      false,
+		},
+		{
+			name:          "Instance ID found with DMI",
+			expectedHosts: []string{"i-myinstance"},
+			setupDMI:      true,
+		},
+		{
+			name:          "Instance ID found with DMI",
+			expectedHosts: []string{},
+			setupDMI:      true,
+			disableDMI:    true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setupDMI {
+				setupDMIForEC2(t)
+			} else {
+				setupDMIForNotEC2(t)
+			}
+
+			config.Mock(t)
+			if tc.disableDMI {
+				config.Datadog.Set("ec2_use_dmi", false)
+			}
+
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "text/plain")
 				var responseCode int
@@ -536,10 +583,40 @@ func TestGetNTPHosts(t *testing.T) {
 		io.WriteString(w, "test")
 	}))
 	defer ts.Close()
+	defer resetPackageVars()
 
 	metadataURL = ts.URL
 	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestGetNTPHostsDMI(t *testing.T) {
+	config.Mock(t)
+	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
+
+	ctx := context.Background()
+	expectedHosts := []string{"169.254.169.123"}
+
+	setupDMIForEC2(t)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(ctx)
+
+	assert.Equal(t, expectedHosts, actualHosts)
+}
+
+func TestGetNTPHostsDisabledDMI(t *testing.T) {
+	config.Mock(t)
+	config.Datadog.Set("ec2_use_dmi", false)
+	config.Datadog.Set("cloud_provider_metadata", []string{"aws"})
+
+	setupDMIForEC2(t)
+	defer resetPackageVars()
+	metadataURL = ""
+
+	actualHosts := GetNTPHosts(context.Background())
+	assert.Equal(t, []string(nil), actualHosts)
 }
