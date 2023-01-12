@@ -7,12 +7,14 @@ package compliance
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
 		Short: "Compliance Agent utility commands",
@@ -38,7 +40,7 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type eventCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	sourceName string
 	sourceType string
@@ -46,7 +48,7 @@ type eventCliParams struct {
 	data       []string
 }
 
-func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
+func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	eventArgs := &eventCliParams{
 		GlobalParams: globalParams,
 	}
@@ -58,21 +60,21 @@ func complianceEventCommand(globalParams *common.GlobalParams) *cobra.Command {
 			return fxutil.OneShot(eventRun,
 				fx.Supply(eventArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    log.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    log.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
 		Hidden: true,
 	}
 
-	eventCmd.Flags().StringVarP(&eventArgs.sourceType, "source-type", "", "compliance", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.sourceName, "source-name", "", "compliance-agent", "Log source name")
-	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, "rule-id", "", "", "Rule ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, "resource-id", "", "", "Resource ID")
-	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, "resource-type", "", "", "Resource type")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, "tags", "t", []string{"security:compliance"}, "Tags")
-	eventCmd.Flags().StringSliceVarP(&eventArgs.data, "data", "d", []string{}, "Data KV fields")
+	eventCmd.Flags().StringVarP(&eventArgs.sourceType, flags.SourceType, "", "compliance", "Log source name")
+	eventCmd.Flags().StringVarP(&eventArgs.sourceName, flags.SourceName, "", "compliance-agent", "Log source name")
+	eventCmd.Flags().StringVarP(&eventArgs.event.AgentRuleID, flags.RuleID, "", "", "Rule ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceID, flags.ResourceID, "", "", "Resource ID")
+	eventCmd.Flags().StringVarP(&eventArgs.event.ResourceType, flags.ResourceType, "", "", "Resource type")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.event.Tags, flags.Tags, "t", []string{"security:compliance"}, "Tags")
+	eventCmd.Flags().StringSliceVarP(&eventArgs.data, flags.Data, "d", []string{}, "Data KV fields")
 
 	return eventCmd
 }

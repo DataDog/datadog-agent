@@ -176,6 +176,7 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
+/comp/process @DataDog/processes
 # END COMPONENTS
 
 # pkg
@@ -280,6 +281,8 @@
 /pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
 /pkg/network/dns/*_windows*.go          @DataDog/windows-kernel-integrations
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations
+/pkg/network/ebpf/c/prebuilt/usm*      @DataDog/universal-service-monitoring
+/pkg/network/ebpf/c/runtime/usm*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
@@ -289,9 +292,11 @@
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
 /pkg/network/protocols/http/driver_*.go         @DataDog/windows-kernel-integrations
+/pkg/network/protocols/http/etw_*.go            @DataDog/windows-kernel-integrations
 /pkg/network/protocols/http/*_windows*.go       @DataDog/windows-kernel-integrations
 /pkg/network/tracer/*classification*.go         @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/gotls_client       @DataDog/universal-service-monitoring
+/pkg/network/tracer/testutil/postgres           @DataDog/universal-service-monitoring
 /pkg/network/tracer/tracer_usm_linux_test.go    @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-kernel-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform

@@ -26,7 +26,7 @@ static __always_inline bool mongo_have_seen_request(conn_tuple_t *tup, __s32 res
 
 // Checks if the given buffer represents a mongo request or a response.
 static __always_inline bool is_mongo(conn_tuple_t *tup, const char *buf, __u32 size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, MONGO_HEADER_LENGTH)
+    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, size, MONGO_HEADER_LENGTH);
 
     mongo_msg_header header = *((mongo_msg_header*)buf);
 

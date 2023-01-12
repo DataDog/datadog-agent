@@ -13,6 +13,7 @@
 #include "http2-helpers.h"
 #include "mongo-helpers.h"
 #include "redis-helpers.h"
+#include "postgres-helpers.h"
 
 // Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
 // has a known protocol), then we do nothing.
@@ -25,14 +26,16 @@ static __always_inline void classify_protocol(protocol_t *protocol, conn_tuple_t
         *protocol = PROTOCOL_HTTP;
     } else if (is_http2(buf, size)) {
         *protocol = PROTOCOL_HTTP2;
-    } else if (is_kafka(buf, size)) {
-        *protocol = PROTOCOL_KAFKA;
+//    } else if (is_kafka(buf, size)) {
+//        *protocol = PROTOCOL_KAFKA;
     } else if (is_amqp(buf, size)) {
         *protocol = PROTOCOL_AMQP;
     } else if (is_redis(buf, size)) {
         *protocol = PROTOCOL_REDIS;
     } else if (is_mongo(tup, buf, size)) {
         *protocol = PROTOCOL_MONGO;
+    } else if (is_postgres(buf, size)) {
+        *protocol = PROTOCOL_POSTGRES;
     } else {
         *protocol = PROTOCOL_UNKNOWN;
     }

@@ -41,10 +41,11 @@ func TestPatchDeployment(t *testing.T) {
 
 	// Apply first patch
 	req := PatchRequest{
-		Action:    ApplyConfig,
+		ID:        "id",
+		Revision:  123,
+		Action:    EnableConfig,
 		K8sTarget: K8sTarget{Kind: KindDeployment, Namespace: ns, Name: name},
-		LibID:     LibID{Language: "java", Version: "latest"},
-		LibConfig: common.LibConfig{Version: 1, ServiceLanguage: "java"},
+		LibConfig: common.LibConfig{Language: "java", Version: "latest"},
 	}
 	require.NoError(t, p.patchDeployment(req))
 
@@ -53,10 +54,13 @@ func TestPatchDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"version":1,"service_language":"java"}`)
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest"}`)
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "123")
 
 	// Patch again to disable lib injection (aka revert)
-	req.Action = DisableInjection
+	req.Action = DisableConfig
+	req.Revision = 1234
 	require.NoError(t, p.patchDeployment(req))
 
 	// Check the new patch
@@ -65,10 +69,13 @@ func TestPatchDeployment(t *testing.T) {
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "false")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.version")
 	require.NotContains(t, got.Spec.Template.Annotations, "admission.datadoghq.com/java-lib.config.v1")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "1234")
 
 	// Apply a new patch with a new config
-	req.Action = ApplyConfig
-	req.LibConfig = common.LibConfig{Version: 1, ServiceLanguage: "java", TracingTags: []string{"k1:v1", "k2:v2"}}
+	req.Action = EnableConfig
+	req.Revision = 12345
+	req.LibConfig = common.LibConfig{Language: "java", Version: "latest", TracingTags: []string{"k1:v1", "k2:v2"}}
 	require.NoError(t, p.patchDeployment(req))
 
 	// Check the new patch
@@ -76,5 +83,7 @@ func TestPatchDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, got.Spec.Template.Labels["admission.datadoghq.com/enabled"], "true")
 	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.version"], "latest")
-	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"version":1,"service_language":"java","tracing_tags":["k1:v1","k2:v2"]}`)
+	require.Equal(t, got.Spec.Template.Annotations["admission.datadoghq.com/java-lib.config.v1"], `{"library_language":"java","library_version":"latest","tracing_tags":["k1:v1","k2:v2"]}`)
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.id"], "id")
+	require.Equal(t, got.Annotations["admission.datadoghq.com/java-lib.rc.rev"], "12345")
 }

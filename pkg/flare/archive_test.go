@@ -52,7 +52,7 @@ func TestIncludeSystemProbeConfig(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	mock.AssertFileExists("etc", "datadog-agent.yaml")
+	mock.AssertFileExists("etc", "datadog.yaml")
 	mock.AssertFileExists("etc", "system-probe.yaml")
 }
 
@@ -62,9 +62,20 @@ func TestIncludeConfigFiles(t *testing.T) {
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getConfigFiles(mock.Fb, SearchPaths{"": "./test/confd"})
 
-	mock.AssertFileExists("test.yaml")
-	mock.AssertFileExists("test.Yml")
-	mock.AssertNoFileExists("not_included.conf")
+	mock.AssertFileExists("etc/confd/test.yaml")
+	mock.AssertFileExists("etc/confd/test.Yml")
+	mock.AssertNoFileExists("etc/confd/not_included.conf")
+}
+
+func TestIncludeConfigFilesWithPrefix(t *testing.T) {
+	common.SetupConfig("./test")
+
+	mock := flarehelpers.NewFlareBuilderMock(t)
+	getConfigFiles(mock.Fb, SearchPaths{"prefix": "./test/confd"})
+
+	mock.AssertFileExists("etc/confd/prefix/test.yaml")
+	mock.AssertFileExists("etc/confd/prefix/test.Yml")
+	mock.AssertNoFileExists("etc/confd/prefix/not_included.conf")
 }
 
 func createTestFile(t *testing.T, filename string) string {
@@ -77,7 +88,7 @@ func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("logs_config.run_path", srcDir)
+	confMock.Set("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getRegistryJSON(mock.Fb)
@@ -175,7 +186,7 @@ func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("run_path", srcDir)
+	confMock.Set("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t)
 	getVersionHistory(mock.Fb)

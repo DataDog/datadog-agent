@@ -176,7 +176,7 @@ func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval
 	switch value.(type) {
 	case []int:
 		intVar := eval.NewIntArrayVariable(func(ctx *eval.Context) []int {
-			processName := (*testEvent)(ctx.Object).process.name
+			processName := ctx.Event.(*testEvent).process.name
 			processVars, found := t.vars[processName]
 			if !found {
 				return nil
@@ -190,7 +190,7 @@ func (t *testVariableProvider) GetVariable(name string, value interface{}) (eval
 			i, _ := v.([]int)
 			return i
 		}, func(ctx *eval.Context, value interface{}) error {
-			processName := (*testEvent)(ctx.Object).process.name
+			processName := ctx.Event.(*testEvent).process.name
 			if _, found := t.vars[processName]; !found {
 				t.vars[processName] = map[string]interface{}{}
 			}
