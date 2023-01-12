@@ -56,8 +56,8 @@ type cliParams struct {
 	checkTimes                int
 	checkPause                int
 	checkName                 string
-	instanceFilter            string
 	checkDelay                int
+	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool

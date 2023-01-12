@@ -45,6 +45,7 @@ type cliParams struct {
 	saveFlare             bool
 	discoveryTimeout      uint
 	discoveryMinInstances uint
+	instanceFilter        string
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -63,6 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	jmxCmd.PersistentFlags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	jmxCmd.PersistentFlags().UintVarP(&discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	jmxCmd.PersistentFlags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	jmxCmd.PersistentFlags().StringVarP(&cliParams.instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 
 	// All subcommands use the same provided components, with a different
 	// oneShot callback, and with some complex derivation of the
@@ -243,7 +245,7 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 	if len(cliParams.cliSelectedChecks) == 0 {
 		allConfigs, err = common.WaitForAllConfigsFromAD(waitCtx)
 	} else {
-		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), "")
+		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	}
 	if err != nil {
 		return err
