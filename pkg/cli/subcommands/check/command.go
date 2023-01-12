@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -193,26 +192,11 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-	allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances))
-	cancelTimeout()
 
-	if cliParams.instanceFilter != "" {
-		var newAllConfigs []integration.Config
-		for _, conf := range allConfigs {
-			var newInstances []integration.Data
-			for _, instance := range conf.Instances {
-				exist, err := YAMLExistQuery(instance, cliParams.instanceFilter)
-				if err != nil {
-					return fmt.Errorf("instance filter error: %v", err)
-				}
-				if exist {
-					newInstances = append(newInstances, instance)
-				}
-			}
-			conf.Instances = newInstances
-			newAllConfigs = append(newAllConfigs, conf)
-		}
-		allConfigs = newAllConfigs
+	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
+	cancelTimeout()
+	if err != nil {
+		return err
 	}
 
 	// make sure the checks in cs are not JMX checks
@@ -649,19 +633,4 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 // in place for some time.
 func disableCmdPort() {
 	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
-}
-
-// YAMLExistQuery check a property/value from a YAML exist (jq style syntax)
-func YAMLExistQuery(data []byte, query string) (bool, error) {
-	var yamlContent interface{}
-	if err := yaml.Unmarshal(data, &yamlContent); err != nil {
-		return false, err
-	}
-	yamlContent = jsonquery.NormalizeYAMLForGoJQ(yamlContent)
-	output, _, err := jsonquery.RunSingleOutput(query, yamlContent)
-	var exist bool
-	if err := yaml.Unmarshal([]byte(output), &exist); err != nil {
-		return false, fmt.Errorf("filter query must return a boolean: %s", err)
-	}
-	return exist, err
 }

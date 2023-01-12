@@ -164,7 +164,7 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			waitCtx, cancelTimeout := context.WithTimeout(
 				context.Background(), time.Duration(discoveryTimeout)*time.Second)
-			allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{checkName}, int(discoveryMinInstances))
+			allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{checkName}, int(discoveryMinInstances), "")
 			cancelTimeout()
 
 			// make sure the checks in cs are not JMX checks

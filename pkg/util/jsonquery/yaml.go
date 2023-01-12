@@ -7,6 +7,7 @@ package jsonquery
 
 import (
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"time"
 )
 
@@ -45,4 +46,19 @@ func NormalizeYAMLForGoJQ(v interface{}) interface{} {
 	default:
 		return v
 	}
+}
+
+// YAMLCheckExist check a property/value from a YAML exist (jq style syntax)
+func YAMLCheckExist(yamlData []byte, query string) (bool, error) {
+	var yamlContent interface{}
+	if err := yaml.Unmarshal(yamlData, &yamlContent); err != nil {
+		return false, err
+	}
+	yamlContent = NormalizeYAMLForGoJQ(yamlContent)
+	output, _, err := RunSingleOutput(query, yamlContent)
+	var exist bool
+	if err := yaml.Unmarshal([]byte(output), &exist); err != nil {
+		return false, fmt.Errorf("filter query must return a boolean: %s", err)
+	}
+	return exist, err
 }

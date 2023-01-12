@@ -7,6 +7,8 @@ package common
 
 import (
 	"context"
+	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 	"time"
 
 	"go.uber.org/atomic"
@@ -211,14 +213,14 @@ func (sf schedulerFunc) Stop() {
 //
 // If the context is cancelled, then any accumulated, matching changes are
 // returned, even if that is fewer than discoveryMinInstances.
-func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
-	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances)
+func WaitForConfigsFromAD(ctx context.Context, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, false, checkNames, discoveryMinInstances, instanceFilter)
 }
 
 // WaitForAllConfigsFromAD waits until its context expires, and then returns
 // the full set of checks scheduled by AD.
-func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config) {
-	return waitForConfigsFromAD(ctx, true, []string{}, 0)
+func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config, lastError error) {
+	return waitForConfigsFromAD(ctx, true, []string{}, 0, "")
 }
 
 // waitForConfigsFromAD waits for configs from the AD scheduler and returns them.
@@ -234,7 +236,7 @@ func WaitForAllConfigsFromAD(ctx context.Context) (configs []integration.Config)
 // If wildcard is true, this gathers all configs scheduled before the context
 // is cancelled, and then returns.  It will not return before the context is
 // cancelled.
-func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int) (configs []integration.Config) {
+func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []string, discoveryMinInstances int, instanceFilter string) (configs []integration.Config, returnErr error) {
 	configChan := make(chan integration.Config)
 
 	// signal to the scheduler when we are no longer waiting, so we do not continue
@@ -265,12 +267,20 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 		}
 	}
 
+	stopChan := make(chan struct{})
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
 		for _, cfg := range configs {
-			// TODO: apply --instance-filter here
-			if match(cfg) && waiting.Load() {
+			instances, err := filterInstances(cfg.Instances, instanceFilter)
+			if err != nil {
+				returnErr = err
+				stopChan <- struct{}{}
+				break
+			}
+			cfg.Instances = instances
+
+			if len(cfg.Instances) > 0 && match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
 		}
@@ -280,9 +290,28 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 		select {
 		case cfg := <-configChan:
 			configs = append(configs, cfg)
+		case <-stopChan:
+			return
 		case <-ctx.Done():
 			return
 		}
 	}
 	return
+}
+
+func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, error) {
+	if instanceFilter == "" {
+		return instances, nil
+	}
+	var newInstances []integration.Data
+	for _, instance := range instances {
+		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
+		if err != nil {
+			return nil, fmt.Errorf("instance filter errorxx: %v", err)
+		}
+		if exist {
+			newInstances = append(newInstances, instance)
+		}
+	}
+	return newInstances, nil
 }

@@ -241,9 +241,12 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
 	var allConfigs []integration.Config
 	if len(cliParams.cliSelectedChecks) == 0 {
-		allConfigs = common.WaitForAllConfigsFromAD(waitCtx)
+		allConfigs, err = common.WaitForAllConfigsFromAD(waitCtx)
 	} else {
-		allConfigs = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances))
+		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), "")
+	}
+	if err != nil {
+		return err
 	}
 	cancelTimeout()
 
