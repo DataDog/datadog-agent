@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -41,18 +42,31 @@ func runCmd(cmd *exec.Cmd) string {
 	return output
 }
 
-func getCommitDir() string {
-	// Virtually all files whose permissions we are trying to collect come from
-	// the Datadog configuration directory (at least the one we care about). It
-	// may change in the future.
-	commitDir := filepath.Dir(config.Datadog.ConfigFileUsed())
-
-	// Handle unit test run (to the best of our abilities)
-	if commitDir == "." {
-		commitDir, _ = os.Getwd()
+// Get Datadog bin directory
+func getDatadogProgramFilesBinPath() (string, error) {
+	// By default C:\Program Files\Datadog\Datadog Agent
+	installDir, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
+	if err != nil {
+		return "", err
 	}
 
-	return commitDir
+	// By default C:\Program Files\Datadog\Datadog Agent\bin
+	return filepath.Join(installDir, "bin"), nil
+}
+
+// Virtually all files whose permissions we are trying to collect come from
+// the Datadog configuration directory (at least the one we care about). It
+// may change in the future.
+func getDatadogProgramDatatPath() string {
+	// By default C:\ProgramData\Datadog
+	dir := filepath.Dir(config.Datadog.ConfigFileUsed())
+
+	// Handle unit test run
+	if dir == "." {
+		dir, _ = os.Getwd()
+	}
+
+	return dir
 }
 
 func getPermExeFilePath() string {
@@ -79,13 +93,28 @@ func (p permissionsInfos) add(filePath string) {
 func (p permissionsInfos) commit() ([]byte, error) {
 	f := &bytes.Buffer{}
 
-	execPath := getPermExeFilePath()
-	dir := getCommitDir()
-	cmdOut := runCmd(exec.Command(execPath, dir, "/T"))
+	var err error
 
-	_, err := f.Write([]byte(cmdOut))
+	execPath := getPermExeFilePath()
+
+	// Get Datadog configuration directory
+	dir := getDatadogProgramDatatPath()
+	cmdOut := runCmd(exec.Command(execPath, dir, "/T"))
+	_, err = f.Write([]byte(cmdOut))
 	if err != nil {
 		return f.Bytes(), err
+	}
+
+	// Get Datadog bin directory (optional if err)
+	dir, err = getDatadogProgramFilesBinPath()
+	if err == nil {
+		// Collect privileges for Agent executables
+		agentExeFilePathPattern := filepath.Join(dir, "*.exe")
+		cmdOut := runCmd(exec.Command(execPath, agentExeFilePathPattern, "/T"))
+		_, err = f.Write([]byte(cmdOut))
+		if err != nil {
+			return f.Bytes(), err
+		}
 	}
 
 	return f.Bytes(), nil
