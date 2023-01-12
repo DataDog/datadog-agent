@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -46,14 +47,14 @@ func RegisterHandler(handler HandlerFunc) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev *sprobe.Event) {
+func (h *eventHandlerWrapper) HandleEvent(ev *model.Event) {
 	m := theMonitor.Load()
 	if m != nil {
 		m.(*eventMonitor).HandleEvent(ev)
 	}
 }
 
-func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	m := theMonitor.Load()
 	if m != nil {
 		m.(*eventMonitor).HandleCustomEvent(rule, event)
@@ -77,12 +78,12 @@ func newEventMonitor() (*eventMonitor, error) {
 	return &eventMonitor{}, nil
 }
 
-func (e *eventMonitor) HandleEvent(ev *sprobe.Event) {
+func (e *eventMonitor) HandleEvent(ev *model.Event) {
 	if ev.Type == uint32(model.ExitEventType) {
 		return
 	}
 
-	_ = ev.ResolveProcessEnvp(&ev.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.ProcessContext.Process)
 
 	entry, ok := ev.ResolveProcessCacheEntry()
 	if !ok {
@@ -98,7 +99,7 @@ func (e *eventMonitor) HandleEvent(ev *sprobe.Event) {
 
 }
 
-func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *sprobe.CustomEvent) {
+func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 
 func (e *eventMonitor) RegisterHandler(handler HandlerFunc) {
