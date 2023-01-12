@@ -1444,6 +1444,10 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 }
 
 func TestSendfileRegression(t *testing.T) {
+	if ddconfig.IsECSFargate() {
+		t.Skip("sendfile not yet supported on fentry tracer/Fargate")
+	}
+
 	// Start tracer
 	tr, err := NewTracer(testConfig())
 	require.NoError(t, err)
@@ -1658,6 +1662,10 @@ func TestShortWrite(t *testing.T) {
 }
 
 func TestKprobeAttachWithKprobeEvents(t *testing.T) {
+	if ddconfig.IsECSFargate() {
+		t.Skip("skipped on Fargate")
+	}
+
 	cfg := config.New()
 	cfg.AttachKprobesWithKprobeEventsABI = true
 

@@ -51,7 +51,7 @@ var (
 // Some tests try to detect if they're running on Fargate. We'll get a panic
 // when checking that if the auto-detected features have not been initialized.
 func init() {
-	coreConfig.SetDetectedFeatures(coreConfig.FeatureMap{})
+	coreConfig.DetectFeatures()
 }
 
 func TestMain(m *testing.M) {
