@@ -11,6 +11,7 @@ package http
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/cilium/ebpf"
 	"golang.org/x/sys/unix"
@@ -193,7 +194,7 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
-			return fmt.Errorf("co-re load failed: %w", err)
+			return handleInitError(fmt.Errorf("co-re load failed: %w", err))
 		}
 
 		log.Errorf("co-re load failed: %s. attempting fallback.", err)
@@ -352,4 +353,15 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
+}
+
+// wrap certain errors as `ErrNotSupported` so CO-RE tests skipped accordingly
+func handleInitError(err error) error {
+	if strings.Contains(err.Error(), "kernel without BTF support") ||
+		strings.Contains(err.Error(), "could not find BTF data on host") {
+		return &ErrNotSupported{
+			fmt.Errorf("co-re not supported on this host: %w", err),
+		}
+	}
+	return err
 }

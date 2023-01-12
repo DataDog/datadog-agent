@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Monitor is responsible for:
@@ -40,13 +41,24 @@ type Monitor struct {
 
 // NewMonitor returns a new Monitor instance
 func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*Monitor, error) {
+	kversion, err := kernel.HostVersion()
+	if err != nil {
+		return nil, &ErrNotSupported{fmt.Errorf("couldn't determine current kernel version: %w", err)}
+	}
+
+	if kversion < MinimumKernelVersion {
+		return nil, &ErrNotSupported{
+			fmt.Errorf("http feature not available on pre %s kernels", MinimumKernelVersion.String()),
+		}
+	}
+
 	mgr, err := newEBPFProgram(c, offsets, sockFD, bpfTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
 	}
 
 	if err := mgr.Init(); err != nil {
-		return nil, fmt.Errorf("error initializing http ebpf program: %s", err)
+		return nil, fmt.Errorf("error initializing http ebpf program: %w", err)
 	}
 
 	filter, _ := mgr.GetProbe(manager.ProbeIdentificationPair{EBPFSection: protocolDispatcherSocketFilterSection, EBPFFuncName: protocolDispatcherSocketFilterFunction, UID: probeUID})
