@@ -1257,11 +1257,13 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 	assert := assert.New(t)
 	for _, tt := range []struct {
 		in, out string
+		tables  string
 		cfg     SQLConfig
 	}{
 		{
 			"select * from ##ThisIsAGlobalTempTable where id = 1",
 			"select * from ##ThisIsAGlobalTempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
 			},
@@ -1269,8 +1271,18 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 		{
 			"select * from dbo.#ThisIsATempTable where id = 1",
 			"select * from dbo.#ThisIsATempTable where id = ?",
+			"",
 			SQLConfig{
 				DBMS: DBMSSQLServer,
+			},
+		},
+		{
+			"SELECT * from [db_users] where [id] = @1",
+			"SELECT * from db_users where id = @1",
+			"db_users",
+			SQLConfig{
+				DBMS:       DBMSSQLServer,
+				TableNames: true,
 			},
 		},
 	} {
@@ -1278,6 +1290,7 @@ func TestObfuscatorDBMSBehavior(t *testing.T) {
 			oq, err := NewObfuscator(Config{SQL: tt.cfg}).ObfuscateSQLString(tt.in)
 			assert.NoError(err)
 			assert.Equal(tt.out, oq.Query)
+			assert.Equal(tt.tables, oq.Metadata.TablesCSV)
 		})
 	}
 }

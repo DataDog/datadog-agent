@@ -77,5 +77,5 @@ func initRuntimeSettings() error {
 		return err
 	}
 
-	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting("internal_profiling"))
+	return commonsettings.RegisterRuntimeSetting(commonsettings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "datadog-cluster-agent"})
 }

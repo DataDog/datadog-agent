@@ -1393,7 +1393,7 @@ func NewProbe(config *config.Config, statsdClient statsd.ClientInterface) (*Prob
 	}
 	p.resolvers = resolvers
 
-	p.fieldHandlers = &FieldHandlers{probe: p, resolvers: resolvers}
+	p.fieldHandlers = &FieldHandlers{resolvers: resolvers}
 
 	// be sure to zero the probe event before everything else
 	p.zeroEvent()

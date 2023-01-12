@@ -201,6 +201,23 @@ func TestConfigsForService(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "headless service is ignored",
+			check:   types.DefaultPrometheusCheck,
+			version: 1,
+			svc: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         k8stypes.UID("foo-uid"),
+					Name:        "svc-foo",
+					Annotations: map[string]string{"prometheus.io/scrape": "true"},
+					Namespace:   "ns",
+				},
+				Spec: corev1.ServiceSpec{
+					ClusterIP: "None",
+				},
+			},
+			want: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

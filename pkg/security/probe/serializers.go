@@ -207,9 +207,9 @@ type ProcessSerializer struct {
 	// Indicator of environments variable truncation
 	EnvsTruncated bool `json:"envs_truncated,omitempty"`
 	// Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)
-	IsThread bool `json:"is_thread,omitempty" jsonschema_description:""`
+	IsThread bool `json:"is_thread,omitempty"`
 	// Indicates whether the process is a kworker
-	IsKworker bool `json:"is_kworker,omitempty" jsonschema_description:""`
+	IsKworker bool `json:"is_kworker,omitempty"`
 }
 
 // ContainerContextSerializer serializes a container context to JSON
@@ -490,8 +490,10 @@ type BindEventSerializer struct {
 // ExitEventSerializer serializes an exit event to JSON
 // easyjson:json
 type ExitEventSerializer struct {
-	Cause string `json:"cause" jsonschema_description:"Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)"`
-	Code  uint32 `json:"code" jsonschema_description:"Exit code of the process or number of the signal that caused the process to terminate"`
+	// Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED)
+	Cause string `json:"cause"`
+	// Exit code of the process or number of the signal that caused the process to terminate
+	Code uint32 `json:"code"`
 }
 
 // MountEventSerializer serializes a mount event to JSON

@@ -74,9 +74,10 @@ github.com/DataDog/mmh3: Copyright (c) 2017 Datadog, Inc.
 # not scanned automatically.
 github.com/tklauser/numcpus: Copyright 2018 Tobias Klauser
 github.com/Masterminds/goutils: "Copyright 2014 Alexander Okoli"
-github.com/dgraph-io/ristretto:
+github.com/outcaste-io/ristretto:
  - "Copyright 2019 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 Dgraph Labs, Inc. and Contributors"
+ - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
  - "Copyright 2020 The LevelDB-Go and Pebble Authors. All rights reserved."
  - "Copyright (c) 2014 Andreas Briese, eduToolbox@Bri-C GmbH, Sarstedt"
  - "Copyright (c) 2019 Ewan Chou"
