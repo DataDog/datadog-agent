@@ -6,7 +6,7 @@
 
 // Tracking allocations in Python interpreter.
 //
-// See https://docs.python.org/3/c-api/memory.html#customize-memory-allocators
+// See https://docs.python.org/3/c-api/memory.html#customize-memory-allocators [1]
 //
 // Python allocates memory using two mechanisms: pymalloc for small,
 // short lived allocations, which constitute the bulk of memory usage,
@@ -125,6 +125,7 @@ void Three::pyrawTrackFree(void *ptr)
 
 void *Three::pyrawMalloc(size_t size)
 {
+    // Required by Python, see [1]
     if (size == 0) {
         size = 1;
     }
@@ -135,6 +136,7 @@ void *Three::pyrawMalloc(size_t size)
 
 void *Three::pyrawCalloc(size_t nelem, size_t elsize)
 {
+    // Required by Python, see [1]
     if (nelem == 0 || elsize == 0) {
         nelem = 1;
         elsize = 1;
@@ -146,6 +148,7 @@ void *Three::pyrawCalloc(size_t nelem, size_t elsize)
 
 void *Three::pyrawRealloc(void *ptr, size_t size)
 {
+    // Required by Python, see [1]
     if (size == 0) {
         size = 1;
     }
