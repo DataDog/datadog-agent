@@ -51,7 +51,7 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
     *addr = bpf_ntohll(*addr) >> 32;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
     bpf_memset(info, 0, sizeof(skb_info_t));
@@ -112,7 +112,12 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     return 1;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+__maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
+    bool match = !bpf_memcmp(t, t2, sizeof(conn_tuple_t));
+    return match;
+}
+
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
     // TODO: we can probably replace this by swap operations
@@ -129,7 +134,7 @@ __maybe_unused static __always_inline void flip_tuple(conn_tuple_t *t) {
     t->daddr_h = tmp_ip_part;
 }
 
-// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in 
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
 __maybe_unused static __always_inline void print_ip(u64 ip_h, u64 ip_l, u16 port, u32 metadata) {
     if (metadata & CONN_V6) {

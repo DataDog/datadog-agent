@@ -6,8 +6,6 @@ struct bpf_map_def SEC("maps/exec_file_cache") exec_file_cache = {
     .key_size = sizeof(u64),
     .value_size = sizeof(struct file_t),
     .max_entries = 4096,
-    .pinning = 0,
-    .namespace = "",
 };
 
 __attribute__((always_inline)) int is_snapshot_process() {
@@ -76,8 +74,6 @@ struct bpf_map_def SEC("maps/fd_link_pid") fd_link_pid = {
     .key_size = sizeof(u8),
     .value_size = sizeof(u32),
     .max_entries = 1,
-    .pinning = 0,
-    .namespace = "",
 };
 
 SEC("kprobe/path_get")

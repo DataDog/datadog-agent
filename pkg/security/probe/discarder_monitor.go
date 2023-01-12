@@ -12,11 +12,13 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
 
 	lib "github.com/cilium/ebpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -67,8 +69,6 @@ func (d *DiscarderMonitor) SendStats() error {
 			}
 		}
 
-		fmt.Printf("%v: %d\n", tags, int64(stats.DiscarderAdded))
-
 		_ = d.statsdClient.Count(metrics.MetricDiscarderAdded, int64(stats.DiscarderAdded), tags, 1.0)
 		_ = d.statsdClient.Count(metrics.MetricEventDiscarded, int64(stats.EventDiscarded), tags, 1.0)
 
@@ -82,31 +82,31 @@ func (d *DiscarderMonitor) SendStats() error {
 }
 
 // NewDiscarderMonitor returns a new DiscarderMonitor
-func NewDiscarderMonitor(p *Probe) (*DiscarderMonitor, error) {
+func NewDiscarderMonitor(manager *manager.Manager, statsdClient statsd.ClientInterface) (*DiscarderMonitor, error) {
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't fetch the host CPU count: %w", err)
 	}
 
 	d := &DiscarderMonitor{
-		statsdClient: p.statsdClient,
+		statsdClient: statsdClient,
 		statsZero:    make([]DiscarderStats, numCPU),
 		numCPU:       numCPU,
 	}
 
-	statsFB, err := p.Map("discarder_stats_fb")
+	statsFB, err := managerhelper.Map(manager, "discarder_stats_fb")
 	if err != nil {
 		return nil, err
 	}
 	d.stats[0] = statsFB
 
-	statsBB, err := p.Map("discarder_stats_bb")
+	statsBB, err := managerhelper.Map(manager, "discarder_stats_bb")
 	if err != nil {
 		return nil, err
 	}
 	d.stats[1] = statsBB
 
-	bufferSelector, err := p.Map("buffer_selector")
+	bufferSelector, err := managerhelper.Map(manager, "buffer_selector")
 	if err != nil {
 		return nil, err
 	}

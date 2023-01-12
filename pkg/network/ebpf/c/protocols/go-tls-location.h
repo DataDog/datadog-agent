@@ -194,9 +194,9 @@ static __always_inline int read_location(struct pt_regs* ctx, location_t* loc, s
         }
 
         return read_register(ctx, loc->_register, dest);
-    } else {
-        return read_stack(ctx, loc->stack_offset, size, dest);
     }
+
+    return read_stack(ctx, loc->stack_offset, size, dest);
 }
 
 #endif //__GO_TLS_LOCATION_H

@@ -147,7 +147,7 @@ func TestInfo(t *testing.T) {
 	require.Equal(t, "foo", c.Image)
 }
 
-func TestImage(t *testing.T) {
+func TestImageOfContainer(t *testing.T) {
 	mockUtil := ContainerdUtil{}
 
 	image := &mockImage{
@@ -160,7 +160,7 @@ func TestImage(t *testing.T) {
 		},
 	}
 
-	resultImage, err := mockUtil.Image(TestNamespace, container)
+	resultImage, err := mockUtil.ImageOfContainer(TestNamespace, container)
 	require.NoError(t, err)
 	require.Equal(t, resultImage, image)
 }

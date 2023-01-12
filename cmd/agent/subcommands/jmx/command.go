@@ -83,14 +83,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.jmxLogLevel == "" {
 			cliParams.jmxLogLevel = "debug"
 		}
-
 		params := core.BundleParams{
-			ConfFilePath:      globalParams.ConfFilePath,
-			ConfigLoadSecrets: true,
-		}.LogForOneShot("CORE", cliParams.jmxLogLevel, false)
-
+			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+			LogParams:    log.LogForOneShot("CORE", cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
-			params = params.LogToFile(cliParams.logFile)
+			params.LogParams.LogToFile(cliParams.logFile)
 		}
 
 		return fxutil.OneShot(callback,

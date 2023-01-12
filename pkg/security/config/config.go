@@ -16,7 +16,6 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logsconfig "github.com/DataDog/datadog-agent/pkg/logs/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -137,14 +136,14 @@ type Config struct {
 	// this field empty to prevent writing any output to disk.
 	ActivityDumpLocalStorageDirectory string
 	// ActivityDumpLocalStorageFormats defines the formats that should be used to persist the activity dumps locally.
-	ActivityDumpLocalStorageFormats []dump.StorageFormat
+	ActivityDumpLocalStorageFormats []StorageFormat
 	// ActivityDumpLocalStorageCompression defines if the local storage should compress the persisted data.
 	ActivityDumpLocalStorageCompression bool
 	// ActivityDumpLocalStorageMaxDumpsCount defines the maximum count of activity dumps that should be kept locally.
 	// When the limit is reached, the oldest dumps will be deleted first.
 	ActivityDumpLocalStorageMaxDumpsCount int
 	// ActivityDumpRemoteStorageFormats defines the formats that should be used to persist the activity dumps remotely.
-	ActivityDumpRemoteStorageFormats []dump.StorageFormat
+	ActivityDumpRemoteStorageFormats []StorageFormat
 	// ActivityDumpRemoteStorageCompression defines if the remote storage should compress the persisted data.
 	ActivityDumpRemoteStorageCompression bool
 	// ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same
@@ -301,7 +300,7 @@ func (c *Config) globalSanitize() error {
 		c.RuntimeCompiledConstantsEnabled = false
 	}
 
-	serviceName := utils.GetTagValue("service", coreconfig.GetConfiguredTags(true))
+	serviceName := utils.GetTagValue("service", coreconfig.GetGlobalConfiguredTags(true))
 	if len(serviceName) > 0 {
 		c.HostServiceName = fmt.Sprintf("service:%s", serviceName)
 	}
@@ -386,14 +385,14 @@ func (c *Config) sanitizeRuntimeSecurityConfigActivityDump() error {
 
 	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
 		var err error
-		c.ActivityDumpLocalStorageFormats, err = dump.ParseStorageFormats(formats)
+		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.local_storage.formats: %w", err)
 		}
 	}
 	if formats := coreconfig.Datadog.GetStringSlice("runtime_security_config.activity_dump.remote_storage.formats"); len(formats) > 0 {
 		var err error
-		c.ActivityDumpRemoteStorageFormats, err = dump.ParseStorageFormats(formats)
+		c.ActivityDumpRemoteStorageFormats, err = ParseStorageFormats(formats)
 		if err != nil {
 			return fmt.Errorf("invalid value for runtime_security_config.activity_dump.remote_storage.formats: %w", err)
 		}

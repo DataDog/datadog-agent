@@ -9,11 +9,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"net/http"
 	"os"
-	"os/signal"
 	"path"
-	"syscall"
 	"time"
 
 	_ "expvar" // Blank import used because this isn't directly used in this file
@@ -23,13 +22,16 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
+	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
@@ -45,15 +47,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = common.LoggerName
+	loggerName coreconfig.LoggerName = command.LoggerName
 )
 
 var (
@@ -63,7 +66,7 @@ var (
 )
 
 func CreateSecurityAgentCmd() *cobra.Command {
-	globalParams := common.GlobalParams{}
+	globalParams := command.GlobalParams{}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -78,25 +81,28 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
-			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfigFilePaths, cmd.Flags().Lookup(flags.CfgPath).Changed)
 			return err
+		},
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			log.Flush()
 		},
 	}
 
-	defaultConfPathArray := []string{
+	defaultConfigFilePaths := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultConfigFilePaths, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
-	factories := []common.SubcommandFactory{
+	factories := []command.SubcommandFactory{
 		status.Commands,
-		FlareCommands,
-		ConfigCommands,
-		ComplianceCommands,
-		RuntimeCommands,
-		VersionCommands,
+		flare.Commands,
+		subconfig.Commands,
+		compliance.Commands,
+		runtime.Commands,
+		version.Commands,
 		StartCommands,
 	}
 
@@ -161,7 +167,12 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 	if !coreconfig.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
-		return nil
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		return errAllComponentsDisabled
 	}
 
 	err = manager.ConfigureAutoExit(ctx)
@@ -207,7 +218,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
-	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", pkgversion.AgentVersion))
 
 	stopper = startstop.NewSerialStopper()
 
@@ -226,20 +237,30 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
-	// Initialize the remote tagger
-	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
-		tagger.SetDefaultTagger(remote.NewTagger())
-		err := tagger.Init(ctx)
-		if err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
+	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
+	if coreconfig.Datadog.GetBool("security_agent.remote_workloadmeta") {
+		workloadmetaCollectors = workloadmeta.RemoteCatalog
 	}
 
 	// Start workloadmeta store
-	store := workloadmeta.GetGlobalStore()
+	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
 	store.Start(ctx)
 
-	complianceAgent, err := startCompliance(hostnameDetected, stopper, statsdClient)
+	// Initialize the remote tagger
+	if coreconfig.Datadog.GetBool("security_agent.remote_tagger") {
+		options, err := remote.NodeAgentOptions()
+		if err != nil {
+			log.Errorf("unable to configure the remote tagger: %s", err)
+		} else {
+			tagger.SetDefaultTagger(remote.NewTagger(options))
+			err := tagger.Init(ctx)
+			if err != nil {
+				log.Errorf("failed to start the tagger: %s", err)
+			}
+		}
+	}
+
+	complianceAgent, err := compliance.StartCompliance(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -249,7 +270,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := startRuntimeSecurity(hostnameDetected, stopper, statsdClient)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
@@ -274,31 +295,6 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 func initRuntimeSettings() error {
 	return settings.RegisterRuntimeSetting(settings.LogLevelRuntimeSetting{})
-}
-
-// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
-// signal is received.
-func handleSignals(stopCh chan struct{}) {
-	// Setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
-
-	// Block here until we receive the interrupt signal
-	for signo := range signalCh {
-		switch signo {
-		case syscall.SIGPIPE:
-			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
-			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
-			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
-		default:
-			log.Infof("Received signal '%s', shutting down...", signo)
-
-			_ = tagger.Stop()
-
-			stopCh <- struct{}{}
-			return
-		}
-	}
 }
 
 // StopAgent stops the API server and clean up resources
@@ -336,7 +332,7 @@ func StopAgent(cancel context.CancelFunc) {
 func setupInternalProfiling() error {
 	cfg := coreconfig.Datadog
 	if cfg.GetBool(secAgentKey("internal_profiling.enabled")) {
-		v, _ := version.Agent()
+		v, _ := pkgversion.Agent()
 
 		cfgSite := cfg.GetString(secAgentKey("internal_profiling.site"))
 		cfgURL := cfg.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))

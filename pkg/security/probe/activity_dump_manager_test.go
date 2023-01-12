@@ -349,14 +349,12 @@ func TestActivityDumpManager_getOverweightDumps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			adm := &ActivityDumpManager{
 				activeDumps: tt.fields.activeDumps,
-				probe: &Probe{
-					statsdClient: &statsd.NoOpClient{},
-					config: &config.Config{
-						ActivityDumpMaxDumpSize: func() int {
-							return 2048
-						},
+				config: &config.Config{
+					ActivityDumpMaxDumpSize: func() int {
+						return 2048
 					},
 				},
+				statsdClient:       &statsd.NoOpClient{},
 				ignoreFromSnapshot: make(map[string]bool),
 			}
 

@@ -66,7 +66,7 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
-		InvokeEventRawPayload: string(reqBody),
+		InvokeEventRawPayload: reqBody,
 		InvokeEventHeaders:    lambdaInvokeContext,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
@@ -102,8 +102,7 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		EndTime:            endTime,
 		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
 		RequestID:          ecs.LastRequestID,
-		ResponseRawPayload: string(responseBody),
-		ColdStartDuration:  ecs.ColdstartDuration,
+		ResponseRawPayload: responseBody,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {

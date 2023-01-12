@@ -8,7 +8,6 @@ package translator
 import (
 	"testing"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -58,20 +57,6 @@ func TestSummaryMetrics(t *testing.T) {
 	for _, testinstance := range tests {
 		t.Run(testinstance.name, func(t *testing.T) {
 			translator, err := New(zap.NewNop(), testinstance.options...)
-			c := newTestCache()
-			c.cache.Set((&Dimensions{
-				name:     "summary.example.count",
-				tags:     testinstance.tags,
-				host:     "hostname",
-				originID: "",
-			}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-			c.cache.Set((&Dimensions{
-				name:     "summary.example.sum",
-				tags:     testinstance.tags,
-				host:     "hostname",
-				originID: "",
-			}).String(), numberCounter{0, 0, 1}, gocache.NoExpiration)
-			translator.prevPts = c
 			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 		})

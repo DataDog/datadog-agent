@@ -59,9 +59,9 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl = "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog")
-    equal_base = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2016).to be_truthy
+
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2016)
   end
   it 'has proper permissions on datadog.yaml' do
     # should have a sddl like so 
@@ -73,9 +73,9 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl = "O:SYG:SYD:PAI(A;;FA;;;SY)(A;;FA;;;BA)(A;;WD;;;BU)(A;;FA;;;#{dd_user_sid})"
     expected_sddl_2016 = "O:SYG:SYD:(A;ID;WD;;;BU)(A;ID;FA;;;BA)(A;ID;FA;;;SY)(A;ID;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\datadog.yaml")
-    equal_base = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2016 = equal_sddl?(expected_sddl_2016, actual_sddl)
-    expect(equal_base | equal_2016).to be_truthy
+
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2016)
   end
   it 'has proper permissions on the conf.d directory' do
     # A,OICI;FA;;;SY = Allows Object Inheritance (OI) container inherit (CI); File All Access to LocalSystem
@@ -87,8 +87,7 @@ shared_examples_for 'an Agent with valid permissions' do
     expected_sddl =      "O:SYG:SYD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;WD;;;BU)(A;OICI;FA;;;#{dd_user_sid})"
     actual_sddl = get_sddl_for_object("#{ENV['ProgramData']}\\Datadog\\conf.d")
 
-    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
-    expect(sddl_result).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
   end
 
   it 'has the proper permissions on the DataDog registry key' do
@@ -122,10 +121,9 @@ shared_examples_for 'an Agent with valid permissions' do
 
     actual_sddl = get_sddl_for_object("HKLM:Software\\Datadog\\Datadog Agent")
 
-    sddl_result = equal_sddl?(expected_sddl, actual_sddl)
-    equal_2008 = equal_sddl?(expected_sddl_2008, actual_sddl)
-    edge_result = equal_sddl?(expected_sddl_with_edge, actual_sddl)
-    expect(sddl_result | equal_2008 | edge_result).to be_truthy
+    expect(actual_sddl).to have_sddl_equal_to(expected_sddl)
+                       .or have_sddl_equal_to(expected_sddl_2008)
+                       .or have_sddl_equal_to(expected_sddl_with_edge)
   end
 
   it 'has agent.exe running as ddagentuser' do

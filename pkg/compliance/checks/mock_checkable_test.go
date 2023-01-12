@@ -16,7 +16,7 @@ type mockCheckable struct {
 	mock.Mock
 }
 
-func (m *mockCheckable) check(env env.Env) []*compliance.Report {
+func (m *mockCheckable) Check(env env.Env) []*compliance.Report {
 	args := m.Called(env)
 	reports := args.Get(0).([]*compliance.Report)
 	return reports

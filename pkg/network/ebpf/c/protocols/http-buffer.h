@@ -3,6 +3,7 @@
 
 #include <linux/err.h>
 #include "bpf_builtins.h"
+#include "bpf_telemetry.h"
 #include "http-types.h"
 
 // This function reads a constant number of bytes into the fragment buffer of the http
@@ -40,7 +41,7 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     for (; i < (HTTP_BUFFER_SIZE / BLK_SIZE); i++) {
         if (offset + BLK_SIZE - 1 >= len) { break; }
 
-        bpf_skb_load_bytes(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, &buffer[i * BLK_SIZE], BLK_SIZE);
         offset += BLK_SIZE;
     }
 
@@ -53,35 +54,35 @@ static __always_inline void read_into_buffer_skb(char *buffer, struct __sk_buff 
     // and thus the verifier is able to ensure that we are in-bound.
     void *buf = &buffer[i * BLK_SIZE];
     if (offset + 14 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 15);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 15);
     } else if (offset + 13 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 14);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 14);
     } else if (offset + 12 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 13);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 13);
     } else if (offset + 11 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 12);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 12);
     } else if (offset + 10 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 11);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 11);
     } else if (offset + 9 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 10);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 10);
     } else if (offset + 8 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 9);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 9);
     } else if (offset + 7 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 8);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 8);
     } else if (offset + 6 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 7);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 7);
     } else if (offset + 5 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 6);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 6);
     } else if (offset + 4 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 5);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 5);
     } else if (offset + 3 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 4);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 4);
     } else if (offset + 2 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 3);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 3);
     } else if (offset + 1 < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 2);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 2);
     } else if (offset < len) {
-        bpf_skb_load_bytes(skb, offset, buf, 1);
+        bpf_skb_load_bytes_with_telemetry(skb, offset, buf, 1);
     }
 }
 

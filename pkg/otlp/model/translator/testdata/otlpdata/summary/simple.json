@@ -20,7 +20,21 @@
                 "summary": {
                   "dataPoints": [
                     {
-                      "timeUnixNano": "1667560641226420924",
+                      "timeUnixNano": "1669802348455623075",
+                      "count": 1,
+                      "sum": 1,
+                      "quantileValues": [
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "summary.example",
+                "summary": {
+                  "dataPoints": [
+                    {
+                      "timeUnixNano": "1669802350921840070",
                       "count": 11,
                       "sum": 101,
                       "quantileValues": [

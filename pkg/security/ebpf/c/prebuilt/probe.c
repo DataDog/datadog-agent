@@ -19,6 +19,9 @@
 #include <uapi/linux/udp.h>
 #include <uapi/linux/tcp.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #include "defs.h"
 #include "buffer_selector.h"
 #include "process.h"
@@ -74,6 +77,8 @@
 #include "bind.h"
 #include "procfs.h"
 #include "offset.h"
+
+#pragma clang diagnostic pop
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

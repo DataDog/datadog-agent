@@ -6,11 +6,11 @@
 package invocationlifecycle
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -32,7 +32,7 @@ type ExecutionStartInfo struct {
 	TraceID          uint64
 	SpanID           uint64
 	parentID         uint64
-	requestPayload   string
+	requestPayload   []byte
 	SamplingPriority sampler.SamplingPriority
 }
 
@@ -42,7 +42,7 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload string, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
+func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload []byte, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
 	payload := convertRawPayload(rawPayload)
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
@@ -94,7 +94,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
+func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, triggerMetrics map[string]float64, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
 	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -108,13 +108,14 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Start:    executionContext.startTime.UnixNano(),
 		Duration: duration,
 		Meta:     triggerTags,
+		Metrics:  triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 
 	captureLambdaPayloadEnabled := config.Datadog.GetBool("capture_lambda_payload")
 	if captureLambdaPayloadEnabled {
-		executionSpan.Meta["function.request"] = executionContext.requestPayload
-		executionSpan.Meta["function.response"] = endDetails.ResponseRawPayload
+		executionSpan.Meta["function.request"] = string(executionContext.requestPayload)
+		executionSpan.Meta["function.response"] = string(endDetails.ResponseRawPayload)
 	}
 
 	if endDetails.IsError {
@@ -139,19 +140,19 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 // parseLambdaFunction removes extra data sent by the proxy that surrounds
 // a JSON payload. For example, for `a5a{"event":"aws_lambda"...}0` it would remove
 // a5a at the front and 0 at the end, and just leave a correct JSON payload.
-func parseLambdaPayload(rawPayload string) string {
-	leftIndex := strings.Index(rawPayload, "{")
-	rightIndex := strings.LastIndex(rawPayload, "}")
+func parseLambdaPayload(rawPayload []byte) []byte {
+	leftIndex := bytes.Index(rawPayload, []byte("{"))
+	rightIndex := bytes.LastIndex(rawPayload, []byte("}"))
 	if leftIndex == -1 || rightIndex == -1 {
 		return rawPayload
 	}
 	return rawPayload[leftIndex : rightIndex+1]
 }
 
-func convertRawPayload(payloadString string) invocationPayload {
+func convertRawPayload(payloadString []byte) invocationPayload {
 	payload := invocationPayload{}
 
-	err := json.Unmarshal([]byte(payloadString), &payload)
+	err := json.Unmarshal(payloadString, &payload)
 	if err != nil {
 		log.Debug("Could not unmarshal the invocation event payload")
 	}

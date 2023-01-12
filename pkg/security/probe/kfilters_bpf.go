@@ -8,9 +8,14 @@
 
 package probe
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	manager "github.com/DataDog/ebpf-manager"
+)
+
 type activeKFilter interface {
-	Remove(*Probe) error
-	Apply(*Probe) error
+	Remove(*manager.Manager) error
+	Apply(*manager.Manager) error
 	Key() interface{}
 }
 
@@ -64,16 +69,16 @@ func (e *arrayEntry) Key() interface{} {
 	}
 }
 
-func (e *arrayEntry) Remove(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
+func (e *arrayEntry) Remove(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
 	}
 	return table.Put(e.index, e.zeroValue)
 }
 
-func (e *arrayEntry) Apply(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
+func (e *arrayEntry) Apply(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
 	}
@@ -94,8 +99,8 @@ func (e *mapEventMask) Key() interface{} {
 	}
 }
 
-func (e *mapEventMask) Remove(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
+func (e *mapEventMask) Remove(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
 	}
@@ -109,8 +114,8 @@ func (e *mapEventMask) Remove(probe *Probe) error {
 	return table.Put(e.tableKey, eventMask)
 }
 
-func (e *mapEventMask) Apply(probe *Probe) error {
-	table, err := probe.Map(e.tableName)
+func (e *mapEventMask) Apply(manager *manager.Manager) error {
+	table, err := managerhelper.Map(manager, e.tableName)
 	if err != nil {
 		return err
 	}

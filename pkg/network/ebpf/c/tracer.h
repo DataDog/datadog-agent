@@ -23,6 +23,13 @@ typedef enum
     PACKET_COUNT_INCREMENT = 2,
 } packet_count_increment_t;
 
+typedef enum
+{
+    RETRANSMIT_COUNT_NONE = 0,
+    RETRANSMIT_COUNT_ABSOLUTE = 1,
+    RETRANSMIT_COUNT_INCREMENT = 2,
+} retransmit_count_increment_t;
+
 #define CONN_DIRECTION_MASK 0b11
 
 typedef struct {
@@ -103,6 +110,7 @@ typedef struct {
 #define TCP_FLAGS_OFFSET 13
 #define TCPHDR_FIN 0x01
 #define TCPHDR_RST 0x04
+#define TCPHDR_ACK 0x10
 
 // skb_info_t embeds a conn_tuple_t extracted from the skb object as well as
 // some ancillary data such as the data offset (the byte offset pointing to
@@ -134,6 +142,7 @@ typedef struct {
 
 // Telemetry names
 typedef struct {
+    __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
     __u64 missed_tcp_close;
     __u64 missed_udp_close;
@@ -143,8 +152,14 @@ typedef struct {
 } telemetry_t;
 
 typedef struct {
-    __u16 port;
+    struct sockaddr *addr;
+    struct sock *sk;
 } bind_syscall_args_t;
+
+typedef struct {
+    struct sock *sk;
+    int segs;
+} tcp_retransmit_skb_args_t;
 
 typedef struct {
     __u32 netns;

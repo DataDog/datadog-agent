@@ -48,7 +48,7 @@ func (p *proxyTransport) RoundTrip(request *http.Request) (*http.Response, error
 	if request.Method == "GET" && strings.HasSuffix(request.URL.String(), "/next") {
 		details := &invocationlifecycle.InvocationStartDetails{
 			StartTime:             time.Now(),
-			InvokeEventRawPayload: string(dumpedResponse[indexPayload:]),
+			InvokeEventRawPayload: dumpedResponse[indexPayload:],
 		}
 		p.processor.OnInvokeStart(details)
 	}

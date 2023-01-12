@@ -17,6 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
 var (
@@ -79,8 +80,10 @@ var (
 
 var sampleIdx = 0
 
-var ioSampler = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamples, names...) }
-var ioSamplerDM = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamplesDM, names...) }
+var (
+	ioSampler   = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamples, names...) }
+	ioSamplerDM = func(names ...string) (map[string]disk.IOCountersStat, error) { return sampler(ioSamplesDM, names...) }
+)
 
 func SwapMemory() (*mem.SwapMemoryStat, error) {
 	return &mem.SwapMemoryStat{
@@ -106,7 +109,7 @@ func TestIOCheckDM(t *testing.T) {
 	ioCounters = ioSamplerDM
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -132,7 +135,7 @@ func TestIOCheck(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
@@ -200,14 +203,14 @@ func TestIOCheckBlacklist(t *testing.T) {
 	ioCounters = ioSampler
 	swapMemory = SwapMemory
 	ioCheck := new(IOCheck)
-	ioCheck.Configure(nil, nil, "test")
+	ioCheck.Configure(integration.FakeConfigHash, nil, nil, "test")
 
 	mock := mocksender.NewMockSender(ioCheck.ID())
 
 	expectedRates := 0
 	expectedGauges := 0
 
-	//set blacklist
+	// set blacklist
 	bl, err := regexp.Compile("sd.*")
 	if err != nil {
 		t.FailNow()

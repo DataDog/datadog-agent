@@ -7,7 +7,10 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 
+from invoke.exceptions import Exit
+
 from ..flavor import AgentFlavor
+from .pipeline_notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
 REPO_NAME_PREFIX = "github.com/DataDog/datadog-agent/"
@@ -76,13 +79,17 @@ def upload_junitxmls(output_dir, owners, flavor, additional_tags=None, job_url="
     process_env = os.environ.copy()
     process_env["CI_JOB_URL"] = job_url
     for owner in owners:
+        codeowner = CODEOWNERS_ORG_PREFIX + owner
+        slack_channel = GITHUB_SLACK_MAP.get(codeowner, DEFAULT_SLACK_CHANNEL)[1:]
         args = [
             "--service",
             "datadog-agent",
             "--tags",
-            'test.codeowners:["' + CODEOWNERS_ORG_PREFIX + owner + '"]',
+            f'test.codeowners:["{codeowner}"]',
             "--tags",
             f"test.flavor:{flavor}",
+            "--tags",
+            f"slack_channel:{slack_channel}",
         ]
         if additional_tags:
             args.extend(additional_tags)
@@ -103,6 +110,7 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
 
+    xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
         # unpack all files from archive
         with tarfile.open(junit_tgz) as tgz:
@@ -117,10 +125,23 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             job_url = jf.read()
 
         # for each unpacked xml file, split it and submit all parts
-        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml"):
+        # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
+        xmls = 0
+        for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
+            xmls += 1
             with tempfile.TemporaryDirectory() as output_dir:
                 written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir)
                 upload_junitxmls(output_dir, written_owners, flavor, tags, job_url)
+        xmlcounts[junit_tgz] = xmls
+
+    empty_tgzs = []
+    for tgz, count in xmlcounts.items():
+        print(f"Submitted results for {count} JUnit XML files from {tgz}")
+        if count == 0:
+            empty_tgzs.append(tgz)
+
+    if empty_tgzs:
+        raise Exit(f"No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
 
 
 def _normalize_architecture(architecture):
@@ -161,3 +182,22 @@ def produce_junit_tar(files, result_path):
         job_url_info.size = job_url_file.getbuffer().nbytes
         job_url_file.seek(0)
         tgz.addfile(job_url_info, job_url_file)
+
+
+def repack_macos_junit_tar(infile, outfile):
+    with tarfile.open(infile) as infp, tarfile.open(outfile, "w:gz") as outfp, tempfile.TemporaryDirectory() as tempd:
+        infp.extractall(tempd)
+
+        # write the proper job url and job name
+        with open(os.path.join(tempd, JOB_URL_FILE_NAME), "w") as fp:
+            fp.write(os.environ.get("CI_JOB_URL", ""))
+        with open(os.path.join(tempd, TAGS_FILE_NAME)) as fp:
+            tags = fp.read()
+        job_name = os.environ.get("CI_JOB_NAME", "")
+        tags = tags.replace("ci.job.name:", f"ci.job.name:{job_name}")
+        with open(os.path.join(tempd, TAGS_FILE_NAME), "w") as fp:
+            fp.write(tags)
+
+        # pack all files to a new tarball
+        for f in os.listdir(tempd):
+            outfp.add(os.path.join(tempd, f), arcname=f)

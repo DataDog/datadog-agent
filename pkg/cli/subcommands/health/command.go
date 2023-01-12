@@ -45,10 +45,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(requestHealth,
 				fx.Supply(core.BundleParams{
-					ConfFilePath:      globalParams.ConfFilePath,
-					ConfigName:        globalParams.ConfigName,
-					ConfigLoadSecrets: false,
-				}.LogForOneShot(globalParams.LoggerName, "off", true)),
+					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					LogParams:    log.LogForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 			)
 		},

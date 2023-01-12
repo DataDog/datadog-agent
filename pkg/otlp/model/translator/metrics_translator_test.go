@@ -16,7 +16,6 @@ package translator
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -25,15 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/DataDog/datadog-agent/pkg/otlp/model/attributes"
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/quantile/summary"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
 
 func TestIsCumulativeMonotonic(t *testing.T) {
@@ -535,6 +531,20 @@ func TestMapDoubleMonotonicReportFirstValue(t *testing.T) {
 	)
 }
 
+func TestMapAPMStats(t *testing.T) {
+	consumer := &mockFullConsumer{}
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	tr := newTranslator(t, logger)
+	md := tr.StatsPayloadToMetrics(pb.StatsPayload{
+		Stats: []pb.ClientStatsPayload{statsPayloads[0], statsPayloads[1]},
+	})
+
+	ctx := context.Background()
+	tr.MapMetrics(ctx, md, consumer)
+	require.Equal(t, consumer.apmstats, statsPayloads)
+}
+
 func TestMapDoubleMonotonicReportDiffForFirstValue(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
@@ -585,6 +595,11 @@ var _ SketchConsumer = (*mockFullConsumer)(nil)
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []sketch
+	apmstats []pb.ClientStatsPayload
+}
+
+func (c *mockFullConsumer) ConsumeAPMStats(p pb.ClientStatsPayload) {
+	c.apmstats = append(c.apmstats, p)
 }
 
 func (c *mockFullConsumer) ConsumeSketch(_ context.Context, dimensions *Dimensions, ts uint64, sk *quantile.Sketch) {
@@ -652,204 +667,10 @@ func TestFormatFloat(t *testing.T) {
 	}
 }
 
-func exampleSummaryDataPointSlice(ts pcommon.Timestamp, sum float64, count uint64) pmetric.SummaryDataPointSlice {
-	slice := pmetric.NewSummaryDataPointSlice()
-	point := slice.AppendEmpty()
-	point.SetCount(count)
-	point.SetSum(sum)
-	qSlice := point.QuantileValues()
-
-	qMin := qSlice.AppendEmpty()
-	qMin.SetQuantile(0.0)
-	qMin.SetValue(0)
-
-	qMedian := qSlice.AppendEmpty()
-	qMedian.SetQuantile(0.5)
-	qMedian.SetValue(100)
-
-	q999 := qSlice.AppendEmpty()
-	q999.SetQuantile(0.999)
-	q999.SetValue(500)
-
-	qMax := qSlice.AppendEmpty()
-	qMax.SetQuantile(1)
-	qMax.SetValue(600)
-	point.SetTimestamp(ts)
-	return slice
-}
-
 const (
 	testHostname     = "res-hostname"
 	fallbackHostname = "fallbackHostname"
 )
-
-func createTestMetrics(additionalAttributes map[string]string, name, version string) pmetric.Metrics {
-	md := pmetric.NewMetrics()
-	rms := md.ResourceMetrics()
-	rm := rms.AppendEmpty()
-
-	attrs := rm.Resource().Attributes()
-	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
-	for attr, val := range additionalAttributes {
-		attrs.PutStr(attr, val)
-	}
-	ilms := rm.ScopeMetrics()
-
-	ilm := ilms.AppendEmpty()
-	ilm.Scope().SetName(name)
-	ilm.Scope().SetVersion(version)
-	metricsArray := ilm.Metrics()
-	metricsArray.AppendEmpty() // first one is TypeNone to test that it's ignored
-
-	// IntGauge
-	met := metricsArray.AppendEmpty()
-	met.SetName("int.gauge")
-	met.SetEmptyGauge()
-	dpsInt := met.Gauge().DataPoints()
-	dpInt := dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntValue(1)
-
-	// DoubleGauge
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.gauge")
-	met.SetEmptyGauge()
-	dpsDouble := met.Gauge().DataPoints()
-	dpDouble := dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.Pi)
-
-	// aggregation unspecified sum
-	met = metricsArray.AppendEmpty()
-	met.SetName("unspecified.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityUnspecified)
-
-	// Int Sum (delta)
-	met = metricsArray.AppendEmpty()
-	met.SetName("int.delta.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsInt = met.Sum().DataPoints()
-	dpInt = dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntValue(2)
-
-	// Double Sum (delta)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.delta.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDouble = met.Sum().DataPoints()
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.E)
-
-	// Int Sum (delta monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("int.delta.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsInt = met.Sum().DataPoints()
-	dpInt = dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntValue(2)
-
-	// Double Sum (delta monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.delta.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDouble = met.Sum().DataPoints()
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.E)
-
-	// aggregation unspecified histogram
-	met = metricsArray.AppendEmpty()
-	met.SetName("unspecified.histogram")
-	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityUnspecified)
-
-	// Histogram (delta)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.histogram")
-	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDoubleHist := met.Histogram().DataPoints()
-	dpDoubleHist := dpsDoubleHist.AppendEmpty()
-	dpDoubleHist.SetCount(20)
-	dpDoubleHist.SetSum(math.Phi)
-	dpDoubleHist.BucketCounts().FromRaw([]uint64{2, 18})
-	dpDoubleHist.ExplicitBounds().FromRaw([]float64{0})
-	dpDoubleHist.SetTimestamp(seconds(0))
-
-	// Int Sum (cumulative)
-	met = metricsArray.AppendEmpty()
-	met.SetName("int.cumulative.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	dpsInt = met.Sum().DataPoints()
-	dpsInt.EnsureCapacity(2)
-	dpInt = dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntValue(4)
-
-	// Double Sum (cumulative)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.cumulative.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	dpsDouble = met.Sum().DataPoints()
-	dpsDouble.EnsureCapacity(2)
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(4)
-
-	// Int Sum (cumulative monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("int.cumulative.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	met.Sum().SetIsMonotonic(true)
-	dpsInt = met.Sum().DataPoints()
-	dpsInt.EnsureCapacity(2)
-	dpInt = dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(0))
-	dpInt.SetIntValue(4)
-	dpInt = dpsInt.AppendEmpty()
-	dpInt.SetTimestamp(seconds(2))
-	dpInt.SetIntValue(7)
-
-	// Double Sum (cumulative monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.cumulative.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	met.Sum().SetIsMonotonic(true)
-	dpsDouble = met.Sum().DataPoints()
-	dpsDouble.EnsureCapacity(2)
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(4)
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(2))
-	dpDouble.SetDoubleValue(4 + math.Pi)
-
-	// Summary
-	met = metricsArray.AppendEmpty()
-	met.SetName("summary")
-	met.SetEmptySummary()
-	slice := exampleSummaryDataPointSlice(seconds(0), 1, 1)
-	slice.CopyTo(met.Summary().DataPoints())
-
-	met = metricsArray.AppendEmpty()
-	met.SetName("summary")
-	met.SetEmptySummary()
-	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
-	slice.CopyTo(met.Summary().DataPoints())
-	return md
-}
 
 func createTestIntCumulativeMonotonicMetrics() pmetric.Metrics {
 	md := pmetric.NewMetrics()
@@ -895,13 +716,6 @@ func createTestDoubleCumulativeMonotonicMetrics() pmetric.Metrics {
 	return md
 }
 
-func newGaugeWithHostname(name string, val float64, tags []string) metric {
-	dims := newDims(name)
-	m := newGauge(dims.AddTags(tags...), 0, val)
-	m.host = testHostname
-	return m
-}
-
 func newCountWithHostname(name string, val float64, seconds uint64, tags []string) metric {
 	dims := newDims(name)
 	m := newCount(dims.AddTags(tags...), seconds*1e9, val)
@@ -916,801 +730,73 @@ func newSketchWithHostname(name string, summary summary.Summary, tags []string) 
 	return s
 }
 
-func TestMapMetrics(t *testing.T) {
-	attrs := map[string]string{
-		conventions.AttributeDeploymentEnvironment: "dev",
-		"custom_attribute":                         "custom_value",
-	}
-
-	// Attributes defined in internal/attributes get converted to tags.
-	// Other tags do not get converted if ResourceAttributesAsTags is false,
-	// or are converted into datapoint-level attributes (which are then converted to tags) by
-	// the resourcetotelemetry helper if ResourceAttributesAsTags is true
-	// (outside of the MapMetrics function's scope).
-	attrTags := []string{
-		"env:dev",
-	}
-
-	instrumentationName := "foo"
-	instrumentationVersion := "1.0.0"
-	ilTags := []string{
-		fmt.Sprintf("instrumentation_library:%s", instrumentationName),
-		fmt.Sprintf("instrumentation_library_version:%s", instrumentationVersion),
-	}
-	isTags := []string{
-		fmt.Sprintf("instrumentation_scope:%s", instrumentationName),
-		fmt.Sprintf("instrumentation_scope_version:%s", instrumentationVersion),
-	}
-
-	tests := []struct {
-		resourceAttributesAsTags                  bool
-		instrumentationLibraryMetadataAsTags      bool
-		instrumentationScopeMetadataAsTags        bool
-		withCountSum                              bool
-		expectedMetrics                           []metric
-		expectedSketches                          []sketch
-		expectedUnknownMetricType                 int
-		expectedUnsupportedAggregationTemporality int
-	}{
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
-				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
-				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
-				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
-				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
-				newCountWithHostname("summary.count", 100, 2, attrTags),
-				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
+var statsPayloads = []pb.ClientStatsPayload{
+	{
+		Hostname:         "host",
+		Env:              "prod",
+		Version:          "v1.2",
+		Lang:             "go",
+		TracerVersion:    "v44",
+		RuntimeID:        "123jkl",
+		Sequence:         2,
+		AgentAggregation: "blah",
+		Service:          "mysql",
+		ContainerID:      "abcdef123456",
+		Tags:             []string{"a:b", "c:d"},
+		Stats: []pb.ClientStatsBucket{
+			{
+				Start:    10,
+				Duration: 1,
+				Stats: []pb.ClientGroupedStats{
+					{
+						Service:        "kafka",
+						Name:           "queue.add",
+						Resource:       "append",
+						HTTPStatusCode: 220,
+						Type:           "queue",
+						Hits:           15,
+						Errors:         3,
+						Duration:       143,
+						OkSummary:      testSketchBytes(1, 4, 5),
+						ErrorSummary:   testSketchBytes(2, 3, 9),
+						TopLevelHits:   5,
+					},
+				},
 			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
 		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
-				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
-				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
-				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
-				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
-				newCountWithHostname("summary.count", 100, 2, attrTags),
-				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
+	},
+	{
+		Hostname:         "host2",
+		Env:              "prod2",
+		Version:          "v1.22",
+		Lang:             "go2",
+		TracerVersion:    "v442",
+		RuntimeID:        "123jkl2",
+		Sequence:         22,
+		AgentAggregation: "blah2",
+		Service:          "mysql2",
+		ContainerID:      "abcdef1234562",
+		Tags:             []string{"a:b2", "c:d2"},
+		Stats: []pb.ClientStatsBucket{
+			{
+				Start:    102,
+				Duration: 12,
+				Stats: []pb.ClientGroupedStats{
+					{
+						Service:        "kafka2",
+						Name:           "queue.add2",
+						Resource:       "append2",
+						HTTPStatusCode: 2202,
+						Type:           "queue2",
+						Hits:           152,
+						Errors:         32,
+						Duration:       1432,
+						OkSummary:      testSketchBytes(10, 11, 12),
+						ErrorSummary:   testSketchBytes(14, 15, 16),
+						TopLevelHits:   52,
+					},
+				},
 			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20.0,
-					Cnt: 20,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
 		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   true,
-			withCountSum:                         false,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, isTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, isTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, isTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, isTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, isTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, isTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, isTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20.0,
-					Cnt: 20,
-				}, append(attrTags, isTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, attrTags),
-				newGaugeWithHostname("double.gauge", math.Pi, attrTags),
-				newCountWithHostname("int.delta.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.sum", math.E, 0, attrTags),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, attrTags),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, attrTags),
-				newCountWithHostname("double.histogram.count", 20, 0, attrTags),
-				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, attrTags),
-				newGaugeWithHostname("int.cumulative.sum", 4, attrTags),
-				newGaugeWithHostname("double.cumulative.sum", 4, attrTags),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, attrTags),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, attrTags),
-				newCountWithHostname("summary.count", 100, 2, attrTags),
-				newCountWithHostname("summary.sum", 10_000, 2, attrTags),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, ilTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, ilTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, ilTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   true,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newGaugeWithHostname("int.gauge", 1, append(attrTags, isTags...)),
-				newGaugeWithHostname("double.gauge", math.Pi, append(attrTags, isTags...)),
-				newCountWithHostname("int.delta.sum", 2, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.delta.sum", math.E, 0, append(attrTags, isTags...)),
-				newCountWithHostname("int.delta.monotonic.sum", 2, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.delta.monotonic.sum", math.E, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.histogram.count", 20, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.histogram.sum", 1.618033988749895, 0, append(attrTags, isTags...)),
-				newGaugeWithHostname("int.cumulative.sum", 4, append(attrTags, isTags...)),
-				newGaugeWithHostname("double.cumulative.sum", 4, append(attrTags, isTags...)),
-				newCountWithHostname("int.cumulative.monotonic.sum", 3, 2, append(attrTags, isTags...)),
-				newCountWithHostname("double.cumulative.monotonic.sum", math.Pi, 2, append(attrTags, isTags...)),
-				newCountWithHostname("summary.count", 100, 2, append(attrTags, isTags...)),
-				newCountWithHostname("summary.sum", 10_000, 2, append(attrTags, isTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.histogram", summary.Summary{
-					Min: 0,
-					Max: 0,
-					Sum: math.Phi,
-					Avg: math.Phi / 20,
-					Cnt: 20,
-				}, append(attrTags, isTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 2,
-		},
-	}
-
-	for _, testInstance := range tests {
-		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, instrumentationScopeMetadataAsTags: %t, withCountSum: %t",
-			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.instrumentationScopeMetadataAsTags, testInstance.withCountSum)
-		t.Run(tName, func(t *testing.T) {
-			md := createTestMetrics(attrs, instrumentationName, instrumentationVersion)
-
-			core, observed := observer.New(zapcore.DebugLevel)
-			testLogger := zap.New(core)
-			ctx := context.Background()
-			consumer := &mockFullConsumer{}
-
-			options := []Option{}
-			if testInstance.resourceAttributesAsTags {
-				options = append(options, WithResourceAttributesAsTags())
-			}
-			if testInstance.instrumentationLibraryMetadataAsTags {
-				options = append(options, WithInstrumentationLibraryMetadataAsTags())
-			}
-			if testInstance.instrumentationScopeMetadataAsTags {
-				options = append(options, WithInstrumentationScopeMetadataAsTags())
-			}
-			if testInstance.withCountSum {
-				options = append(options, WithCountSumMetrics())
-			}
-
-			tr := newTranslator(t, testLogger, options...)
-			err := tr.MapMetrics(ctx, md, consumer)
-			require.NoError(t, err)
-
-			assert.ElementsMatch(t, consumer.metrics, testInstance.expectedMetrics)
-			assert.ElementsMatch(t, consumer.sketches, testInstance.expectedSketches)
-			assert.Equal(t, testInstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
-			assert.Equal(t, testInstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
-		})
-	}
-}
-
-func createNaNMetrics() pmetric.Metrics {
-	md := pmetric.NewMetrics()
-	rms := md.ResourceMetrics()
-	rm := rms.AppendEmpty()
-
-	attrs := rm.Resource().Attributes()
-	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
-	ilms := rm.ScopeMetrics()
-
-	metricsArray := ilms.AppendEmpty().Metrics()
-
-	// DoubleGauge
-	met := metricsArray.AppendEmpty()
-	met.SetName("nan.gauge")
-	met.SetEmptyGauge()
-	dpsDouble := met.Gauge().DataPoints()
-	dpDouble := dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.NaN())
-
-	// Double Sum (delta)
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.delta.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDouble = met.Sum().DataPoints()
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.NaN())
-
-	// Double Sum (delta monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.delta.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDouble = met.Sum().DataPoints()
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.NaN())
-
-	// Histogram
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.histogram")
-	met.SetEmptyHistogram()
-	met.Histogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	dpsDoubleHist := met.Histogram().DataPoints()
-	dpDoubleHist := dpsDoubleHist.AppendEmpty()
-	dpDoubleHist.SetCount(20)
-	dpDoubleHist.SetSum(math.NaN())
-	dpDoubleHist.BucketCounts().FromRaw([]uint64{2, 18})
-	dpDoubleHist.ExplicitBounds().FromRaw([]float64{0})
-	dpDoubleHist.SetTimestamp(seconds(0))
-
-	// Double Sum (cumulative)
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.cumulative.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	dpsDouble = met.Sum().DataPoints()
-	dpsDouble.EnsureCapacity(2)
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.NaN())
-
-	// Double Sum (cumulative monotonic)
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.cumulative.monotonic.sum")
-	met.SetEmptySum()
-	met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	met.Sum().SetIsMonotonic(true)
-	dpsDouble = met.Sum().DataPoints()
-	dpsDouble.EnsureCapacity(2)
-	dpDouble = dpsDouble.AppendEmpty()
-	dpDouble.SetTimestamp(seconds(0))
-	dpDouble.SetDoubleValue(math.NaN())
-
-	// Summary
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.summary")
-	met.SetEmptySummary()
-	slice := exampleSummaryDataPointSlice(seconds(0), math.NaN(), 1)
-	slice.CopyTo(met.Summary().DataPoints())
-
-	met = metricsArray.AppendEmpty()
-	met.SetName("nan.summary")
-	met.SetEmptySummary()
-	slice = exampleSummaryDataPointSlice(seconds(2), 10_001, 101)
-	slice.CopyTo(met.Summary().DataPoints())
-	return md
-}
-
-func TestNaNMetrics(t *testing.T) {
-	md := createNaNMetrics()
-
-	core, observed := observer.New(zapcore.DebugLevel)
-	testLogger := zap.New(core)
-	ctx := context.Background()
-	tr := newTranslator(t, testLogger)
-	consumer := &mockFullConsumer{}
-	err := tr.MapMetrics(ctx, md, consumer)
-	require.NoError(t, err)
-
-	assert.ElementsMatch(t, consumer.metrics, []metric{
-		newCountWithHostname("nan.summary.count", 100, 2, []string{}),
-	})
-
-	assert.ElementsMatch(t, consumer.sketches, []sketch{
-		newSketchWithHostname("nan.histogram", summary.Summary{
-			Min: 0,
-			Max: 0,
-			Sum: 0,
-			Avg: 0,
-			Cnt: 20,
-		}, []string{}),
-	})
-
-	// One metric type was unknown or unsupported
-	assert.Equal(t, observed.FilterMessage("Unsupported metric value").Len(), 7)
-}
-
-func TestMapExponentialHistogram(t *testing.T) {
-	attrs := map[string]string{
-		conventions.AttributeDeploymentEnvironment: "dev",
-		"custom_attribute":                         "custom_value",
-	}
-
-	// Attributes defined in internal/attributes get converted to tags.
-	// Other tags do not get converted if ResourceAttributesAsTags is false,
-	// or are converted into datapoint-level attributes (which are then converted to tags) by
-	// the resourcetotelemetry helper if ResourceAttributesAsTags is true
-	// (outside of the MapMetrics function's scope).
-	attrTags := []string{
-		"env:dev",
-	}
-
-	instrumentationName := "foo"
-	instrumentationVersion := "1.0.0"
-	ilTags := []string{
-		fmt.Sprintf("instrumentation_library:%s", instrumentationName),
-		fmt.Sprintf("instrumentation_library_version:%s", instrumentationVersion),
-	}
-	isTags := []string{
-		fmt.Sprintf("instrumentation_scope:%s", instrumentationName),
-		fmt.Sprintf("instrumentation_scope_version:%s", instrumentationVersion),
-	}
-
-	tests := []struct {
-		resourceAttributesAsTags                  bool
-		instrumentationLibraryMetadataAsTags      bool
-		instrumentationScopeMetadataAsTags        bool
-		withCountSum                              bool
-		expectedMetrics                           []metric
-		expectedSketches                          []sketch
-		expectedUnknownMetricType                 int
-		expectedUnsupportedAggregationTemporality int
-	}{
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics:                      nil,
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: math.Pi / float64(30),
-					Cnt: 30,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics:                      nil,
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, attrTags),
-				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, attrTags),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, attrTags),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedMetrics:                      nil,
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: false,
-			instrumentationScopeMetadataAsTags:   true,
-			withCountSum:                         false,
-			expectedMetrics:                      nil,
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, isTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             false,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         false,
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   false,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, ilTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, ilTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, ilTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-		{
-			resourceAttributesAsTags:             true,
-			instrumentationLibraryMetadataAsTags: true,
-			instrumentationScopeMetadataAsTags:   true,
-			withCountSum:                         true,
-			expectedMetrics: []metric{
-				newCountWithHostname("double.exponential.delta.histogram.count", 30, 0, append(attrTags, isTags...)),
-				newCountWithHostname("double.exponential.delta.histogram.sum", math.Pi, 0, append(attrTags, isTags...)),
-			},
-			expectedSketches: []sketch{
-				newSketchWithHostname("double.exponential.delta.histogram", summary.Summary{
-					Min: -100_000,
-					Max: 100_000,
-					Sum: math.Pi,
-					Avg: 0.10471975511965977,
-					Cnt: 30,
-				}, append(attrTags, isTags...)),
-			},
-			expectedUnknownMetricType:                 1,
-			expectedUnsupportedAggregationTemporality: 1,
-		},
-	}
-
-	for _, testInstance := range tests {
-		tName := fmt.Sprintf("resourceAttributesAsTags: %t, instrumentationLibraryMetadataAsTags: %t, instrumentationScopeMetadataAsTags: %t, withCountSum: %t",
-			testInstance.resourceAttributesAsTags, testInstance.instrumentationLibraryMetadataAsTags, testInstance.instrumentationScopeMetadataAsTags, testInstance.withCountSum)
-		t.Run(tName, func(t *testing.T) {
-			md := createTestExponentialHistogram(attrs, instrumentationName, instrumentationVersion)
-
-			core, observed := observer.New(zapcore.DebugLevel)
-			testLogger := zap.New(core)
-			ctx := context.Background()
-			consumer := &mockFullConsumer{}
-
-			options := []Option{}
-			if testInstance.resourceAttributesAsTags {
-				options = append(options, WithResourceAttributesAsTags())
-			}
-			if testInstance.instrumentationLibraryMetadataAsTags {
-				options = append(options, WithInstrumentationLibraryMetadataAsTags())
-			}
-			if testInstance.instrumentationScopeMetadataAsTags {
-				options = append(options, WithInstrumentationScopeMetadataAsTags())
-			}
-			if testInstance.withCountSum {
-				options = append(options, WithCountSumMetrics())
-			}
-
-			tr := newTranslator(t, testLogger, options...)
-			err := tr.MapMetrics(ctx, md, consumer)
-			require.NoError(t, err)
-
-			assert.Equal(t, testInstance.expectedMetrics, consumer.metrics, "consumer.metrics doesn't have the expected one")
-			assert.Equal(t, len(testInstance.expectedSketches), len(consumer.sketches), "sketches list doesn't have the expected size")
-			if len(testInstance.expectedSketches) == len(consumer.sketches) {
-				for i := 0; i < len(consumer.sketches); i++ {
-					assert.Equal(t, testInstance.expectedSketches[i].name, consumer.sketches[i].name)
-					assert.Equal(t, testInstance.expectedSketches[i].host, consumer.sketches[i].host)
-					assert.Equal(t, testInstance.expectedSketches[i].tags, consumer.sketches[i].tags)
-					assert.InDelta(t, testInstance.expectedSketches[i].basic.Min, consumer.sketches[i].basic.Min, 0.01)
-					assert.InDelta(t, testInstance.expectedSketches[i].basic.Max, consumer.sketches[i].basic.Max, 0.01)
-					assert.Equal(t, testInstance.expectedSketches[i].basic.Cnt, consumer.sketches[i].basic.Cnt)
-					assert.Equal(t, testInstance.expectedSketches[i].basic.Sum, consumer.sketches[i].basic.Sum)
-					assert.Equal(t, testInstance.expectedSketches[i].basic.Avg, consumer.sketches[i].basic.Avg)
-				}
-			}
-			assert.Equal(t, testInstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
-			assert.Equal(t, testInstance.expectedUnsupportedAggregationTemporality, observed.FilterMessage("Unknown or unsupported aggregation temporality").Len())
-		})
-	}
-}
-
-func createTestExponentialHistogram(additionalAttributes map[string]string, name, version string) pmetric.Metrics {
-	md := pmetric.NewMetrics()
-	rms := md.ResourceMetrics()
-	rm := rms.AppendEmpty()
-
-	attrs := rm.Resource().Attributes()
-	attrs.PutStr(attributes.AttributeDatadogHostname, testHostname)
-	for attr, val := range additionalAttributes {
-		attrs.PutStr(attr, val)
-	}
-	ilms := rm.ScopeMetrics()
-
-	ilm := ilms.AppendEmpty()
-	ilm.Scope().SetName(name)
-	ilm.Scope().SetVersion(version)
-	metricsArray := ilm.Metrics()
-	metricsArray.AppendEmpty() // first one is TypeNone to test that it's ignored
-
-	// Exponential Histogram (delta)
-	met := metricsArray.AppendEmpty()
-	met.SetName("double.exponential.delta.histogram")
-	met.SetEmptyExponentialHistogram()
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
-	expDeltaHistDp := met.ExponentialHistogram().DataPoints()
-	expDeltaHist := expDeltaHistDp.AppendEmpty()
-	expDeltaHist.SetScale(6)
-	expDeltaHist.SetCount(30)
-	expDeltaHist.SetZeroCount(10)
-	expDeltaHist.SetSum(math.Pi)
-	expDeltaHist.SetMin(-100_000)
-	expDeltaHist.SetMax(100_000)
-	expDeltaHist.Negative().SetOffset(2)
-
-	expDeltaHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})
-	expDeltaHist.Positive().SetOffset(3)
-	expDeltaHist.Positive().BucketCounts().FromRaw([]uint64{1, 1, 1, 2, 2, 3})
-	expDeltaHist.SetTimestamp(seconds(0))
-
-	// Exponential Histogram (cumulative)
-	met = metricsArray.AppendEmpty()
-	met.SetName("double.exponential.cumulative.histogram")
-	met.SetEmptyExponentialHistogram()
-	met.ExponentialHistogram().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-	expCumHistDp := met.ExponentialHistogram().DataPoints()
-	expCumHist := expCumHistDp.AppendEmpty()
-	expCumHist.SetScale(6)
-	expCumHist.SetCount(30)
-	expDeltaHist.SetZeroCount(10)
-	expCumHist.SetSum(math.Pi)
-	expCumHist.Negative().SetOffset(2)
-	expCumHist.Negative().BucketCounts().FromRaw([]uint64{3, 2, 5})
-	expCumHist.Positive().SetOffset(3)
-	expCumHist.Positive().BucketCounts().FromRaw([]uint64{1, 1, 1, 2, 2, 3})
-	expCumHist.SetTimestamp(seconds(0))
-	return md
+	},
 }

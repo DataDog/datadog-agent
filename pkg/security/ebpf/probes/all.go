@@ -34,7 +34,7 @@ var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
 	// following form: (1 + 2^n) * pages. Checkout https://github.com/DataDog/ebpf for more.
-	EventsPerfRingBufferSize = 257 * os.Getpagesize()
+	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 	// defaultEventsRingBufferSize is the default buffer size of the ring buffers for events.
 	// Must be a power of 2 and a multiple of the page size
 	defaultEventsRingBufferSize uint32

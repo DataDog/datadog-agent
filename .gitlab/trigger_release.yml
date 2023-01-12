@@ -6,19 +6,39 @@
   stage: trigger_release
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:main"]
+  needs:
+    - deploy_packages_deb-6
+    - deploy_packages_rpm-6
+    - deploy_packages_suse_rpm-6
+    - deploy_packages_windows-6
+    - deploy_packages_deb-7
+    - deploy_packages_rpm-7
+    - deploy_packages_suse_rpm-7
+    - deploy_packages_dmg-a7
+    - deploy_packages_windows-7
+  variables:
+    ACTION: promote
+    BUILD_PIPELINE_ID: $CI_PIPELINE_ID
+    RELEASE_PRODUCT: datadog-agent
+    TARGET_REPO_BRANCH: $BUCKET_BRANCH
   script:
-    - inv pipeline.trigger-child-pipeline --no-follow --project-name "DataDog/agent-release-management" --git-ref "master" --variables "RELEASE_VERSION"
-
-trigger_release_6:
-  extends: .agent_release_management_trigger
-  rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_a6]
-  before_script:
-    - export RELEASE_VERSION=$(inv -e agent.version --major-version 6 --url-safe --omnibus-format)-1
-
-trigger_release_7:
-  extends: .agent_release_management_trigger
-  rules:
-    !reference [.on_deploy_stable_or_beta_repo_branch_a7]
-  before_script:
+    # agent-release-management creates pipeline for both Agent 6 and Agent 7
+    # when triggered with major version 7
     - export RELEASE_VERSION=$(inv -e agent.version --major-version 7 --url-safe --omnibus-format)-1
+    - inv pipeline.trigger-child-pipeline --no-follow --project-name "DataDog/agent-release-management" --git-ref "main" --variables "ACTION,AUTO_RELEASE,BUILD_PIPELINE_ID,RELEASE_PRODUCT,RELEASE_VERSION,TARGET_REPO,TARGET_REPO_BRANCH"
+
+trigger_auto_staging_release:
+  extends: .agent_release_management_trigger
+  variables:
+    AUTO_RELEASE: "true"
+    TARGET_REPO: staging
+  rules:
+    !reference [.on_deploy]
+
+trigger_manual_prod_release:
+  extends: .agent_release_management_trigger
+  variables:
+    AUTO_RELEASE: "false"
+    TARGET_REPO: prod
+  rules:
+    !reference [.on_deploy_stable_or_beta_manual_auto_on_stable]

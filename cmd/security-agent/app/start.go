@@ -8,18 +8,24 @@ package app
 import (
 	"context"
 	"errors"
-
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type startCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	pidfilePath string
 }
 
-func StartCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func StartCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := startCliParams{
 		GlobalParams: globalParams,
 	}
@@ -33,7 +39,7 @@ func StartCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		},
 	}
 
-	startCmd.Flags().StringVarP(&cliParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
+	startCmd.Flags().StringVarP(&cliParams.pidfilePath, flags.PidFile, "p", "", "path to the pidfile")
 
 	return []*cobra.Command{startCmd}
 }
@@ -59,4 +65,29 @@ func start(cliParams *startCliParams) error {
 	<-stopCh
 
 	return nil
+}
+
+// handleSignals handles OS signals, and sends a message on stopCh when an interrupt
+// signal is received.
+func handleSignals(stopCh chan struct{}) {
+	// Setup a channel to catch OS signals
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM, syscall.SIGPIPE)
+
+	// Block here until we receive the interrupt signal
+	for signo := range signalCh {
+		switch signo {
+		case syscall.SIGPIPE:
+			// By default systemd redirects the stdout to journald. When journald is stopped or crashes we receive a SIGPIPE signal.
+			// Go ignores SIGPIPE signals unless it is when stdout or stdout is closed, in this case the agent is stopped.
+			// We never want dogstatsd to stop upon receiving SIGPIPE, so we intercept the SIGPIPE signals and just discard them.
+		default:
+			log.Infof("Received signal '%s', shutting down...", signo)
+
+			_ = tagger.Stop()
+
+			stopCh <- struct{}{}
+			return
+		}
+	}
 }

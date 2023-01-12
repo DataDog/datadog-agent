@@ -138,7 +138,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 	case p.in <- e:
 		return nil
 	default:
-		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. consider increasing batch_max_concurrent_send", eventType)
+		return fmt.Errorf("event platform forwarder pipeline channel is full for eventType=%s. Channel capacity is %d. consider increasing batch_max_concurrent_send", eventType, cap(p.in))
 	}
 }
 
@@ -162,7 +162,11 @@ func (s *defaultEventPlatformForwarder) Purge() map[string][]*message.Message {
 	defer s.purgeMx.Unlock()
 	result := make(map[string][]*message.Message)
 	for eventType, p := range s.pipelines {
-		result[eventType] = purgeChan(p.in)
+		res := purgeChan(p.in)
+		result[eventType] = res
+		if eventType == eventTypeDBMActivity || eventType == eventTypeDBMMetrics || eventType == eventTypeDBMSamples {
+			log.Debugf("purged DBM channel %s: %d events", eventType, len(res))
+		}
 	}
 	return result
 }

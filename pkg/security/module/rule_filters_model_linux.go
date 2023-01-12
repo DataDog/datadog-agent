@@ -40,7 +40,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	case "kernel.version.major":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				kv := (*RuleFilterEvent)(ctx.Object).kv
+				kv := ctx.Event.(*RuleFilterEvent).kv
 				if ubuntuKernelVersion := kv.UbuntuKernelVersion(); ubuntuKernelVersion != nil {
 					return int(ubuntuKernelVersion.Major)
 				}
@@ -51,7 +51,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	case "kernel.version.minor":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				kv := (*RuleFilterEvent)(ctx.Object).kv
+				kv := ctx.Event.(*RuleFilterEvent).kv
 				if ubuntuKernelVersion := kv.UbuntuKernelVersion(); ubuntuKernelVersion != nil {
 					return int(ubuntuKernelVersion.Minor)
 				}
@@ -62,7 +62,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	case "kernel.version.patch":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				kv := (*RuleFilterEvent)(ctx.Object).kv
+				kv := ctx.Event.(*RuleFilterEvent).kv
 				if ubuntuKernelVersion := kv.UbuntuKernelVersion(); ubuntuKernelVersion != nil {
 					return int(ubuntuKernelVersion.Patch)
 				}
@@ -73,7 +73,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	case "kernel.version.abi":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
-				kv := (*RuleFilterEvent)(ctx.Object).kv
+				kv := ctx.Event.(*RuleFilterEvent).kv
 				if ubuntuKernelVersion := kv.UbuntuKernelVersion(); ubuntuKernelVersion != nil {
 					return int(ubuntuKernelVersion.Abi)
 				}
@@ -84,7 +84,7 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 	case "kernel.version.flavor":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
-				kv := (*RuleFilterEvent)(ctx.Object).kv
+				kv := ctx.Event.(*RuleFilterEvent).kv
 				if ubuntuKernelVersion := kv.UbuntuKernelVersion(); ubuntuKernelVersion != nil {
 					return ubuntuKernelVersion.Flavor
 				}
@@ -99,70 +99,70 @@ func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) 
 		}, nil
 	case "os.id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*RuleFilterEvent)(ctx.Object).kv.OsRelease["ID"] },
+			EvalFnc: func(ctx *eval.Context) string { return ctx.Event.(*RuleFilterEvent).kv.OsRelease["ID"] },
 			Field:   field,
 		}, nil
 	case "os.platform_id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*RuleFilterEvent)(ctx.Object).kv.OsRelease["PLATFORM_ID"] },
+			EvalFnc: func(ctx *eval.Context) string { return ctx.Event.(*RuleFilterEvent).kv.OsRelease["PLATFORM_ID"] },
 			Field:   field,
 		}, nil
 	case "os.version_id":
 		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string { return (*RuleFilterEvent)(ctx.Object).kv.OsRelease["VERSION_ID"] },
+			EvalFnc: func(ctx *eval.Context) string { return ctx.Event.(*RuleFilterEvent).kv.OsRelease["VERSION_ID"] },
 			Field:   field,
 		}, nil
 
 	case "os.is_amazon_linux":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsAmazonLinuxKernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsAmazonLinuxKernel() },
 			Field:   field,
 		}, nil
 	case "os.is_cos":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsCOSKernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsCOSKernel() },
 			Field:   field,
 		}, nil
 	case "os.is_debian":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsDebianKernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsDebianKernel() },
 			Field:   field,
 		}, nil
 	case "os.is_oracle":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsOracleUEKKernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsOracleUEKKernel() },
 			Field:   field,
 		}, nil
 	case "os.is_rhel":
 		return &eval.BoolEvaluator{
 			EvalFnc: func(ctx *eval.Context) bool {
-				return (*RuleFilterEvent)(ctx.Object).kv.IsRH7Kernel() || (*RuleFilterEvent)(ctx.Object).kv.IsRH8Kernel()
+				return ctx.Event.(*RuleFilterEvent).kv.IsRH7Kernel() || ctx.Event.(*RuleFilterEvent).kv.IsRH8Kernel()
 			},
 			Field: field,
 		}, nil
 	case "os.is_rhel7":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsRH7Kernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsRH7Kernel() },
 			Field:   field,
 		}, nil
 	case "os.is_rhel8":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsRH8Kernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsRH8Kernel() },
 			Field:   field,
 		}, nil
 	case "os.is_sles":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsSLESKernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsSLESKernel() },
 			Field:   field,
 		}, nil
 	case "os.is_sles12":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsSuse12Kernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsSuse12Kernel() },
 			Field:   field,
 		}, nil
 	case "os.is_sles15":
 		return &eval.BoolEvaluator{
-			EvalFnc: func(ctx *eval.Context) bool { return (*RuleFilterEvent)(ctx.Object).kv.IsSuse15Kernel() },
+			EvalFnc: func(ctx *eval.Context) bool { return ctx.Event.(*RuleFilterEvent).kv.IsSuse15Kernel() },
 			Field:   field,
 		}, nil
 	}

@@ -86,9 +86,8 @@ func (p *probe) init() {
 	}
 
 	// Need to run PdhCollectQueryData once so that we have meaningful metrics on the first run
-	status = pdhutil.PdhCollectQueryData(p.hQuery)
-	if status != 0 {
-		err = fmt.Errorf("PdhCollectQueryData failed with 0x%x", status)
+	err = pdhutil.PdhCollectQueryData(p.hQuery)
+	if err != nil {
 		return
 	}
 
@@ -257,9 +256,9 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 		delete(p.instanceToPID, k)
 	}
 
-	status := pdhutil.PdhCollectQueryData(p.hQuery)
-	if status != 0 {
-		return fmt.Errorf("PdhCollectQueryData failed with 0x%x", status)
+	err := pdhutil.PdhCollectQueryData(p.hQuery)
+	if err != nil {
+		return err
 	}
 
 	ignored := []string{
@@ -267,7 +266,7 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 		"Idle",   // System Idle process
 	}
 
-	err := p.formatter.Enum(pdhutil.CounterAllProcessPID, p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
+	err = p.formatter.Enum(pdhutil.CounterAllProcessPID, p.counters[pdhutil.CounterAllProcessPID], pdhutil.PDH_FMT_LARGE, ignored, valueToUint64(p.mapPID))
 
 	if err != nil {
 		return err

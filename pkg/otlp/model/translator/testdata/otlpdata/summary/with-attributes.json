@@ -28,7 +28,29 @@
                           }
                         }
                       ],
-                      "timeUnixNano": "1667560641226420924",
+                      "timeUnixNano": "1669802348455623075",
+                      "count": 1,
+                      "sum": 1,
+                      "quantileValues": [
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "summary.example",
+                "summary": {
+                  "dataPoints": [
+                    {
+                      "attributes": [
+                        {
+                          "key": "attribute_tag",
+                          "value": {
+                            "stringValue": "attribute_value"
+                          }
+                        }
+                      ],
+                      "timeUnixNano": "1669802350921840070",
                       "count": 11,
                       "sum": 101,
                       "quantileValues": [

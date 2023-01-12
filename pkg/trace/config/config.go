@@ -46,10 +46,6 @@ type OTLP struct {
 	// BindHost specifies the host to bind the receiver to.
 	BindHost string `mapstructure:"-"`
 
-	// HTTPPort specifies the port to use for the plain HTTP receiver.
-	// If unset (or 0), the receiver will be off.
-	HTTPPort int `mapstructure:"http_port"`
-
 	// GRPCPort specifies the port to use for the plain HTTP receiver.
 	// If unset (or 0), the receiver will be off.
 	GRPCPort int `mapstructure:"grpc_port"`
@@ -414,7 +410,7 @@ type AgentConfig struct {
 	MaxCatalogEntries int
 
 	// RemoteSamplingClient retrieves sampling updates from the remote config backend
-	RemoteSamplingClient RemoteClient
+	RemoteSamplingClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -464,7 +460,7 @@ func New() *AgentConfig {
 
 		ReceiverHost:           "localhost",
 		ReceiverPort:           8126,
-		MaxRequestBytes:        50 * 1024 * 1024, // 50MB
+		MaxRequestBytes:        25 * 1024 * 1024, // 25MB
 		PipeBufferSize:         1_000_000,
 		PipeSecurityDescriptor: "D:AI(A;;GA;;;WD)",
 		GUIPort:                "5002",

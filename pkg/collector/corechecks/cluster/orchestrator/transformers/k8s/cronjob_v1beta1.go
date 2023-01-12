@@ -10,6 +10,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
 )
@@ -55,6 +56,7 @@ func ExtractCronJobV1Beta1(cj *batchv1beta1.CronJob) *model.CronJob {
 	}
 
 	cronJob.Spec.ResourceRequirements = ExtractPodTemplateResourceRequirements(cj.Spec.JobTemplate.Spec.Template)
+	cronJob.Tags = append(cronJob.Tags, transformers.RetrieveUnifiedServiceTags(cj.ObjectMeta.Labels)...)
 
 	return &cronJob
 }

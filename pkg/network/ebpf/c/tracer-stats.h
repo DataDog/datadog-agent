@@ -5,6 +5,7 @@
 #include "tracer.h"
 #include "tracer-maps.h"
 #include "tracer-telemetry.h"
+#include <net/tcp.h>
 #include "sock-defines.h"
 #include "cookie.h"
 
@@ -13,6 +14,7 @@ static __always_inline conn_stats_ts_t *get_conn_stats(conn_tuple_t *t, struct s
     conn_stats_ts_t empty = {};
     bpf_memset(&empty, 0, sizeof(conn_stats_ts_t));
     empty.cookie = get_sk_cookie(sk);
+    empty.protocol = PROTOCOL_UNKNOWN;
     bpf_map_update_with_telemetry(conn_stats, t, &empty, BPF_NOEXIST);
     return bpf_map_lookup_elem(&conn_stats, t);
 }
@@ -45,15 +47,39 @@ static __always_inline protocol_t get_protocol(conn_tuple_t *t) {
     conn_tuple_copy.netns = 0;
     conn_tuple_copy.pid = 0;
     protocol_t *cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
-
     if (cached_protocol_ptr != NULL) {
        return *cached_protocol_ptr;
     }
-    return PROTOCOL_UNCLASSIFIED;
+
+    conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
+        if (cached_protocol_ptr != NULL) {
+           return *cached_protocol_ptr;
+        }
+    }
+
+    flip_tuple(&conn_tuple_copy);
+    cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &conn_tuple_copy);
+    if (cached_protocol_ptr != NULL) {
+       return *cached_protocol_ptr;
+    }
+
+    cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
+    if (cached_skb_conn_tup_ptr != NULL) {
+        conn_tuple_t skb_tup = *cached_skb_conn_tup_ptr;
+        cached_protocol_ptr = bpf_map_lookup_elem(&connection_protocol, &skb_tup);
+        if (cached_protocol_ptr != NULL) {
+           return *cached_protocol_ptr;
+        }
+    }
+
+    return PROTOCOL_UNKNOWN;
 }
 
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
-    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, protocol_t protocol, struct sock *sk) {
+    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
     conn_stats_ts_t *val;
 
     val = get_conn_stats(t, sk);
@@ -61,9 +87,12 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
         return;
     }
 
-    if ((val->protocol == PROTOCOL_UNCLASSIFIED) || (val->protocol == PROTOCOL_UNKNOWN && protocol != PROTOCOL_UNCLASSIFIED)) {
-        log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
-        val->protocol = protocol;
+    if (val->protocol == PROTOCOL_UNKNOWN) {
+        protocol_t protocol = get_protocol(t);
+        if (protocol != PROTOCOL_UNKNOWN) {
+            log_debug("[update_conn_stats]: A connection was classified with protocol %d\n", protocol);
+            val->protocol = protocol;
+        }
     }
 
     // If already in our map, increment size in-place
@@ -106,7 +135,7 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
+static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats, retransmit_count_increment_t retrans_type) {
     // query stats without the PID from the tuple
     __u32 pid = t->pid;
     t->pid = 0;
@@ -121,7 +150,9 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
         return;
     }
 
-    if (stats.retransmits > 0) {
+    if (retrans_type == RETRANSMIT_COUNT_ABSOLUTE) {
+        val->retransmits = stats.retransmits;
+    } else if (retrans_type == RETRANSMIT_COUNT_INCREMENT && stats.retransmits > 0) {
         __sync_fetch_and_add(&val->retransmits, stats.retransmits);
     }
 
@@ -138,15 +169,15 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
-    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, protocol_t protocol, struct sock *sk) {
+    __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
     u64 ts = bpf_ktime_get_ns();
 
-    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, protocol, sk);
+    update_conn_stats(t, sent_bytes, recv_bytes, ts, dir, packets_out, packets_in, segs_type, sk);
 
     return 0;
 }
 
-static __always_inline int handle_retransmit(struct sock *sk, int segs) {
+static __always_inline int handle_retransmit(struct sock *sk, int count, retransmit_count_increment_t retrans_type) {
     conn_tuple_t t = {};
     u64 zero = 0;
 
@@ -154,8 +185,8 @@ static __always_inline int handle_retransmit(struct sock *sk, int segs) {
         return 0;
     }
 
-    tcp_stats_t stats = { .retransmits = segs, .rtt = 0, .rtt_var = 0 };
-    update_tcp_stats(&t, stats);
+    tcp_stats_t stats = { .retransmits = count, .rtt = 0, .rtt_var = 0 };
+    update_tcp_stats(&t, stats, retrans_type);
 
     return 0;
 }
@@ -170,7 +201,7 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats);
+    update_tcp_stats(t, stats, RETRANSMIT_COUNT_NONE);
 }
 
 

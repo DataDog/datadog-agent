@@ -10,137 +10,292 @@ package pdhutil
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// NOTE TO DEVELOPER
+//
+// This package uses terminology defined by the following MSDN article
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
 
 // For testing
 var (
 	pfnPdhOpenQuery                     = PdhOpenQuery
 	pfnPdhAddEnglishCounter             = PdhAddEnglishCounter
-	pfnPdhCollectQueryData              = PdhCollectQueryData
+	pfnPdhCollectQueryData              = pdhCollectQueryData
 	pfnPdhGetFormattedCounterValueFloat = pdhGetFormattedCounterValueFloat
 	pfnPdhGetFormattedCounterArray      = pdhGetFormattedCounterArray
+	pfnPdhRemoveCounter                 = PdhRemoveCounter
 	pfnPdhCloseQuery                    = PdhCloseQuery
 	pfnPdhMakeCounterPath               = pdhMakeCounterPath
 )
 
-// CounterInstanceVerify is a callback function called by GetCounterSet for each
+// CounterInstanceVerify is a callback function called by GetAllValues for each
 // instance of the counter.  Implementation should return true if that instance
 // should be included, false otherwise
 type CounterInstanceVerify func(string) bool
 
-// PdhCounterSet is the object which represents a pdh counter set.
-type PdhCounterSet struct {
-	className string
-	query     PDH_HQUERY
-	counter   PDH_HCOUNTER
-
-	counterName string
+// Manages a PDH Query
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhopenqueryw
+type PdhQuery struct {
+	Handle   PDH_HQUERY
+	counters []PdhCounter
 }
 
-// PdhSingleInstanceCounterSet is a specialization for single instance counters
-type PdhSingleInstanceCounterSet struct {
-	PdhCounterSet
+// Manages behavior common to all types of PDH counters
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
+type PdhCounter interface {
+	// Return true if a query should attempt to initialize this counter.
+	// Return false if a query must not attempt to initialize this counter.
+	ShouldInit() bool
+
+	// Called during (*PdhQuery).CollectQueryData via AddToQuery() for counters that return true from ShouldInit()
+	// Must call the appropriate PdhAddCounter/PdhAddEnglishCounter function to add the
+	// counter to the query.
+	AddToQuery(*PdhQuery) error
+
+	// Given the result of PdhCounter.AddToQuery, should update initError and initFailCount
+	SetInitError(error) error
+
+	// Calls PdhRemoveCounter and updates internal state (handle field)
+	Remove() error
 }
 
-// PdhMultiInstanceCounterSet is a specialization for a multiple instance counter
-type PdhMultiInstanceCounterSet struct {
-	PdhCounterSet
+// Manages a PDH counter with no instance or for a specific instance
+// Only a single value is returned.
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/specifying-a-counter-path
+type PdhSingleInstanceCounter interface {
+	PdhCounter
+	// Return the counter value formatted as a float
+	GetValue() (float64, error)
+}
+
+// Manages a PDH counter that can have multiple instances
+// Returns a value for every instance
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/specifying-a-counter-path
+type PdhMultiInstanceCounter interface {
+	PdhCounter
+	// Return a map of instance name -> counter value formatted as a float
+	GetAllValues() (map[string]float64, error)
+}
+
+// pdhCounter contains info that is common to all counter types
+type pdhCounter struct {
+	handle PDH_HCOUNTER
+
+	// Parts of PDH counter path
+	ObjectName   string // also referred to by Microsoft as a counterset, class, or performance object
+	InstanceName string
+	CounterName  string
+
+	initError     error
+	initFailCount int
+}
+
+// pdhEnglishCounter implements AddToQuery for both single and multi instance english counters
+type pdhEnglishCounter struct {
+	pdhCounter
+}
+
+// pdhEnglishSingleInstanceCounter is a specialization for single-instance counters
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
+type PdhEnglishSingleInstanceCounter struct {
+	pdhEnglishCounter
+}
+
+// pdhMultiInstanceCounterSet is a specialization for a multi-instance counters
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/about-performance-counters
+type PdhEnglishMultiInstanceCounter struct {
+	pdhEnglishCounter
 	verifyfn CounterInstanceVerify
 }
 
-// Initialize initializes a counter set object
-func (p *PdhCounterSet) Initialize(className string, counterName string) error {
+func (counter *pdhCounter) ShouldInit() bool {
+	if counter.handle != PDH_HCOUNTER(0) {
+		// already initialized
+		return false
+	}
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		counter.initError = fmt.Errorf("Counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt.")
+		// attempts exceeded
+		return false
+	}
+	return true
+}
 
-	// refresh PDH object cache (refresh will only occur periodically)
-	_, _ = tryRefreshPdhObjectCache()
+func (counter *pdhCounter) SetInitError(err error) error {
+	if err == nil {
+		counter.initError = nil
+		return nil
+	}
 
-	p.className = className
-	p.counterName = counterName
+	counter.initFailCount += 1
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
+		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
+	} else if initFailLimit > 0 {
+		err = fmt.Errorf("%v (Failure %d/%d)", err, counter.initFailCount, initFailLimit)
+	} else {
+		err = fmt.Errorf("%v (Failure %d)", err, counter.initFailCount)
+	}
+	counter.initError = err
+	return counter.initError
+}
 
-	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &p.query)
+func (counter *pdhCounter) Remove() error {
+	if counter.handle == PDH_HCOUNTER(0) {
+		return fmt.Errorf("counter is not initialized")
+	}
+
+	pdherror := pfnPdhRemoveCounter(counter.handle)
 	if ERROR_SUCCESS != pdherror {
-		err := fmt.Errorf("Failed to open PDH query handle %#x", pdherror)
-		return err
+		return fmt.Errorf("RemoveCounter failed: %#x", pdherror)
+	}
+
+	counter.handle = PDH_HCOUNTER(0)
+	return nil
+}
+
+// Implements PdhCounter.AddToQuery for english counters.
+func (counter *pdhEnglishCounter) AddToQuery(query *PdhQuery) error {
+	path, err := pfnPdhMakeCounterPath("", counter.ObjectName, counter.InstanceName, counter.CounterName)
+	if err != nil {
+		return fmt.Errorf("Failed to make counter path (\\%s(%s)\\%s): %v", counter.ObjectName, counter.InstanceName, counter.CounterName, err)
+	}
+	pdherror := pfnPdhAddEnglishCounter(query.Handle, path, uintptr(0), &counter.handle)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("Failed to add english counter (%s): %#x", path, pdherror)
 	}
 	return nil
 }
 
-// GetEnglishCounterInstance returns a specific instance of the given counter
-// the className and counterName must be in English.
-// See PdhAddEnglishCounter docs for details
-// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcountera
-func GetEnglishCounterInstance(className string, counterName string, instance string) (*PdhSingleInstanceCounterSet, error) {
-
-	var p PdhSingleInstanceCounterSet
-	if err := p.Initialize(className, counterName); err != nil {
-		return nil, err
-	}
-
-	path, err := pfnPdhMakeCounterPath("", className, instance, counterName)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
-	}
-	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
-	if ERROR_SUCCESS != pdherror {
-		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
-	}
-	pdherror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != pdherror {
-		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
-	}
-	return &p, nil
+// Calls PdhCounter.AddToQuery and handles initError logic
+// Counters should implement PdhCounter.AddToQuery to override init logic
+func AddToQuery(query *PdhQuery, counter PdhCounter) error {
+	err := counter.AddToQuery(query)
+	return counter.SetInitError(err)
 }
 
-// GetEnglishSingleInstanceCounter returns a single instance counter object for the given counter class
-// the className and counterName must be in English.
-// See PdhAddEnglishCounter docs for details
-// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcountera
-func GetEnglishSingleInstanceCounter(className string, counterName string) (*PdhSingleInstanceCounterSet, error) {
-	return GetEnglishCounterInstance(className, counterName, "")
+func (query *PdhQuery) AddCounter(counter PdhCounter) {
+	query.counters = append(query.counters, counter)
 }
 
-// GetMultiInstanceCounter returns a multi-instance counter object for the given counter class
-func GetEnglishMultiInstanceCounter(className string, counterName string, verifyfn CounterInstanceVerify) (*PdhMultiInstanceCounterSet, error) {
-	var p PdhMultiInstanceCounterSet
-	if err := p.Initialize(className, counterName); err != nil {
-		return nil, err
-	}
+// AddEnglishCounterInstance returns a PdhSingleInstanceCounter that will fetch the value of a given instance of the given counter.
+// the objectName and counterName must be in English.
+// See PdhAddEnglishCounter docs for details
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
+//
+// Implementation detail: This function does not actually call the Windows API PdhAddEnglishCounter. That happens
+//   when (*PdhQuery).CollectQueryData calls AddToQuery. This function only links our pdhCounter struct
+//   to our PdhQuery struct.
+//   We do this so we can handle several PDH error cases and their recovery behind the scenes to reduce
+//   duplicate/error prone code in the checks that uses this package.
+//   For example, see tryRefreshPdhObjectCache().
+//   This function cannot fail, if it does then the checks that use it will need to be
+//   restructured so that their Configure() call does not fail if the counter is not available
+//   right away on host boot (see https://github.com/DataDog/datadog-agent/pull/13101).
+//   All errors related to the counter are returned from the GetValue()/GetAllValues() function.
+//
+func (query *PdhQuery) AddEnglishCounterInstance(objectName string, counterName string, instanceName string) PdhSingleInstanceCounter {
+	var p PdhEnglishSingleInstanceCounter
+	p.Initialize(objectName, counterName, instanceName)
+	query.AddCounter(&p)
+	return &p
+}
 
-	p.verifyfn = verifyfn
+// AddEnglishSingleInstanceCounter returns a PdhSingleInstanceCounter that will fetch a single instance counter value.
+// the objectName and counterName must be in English.
+// See PdhAddEnglishCounter docs for details
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhaddenglishcounterw
+//
+// Implementation detail: See AddEnglishCounterInstance()
+func (query *PdhQuery) AddEnglishSingleInstanceCounter(objectName string, counterName string) PdhSingleInstanceCounter {
+	return query.AddEnglishCounterInstance(objectName, counterName, "")
+}
 
+// AddMultiInstanceCounter returns a PdhMultiInstanceCounter that will fetch values for all instances of a counter.
+// This uses a '*' wildcard to collect values for all instances of a counter.
+// Instances/values can be filtered manually once returned from GetAllValues() or with verifyfn (see CounterInstanceVerify)
+//
+// Implementation detail: See AddEnglishCounterInstance()
+func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counterName string, verifyfn CounterInstanceVerify) PdhMultiInstanceCounter {
+	var p PdhEnglishMultiInstanceCounter
 	// Use the * wildcard to collect all instances
-	path, err := pfnPdhMakeCounterPath("", className, "*", counterName)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to make counter path %s: %v", counterName, err)
-	}
-	pdherror := pfnPdhAddEnglishCounter(p.query, path, uintptr(0), &p.counter)
-	if ERROR_SUCCESS != pdherror {
-		return nil, fmt.Errorf("Failed to add english counter %#x", pdherror)
-	}
-	pdherror = pfnPdhCollectQueryData(p.query)
-	if ERROR_SUCCESS != pdherror {
-		return nil, fmt.Errorf("Failed to collect query data %#x", pdherror)
-	}
-
-	return &p, nil
+	p.Initialize(objectName, counterName, "*")
+	p.verifyfn = verifyfn
+	query.AddCounter(&p)
+	return &p
 }
 
-// GetAllValues returns the data associated with each instance in a query.
+// Must be called before GetValue/GetAllValues to make new counter values available.
+// https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
+func (query *PdhQuery) CollectQueryData() error {
+	// iterate each of the counters and try to add them to the query
+	var addedNewCounter = false
+	for _, counter := range query.counters {
+		if counter.ShouldInit() {
+			// refresh PDH object cache (refresh will only occur periodically)
+			// This will update Windows PDH internals and make any newly
+			// initialized (during host boot) or newly enabled counters available to us.
+			// https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc784382(v=ws.10)
+			_, _ = tryRefreshPdhObjectCache()
+
+			err := AddToQuery(query, counter)
+			if err == nil {
+				addedNewCounter = true
+			} else {
+				log.Warnf("Failed to add counter to query: %v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+			}
+		}
+	}
+	if addedNewCounter {
+		// if we added a new counter then we need an additional call to
+		// PdhCollectQuery data because some counters require two datapoints
+		// before they can return a value.
+		err := PdhCollectQueryData(query.Handle)
+		if err != nil {
+			return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+		}
+	}
+
+	// Update the counters
+	err := PdhCollectQueryData(query.Handle)
+	if err != nil {
+		return fmt.Errorf("%v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+	}
+	return nil
+}
+
+// Initialize initializes a pdhCounter object
+func (counter *pdhCounter) Initialize(objectName string, counterName string, instanceName string) {
+	counter.ObjectName = objectName
+	counter.CounterName = counterName
+	counter.InstanceName = instanceName
+}
+
+// GetAllValues returns the data associated with each instance in a counter.
 // verifyfn is used to filter out instance names that are returned
 // instance:value pairs are not returned for items whose CStatus contains an error
-func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, err error) {
-	// update data
-	pfnPdhCollectQueryData(p.query)
+func (counter *PdhEnglishMultiInstanceCounter) GetAllValues() (values map[string]float64, err error) {
+	if counter.handle == PDH_HCOUNTER(0) {
+		// If there was an error initializing this counter, return it here
+		if counter.initError != nil {
+			return nil, counter.initError
+		}
+		return nil, fmt.Errorf("counter is not initialized")
+	}
 	// fetch data
-	items, err := pfnPdhGetFormattedCounterArray(p.counter, PDH_FMT_DOUBLE)
+	items, err := pfnPdhGetFormattedCounterArray(counter.handle, PDH_FMT_DOUBLE)
 	if err != nil {
 		return nil, err
 	}
 	values = make(map[string]float64)
 	for _, item := range items {
-		if p.verifyfn != nil {
-			if p.verifyfn(item.instance) == false {
+		if counter.verifyfn != nil {
+			if counter.verifyfn(item.instance) == false {
 				// not interested, moving on
 				continue
 			}
@@ -149,7 +304,7 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 			item.value.CStatus != PDH_CSTATUS_NEW_DATA {
 			// Does not necessarily indicate the problem, e.g. the process may have
 			// exited by the time the formatting of its counter values happened
-			log.Debugf("Counter value not valid for %s[%s]: %#x", p.counterName, item.instance, item.value.CStatus)
+			log.Debugf("Counter value not valid for %s[%s]: %#x", counter.CounterName, item.instance, item.value.CStatus)
 			continue
 		}
 		values[item.instance] = item.value.Double
@@ -158,16 +313,48 @@ func (p *PdhMultiInstanceCounterSet) GetAllValues() (values map[string]float64, 
 }
 
 // GetValue returns the data associated with a single-value counter
-func (p *PdhSingleInstanceCounterSet) GetValue() (val float64, err error) {
-	if p.counter == PDH_HCOUNTER(0) {
-		return 0, fmt.Errorf("Not a single-value counter")
+func (counter *PdhEnglishSingleInstanceCounter) GetValue() (float64, error) {
+	if counter.handle == PDH_HCOUNTER(0) {
+		// If there was an error initializing this counter, return it here
+		if counter.initError != nil {
+			return 0, counter.initError
+		}
+		return 0, fmt.Errorf("counter is not initialized")
 	}
-	pfnPdhCollectQueryData(p.query)
-	return pfnPdhGetFormattedCounterValueFloat(p.counter)
+	// fetch data
+	return pfnPdhGetFormattedCounterValueFloat(counter.handle)
+}
 
+// Create a query that can have counters added to it
+func CreatePdhQuery() (*PdhQuery, error) {
+	var q PdhQuery
+
+	pdherror := pfnPdhOpenQuery(uintptr(0), uintptr(0), &q.Handle)
+	if ERROR_SUCCESS != pdherror {
+		err := fmt.Errorf("failed to open PDH query handle %#x", pdherror)
+		return nil, err
+	}
+	return &q, nil
 }
 
 // Close closes the query handle, freeing the underlying windows resources.
-func (p *PdhCounterSet) Close() {
-	pfnPdhCloseQuery(p.query)
+// It is not necessary to remove the counters from the query before calling this function.
+// PdhCloseQuery closes all counter handles associated with the query.
+// https://learn.microsoft.com/en-us/windows/win32/perfctrs/creating-a-query
+func (query *PdhQuery) Close() {
+	if query.Handle != PDH_HQUERY(0) {
+		pfnPdhCloseQuery(query.Handle)
+		query.Handle = PDH_HQUERY(0)
+	}
+}
+
+func PdhCollectQueryData(hQuery PDH_HQUERY) error {
+	if hQuery == PDH_HQUERY(0) {
+		return fmt.Errorf("invalid query handle")
+	}
+	pdherror := pfnPdhCollectQueryData(hQuery)
+	if ERROR_SUCCESS != pdherror {
+		return fmt.Errorf("failed to collect query data %#x", pdherror)
+	}
+	return nil
 }

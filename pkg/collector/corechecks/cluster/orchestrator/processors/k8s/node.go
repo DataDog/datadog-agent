@@ -70,7 +70,7 @@ func (h *NodeHandlers) ResourceList(ctx *processors.ProcessorContext, list inter
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
-func (h *NodeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource, resourceModel interface{}) types.UID {
+func (h *NodeHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.Node).UID
 }
 

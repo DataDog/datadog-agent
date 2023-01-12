@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	jsoniter "github.com/json-iterator/go"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -59,7 +58,11 @@ type Handlers interface {
 	// processing loop moves on to the next resource.
 	BuildMessageBody(ctx *ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody
 
-	// ExtractResource is used to build the a resource model from the raw
+	// BuildManifestMessageBody is used to build a message containing a chunk of
+	// resource manifests of a certain size.
+	BuildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody
+
+	// ExtractResource is used to build a resource model from the raw
 	// resource representation.
 	ExtractResource(ctx *ProcessorContext, resource interface{}) (resourceModel interface{})
 
@@ -68,7 +71,7 @@ type Handlers interface {
 	ResourceList(ctx *ProcessorContext, list interface{}) (resources []interface{})
 
 	// ResourceUID returns the resource UID.
-	ResourceUID(ctx *ProcessorContext, resource, resourceModel interface{}) types.UID
+	ResourceUID(ctx *ProcessorContext, resource interface{}) types.UID
 
 	// ResourceVersion returns the resource Version.
 	ResourceVersion(ctx *ProcessorContext, resource, resourceModel interface{}) string
@@ -130,7 +133,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		}
 
 		// Cache check
-		resourceUID := p.h.ResourceUID(ctx, resource, resourceMetadataModel)
+		resourceUID := p.h.ResourceUID(ctx, resource)
 		resourceVersion := p.h.ResourceVersion(ctx, resource, resourceMetadataModel)
 
 		if orchestrator.SkipKubernetesResource(resourceUID, resourceVersion, ctx.NodeType) {
@@ -152,9 +155,12 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 			continue
 		}
 
-		// Execute code after marshalling.
-		if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
-			continue
+		// Stop sending yaml if manifest collecion is enabled
+		if !ctx.Cfg.IsManifestCollectionEnabled {
+			// Execute code after marshalling.
+			if skip := p.h.AfterMarshalling(ctx, resource, resourceMetadataModel, yaml); skip {
+				continue
+			}
 		}
 
 		resourceMetadataModels = append(resourceMetadataModels, resourceMetadataModel)
@@ -172,31 +178,14 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 
 	processResult = ProcessResult{
 		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
-		ManifestMessages: ChunkManifest(ctx, resourceManifestModels),
+		ManifestMessages: ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels),
 	}
 
 	return processResult, len(resourceMetadataModels)
 }
 
-// build orchestrator manifest message
-func buildManifestMessageBody(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
-	manifests := make([]*model.Manifest, 0, len(resourceManifests))
-
-	for _, m := range resourceManifests {
-		manifests = append(manifests, m.(*model.Manifest))
-	}
-
-	return &model.CollectorManifest{
-		ClusterName: ctx.Cfg.KubeClusterName,
-		ClusterId:   ctx.ClusterID,
-		Manifests:   manifests,
-		GroupId:     ctx.MsgGroupID,
-		GroupSize:   int32(groupSize),
-	}
-}
-
 // ChunkManifest is to chunk Manifest payloads
-func ChunkManifest(ctx *ProcessorContext, resourceManifestModels []interface{}) []model.MessageBody {
+func ChunkManifest(ctx *ProcessorContext, buildManifestBody func(ctx *ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody, resourceManifestModels []interface{}) []model.MessageBody {
 	// Chunking resources based on the serialized size of their manifest and maximum messages number
 	// Chunk manifest messages and use itself as weight indicator
 	manifestChunker := &collectorOrchestratorChunker{}
@@ -206,7 +195,7 @@ func ChunkManifest(ctx *ProcessorContext, resourceManifestModels []interface{}) 
 	manifestMessages := make([]model.MessageBody, 0, len(manifestChunker.collectorOrchestratorList))
 
 	for i := 0; i < chunkCount; i++ {
-		manifestMessages = append(manifestMessages, buildManifestMessageBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
+		manifestMessages = append(manifestMessages, buildManifestBody(ctx, manifestChunker.collectorOrchestratorList[i], chunkCount))
 	}
 
 	return manifestMessages

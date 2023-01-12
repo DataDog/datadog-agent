@@ -4,7 +4,7 @@ kind: documentation
 description: "Agent expression attributes and operators for Cloud Workload Security Rules"
 disable_edit: true
 further_reading:
-- link: "/security_platform/cloud_workload_security/getting_started/"
+- link: "/security/cloud_workload_security/getting_started/"
   tag: "Documentation"
   text: "Get started with Datadog Cloud Workload Security"
 ---
@@ -44,6 +44,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
 | `mmap` | Kernel | A mmap command was executed | 7.35 |
+| `mount` | File | [Experimental] A filesystem was mounted | 7.42 |
 | `mprotect` | Kernel | A mprotect command was executed | 7.35 |
 | `open` | File | A file was opened | 7.27 |
 | `ptrace` | Kernel | A ptrace command was executed | 7.35 |
@@ -303,6 +304,71 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | `process.interpreter.file.user` | string | User of the file's owner |  |
 | `process.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `process.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `process.parent.args` | string | Arguments of the process (as a string) |  |
+| `process.parent.args_flags` | string | Arguments of the process (as an array) |  |
+| `process.parent.args_options` | string | Arguments of the process (as an array) |  |
+| `process.parent.args_truncated` | bool | Indicator of arguments truncation |  |
+| `process.parent.argv` | string | Arguments of the process (as an array) |  |
+| `process.parent.argv0` | string | First argument of the process |  |
+| `process.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
+| `process.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
+| `process.parent.comm` | string | Comm attribute of the process |  |
+| `process.parent.container.id` | string | Container ID |  |
+| `process.parent.cookie` | int | Cookie of the process |  |
+| `process.parent.created_at` | int | Timestamp of the creation of the process |  |
+| `process.parent.egid` | int | Effective GID of the process |  |
+| `process.parent.egroup` | string | Effective group of the process |  |
+| `process.parent.envp` | string | Environment variables of the process |  |
+| `process.parent.envs` | string | Environment variable names of the process |  |
+| `process.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
+| `process.parent.euid` | int | Effective UID of the process |  |
+| `process.parent.euser` | string | Effective user of the process |  |
+| `process.parent.file.change_time` | int | Change time of the file |  |
+| `process.parent.file.filesystem` | string | File's filesystem |  |
+| `process.parent.file.gid` | int | GID of the file's owner |  |
+| `process.parent.file.group` | string | Group of the file's owner |  |
+| `process.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `process.parent.file.inode` | int | Inode of the file |  |
+| `process.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `process.parent.file.modification_time` | int | Modification time of the file |  |
+| `process.parent.file.mount_id` | int | Mount ID of the file |  |
+| `process.parent.file.name` | string | File's basename |  |
+| `process.parent.file.name.length` | int | Length of 'process.parent.file.name' string |  |
+| `process.parent.file.path` | string | File's path |  |
+| `process.parent.file.path.length` | int | Length of 'process.parent.file.path' string |  |
+| `process.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `process.parent.file.uid` | int | UID of the file's owner |  |
+| `process.parent.file.user` | string | User of the file's owner |  |
+| `process.parent.fsgid` | int | FileSystem-gid of the process |  |
+| `process.parent.fsgroup` | string | FileSystem-group of the process |  |
+| `process.parent.fsuid` | int | FileSystem-uid of the process |  |
+| `process.parent.fsuser` | string | FileSystem-user of the process |  |
+| `process.parent.gid` | int | GID of the process |  |
+| `process.parent.group` | string | Group of the process |  |
+| `process.parent.interpreter.file.change_time` | int | Change time of the file |  |
+| `process.parent.interpreter.file.filesystem` | string | File's filesystem |  |
+| `process.parent.interpreter.file.gid` | int | GID of the file's owner |  |
+| `process.parent.interpreter.file.group` | string | Group of the file's owner |  |
+| `process.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `process.parent.interpreter.file.inode` | int | Inode of the file |  |
+| `process.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `process.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `process.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `process.parent.interpreter.file.name` | string | File's basename |  |
+| `process.parent.interpreter.file.name.length` | int | Length of 'process.parent.interpreter.file.name' string |  |
+| `process.parent.interpreter.file.path` | string | File's path |  |
+| `process.parent.interpreter.file.path.length` | int | Length of 'process.parent.interpreter.file.path' string |  |
+| `process.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `process.parent.interpreter.file.uid` | int | UID of the file's owner |  |
+| `process.parent.interpreter.file.user` | string | User of the file's owner |  |
+| `process.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
+| `process.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `process.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
+| `process.parent.ppid` | int | Parent process ID |  |
+| `process.parent.tid` | int | Thread ID of the thread |  |
+| `process.parent.tty_name` | string | Name of the TTY associated with the process |  |
+| `process.parent.uid` | int | UID of the process |  |
+| `process.parent.user` | string | User of the process |  |
 | `process.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `process.ppid` | int | Parent process ID |  |
 | `process.tid` | int | Thread ID of the thread |  |
@@ -680,6 +746,19 @@ A mmap command was executed
 | `mmap.protection` | int | memory segment protection | Protection constants |
 | `mmap.retval` | int | Return value of the syscall | Error Constants |
 
+### Event `mount`
+
+_This event type is experimental and may change in the future._
+
+A filesystem was mounted
+
+| Property | Type | Definition | Constants |
+| -------- | ---- | ---------- | --------- |
+| `mount.fs_type` | string | Type of the mounted file system |  |
+| `mount.mountpoint.path` | string | Path of the mount point |  |
+| `mount.retval` | int | Return value of the syscall | Error Constants |
+| `mount.source.path` | string | Source path of a bind mount |  |
+
 ### Event `mprotect`
 
 A mprotect command was executed
@@ -848,6 +927,71 @@ A ptrace command was executed
 | `ptrace.tracee.interpreter.file.user` | string | User of the file's owner |  |
 | `ptrace.tracee.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `ptrace.tracee.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `ptrace.tracee.parent.args` | string | Arguments of the process (as a string) |  |
+| `ptrace.tracee.parent.args_flags` | string | Arguments of the process (as an array) |  |
+| `ptrace.tracee.parent.args_options` | string | Arguments of the process (as an array) |  |
+| `ptrace.tracee.parent.args_truncated` | bool | Indicator of arguments truncation |  |
+| `ptrace.tracee.parent.argv` | string | Arguments of the process (as an array) |  |
+| `ptrace.tracee.parent.argv0` | string | First argument of the process |  |
+| `ptrace.tracee.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
+| `ptrace.tracee.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
+| `ptrace.tracee.parent.comm` | string | Comm attribute of the process |  |
+| `ptrace.tracee.parent.container.id` | string | Container ID |  |
+| `ptrace.tracee.parent.cookie` | int | Cookie of the process |  |
+| `ptrace.tracee.parent.created_at` | int | Timestamp of the creation of the process |  |
+| `ptrace.tracee.parent.egid` | int | Effective GID of the process |  |
+| `ptrace.tracee.parent.egroup` | string | Effective group of the process |  |
+| `ptrace.tracee.parent.envp` | string | Environment variables of the process |  |
+| `ptrace.tracee.parent.envs` | string | Environment variable names of the process |  |
+| `ptrace.tracee.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
+| `ptrace.tracee.parent.euid` | int | Effective UID of the process |  |
+| `ptrace.tracee.parent.euser` | string | Effective user of the process |  |
+| `ptrace.tracee.parent.file.change_time` | int | Change time of the file |  |
+| `ptrace.tracee.parent.file.filesystem` | string | File's filesystem |  |
+| `ptrace.tracee.parent.file.gid` | int | GID of the file's owner |  |
+| `ptrace.tracee.parent.file.group` | string | Group of the file's owner |  |
+| `ptrace.tracee.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `ptrace.tracee.parent.file.inode` | int | Inode of the file |  |
+| `ptrace.tracee.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.parent.file.modification_time` | int | Modification time of the file |  |
+| `ptrace.tracee.parent.file.mount_id` | int | Mount ID of the file |  |
+| `ptrace.tracee.parent.file.name` | string | File's basename |  |
+| `ptrace.tracee.parent.file.name.length` | int | Length of 'ptrace.tracee.parent.file.name' string |  |
+| `ptrace.tracee.parent.file.path` | string | File's path |  |
+| `ptrace.tracee.parent.file.path.length` | int | Length of 'ptrace.tracee.parent.file.path' string |  |
+| `ptrace.tracee.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.parent.file.uid` | int | UID of the file's owner |  |
+| `ptrace.tracee.parent.file.user` | string | User of the file's owner |  |
+| `ptrace.tracee.parent.fsgid` | int | FileSystem-gid of the process |  |
+| `ptrace.tracee.parent.fsgroup` | string | FileSystem-group of the process |  |
+| `ptrace.tracee.parent.fsuid` | int | FileSystem-uid of the process |  |
+| `ptrace.tracee.parent.fsuser` | string | FileSystem-user of the process |  |
+| `ptrace.tracee.parent.gid` | int | GID of the process |  |
+| `ptrace.tracee.parent.group` | string | Group of the process |  |
+| `ptrace.tracee.parent.interpreter.file.change_time` | int | Change time of the file |  |
+| `ptrace.tracee.parent.interpreter.file.filesystem` | string | File's filesystem |  |
+| `ptrace.tracee.parent.interpreter.file.gid` | int | GID of the file's owner |  |
+| `ptrace.tracee.parent.interpreter.file.group` | string | Group of the file's owner |  |
+| `ptrace.tracee.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `ptrace.tracee.parent.interpreter.file.inode` | int | Inode of the file |  |
+| `ptrace.tracee.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `ptrace.tracee.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `ptrace.tracee.parent.interpreter.file.name` | string | File's basename |  |
+| `ptrace.tracee.parent.interpreter.file.name.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.name' string |  |
+| `ptrace.tracee.parent.interpreter.file.path` | string | File's path |  |
+| `ptrace.tracee.parent.interpreter.file.path.length` | int | Length of 'ptrace.tracee.parent.interpreter.file.path' string |  |
+| `ptrace.tracee.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `ptrace.tracee.parent.interpreter.file.uid` | int | UID of the file's owner |  |
+| `ptrace.tracee.parent.interpreter.file.user` | string | User of the file's owner |  |
+| `ptrace.tracee.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
+| `ptrace.tracee.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `ptrace.tracee.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
+| `ptrace.tracee.parent.ppid` | int | Parent process ID |  |
+| `ptrace.tracee.parent.tid` | int | Thread ID of the thread |  |
+| `ptrace.tracee.parent.tty_name` | string | Name of the TTY associated with the process |  |
+| `ptrace.tracee.parent.uid` | int | UID of the process |  |
+| `ptrace.tracee.parent.user` | string | User of the process |  |
 | `ptrace.tracee.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `ptrace.tracee.ppid` | int | Parent process ID |  |
 | `ptrace.tracee.tid` | int | Thread ID of the thread |  |
@@ -1140,6 +1284,71 @@ A signal was sent
 | `signal.target.interpreter.file.user` | string | User of the file's owner |  |
 | `signal.target.is_kworker` | bool | Indicates whether the process is a kworker |  |
 | `signal.target.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `signal.target.parent.args` | string | Arguments of the process (as a string) |  |
+| `signal.target.parent.args_flags` | string | Arguments of the process (as an array) |  |
+| `signal.target.parent.args_options` | string | Arguments of the process (as an array) |  |
+| `signal.target.parent.args_truncated` | bool | Indicator of arguments truncation |  |
+| `signal.target.parent.argv` | string | Arguments of the process (as an array) |  |
+| `signal.target.parent.argv0` | string | First argument of the process |  |
+| `signal.target.parent.cap_effective` | int | Effective capability set of the process | Kernel Capability constants |
+| `signal.target.parent.cap_permitted` | int | Permitted capability set of the process | Kernel Capability constants |
+| `signal.target.parent.comm` | string | Comm attribute of the process |  |
+| `signal.target.parent.container.id` | string | Container ID |  |
+| `signal.target.parent.cookie` | int | Cookie of the process |  |
+| `signal.target.parent.created_at` | int | Timestamp of the creation of the process |  |
+| `signal.target.parent.egid` | int | Effective GID of the process |  |
+| `signal.target.parent.egroup` | string | Effective group of the process |  |
+| `signal.target.parent.envp` | string | Environment variables of the process |  |
+| `signal.target.parent.envs` | string | Environment variable names of the process |  |
+| `signal.target.parent.envs_truncated` | bool | Indicator of environment variables truncation |  |
+| `signal.target.parent.euid` | int | Effective UID of the process |  |
+| `signal.target.parent.euser` | string | Effective user of the process |  |
+| `signal.target.parent.file.change_time` | int | Change time of the file |  |
+| `signal.target.parent.file.filesystem` | string | File's filesystem |  |
+| `signal.target.parent.file.gid` | int | GID of the file's owner |  |
+| `signal.target.parent.file.group` | string | Group of the file's owner |  |
+| `signal.target.parent.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `signal.target.parent.file.inode` | int | Inode of the file |  |
+| `signal.target.parent.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.parent.file.modification_time` | int | Modification time of the file |  |
+| `signal.target.parent.file.mount_id` | int | Mount ID of the file |  |
+| `signal.target.parent.file.name` | string | File's basename |  |
+| `signal.target.parent.file.name.length` | int | Length of 'signal.target.parent.file.name' string |  |
+| `signal.target.parent.file.path` | string | File's path |  |
+| `signal.target.parent.file.path.length` | int | Length of 'signal.target.parent.file.path' string |  |
+| `signal.target.parent.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.parent.file.uid` | int | UID of the file's owner |  |
+| `signal.target.parent.file.user` | string | User of the file's owner |  |
+| `signal.target.parent.fsgid` | int | FileSystem-gid of the process |  |
+| `signal.target.parent.fsgroup` | string | FileSystem-group of the process |  |
+| `signal.target.parent.fsuid` | int | FileSystem-uid of the process |  |
+| `signal.target.parent.fsuser` | string | FileSystem-user of the process |  |
+| `signal.target.parent.gid` | int | GID of the process |  |
+| `signal.target.parent.group` | string | Group of the process |  |
+| `signal.target.parent.interpreter.file.change_time` | int | Change time of the file |  |
+| `signal.target.parent.interpreter.file.filesystem` | string | File's filesystem |  |
+| `signal.target.parent.interpreter.file.gid` | int | GID of the file's owner |  |
+| `signal.target.parent.interpreter.file.group` | string | Group of the file's owner |  |
+| `signal.target.parent.interpreter.file.in_upper_layer` | bool | Indicator of the file layer, for example, in an OverlayFS |  |
+| `signal.target.parent.interpreter.file.inode` | int | Inode of the file |  |
+| `signal.target.parent.interpreter.file.mode` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.parent.interpreter.file.modification_time` | int | Modification time of the file |  |
+| `signal.target.parent.interpreter.file.mount_id` | int | Mount ID of the file |  |
+| `signal.target.parent.interpreter.file.name` | string | File's basename |  |
+| `signal.target.parent.interpreter.file.name.length` | int | Length of 'signal.target.parent.interpreter.file.name' string |  |
+| `signal.target.parent.interpreter.file.path` | string | File's path |  |
+| `signal.target.parent.interpreter.file.path.length` | int | Length of 'signal.target.parent.interpreter.file.path' string |  |
+| `signal.target.parent.interpreter.file.rights` | int | Mode/rights of the file | Chmod mode constants |
+| `signal.target.parent.interpreter.file.uid` | int | UID of the file's owner |  |
+| `signal.target.parent.interpreter.file.user` | string | User of the file's owner |  |
+| `signal.target.parent.is_kworker` | bool | Indicates whether the process is a kworker |  |
+| `signal.target.parent.is_thread` | bool | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |  |
+| `signal.target.parent.pid` | int | Process ID of the process (also called thread group ID) |  |
+| `signal.target.parent.ppid` | int | Parent process ID |  |
+| `signal.target.parent.tid` | int | Thread ID of the thread |  |
+| `signal.target.parent.tty_name` | string | Name of the TTY associated with the process |  |
+| `signal.target.parent.uid` | int | UID of the process |  |
+| `signal.target.parent.user` | string | User of the process |  |
 | `signal.target.pid` | int | Process ID of the process (also called thread group ID) |  |
 | `signal.target.ppid` | int | Parent process ID |  |
 | `signal.target.tid` | int | Thread ID of the thread |  |

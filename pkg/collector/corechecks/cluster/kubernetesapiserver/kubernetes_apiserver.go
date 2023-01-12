@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -133,8 +134,8 @@ func KubernetesASFactory() check.Check {
 }
 
 // Configure parses the check configuration and init the check.
-func (k *KubeASCheck) Configure(config, initConfig integration.Data, source string) error {
-	err := k.CommonConfigure(initConfig, config, source)
+func (k *KubeASCheck) Configure(integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+	err := k.CommonConfigure(integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -157,7 +158,7 @@ func (k *KubeASCheck) Configure(config, initConfig integration.Data, source stri
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, k.instance.CollectedEventTypes)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetDefaultTagger(), k.instance.CollectedEventTypes)
 	} else {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 		k.eventCollection.Transformer = newBundledTransformer(clusterName)

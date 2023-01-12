@@ -100,6 +100,9 @@ func GetTagsFromAPIGatewayEvent(event events.APIGatewayProxyRequest) map[string]
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -115,6 +118,9 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["user-agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
@@ -128,6 +134,9 @@ func GetTagsFromALBTargetGroupRequest(event events.ALBTargetGroupRequest) map[st
 	if event.Headers != nil {
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
+		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
 		}
 	}
 	return httpTags
@@ -146,34 +155,37 @@ func GetTagsFromLambdaFunctionURLRequest(event events.LambdaFunctionURLRequest) 
 		if event.Headers["Referer"] != "" {
 			httpTags["http.referer"] = event.Headers["Referer"]
 		}
+		if ua := event.Headers["User-Agent"]; ua != "" {
+			httpTags["http.useragent"] = ua
+		}
 	}
 	return httpTags
 }
 
 // GetStatusCodeFromHTTPResponse parses a generic payload and returns
-// a status code, if it contains one. Returns an empty string if it does not.
-// Ignore parsing errors silentlys
+// a status code, if it contains one. Returns an empty string if it does not,
+// or an error in case of json parsing error.
 func GetStatusCodeFromHTTPResponse(rawPayload []byte) (string, error) {
-	var response map[string]interface{}
+	var response struct {
+		StatusCode interface{} `json:"statusCode"`
+	}
 	err := json.Unmarshal(rawPayload, &response)
 	if err != nil {
 		return "", err
 	}
 
-	// datadog-lambda-js checks if 'result' is undefined
-	// so this is presumably the equivalent
-	if len(rawPayload) == 0 {
+	statusCode := response.StatusCode
+	if statusCode == nil {
 		return "", nil
 	}
 
-	statusCode := response["statusCode"]
 	switch statusCode.(type) {
 	case float64:
 		return strconv.FormatFloat(statusCode.(float64), 'f', -1, 64), nil
 	case string:
 		return statusCode.(string), nil
 	default:
-		return "", fmt.Errorf("Received unknown type for statusCode")
+		return "", fmt.Errorf("Received unknown type %T for statusCode", statusCode)
 	}
 }
 
