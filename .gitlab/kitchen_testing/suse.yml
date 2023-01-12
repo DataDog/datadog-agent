@@ -78,15 +78,19 @@ kitchen_suse_step_by_step_agent-a7:
   rules:
     !reference [.on_deploy_a7]
 
-kitchen_suse_upgrade5_agent-a6:
-  extends:
-    - .kitchen_scenario_suse_a6
-    - .kitchen_test_upgrade5_agent
-
-kitchen_suse_upgrade5_agent-a7:
-  extends:
-    - .kitchen_scenario_suse_a7
-    - .kitchen_test_upgrade5_agent
+# The change https://github.com/DataDog/dd-agent/commit/d024c411c56595099761dc4ac4d0133e6fa152bf
+# made the SUSE Agent 5 upgrade tests fail when there is no Agent 5 SUSE RPM signed with the new
+# key. We disable them temporarily because of this.
+#
+# kitchen_suse_upgrade5_agent-a6:
+#   extends:
+#     - .kitchen_scenario_suse_a6
+#     - .kitchen_test_upgrade5_agent
+#
+# kitchen_suse_upgrade5_agent-a7:
+#   extends:
+#     - .kitchen_scenario_suse_a7
+#     - .kitchen_test_upgrade5_agent
 
 kitchen_suse_upgrade6_agent-a6:
   extends:
