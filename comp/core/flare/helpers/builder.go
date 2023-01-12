@@ -21,6 +21,10 @@ import (
 	"github.com/mholt/archiver/v3"
 )
 
+const (
+	filePerm = 0644
+)
+
 func newBuilder(root string, hostname string) (*builder, error) {
 	fb := &builder{
 		tmpDir:     root,
@@ -58,7 +62,7 @@ func newBuilder(root string, hostname string) (*builder, error) {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY, filePerm)
 	if err != nil {
 		return nil, fmt.Errorf("Could not create flare_creation.log file: %s", err)
 	}
@@ -162,7 +166,7 @@ func (fb *builder) AddFile(destFile string, content []byte) error {
 		return err
 	}
 
-	if err := os.WriteFile(f, content, os.ModePerm); err != nil {
+	if err := os.WriteFile(f, content, filePerm); err != nil {
 		return fb.logError("error writing data to '%s': %s", destFile, err)
 	}
 	return nil
@@ -189,7 +193,7 @@ func (fb *builder) copyFileTo(shouldScrub bool, srcFile string, destFile string)
 		}
 	}
 
-	err = os.WriteFile(path, content, os.ModePerm)
+	err = os.WriteFile(path, content, filePerm)
 	if err != nil {
 		return fb.logError("error writing file '%s': %s", destFile, err)
 	}

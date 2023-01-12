@@ -25,6 +25,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -59,7 +61,7 @@ const (
 	cwsIntakeOrigin config.IntakeOrigin = "cloud-workload-security"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	runtimeCmd := &cobra.Command{
 		Use:   "runtime",
 		Short: "runtime Agent utility commands",
@@ -78,12 +80,12 @@ func Commands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type checkPoliciesCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	dir string
 }
 
-func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func checkPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -95,28 +97,28 @@ func checkPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "off", false)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 		Deprecated: "please use `security-agent runtime policy check` instead",
 	}
 
-	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	checkPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{checkPoliciesCmd}
 }
 
-func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func reloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	reloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -125,7 +127,7 @@ func reloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command 
 	return []*cobra.Command{reloadPoliciesCmd}
 }
 
-func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonPolicyCmd := &cobra.Command{
 		Use:   "policy",
 		Short: "Policy related commands",
@@ -140,7 +142,7 @@ func commonPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type evalCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	dir       string
 	ruleID    string
@@ -148,7 +150,7 @@ type evalCliParams struct {
 	debug     bool
 }
 
-func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	evalArgs := &evalCliParams{
 		GlobalParams: globalParams,
 	}
@@ -160,24 +162,24 @@ func evalCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(evalRule,
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "off", false)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	evalCmd.Flags().StringVar(&evalArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
-	evalCmd.Flags().StringVar(&evalArgs.ruleID, "rule-id", "", "Rule ID to evaluate")
-	_ = evalCmd.MarkFlagRequired("rule-id")
-	evalCmd.Flags().StringVar(&evalArgs.eventFile, "event-file", "", "File of the event data")
-	_ = evalCmd.MarkFlagRequired("event-file")
-	evalCmd.Flags().BoolVar(&evalArgs.debug, "debug", false, "Display an event dump if the evaluation fail")
+	evalCmd.Flags().StringVar(&evalArgs.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	evalCmd.Flags().StringVar(&evalArgs.ruleID, flags.RuleID, "", "Rule ID to evaluate")
+	_ = evalCmd.MarkFlagRequired(flags.RuleID)
+	evalCmd.Flags().StringVar(&evalArgs.eventFile, flags.EventFile, "", "File of the event data")
+	_ = evalCmd.MarkFlagRequired(flags.EventFile)
+	evalCmd.Flags().BoolVar(&evalArgs.debug, flags.Debug, false, "Display an event dump if the evaluation fail")
 
 	return []*cobra.Command{evalCmd}
 }
 
-func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &checkPoliciesCliParams{
 		GlobalParams: globalParams,
 	}
@@ -189,27 +191,27 @@ func commonCheckPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Com
 			return fxutil.OneShot(checkPolicies,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "off", false)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
+	commonCheckPoliciesCmd.Flags().StringVar(&cliParams.dir, flags.PoliciesDir, coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	return []*cobra.Command{commonCheckPoliciesCmd}
 }
 
-func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	commonReloadPoliciesCmd := &cobra.Command{
 		Use:   "reload",
 		Short: "Reload policies",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -217,15 +219,15 @@ func commonReloadPoliciesCommands(globalParams *common.GlobalParams) []*cobra.Co
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
-func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
 		Short: "Run runtime self test",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -235,13 +237,13 @@ func selfTestCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type downloadPolicyCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	check      bool
 	outputPath string
 }
 
-func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	downloadPolicyArgs := &downloadPolicyCliParams{
 		GlobalParams: globalParams,
 	}
@@ -253,26 +255,26 @@ func downloadPolicyCommands(globalParams *common.GlobalParams) []*cobra.Command 
 			return fxutil.OneShot(downloadPolicy,
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "off", false)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle,
 			)
 		},
 	}
 
-	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, flags.Check, false, "Check policies after downloading")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, flags.OutputPath, "", "Output path for downloaded policies")
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
 
 type processCacheDumpCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	withArgs bool
 }
 
-func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
 	}
@@ -284,13 +286,13 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpProcessCache,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
 	}
-	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, "with-args", false, "add process arguments to the dump")
+	processCacheDumpCmd.Flags().BoolVar(&cliParams.withArgs, flags.WithArgs, false, "add process arguments to the dump")
 
 	processCacheCmd := &cobra.Command{
 		Use:   "process-cache",
@@ -302,12 +304,12 @@ func processCacheCommands(globalParams *common.GlobalParams) []*cobra.Command {
 }
 
 type dumpNetworkNamespaceCliParams struct {
-	*common.GlobalParams
+	*command.GlobalParams
 
 	snapshotInterfaces bool
 }
 
-func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
 	}
@@ -319,13 +321,13 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 			return fxutil.OneShot(dumpNetworkNamespace,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
 	}
-	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, "snapshot-interfaces", true, "snapshot the interfaces of each network namespace during the dump")
+	dumpNetworkNamespaceCmd.Flags().BoolVar(&cliParams.snapshotInterfaces, flags.SnapshotInterfaces, true, "snapshot the interfaces of each network namespace during the dump")
 
 	networkNamespaceCmd := &cobra.Command{
 		Use:   "network-namespace",
@@ -336,7 +338,7 @@ func networkNamespaceCommands(globalParams *common.GlobalParams) []*cobra.Comman
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
-func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
+func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
@@ -344,8 +346,8 @@ func discardersCommands(globalParams *common.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
-					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfPathArray),
-					LogParams:    complog.LogForOneShot(common.LoggerName, "info", true)}),
+					ConfigParams: compconfig.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					LogParams:    complog.LogForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
 		},
@@ -462,14 +464,13 @@ func checkPoliciesInner(dir string) error {
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+					return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
 				}, nil)
 			},
 		}).
 		WithLogger(seclog.DefaultLogger)
 
-	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	ruleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
@@ -553,7 +554,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 
 	m := &model.Model{}
-	event := m.NewEventWithType(kind)
+	event := m.NewDefaultEventWithType(kind)
 	event.Init()
 
 	for k, v := range eventData.Values {
@@ -601,8 +602,8 @@ func evalRule(log complog.Component, config compconfig.Component, evalArgs *eval
 		WithReservedRuleIDs(events.AllCustomRuleIDs()).
 		WithLogger(seclog.DefaultLogger)
 
-	model := &model.Model{}
-	ruleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts, &eval.MacroStore{})
+	m := &model.Model{}
+	ruleSet := rules.NewRuleSet(m, model.NewDefaultEvent, &opts, &evalOpts)
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {

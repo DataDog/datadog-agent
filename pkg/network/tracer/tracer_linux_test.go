@@ -627,10 +627,9 @@ func TestGatewayLookupEnabled(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
-	defer tr.Stop()
 	require.NotNil(t, tr.gwLookup)
 
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
@@ -644,6 +643,9 @@ func TestGatewayLookupEnabled(t *testing.T) {
 		return network.Subnet{Alias: "subnet"}, nil
 	}
 
+	require.NoError(t, tr.start(), "could not start tracer")
+	defer tr.Stop()
+
 	getConnections(t, tr)
 
 	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
@@ -653,7 +655,7 @@ func TestGatewayLookupEnabled(t *testing.T) {
 		var ok bool
 		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 2*time.Second, time.Second)
+	}, 3*time.Second, 500*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
@@ -672,11 +674,10 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	// create the tracer without starting it
+	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
-	defer tr.Stop()
-
 	require.NotNil(t, tr.gwLookup)
 
 	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
@@ -689,6 +690,8 @@ func TestGatewayLookupSubnetLookupError(t *testing.T) {
 	}
 
 	tr.gwLookup.purge()
+	require.NoError(t, tr.start(), "failed to start tracer")
+	defer tr.Stop()
 
 	getConnections(t, tr)
 
@@ -726,11 +729,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := NewTracer(cfg)
+	tr, err := newTracer(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
-	defer tr.Stop()
-
 	require.NotNil(t, tr.gwLookup)
 
 	// setup two network namespaces
@@ -784,7 +785,9 @@ func TestGatewayLookupCrossNamespace(t *testing.T) {
 
 		return network.Subnet{Alias: "subnet"}, nil
 	}
-	tr.gwLookup.purge()
+
+	require.NoError(t, tr.start(), "could not start tracer")
+	defer tr.Stop()
 
 	test1Ns, err := vnetns.GetFromName("test1")
 	require.NoError(t, err)

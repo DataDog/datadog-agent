@@ -17,8 +17,9 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 //nolint:deadcode,unused
@@ -53,7 +54,7 @@ func (v ValidInodeFormatChecker) IsFormat(input interface{}) bool {
 }
 
 //nolint:deadcode,unused
-func validateSchema(t *testing.T, json string, path string) bool {
+func validateStringSchema(t *testing.T, json string, path string) bool {
 	t.Helper()
 
 	fs := http.FS(schemaAssetFS)
@@ -72,6 +73,7 @@ func validateSchema(t *testing.T, json string, path string) bool {
 		for _, desc := range result.Errors() {
 			t.Errorf("%s", desc)
 		}
+		t.Error(json)
 		return false
 	}
 
@@ -79,151 +81,159 @@ func validateSchema(t *testing.T, json string, path string) bool {
 }
 
 //nolint:deadcode,unused
-func validateEventSchema(t *testing.T, event *sprobe.Event, path string) bool {
+func (tm *testModule) validateEventSchema(t *testing.T, event *model.Event, path string) bool {
 	t.Helper()
-	return validateSchema(t, event.String(), path)
+
+	eventJSON, err := tm.marshalEvent(event)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	return validateStringSchema(t, eventJSON, path)
 }
 
 //nolint:deadcode,unused
-func validateStringSchema(t *testing.T, event string, path string) bool {
+func (tm *testModule) validateExecSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateSchema(t, event, path)
+	return tm.validateEventSchema(t, event, "file:///schemas/exec.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateExecSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateExitSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/exec.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/exit.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateExitSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateOpenSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/exit.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/open.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateOpenSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateRenameSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/open.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/rename.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateRenameSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateChmodSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/rename.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/chmod.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateChmodSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateChownSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/chmod.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/chown.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateChownSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateSELinuxSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/chown.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/selinux.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateSELinuxSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateLinkSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/selinux.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/link.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateLinkSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateSpanSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/link.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/span.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateSpanSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateBPFSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/span.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/bpf.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateBPFSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateMMapSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/bpf.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/mmap.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateMMapSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateMProtectSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/mmap.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/mprotect.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateMProtectSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validatePTraceSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/mprotect.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/ptrace.schema.json")
 }
 
 //nolint:deadcode,unused
-func validatePTraceSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateLoadModuleSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/ptrace.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/load_module.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateLoadModuleSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateLoadModuleNoFileSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/load_module.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/load_module_no_file.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateLoadModuleNoFileSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateUnloadModuleSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/load_module_no_file.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/unload_module.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateUnloadModuleSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateSignalSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/unload_module.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/signal.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateSignalSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateSpliceSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/signal.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/splice.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateSpliceSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateDNSSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/splice.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/dns.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateDNSSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/dns.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/bind.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateBindSchema(t *testing.T, event *sprobe.Event) bool {
+func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/bind.schema.json")
+	return tm.validateEventSchema(t, event, "file:///schemas/mount.schema.json")
 }
 
 //nolint:deadcode,unused
-func validateMountSchema(t *testing.T, event *sprobe.Event) bool {
+func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 	t.Helper()
-	return validateEventSchema(t, event, "file:///schemas/mount.schema.json")
+
+	eventJSON, err := probe.MarshalCustomEvent(event)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	return validateStringSchema(t, string(eventJSON), "file:///schemas/ruleset_loaded.schema.json")
 }
 
 //nolint:deadcode,unused
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")
-}
-
-//nolint:deadcode,unused
-func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
-	t.Helper()
-	return validateStringSchema(t, event.String(), "file:///schemas/ruleset_loaded.schema.json")
 }

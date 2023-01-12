@@ -6,8 +6,9 @@
 package encoding
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -61,6 +62,15 @@ func TestFormatProtocols(t *testing.T) {
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolRedis,
+				},
+			},
+		},
+		{
+			name:     "mongo protocol",
+			protocol: network.ProtocolMongo,
+			want: &model.ProtocolStack{
+				Stack: []model.ProtocolType{
+					model.ProtocolType_protocolMongo,
 				},
 			},
 		},

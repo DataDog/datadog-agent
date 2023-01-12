@@ -10,10 +10,10 @@ package config
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/commands/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -21,13 +21,13 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
-func Commands(globalParams *common.GlobalParams) []*cobra.Command {
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := cmdconfig.Config(getSettingsClient)
 	return []*cobra.Command{cmd}
 }
 
 func setupConfig(cmd *cobra.Command) error {
-	err := config.SetupLogger(common.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
+	err := config.SetupLogger(command.LoggerName, config.GetEnvDefault("DD_LOG_LEVEL", "off"), "", "", false, true, false)
 	if err != nil {
 		fmt.Printf("Cannot setup logger, exiting: %v\n", err)
 		return err

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -78,7 +78,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(100), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(200), event.Chown.GID, "wrong user")
@@ -90,9 +90,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	})
 
@@ -107,7 +105,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(101), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(201), event.Chown.GID, "wrong user")
@@ -119,9 +117,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	})
 
@@ -145,7 +141,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule2")
 			assert.Equal(t, int64(102), event.Chown.UID, "wrong user")
@@ -158,9 +154,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -172,7 +166,7 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assert.Equal(t, int64(103), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(203), event.Chown.GID, "wrong user")
@@ -184,9 +178,7 @@ func TestChown(t *testing.T) {
 			assertNearTime(t, event.Chown.File.CTime)
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -199,16 +191,14 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, r, "test_rule3")
 			assert.Equal(t, int64(104), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(-1), event.Chown.GID, "wrong group")
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -221,16 +211,14 @@ func TestChown(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			assert.Equal(t, "chown", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, r, "test_rule4")
 			assert.Equal(t, int64(-1), event.Chown.UID, "wrong user")
 			assert.Equal(t, int64(204), event.Chown.GID, "wrong group")
 			assert.Equal(t, event.Async, false)
 
-			if !validateChownSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateChownSchema(t, event)
 		})
 	}))
 
@@ -246,7 +234,7 @@ func TestChown(t *testing.T) {
 				return fmt.Errorf("%s: %w", out, err)
 			}
 			return nil
-		}, func(event *sprobe.Event, r *rules.Rule) {
+		}, func(event *model.Event, r *rules.Rule) {
 			t.Error("Event received")
 		})
 	})
