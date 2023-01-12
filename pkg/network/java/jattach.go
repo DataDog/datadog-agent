@@ -29,7 +29,7 @@ func InjectAgent(pid int, agent string, args string) error {
 		return err
 	}
 
-	end := time.Now().Add(2 * time.Second)
+	end := time.Now().Add(5 * time.Second)
 	for end.After(time.Now()) {
 		// wait the java process start the JVM
 		// issue describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
