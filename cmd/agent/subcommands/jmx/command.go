@@ -247,10 +247,10 @@ func runJmxCommandConsole(log log.Component, config config.Component, cliParams 
 	} else {
 		allConfigs, err = common.WaitForConfigsFromAD(waitCtx, cliParams.cliSelectedChecks, int(cliParams.discoveryMinInstances), cliParams.instanceFilter)
 	}
+	cancelTimeout()
 	if err != nil {
 		return err
 	}
-	cancelTimeout()
 
 	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs)
 
