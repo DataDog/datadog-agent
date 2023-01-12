@@ -97,6 +97,12 @@ func TestInject(t *testing.T) {
 		t.Skip("Kernel < 4.1.0 are not supported as /proc/pid/status doesn't report NSpid")
 	}
 
+	javaVersion, err := testutil.RunCommand("java -version")
+	if err != nil {
+		t.Fatal("java is not installed", javaVersion)
+	}
+	t.Log(javaVersion)
+
 	t.Run("host", func(t *testing.T) {
 		testInject(t, "")
 	})
