@@ -60,7 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot("CLUSTER", "off", true),
+					LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 				}),
 				core.Bundle,
 			)
