@@ -77,7 +77,7 @@ func (m *MockSender) AssertContainerImage(t *testing.T, expectedContainerImages 
 	return m.Mock.AssertCalled(t, "ContainerImage", expectedContainerImages)
 }
 
-// AssertContainerImage assert the expected event was emitted with the following values
+// AssertSBOM assert the expected event was emitted with the following values
 func (m *MockSender) AssertSBOM(t *testing.T, expectedSBOM []sbom.SBOMPayload) bool {
 	return m.Mock.AssertCalled(t, "SBOM", expectedSBOM)
 }

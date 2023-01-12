@@ -122,7 +122,7 @@ func (m *MockSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
 	m.Called(msgs)
 }
 
-// SBOM submit container image messages
+// SBOM submit sbom data
 func (m *MockSender) SBOM(msgs []serializer.SBOMMessage) {
 	m.Called(msgs)
 }

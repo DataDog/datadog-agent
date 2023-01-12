@@ -37,7 +37,7 @@ func buildKeysPerDomains(conf config.Config) (map[string][]string, error) {
 	return config.MergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 
-// NewForwarder returns a forwarder for container lifecycle events
+// NewForwarder returns a forwarder for container images events
 func NewForwarder() *forwarder.DefaultForwarder {
 	if !config.Datadog.GetBool("container_image.enabled") {
 		return nil

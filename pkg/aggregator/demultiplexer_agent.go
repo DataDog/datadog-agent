@@ -337,7 +337,7 @@ func (d *AgentDemultiplexer) Run() {
 				log.Errorf("error starting container image forwarder: %v", err)
 			}
 		} else {
-			log.Debug("no starting the container image forwarder")
+			log.Debug("not starting the container image forwarder")
 		}
 
 		// sbom forwarder
@@ -346,7 +346,7 @@ func (d *AgentDemultiplexer) Run() {
 				log.Errorf("error starting SBOM forwarder: %v", err)
 			}
 		} else {
-			log.Debug("no starting the SBOM forwarder")
+			log.Debug("not starting the SBOM forwarder")
 		}
 
 		// shared forwarder
