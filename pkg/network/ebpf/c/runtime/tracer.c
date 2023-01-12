@@ -425,7 +425,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
     bpf_probe_read_kernel_with_telemetry(&retrans_out, sizeof(retrans_out), &(tcp_sk(sk)->retrans_out));
 
     bpf_map_delete_elem(&pending_tcp_retransmit_skb, &tid);
-    
+
     return handle_retransmit(sk, retrans_out, RETRANSMIT_COUNT_ABSOLUTE);
 }
 

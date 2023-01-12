@@ -28,8 +28,8 @@ const (
 	// tcpSetState traces the tcp_set_state() kernel function
 	tcpSetState = "fentry/tcp_set_state"
 
-	// tcpCleanupRBuf traces the tcp_cleanup_rbuf() system call
-	tcpCleanupRBuf = "fentry/tcp_cleanup_rbuf"
+	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
+	tcpRecvMsgReturn = "fexit/tcp_recvmsg"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "fentry/tcp_close"
 	// tcpCloseReturn traces the return of tcp_close() system call
@@ -73,7 +73,7 @@ var programs = map[string]string{
 	inetCskAcceptReturn:  "inet_csk_accept_exit",
 	inetCskListenStop:    "inet_csk_listen_stop_enter",
 	sockFDLookupRet:      "sockfd_lookup_light_exit", // no
-	tcpCleanupRBuf:       "tcp_cleanup_rbuf",
+	tcpRecvMsgReturn:     "tcp_recvmsg_exit",
 	tcpClose:             "tcp_close",
 	tcpCloseReturn:       "tcp_close_exit",
 	tcpConnect:           "tcp_connect",
@@ -102,7 +102,7 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 	enabled := make(map[string]string, 0)
 	if c.CollectTCPConns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, tcpCleanupRBuf)
+		enableProgram(enabled, tcpRecvMsgReturn)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)

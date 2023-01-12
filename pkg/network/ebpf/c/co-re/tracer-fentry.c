@@ -13,6 +13,7 @@
 #include "ipv6.h"
 #include "port.h"
 #include "sock.h"
+#include "tcp-recv.h"
 
 #define MSG_PEEK 2
 
@@ -127,21 +128,14 @@ int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size,
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
 }
 
-SEC("fentry/tcp_cleanup_rbuf")
-int BPF_PROG(tcp_cleanup_rbuf, struct sock *sk, int copied) {
-    if (copied <= 0) {
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
+    if (copied < 0) { // error
         return 0;
     }
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fentry/tcp_cleanup_rbuf: pid_tgid: %d, copied: %d\n", pid_tgid, copied);
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, sk, 0);
-    return handle_message(&t, 0, copied, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
+    return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
 SEC("fentry/tcp_close")
