@@ -23,6 +23,7 @@ import (
 // ContainerItf interface. It's only meant to be used in unit tests.
 type MockedContainerdClient struct {
 	MockClose                 func() error
+	MockRawClient             func() *containerd.Client
 	MockCheckConnectivity     func() *retry.Error
 	MockEvents                func() containerd.EventService
 	MockContainers            func(namespace string) ([]containerd.Container, error)
@@ -51,6 +52,11 @@ type MockedContainerdClient struct {
 // Close is a mock method
 func (client *MockedContainerdClient) Close() error {
 	return client.MockClose()
+}
+
+// Close is a mock method
+func (client *MockedContainerdClient) RawClient() *containerd.Client {
+	return client.MockRawClient()
 }
 
 // CheckConnectivity is a mock method

@@ -88,11 +88,6 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return fmt.Errorf("error unmarshaling containerd event: %w", err)
 		}
 
-		c.imagesToScan <- namespacedImageName{
-			namespace: containerdEvent.Namespace,
-			name:      event.Name,
-		}
-
 		return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, event.Name)
 
 	case imageUpdateTopic:
@@ -266,6 +261,13 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		},
 	})
 
+	// Notify image scanner
+	c.imagesToScan <- namespacedImage{
+		namespace: namespace,
+		image:     img,
+		imageID:   imageID,
+	}
+
 	return c.updateKnownImages(ctx, namespace, imageName, imageID)
 }
 
@@ -361,37 +363,23 @@ func getLayersWithHistory(ctx context.Context, store content.Store, manifest oci
 	return layers, nil
 }
 
-func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespacedImageName) error {
-	img, err := c.containerdClient.Image(imageToScan.namespace, imageToScan.name)
+func (c *collector) extractBOMWithTrivy(ctx context.Context, imageToScan namespacedImage) error {
+	storedImage, err := c.store.GetImage(imageToScan.imageID)
 	if err != nil {
-		// TODO: handle
-		return err
-	}
-
-	ctxWithNamespace := namespaces.WithNamespace(ctx, imageToScan.namespace)
-	manifest, err := images.Manifest(ctxWithNamespace, img.ContentStore(), img.Target(), img.Platform())
-	if err != nil {
-		// TODO: handle
-		return err
-	}
-
-	bom, err := c.trivyClient.ScanImage(ctx, imageToScan.namespace, imageToScan.name)
-	if err != nil {
-		// TODO: handle
-		return err
-	}
-
-	imageID := manifest.Config.Digest.String()
-	storedImage, err := c.store.GetImage(imageID)
-	if err != nil {
-		// TODO: handle
-		return err
+		log.Infof("Image: %s/%s (id %s) not found in Workloadmeta, skipping scan", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
+		return nil
 	}
 
 	if storedImage.CycloneDXBOM != nil {
 		// BOM already stored. Can happen when the same image ID is referenced
 		// with different names.
+		log.Infof("Image: %s/%s (id %s) SBOM already available", imageToScan.namespace, imageToScan.image.Name(), imageToScan.imageID)
 		return nil
+	}
+
+	bom, err := c.trivyClient.ScanContainerdImage(ctx, storedImage, imageToScan.image)
+	if err != nil {
+		return err
 	}
 
 	// TODO: Not thread-safe. Change.

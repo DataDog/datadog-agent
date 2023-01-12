@@ -35,6 +35,7 @@ const (
 
 // ContainerdItf is the interface implementing a subset of methods that leverage the Containerd api.
 type ContainerdItf interface {
+	RawClient() *containerd.Client
 	Close() error
 	CheckConnectivity() *retry.Error
 	Container(namespace string, id string) (containerd.Container, error)
@@ -100,6 +101,11 @@ func NewContainerdUtil() (ContainerdItf, error) {
 	}
 
 	return containerdUtil, nil
+}
+
+// CheckConnectivity tries to connect to containerd api
+func (c *ContainerdUtil) RawClient() *containerd.Client {
+	return c.cl
 }
 
 // CheckConnectivity tries to connect to containerd api
