@@ -49,7 +49,7 @@ const (
 	udpDestroySockReturn = "fexit/udp_destroy_sock"
 
 	// tcpRetransmit traces the return value for the tcp_retransmit_skb() system call
-	tcpRetransmit = "fentry/tcp_retransmit_skb"
+	tcpRetransmitReturn = "fexit/tcp_retransmit_skb"
 
 	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
 	inetCskAcceptReturn = "fexit/inet_csk_accept"
@@ -78,7 +78,7 @@ var programs = map[string]string{
 	tcpCloseReturn:       "tcp_close_exit",
 	tcpConnect:           "tcp_connect",
 	tcpFinishConnect:     "tcp_finish_connect",
-	tcpRetransmit:        "tcp_retransmit_skb",
+	tcpRetransmitReturn:  "tcp_retransmit_skb_exit",
 	tcpSendMsgReturn:     "tcp_sendmsg_exit",
 	tcpSetState:          "tcp_set_state",
 	udpDestroySock:       "udp_destroy_sock",
@@ -110,7 +110,7 @@ func enabledPrograms(c *config.Config) (map[string]string, error) {
 		enableProgram(enabled, inetCskAcceptReturn)
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpSetState)
-		enableProgram(enabled, tcpRetransmit)
+		enableProgram(enabled, tcpRetransmitReturn)
 
 		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
 		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})

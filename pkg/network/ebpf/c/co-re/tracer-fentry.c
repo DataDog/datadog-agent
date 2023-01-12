@@ -293,10 +293,15 @@ int BPF_PROG(udpv6_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len
     return handle_ret_udp_recvmsg(sk, msg, copied, flags);
 }
 
-SEC("fentry/tcp_retransmit_skb")
-int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs) {
-    log_debug("fentry/tcp_retransmit: segs: %d\n", segs);
-    return handle_retransmit(sk, segs);
+SEC("fexit/tcp_retransmit_skb")
+int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
+    if (err < 0) {
+        return 0;
+    }
+
+    log_debug("fexit/tcp_retransmit: segs: %d\n", segs);
+    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
+    return handle_retransmit(sk, retrans_out, RETRANSMIT_COUNT_ABSOLUTE);
 }
 
 SEC("fentry/tcp_set_state")
@@ -313,7 +318,7 @@ int BPF_PROG(tcp_set_state, struct sock *sk, int state) {
     }
 
     tcp_stats_t stats = { .state_transitions = (1 << state) };
-    update_tcp_stats(&t, stats);
+    update_tcp_stats(&t, stats, RETRANSMIT_COUNT_NONE);
 
     return 0;
 }
