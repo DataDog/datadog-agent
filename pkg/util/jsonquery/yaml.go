@@ -7,8 +7,9 @@ package jsonquery
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Copy from https://github.com/itchyny/gojq/blob/main/cli/yaml.go
