@@ -29,7 +29,8 @@ func InjectAgent(pid int, agent string, args string) error {
 		return err
 	}
 
-	end := time.Now().Add(5 * time.Second)
+	var nThreads int32
+	end := time.Now().Add(3 * time.Second)
 	for end.After(time.Now()) {
 		// wait the java process start the JVM
 		// issue describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
@@ -37,19 +38,19 @@ func InjectAgent(pid int, agent string, args string) error {
 		// SIGQUIT is sent as part of the hotspot protocol handshake
 		// JVM Threads : "VM Thread", "Reference Handl", "Finalizer", "Signal Dispatch"
 		// "Signal Dispatch" is thread number 19 (x86_64 openjdk 1.8.0_352), so a new magic number ;)
-		nThreads, err := proc.NumThreads()
+		// Ubuntu 18.04 4.18.0-1018-aws 18 unnamed threads
+		nThreads, err = proc.NumThreads()
 		if err != nil {
 			return err
 		}
-		if nThreads > 19 {
+		if nThreads >= 18 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	if time.Now().After(end) {
-		ctime, errctime := proc.CreateTime()
-		nThreads, err := proc.NumThreads()
-		return fmt.Errorf("java process %d didn't start in time, can't inject the agent : timeout %v %v   %v %v", pid, nThreads, err, time.Now().Unix()-ctime, errctime)
+		ctime, _ := proc.CreateTime()
+		return fmt.Errorf("java process %d (nThreads %d) didn't start in time (created %d ms ago), can't inject the agent : timeout", pid, nThreads, time.Now().UnixMilli()-ctime)
 	}
 
 	// attach
