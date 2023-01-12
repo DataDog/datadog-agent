@@ -47,6 +47,10 @@ func GetServiceMonitor() *SCMMonitor {
 	}
 }
 
+type StartTimeFunc func(uint64) (uint64, error)
+
+var pGetProcessStartTimeAsNs = StartTimeFunc(getProcessStartTimeAsNs)
+
 // GetRefreshCount returns the number of times we've actually queried
 // the SCM database.  used for logging stats.
 func (scm *SCMMonitor) GetRefreshCount() uint64 {
@@ -90,7 +94,9 @@ func (scm *SCMMonitor) refreshCache() error {
 	}
 
 	//var services []windows.ENUM_SERVICE_STATUS_PROCESS
-	services := (*[1<<29 - 1]windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0]))[:servicesReturned]
+	//services := (*[1<<29 - 1]windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0]))[:servicesReturned]
+	services := unsafe.Slice((*windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0])), servicesReturned)
+
 	//hdr.Data = unsafe.Pointer(&buf[0])
 	//hdr.Len = int(servicesReturned)
 	//hdr.Cap = int(servicesReturned)
@@ -129,7 +135,7 @@ func (scm *SCMMonitor) getServiceFromCache(pid, pidstart uint64) (*ServiceInfo, 
 		// it was in there.  see if it's the right one
 		if val.startTime == 0 {
 			// we don't prepopulate the cache with pid start times
-			val.startTime, err = getProcessStartTimeAsNs(pid)
+			val.startTime, err = pGetProcessStartTimeAsNs(pid)
 			if err != nil {
 				return nil, err
 			}
@@ -147,7 +153,7 @@ func (scm *SCMMonitor) getServiceFromCache(pid, pidstart uint64) (*ServiceInfo, 
 // return nil with no error
 func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 	// get the process start time of the pid being checked
-	pidstart, err := getProcessStartTimeAsNs(pid)
+	pidstart, err := pGetProcessStartTimeAsNs(pid)
 	if err != nil {
 		return nil, err
 	}

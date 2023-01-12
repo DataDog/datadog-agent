@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,20 @@ func (so *saveOutput) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
+var startTime windows.Filetime
+
+func testGetProcessStartTimeAsNs(pid uint64) (uint64, error) {
+	var once sync.Once
+
+	once.Do(func() {
+		windows.GetSystemTimeAsFileTime(&startTime)
+		// move the start a bit earlier to make sure it's always
+		// before current
+		startTime.LowDateTime -= 1000000
+	})
+	return uint64(startTime.Nanoseconds()), nil
+
+}
 func TestServices(t *testing.T) {
 	var output saveOutput
 	cmd := exec.Command("tasklist", "/svc", "/fo", "csv")
@@ -35,6 +50,7 @@ func TestServices(t *testing.T) {
 	cmd.Stderr = os.Stderr
 	_ = cmd.Run()
 
+	pGetProcessStartTimeAsNs = testGetProcessStartTimeAsNs
 	scm := GetServiceMonitor()
 
 	for _, line := range strings.Split(strings.TrimRight(string(output.savedOutput), "\r\n"), "\r\n")[1:] {
@@ -55,7 +71,6 @@ func TestServices(t *testing.T) {
 		}
 		si, err := scm.GetServiceInfo(uint64(pid))
 		assert.Nil(t, err, "Error on pid %v", pid)
-
 		if entries[2] != "N/A" {
 			assert.NotNil(t, si)
 			for _, name := range entries[2:] {
