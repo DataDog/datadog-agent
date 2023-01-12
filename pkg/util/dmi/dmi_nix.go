@@ -6,7 +6,7 @@
 //go:build !windows
 // +build !windows
 
-package inventories
+package dmi
 
 import (
 	"os"
@@ -28,9 +28,22 @@ func readFile(path string) string {
 	return strings.TrimSuffix(string(data), "\n")
 }
 
-func getSystemSpecificHosttMetadata(metadata *HostMetadata) {
-	metadata.HypervisorGuestUUID = readFile(hypervisorUUIDPath)
-	metadata.DmiProductUUID = readFile(dmiProductUUIDPath)
-	metadata.DmiBoardAssetTag = readFile(dmiBoardAssetTagPath)
-	metadata.DmiBoardVendor = readFile(dmiBoardVendorPath)
+// GetBoardAssetTag returns the board asset tag from DMI
+func GetBoardAssetTag() string {
+	return readFile(dmiBoardAssetTagPath)
+}
+
+// GetBoardVendor returns the board vendor
+func GetBoardVendor() string {
+	return readFile(dmiBoardVendorPath)
+}
+
+// GetProductUUID returns the product UUID
+func GetProductUUID() string {
+	return readFile(dmiProductUUIDPath)
+}
+
+// GetHypervisorUUID returns the hypervisor UUID
+func GetHypervisorUUID() string {
+	return readFile(hypervisorUUIDPath)
 }

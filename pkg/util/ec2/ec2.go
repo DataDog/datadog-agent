@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -32,6 +33,8 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "AWS"
+	// DMIBoardVendor contains the DMI board vendor for EC2
+	DMIBoardVendor = "Amazon EC2"
 )
 
 func init() {
@@ -57,6 +60,38 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 		return "", time.Now(), err
 	}
 	return res, expirationDate, nil
+}
+
+func isBoardVendorEc2() bool {
+	if !config.Datadog.GetBool("ec2_use_dmi") {
+		return false
+	}
+
+	vendor := dmi.GetBoardVendor()
+	if vendor == DMIBoardVendor {
+		return true
+	}
+	return false
+}
+
+// getInstanceIDFromDMI fetches the instance id for current host from DMI
+//
+// On AWS Nitro instances dmi information contains the instanceID for the host. We check that the board vendor is
+// EC2 and that the board_asset_tag match an instanceID format before using it
+func getInstanceIDFromDMI() (string, error) {
+	if !config.Datadog.GetBool("ec2_use_dmi") {
+		return "", fmt.Errorf("'ec2_use_dmi' is disabled")
+	}
+
+	if !isBoardVendorEc2() {
+		return "", fmt.Errorf("board vendor is not AWS")
+	}
+
+	boardAssetTag := dmi.GetBoardAssetTag()
+	if boardAssetTag == "" || !strings.HasPrefix(boardAssetTag, "i-") {
+		return "", fmt.Errorf("invalid board_asset_tag: '%s'", boardAssetTag)
+	}
+	return boardAssetTag, nil
 }
 
 var instanceIDFetcher = cachedfetch.Fetcher{
@@ -108,7 +143,7 @@ func IsRunningOn(ctx context.Context) bool {
 	if _, err := GetHostname(ctx); err == nil {
 		return true
 	}
-	return false
+	return isBoardVendorEc2()
 }
 
 // GetHostAliases returns the host aliases from the EC2 metadata API.
@@ -118,8 +153,14 @@ func GetHostAliases(ctx context.Context) ([]string, error) {
 	if err == nil {
 		return []string{instanceID}, nil
 	}
+	log.Debugf("failed to get instance ID from metadata API for Host Alias: %s", err)
 
-	log.Debugf("failed to get instance ID to use as Host Alias: %s", err)
+	// we fallback on DMI
+	instanceID, err = getInstanceIDFromDMI()
+	if err == nil {
+		return []string{instanceID}, nil
+	}
+	log.Debugf("failed to get instance ID from DMI for Host Alias: %s", err)
 
 	return []string{}, nil
 }
