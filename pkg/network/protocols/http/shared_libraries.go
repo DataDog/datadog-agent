@@ -228,7 +228,7 @@ func (w *soWatcher) Start() {
 				root := procPid + "/root"
 				cwd := procPid + "/cwd"
 
-				if strings.HasPrefix(libPath, "/proc/") {
+				if strings.HasPrefix(libPath, w.procRoot) {
 					// don't scan ourself when we resolve offsets via debug.elf.Open()
 					// but make the unit test pass as the pid of the test and the tracer would be the same
 					// that why we don't filter by lib.Pid == uint32(thisPID) here
@@ -311,7 +311,7 @@ func (r *soRegistry) Register(root string, libPath string, pid uint32, rule soRu
 	}
 
 	if err := rule.registerCB(pathID, root, libPath); err != nil {
-		log.Debugf("error registering library %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
+		log.Debugf("error registering library (adding to blocklist) %s path %s by pid %d : %s", pathID.String(), hostLibPath, pid, err)
 		// we calling unregisterCB here as some uprobe could be already attached, unregisterCB will cleanup those entries
 		if rule.unregisterCB != nil {
 			if err := rule.unregisterCB(pathID); err != nil {
