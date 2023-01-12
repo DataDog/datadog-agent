@@ -468,9 +468,8 @@ func GetRtLoader() *C.rtloader_t {
 func initPymemTelemetry() {
 	C.init_pymem_stats(rtloader)
 
-	// "Requested" here means requested from the OS, not allocated to Python objects.
 	// "alloc" for consistency with go memstats and mallochook metrics.
-	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated since the start of the agent.")
+	alloc := telemetry.NewSimpleCounter("pymem", "alloc", "Total number of bytes allocated by the python interpreter since the start of the agent.")
 	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
