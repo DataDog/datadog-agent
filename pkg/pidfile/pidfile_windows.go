@@ -11,12 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-const (
-	processQueryLimitedInformation = 0x1000
-
-	stillActive = 259
-)
-
 // isProcess checks to see if a given pid is currently valid in the process table
 func isProcess(pid int) bool {
 	return winutil.IsProcess(pid)

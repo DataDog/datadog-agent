@@ -19,13 +19,13 @@ import (
 )
 
 type ServiceInfo struct {
-	ServiceName string
-	DisplayName string
+	ServiceName []string
+	DisplayName []string
 }
 
 // Service is the return value from a query by pid.
 type Service struct {
-	essp      *windows.ENUM_SERVICE_STATUS_PROCESS
+	essp      []*windows.ENUM_SERVICE_STATUS_PROCESS
 	startTime uint64
 }
 
@@ -97,7 +97,13 @@ func (scm *SCMMonitor) refreshCache() error {
 
 	newmap := make(map[uint64]*Service)
 	for idx, svc := range services {
-		newmap[uint64(svc.ServiceStatusProcess.ProcessId)] = &Service{essp: &services[idx]}
+		var thissvc *Service
+		var ok bool
+		if thissvc, ok = newmap[uint64(svc.ServiceStatusProcess.ProcessId)]; !ok {
+			thissvc = &Service{}
+			newmap[uint64(svc.ServiceStatusProcess.ProcessId)] = thissvc
+		}
+		thissvc.essp = append(thissvc.essp, &services[idx])
 	}
 	var current windows.Filetime
 	windows.GetSystemTimeAsFileTime(&current)
@@ -109,8 +115,10 @@ func (scm *SCMMonitor) refreshCache() error {
 
 func (s *Service) toServiceInfo() *ServiceInfo {
 	var si ServiceInfo
-	si.DisplayName = windows.UTF16PtrToString(s.essp.DisplayName)
-	si.ServiceName = windows.UTF16PtrToString(s.essp.ServiceName)
+	for _, inf := range s.essp {
+		si.DisplayName = append(si.DisplayName, windows.UTF16PtrToString(inf.DisplayName))
+		si.ServiceName = append(si.ServiceName, windows.UTF16PtrToString(inf.ServiceName))
+	}
 	return &si
 
 }
@@ -167,12 +175,14 @@ func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 		if (si == nil && err != nil) || (si != nil && err == nil) {
 			return si, err
 		}
+		// else
+		scm.nonServicePid[pid] = pidstart
+		return nil, nil
 
 	}
 
 	// if we get here, either it wasn't in either map, or the process
-	// is newer than the service map.  In either case, refresh the service
-	// map, to see if the pid is in there.
+	// is newer than the service map.
 	if err = scm.refreshCache(); err != nil {
 		return nil, err
 	}
