@@ -22,15 +22,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const loggerName = "CLUSTER"
-
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd := config.MakeCommand(func() config.GlobalParams {
 		return config.GlobalParams{
 			ConfFilePath:   globalParams.ConfFilePath,
 			ConfigName:     "datadog-cluster",
-			LoggerName:     loggerName,
+			LoggerName:     command.LoggerName,
 			SettingsClient: newSettingsClient,
 		}
 	})

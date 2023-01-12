@@ -64,8 +64,6 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-const loggerName = "CLUSTER"
-
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	startCmd := &cobra.Command{
@@ -80,7 +78,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForDaemon(loggerName, "log_file", common.DefaultDCALogFile),
+					LogParams:    log.LogForDaemon(command.LoggerName, "log_file", common.DefaultDCALogFile),
 				}),
 				core.Bundle,
 			)

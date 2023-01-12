@@ -17,6 +17,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	LoggerName      = "CLUSTER"
+	DefaultLogLevel = "off"
+)
+
 // GlobalParams contains the values of agent-global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents

@@ -7,7 +7,7 @@
 // +build !windows,kubeapiserver
 
 // Package compliance implements 'cluster-agent compliance'.
-package version
+package compliance
 
 import (
 	"github.com/spf13/cobra"
@@ -28,7 +28,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	bundleParams := core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(""),
-		LogParams:    log.LogForOneShot("CLUSTER", "off", true),
+		LogParams:    log.LogForOneShot(command.LoggerName, command.DefaultLogLevel, true),
 	}
 
 	// TODO: The SecAgent Check package should be a component

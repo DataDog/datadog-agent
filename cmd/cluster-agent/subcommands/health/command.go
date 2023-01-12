@@ -22,7 +22,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return health.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
 			ConfigName:   "datadog-cluster",
-			LoggerName:   "CLUSTER",
+			LoggerName:   command.LoggerName,
 		}
 	})
 
