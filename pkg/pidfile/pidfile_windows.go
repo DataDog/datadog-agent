@@ -8,8 +8,6 @@ package pidfile
 import (
 	"path/filepath"
 
-	"golang.org/x/sys/windows"
-
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -21,17 +19,7 @@ const (
 
 // isProcess checks to see if a given pid is currently valid in the process table
 func isProcess(pid int) bool {
-	h, err := windows.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
-	if err != nil {
-		return false
-	}
-	var c uint32
-	err = windows.GetExitCodeProcess(h, &c)
-	windows.Close(h)
-	if err != nil {
-		return c == stillActive
-	}
-	return true
+	return winutil.IsProcess(pid)
 }
 
 // Path returns a suitable location for the pidfile under Windows

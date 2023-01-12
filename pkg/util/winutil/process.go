@@ -363,3 +363,40 @@ func GetImagePathForProcess(h windows.Handle) (string, error) {
 	}
 	return "", lastErr
 }
+
+const (
+	processQueryLimitedInformation = 0x1000
+
+	stillActive = 259
+)
+
+// IsProcess checks to see if a given pid is currently valid in the process table
+func IsProcess(pid int) bool {
+	h, err := windows.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	var c uint32
+	err = windows.GetExitCodeProcess(h, &c)
+	windows.Close(h)
+	if err != nil {
+		return c == stillActive
+	}
+	return true
+}
+
+func getProcessStartTimeAsNs(pid uint64) (uint64, error) {
+	h, err := windows.OpenProcess(processQueryLimitedInformation, false, uint32(pid))
+	if err != nil {
+		return 0, fmt.Errorf("Error opening process %v", err)
+	}
+	var creation windows.Filetime
+	var exit windows.Filetime
+	var krn windows.Filetime
+	var user windows.Filetime
+	err = windows.GetProcessTimes(h, &creation, &exit, &krn, &user)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(creation.Nanoseconds()), nil
+}
