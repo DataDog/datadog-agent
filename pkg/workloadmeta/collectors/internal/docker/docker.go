@@ -278,13 +278,14 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 
 	var (
 		name      string
+		registry  string
 		shortName string
 		tag       string
 		err       error
 	)
 
 	if strings.Contains(imageSpec, "@sha256") {
-		name, shortName, tag, err = containers.SplitImageName(imageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 		}
@@ -297,13 +298,13 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 			return image
 		}
 
-		name, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
+		name, registry, shortName, tag, err = containers.SplitImageName(resolvedImageSpec)
 		if err != nil {
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
 			if err == containers.ErrImageIsSha256 {
-				name, shortName, tag, err = containers.SplitImageName(imageSpec)
+				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)
 					return image
@@ -315,6 +316,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 	}
 
 	image.Name = name
+	image.Registry = registry
 	image.ShortName = shortName
 	image.Tag = tag
 
