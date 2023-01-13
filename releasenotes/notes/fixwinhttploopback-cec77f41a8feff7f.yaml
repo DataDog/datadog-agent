@@ -9,4 +9,4 @@
 fixes:
   - |
     On Windows, fixes bug in which HTTP connections were not properly accounted
-    for when the client and server were same host (loopback).
+    for when the client and server were the same host (loopback).
