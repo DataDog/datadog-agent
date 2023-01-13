@@ -486,7 +486,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 		connOpen.conn.tup.Family = binary.LittleEndian.Uint16(userData[12:14])
 		connOpen.conn.tup.SrvPort = binary.BigEndian.Uint16(userData[14:16])
 		copy(connOpen.conn.tup.SrvAddr[:], userData[20:36])
-		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[36:48])
+		connOpen.conn.tup.CliPort = binary.BigEndian.Uint16(userData[46:48])
 		copy(connOpen.conn.tup.CliAddr[:], userData[52:68])
 	}
 
@@ -682,7 +682,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 		// whole thing
 		httpConnLink.http.RequestFragment = make([]byte, maxRequestFragmentBytes)
 		httpConnLink.http.Txn.MaxRequestFragment = uint16(maxRequestFragmentBytes)
-		httpConnLink.http.RequestFragment[0] = 32
+		httpConnLink.http.RequestFragment[0] = 32 // this is a leading space.
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
@@ -1293,6 +1293,7 @@ func SetMaxRequestBytes(maxRequestBytes uint64) {
 }
 
 func SetEnabledProtocols(http, https bool) {
+	captureHTTP = http
 	captureHTTPS = https
 }
 func (hei *httpEtwInterface) OnStart() {

@@ -20,13 +20,13 @@ type patchProvider interface {
 	subscribe(kind TargetObjKind) chan PatchRequest
 }
 
-func newPatchProvider(rcClient *remote.Client, isLeaderFunc func() bool, clusterName string) (patchProvider, error) {
+func newPatchProvider(rcClient *remote.Client, clusterName string) (patchProvider, error) {
 	if config.Datadog.GetBool("remote_configuration.enabled") {
-		return newRemoteConfigProvider(rcClient, isLeaderFunc, clusterName)
+		return newRemoteConfigProvider(rcClient, clusterName)
 	}
 	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {
 		// Use the file config provider for e2e testing only (it replaces RC as a source of configs)
-		return newfileProvider(isLeaderFunc, clusterName), nil
+		return newfileProvider(clusterName), nil
 	}
 	return nil, errors.New("remote config is disabled")
 }

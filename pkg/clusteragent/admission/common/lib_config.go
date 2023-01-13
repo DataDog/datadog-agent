@@ -59,6 +59,18 @@ type TracingHeaderTagEntry struct {
 // ToEnvs converts the config fields into environment variables
 func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 	var envs []corev1.EnvVar
+	if lc.ServiceName != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_SERVICE",
+			Value: *lc.ServiceName,
+		})
+	}
+	if lc.Env != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_ENV",
+			Value: *lc.Env,
+		})
+	}
 	if val, defined := checkFormatVal(lc.Tracing); defined {
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TRACE_ENABLED",
