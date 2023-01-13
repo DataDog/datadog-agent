@@ -568,6 +568,31 @@ def cws_go_generate(ctx):
 
 
 @task
+def generate_syscall_table(ctx):
+    def single_run(ctx, table_url, output_file, output_string_file, abis=None):
+        if abis:
+            abis = f"-abis {abis}"
+        ctx.run(
+            f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
+        )
+
+    linux_version = "v6.1"
+    single_run(
+        ctx,
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
+        "pkg/security/secl/model/syscalls_linux_amd64.go",
+        "pkg/security/secl/model/syscalls_string_linux_amd64.go",
+        abis="common,64",
+    )
+    single_run(
+        ctx,
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
+        "pkg/security/secl/model/syscalls_linux_arm64.go",
+        "pkg/security/secl/model/syscalls_string_linux_arm64.go",
+    )
+
+
+@task
 def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
