@@ -83,43 +83,5 @@ namespace Datadog.CustomActions
         {
             return DecompressPythonDistributions(new SessionWrapper(session));
         }
-
-        private static ActionResult RemovePythonDistributions(ISession session)
-        {
-            var projectLocation = session.Property("PROJECTLOCATION");
-            var embeddedFolders = new List<string>
-            {
-                Path.Combine(projectLocation, "embedded2"),
-                Path.Combine(projectLocation, "embedded3")
-            };
-            try
-            {
-                foreach (var embeddedDist in embeddedFolders)
-                {
-                    if (Directory.Exists(embeddedDist))
-                    {
-                        session.Log($"{embeddedDist} found, deleting.");
-                        Directory.Delete(embeddedDist, true);
-                    }
-                    else
-                    {
-                        session.Log($"{embeddedDist} not found, skip deletion.");
-                    }
-                }
-            }
-            catch (Exception e)
-            {
-                session.Log($"Error while deleting embedded distribution: {e}");
-                return ActionResult.Failure;
-            }
-
-            return ActionResult.Success;
-        }
-
-        [CustomAction]
-        public static ActionResult RemovePythonDistributions(Session session)
-        {
-            return RemovePythonDistributions(new SessionWrapper(session));
-        }
     }
 }

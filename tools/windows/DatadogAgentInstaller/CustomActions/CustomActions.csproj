@@ -50,6 +50,7 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CleanUpFilesCustomAction.cs" />
     <Compile Include="CompilerExtensions.cs" />
     <Compile Include="ConfigCustomActions.cs" />
     <Compile Include="PythonDistributionCustomAction.cs" />

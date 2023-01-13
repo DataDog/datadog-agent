@@ -1,15 +1,10 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using System.Xml.Linq;
 using NineDigit.WixSharpExtensions;
 using WixSharp;
 using WixSharp.CommonTasks;
-using static System.Net.WebRequestMethods;
-using File = WixSharp.File;
 
 namespace WixSetup.Datadog
 {
@@ -335,7 +330,7 @@ namespace WixSetup.Datadog
             var systemProbeService = GenerateDependentServiceInstaller(new Id("ddagentsysprobeservice"), "datadog-system-probe", "Datadog System Probe", "Send network metrics to Datadog", "LocalSystem");
 
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
-                new File(_agentBinaries.Agent, agentService),
+                new WixSharp.File(_agentBinaries.Agent, agentService),
                 new EventSource
                 {
                     Name = "DatadogAgent",
@@ -343,7 +338,7 @@ namespace WixSetup.Datadog
                     EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                 },
-                new File(_agentBinaries.LibDatadogAgentThree),
+                new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
                 new Dir(new Id("AGENT"), "agent",
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
@@ -354,8 +349,8 @@ namespace WixSetup.Datadog
                             Feature = _agentFeatures.Npm
                         }
                     ),
-                    new File(_agentBinaries.Tray),
-                    new File(_agentBinaries.ProcessAgent, processAgentService),
+                    new WixSharp.File(_agentBinaries.Tray),
+                    new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
                     new EventSource
                     {
                         Name = "datadog-process-agent",
@@ -363,7 +358,7 @@ namespace WixSetup.Datadog
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     },
-                    new File(_agentBinaries.SystemProbe, systemProbeService),
+                    new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
                     new EventSource
                     {
                         Name = "datadog-system-probe",
@@ -371,7 +366,7 @@ namespace WixSetup.Datadog
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes"
                     },
-                    new File(_agentBinaries.TraceAgent, traceAgentService),
+                    new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
                     new EventSource
                     {
                         Name = "datadog-trace-agent",
@@ -383,7 +378,7 @@ namespace WixSetup.Datadog
             );
             if (_agentPython.IncludePython2)
             {
-                targetBinFolder.AddFile(new File(_agentBinaries.LibDatadogAgentTwo));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.LibDatadogAgentTwo));
             };
             return targetBinFolder;
         }
