@@ -99,7 +99,7 @@ func TestInject(t *testing.T) {
 
 	javaVersion, err := testutil.RunCommand("java -version")
 	if err != nil {
-		t.Fatal("java is not installed", javaVersion)
+		t.Fatal("java is not installed", javaVersion, err)
 	}
 	t.Log(javaVersion)
 
@@ -107,14 +107,21 @@ func TestInject(t *testing.T) {
 		t.Run("host", func(t *testing.T) {
 			testInject(t, "")
 		})
+		if t.Failed() {
+			t.Fatal("host failed")
+		}
+	}
+
+	p := "unshare -p --fork "
+	_, err = testutil.RunCommand(p + "id")
+	if err != nil {
+		t.Skipf("unshare not supported on this platform %s", err)
+	}
+
+	for i := 0; i < 900; i++ { // 10 tests 10.8s => 15+min
 		t.Run("PIDnamespace", func(t *testing.T) {
 			// running the tagert process in a new PID namespace
 			// and testing if the test/plaform give enough permission to do that
-			p := "unshare -p --fork "
-			_, err = testutil.RunCommand(p + "id")
-			if err != nil {
-				t.Skipf("unshare not supported on this platform %s", err)
-			}
 			testInject(t, p)
 		})
 	}
