@@ -87,6 +87,7 @@ func (c *TrivyCollector) initScannerConfig(opts flag.Options) (ScannerConfig, ty
 			DisabledAnalyzers: c.disabledAnalyzers(opts),
 			SkipFiles:         opts.SkipFiles,
 			SkipDirs:          opts.SkipDirs,
+			OnlyDirs:          opts.OnlyDirs,
 			Offline:           opts.OfflineScan,
 			NoProgress:        opts.NoProgress || opts.Quiet,
 		},
@@ -193,6 +194,7 @@ func (c *TrivyCollector) ScanRootfs(ctx context.Context, root string) (*types.Re
 	opts.Format = "table"
 	opts.Timeout = 60 * time.Second
 	opts.ListAllPkgs = true
+	opts.OnlyDirs = []string{"/etc", "/var/lib/dpkg", "/var/lib/rpm", "/lib/apk"}
 
 	ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
