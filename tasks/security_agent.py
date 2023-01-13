@@ -732,3 +732,24 @@ def kitchen_prepare(ctx):
     ctx.run(f"mkdir -p {ebpf_runtime_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime-security* {ebpf_bytecode_dir}")
     ctx.run(f"cp {bytecode_build_dir}/runtime/runtime-security* {ebpf_runtime_dir}")
+
+
+@task
+def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
+    build_cws_object_files(
+        ctx,
+        major_version='7',
+        arch=CURRENT_ARCH,
+        kernel_release=None,
+        with_unit_test=True,
+    )
+
+    flags = '-tags ebpf_bindata'
+    if verbose:
+        flags += " -test.v"
+
+    args = '-args'
+    if trace:
+        args += " -trace"
+
+    ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
