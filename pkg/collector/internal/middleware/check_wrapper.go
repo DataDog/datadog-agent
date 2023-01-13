@@ -20,9 +20,9 @@ import (
 type CheckWrapper struct {
 	inner check.Check
 	// done is true when the check was cancelled and must not run.
-	done  bool
+	done bool
 	// Locked while check is running.
-	runM  sync.Mutex
+	runM sync.Mutex
 }
 
 // NewCheckWrapper returns a wrapped check.
