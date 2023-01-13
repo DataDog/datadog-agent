@@ -120,8 +120,11 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 				}
 			}
 			if len(clusterName) > 0 {
-				log.Infof("Using cluster name %s from the node label", clusterName)
-				data.clusterName = clusterName
+				if !IsRFC1123CompliantClusterName(clusterName) {
+					log.Infof("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted, ", clusterName)
+				}
+				data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
+				log.Infof("Using cluster name %s from the node label", data.clusterName)
 			}
 		}
 
@@ -153,6 +156,12 @@ func GetClusterNameTagValue(ctx context.Context, hostname string) string {
 		return GetRFC1123CompliantClusterName(ctx, hostname)
 	}
 	return GetClusterName(ctx, hostname)
+}
+
+// IsRFC1123CompliantClusterName check if the clusterName is RFC1123 compliant
+// return false if not compliant
+func IsRFC1123CompliantClusterName(clusterName string) bool {
+	return !strings.Contains(clusterName, "_")
 }
 
 // GetRFC1123CompliantClusterName returns an RFC-1123 compliant k8s cluster
