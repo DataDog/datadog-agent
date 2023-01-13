@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
@@ -45,17 +43,26 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	return c.config.Load()
 }
 
+func (c *PodCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+func (c *PodCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessCheck.
 func (c *PodCheck) Name() string { return PodCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *PodCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *PodCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *PodCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the PodCheck to collect a list of running pods
-func (c *PodCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	kubeUtil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -71,6 +78,7 @@ func (c *PodCheck) Run(groupID int32) ([]model.MessageBody, error) {
 		return nil, err
 	}
 
+	groupID := nextGroupID()
 	ctx := &processors.ProcessorContext{
 		ClusterID:          clusterID,
 		Cfg:                c.config,
@@ -92,7 +100,7 @@ func (c *PodCheck) Run(groupID int32) ([]model.MessageBody, error) {
 
 	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
 
-	return metadataMessages, nil
+	return StandardRunResult(metadataMessages), nil
 }
 
 // Cleanup frees any resource held by the PodCheck before the agent exits

@@ -42,6 +42,14 @@ type cliParams struct {
 	waitInterval    time.Duration
 }
 
+func nextGroupID() func() int32 {
+	var groupID int32
+	return func() int32 {
+		groupID++
+		return groupID
+	}
+}
+
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
@@ -156,7 +164,7 @@ func runCheckCmd(cliParams *cliParams) error {
 		if err := checks.Process.Init(nil, hostInfo); err != nil {
 			return err
 		}
-		checks.Process.Run(0) //nolint:errcheck
+		checks.Process.Run(nextGroupID(), nil) //nolint:errcheck
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
@@ -170,62 +178,37 @@ func runCheckCmd(cliParams *cliParams) error {
 			SystemProbeAddress: syscfg.SocketAddress,
 		}
 
-		if ch.Name() == cliParams.checkName {
-			if err = ch.Init(cfg, hostInfo); err != nil {
-				return err
+		var options *checks.RunOptions
+
+		if ch.SupportsRunOptions() {
+			options := checks.RunOptions{}
+
+			if ch.Name() == cliParams.checkName {
+				options.RunStandard = true
+			} else if checks.RTName(ch.Name()) == cliParams.checkName {
+				options.RunRealtime = true
+			} else {
+				continue
 			}
-			cleanups = append(cleanups, ch.Cleanup)
-			return runCheck(cliParams, ch)
+		} else if ch.Name() != cliParams.checkName {
+			continue
 		}
 
-		withRealTime, ok := ch.(checks.CheckWithRealTime)
-		if ok && withRealTime.RealTimeName() == cliParams.checkName {
-			if err = withRealTime.Init(cfg, hostInfo); err != nil {
-				return err
-			}
-			cleanups = append(cleanups, withRealTime.Cleanup)
-			return runCheckAsRealTime(cliParams, withRealTime)
+		if err = ch.Init(cfg, hostInfo); err != nil {
+			return err
 		}
+		cleanups = append(cleanups, ch.Cleanup)
+		return runCheck(cliParams, ch, options)
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cliParams *cliParams, ch checks.Check) error {
-	// Run the check once to prime the cache.
-	if _, err := ch.Run(0); err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-
-	log.Infof("Waiting %s before running the check", cliParams.waitInterval.String())
-	time.Sleep(cliParams.waitInterval)
-
-	if !cliParams.checkOutputJSON {
-		printResultsBanner(ch.Name())
-	}
-
-	msgs, err := ch.Run(1)
-	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-	return printResults(ch.Name(), msgs, cliParams.checkOutputJSON)
-}
-
-func runCheckAsRealTime(cliParams *cliParams, ch checks.CheckWithRealTime) error {
-	options := checks.RunOptions{
-		RunStandard: true,
-		RunRealTime: true,
-	}
-	var (
-		groupID     int32
-		nextGroupID = func() int32 {
-			groupID++
-			return groupID
-		}
-	)
+func runCheck(cliParams *cliParams, ch checks.Check, options *checks.RunOptions) error {
+	nextGroupID := nextGroupID()
 
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
-	if _, err := ch.RunWithOptions(nextGroupID, options); err != nil {
+	if _, err := ch.Run(nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -233,15 +216,20 @@ func runCheckAsRealTime(cliParams *cliParams, ch checks.CheckWithRealTime) error
 	time.Sleep(cliParams.waitInterval)
 
 	if !cliParams.checkOutputJSON {
-		printResultsBanner(ch.RealTimeName())
+		printResultsBanner(cliParams.checkName)
 	}
 
-	run, err := ch.RunWithOptions(nextGroupID, options)
+	result, err := ch.Run(nextGroupID, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	return printResults(ch.RealTimeName(), run.RealTime, cliParams.checkOutputJSON)
+	msgs := result.Payloads()
+	if options != nil && options.RunRealtime {
+		msgs = result.RealtimePayloads()
+	}
+
+	return printResults(cliParams.checkName, msgs, cliParams.checkOutputJSON)
 }
 
 func printResultsBanner(name string) {
