@@ -272,7 +272,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(hostnameDetected, stopper, statsdClient)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient)
 	if err != nil {
 		return err
 	}
