@@ -5,7 +5,7 @@
 //go:build windows
 // +build windows
 
-package main
+package systray
 
 import (
 	"bytes"
@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/flare"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkgflare "github.com/DataDog/datadog-agent/pkg/flare"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -83,11 +83,11 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 					x, y, _, _ := calcPos(wndrect, dlgrect)
 					r, _, err = procSetWindowPos.Call(uintptr(hwnd), 0, uintptr(x), uintptr(y), uintptr(0), uintptr(0), uintptr(0x0041))
 					if r != 0 {
-						log.Debugf("failed to set window pos %v", err)
+						pkglog.Debugf("failed to set window pos %v", err)
 					}
 				}
 			} else {
-				log.Debugf("failed to get pos %v", err)
+				pkglog.Debugf("failed to get pos %v", err)
 			}
 		}
 		// set the "OK" to disabled until there's something approximating an email
@@ -122,11 +122,11 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 
 			win.SendDlgItemMessage(hwnd, IDC_TICKET_EDIT, win.WM_GETTEXT, 255, uintptr(unsafe.Pointer(&buf[0])))
 			info.caseid = windows.UTF16ToString(buf)
-			log.Debugf("ticket number %s", info.caseid)
+			pkglog.Debugf("ticket number %s", info.caseid)
 
 			win.SendDlgItemMessage(hwnd, IDC_EMAIL_EDIT, win.WM_GETTEXT, 255, uintptr(unsafe.Pointer(&buf[0])))
 			info.email = windows.UTF16ToString(buf)
-			log.Debugf("email %s", info.email)
+			pkglog.Debugf("email %s", info.email)
 
 			win.EndDialog(hwnd, win.IDOK)
 			return uintptr(1)
@@ -137,21 +137,22 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 	}
 	return uintptr(0)
 }
-func onFlare() {
+func onFlare(s *systray) {
+	// Create a dialog box to prompt for ticket number and email, then create and submit the flare
 	// library will allow multiple calls (multi-threaded window proc?)
 	// however, we're using a single instance of the info structure to
 	// pass data around.  Don't allow multiple dialogs to be displayed
 
 	// (in go1.18, this could be done with sync.Mutex#TryLock)
 	if !inProgress.CAS(false, true) {
-		log.Warn("Dialog already in progress, skipping")
+		s.log.Warn("Dialog already in progress, skipping")
 		return
 	}
 	defer inProgress.Store(false)
 
 	myInst := win.GetModuleHandle(nil)
 	if myInst == win.HINSTANCE(0) {
-		log.Errorf("Failed to get my own module handle")
+		s.log.Errorf("Failed to get my own module handle")
 		return
 	}
 	ret := win.DialogBoxParam(myInst, win.MAKEINTRESOURCE(uintptr(IDD_DIALOG1)), win.HWND(0), windows.NewCallback(dialogProc), uintptr(0))
@@ -161,7 +162,7 @@ func onFlare() {
 			// got a non number, just create a new case
 			info.caseid = "0"
 		}
-		r, e := requestFlare(info.caseid, info.email)
+		r, e := requestFlare(s, info.caseid, info.email)
 		caption, _ := windows.UTF16PtrFromString("Datadog Flare")
 		var text *uint16
 		if e == nil {
@@ -171,17 +172,14 @@ func onFlare() {
 		}
 		win.MessageBox(win.HWND(0), text, caption, win.MB_OK)
 	}
-	log.Debugf("DialogBoxParam returns %d", ret)
+	s.log.Debugf("DialogBoxParam returns %d", ret)
 
 }
 
-func requestFlare(caseID, customerEmail string) (response string, e error) {
-	log.Debug("Asking the agent to build the flare archive.")
+func requestFlare(s *systray, caseID, customerEmail string) (response string, e error) {
+	// For first try, ask the agent to build the flare
+	s.log.Debug("Asking the agent to build the flare archive.")
 
-	e = common.SetupConfig("")
-	if e != nil {
-		return
-	}
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	ipcAddress, err := config.GetIPCAddress()
 	if err != nil {
@@ -208,28 +206,29 @@ func requestFlare(caseID, customerEmail string) (response string, e error) {
 	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	var filePath string
 	if e != nil {
+		// The agent could not make the flare, try create one from this context
 		if r != nil && string(r) != "" {
-			log.Warnf("The agent ran into an error while making the flare: %s\n", r)
+			s.log.Warnf("The agent ran into an error while making the flare: %s\n", r)
 			e = fmt.Errorf("Error getting flare from running agent: %s", r)
 		} else {
-			log.Debug("The agent was unable to make the flare.")
+			s.log.Debug("The agent was unable to make the flare.")
 			e = fmt.Errorf("Error getting flare from running agent: %w", e)
 		}
-		log.Debug("Initiating flare locally.")
+		s.log.Debug("Initiating flare locally.")
 
-		filePath, e = flare.CreateArchive(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
+		filePath, e = s.flare.Create(true, common.GetDistPath(), common.PyChecksPath, []string{logFile, jmxLogFile}, nil, e)
 		if e != nil {
-			log.Errorf("The flare zipfile failed to be created: %s\n", e)
+			s.log.Errorf("The flare zipfile failed to be created: %s\n", e)
 			return
 		}
 	} else {
 		filePath = string(r)
 	}
 
-	log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
+	s.log.Warnf("%s is going to be uploaded to Datadog\n", filePath)
 
-	response, e = flare.SendFlare(filePath, caseID, customerEmail)
-	log.Debug(response)
+	response, e = pkgflare.SendFlare(filePath, caseID, customerEmail)
+	s.log.Debug(response)
 	if e != nil {
 		return
 	}

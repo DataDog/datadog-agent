@@ -5,37 +5,29 @@
 //go:build windows
 // +build windows
 
-package main
+package systray
 
 import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func onConfigure() {
+func onConfigure(s *systray) {
 	// seems like a waste.  However, the handler function doesn't expect an error code.
 	// this just eats the error code.
-	err := doConfigure()
+	err := doConfigure(s)
 	if err != nil {
-		log.Warnf("Failed to launch gui %v", err)
+		s.log.Warnf("Failed to launch gui %v", err)
 	}
 	return
 }
-func doConfigure() error {
+func doConfigure(s *systray) error {
 
-	err := common.SetupConfigWithoutSecrets("", "")
-	if err != nil {
-		return fmt.Errorf("unable to set up global agent configuration: %v", err)
-	}
-
-	guiPort := config.Datadog.GetString("GUI_port")
+	guiPort := s.config.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
@@ -48,11 +40,11 @@ func doConfigure() error {
 
 	// Get the CSRF token from the agent
 	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := config.GetIPCAddress()
+	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, config.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, s.config.GetInt("cmd_port"))
 	err = util.SetAuthToken()
 	if err != nil {
 		return err
@@ -74,6 +66,6 @@ func doConfigure() error {
 		return fmt.Errorf("error opening GUI: " + err.Error())
 	}
 
-	log.Debugf("GUI opened at 127.0.0.1:" + guiPort + "\n")
+	s.log.Debugf("GUI opened at 127.0.0.1:" + guiPort + "\n")
 	return nil
 }
