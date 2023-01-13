@@ -350,6 +350,10 @@ namespace Datadog.CustomActions
                     {
                         fileSystemSecurity.SetSecurityDescriptorSddlForm($"O:SYG:SY{sddl}");
                     }
+                    else
+                    {
+                        fileSystemSecurity.SetSecurityDescriptorSddlForm(sddl);
+                    }
 
                     try
                     {
