@@ -101,6 +101,7 @@ type MetricSerializer interface {
 	SendOrchestratorManifests(msgs []ProcessMessageBody, hostName, clusterID string) error
 	SendContainerLifecycleEvent(msgs []ContainerLifecycleMessage, hostName string) error
 	SendContainerImage(msgs []ContainerImageMessage, hostname string) error
+	SendSBOM(msgs []SBOMMessage, hostname string) error
 }
 
 // Serializer serializes metrics to the correct format and routes the payloads to the correct endpoint in the Forwarder
@@ -109,6 +110,7 @@ type Serializer struct {
 	orchestratorForwarder forwarder.Forwarder
 	contlcycleForwarder   forwarder.Forwarder
 	contimageForwarder    forwarder.Forwarder
+	sbomForwarder         forwarder.Forwarder
 
 	seriesJSONPayloadBuilder *stream.JSONPayloadBuilder
 
@@ -130,12 +132,13 @@ type Serializer struct {
 }
 
 // NewSerializer returns a new Serializer initialized
-func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder, contimageForwarder forwarder.Forwarder) *Serializer {
+func NewSerializer(forwarder forwarder.Forwarder, orchestratorForwarder, contlcycleForwarder, contimageForwarder, sbomForwarder forwarder.Forwarder) *Serializer {
 	s := &Serializer{
 		Forwarder:                     forwarder,
 		orchestratorForwarder:         orchestratorForwarder,
 		contlcycleForwarder:           contlcycleForwarder,
 		contimageForwarder:            contimageForwarder,
+		sbomForwarder:                 sbomForwarder,
 		seriesJSONPayloadBuilder:      stream.NewJSONPayloadBuilder(config.Datadog.GetBool("enable_json_stream_shared_compressor_buffers")),
 		enableEvents:                  config.Datadog.GetBool("enable_payloads.events"),
 		enableSeries:                  config.Datadog.GetBool("enable_payloads.series"),
@@ -482,6 +485,7 @@ func (s *Serializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMessag
 	extraHeaders.Set(headers.EVPOriginHeader, "agent")
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 
 	if err := s.contlcycleForwarder.SubmitContainerLifecycleEvents(bytePayloads, extraHeaders); err != nil {
 		return log.Errorf("Unable to submit container lifecycle payloads: %v", err)
@@ -517,12 +521,49 @@ func (s *Serializer) SendContainerImage(msgs []ContainerImageMessage, hostname s
 	extraHeaders.Set(headers.EVPOriginHeader, "agent")
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
 
 	if err := s.contimageForwarder.SubmitContainerImages(bytesPayloads, extraHeaders); err != nil {
 		return log.Errorf("Unable to submit container image payload: %v", err)
 	}
 
 	log.Tracef("Send container images %+v", msgs)
+
+	return nil
+}
+
+// SendSBOM serializes & sends sbom payloads
+func (s *Serializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
+	if s.sbomForwarder == nil {
+		return errors.New("SBOM forwarder is not setup")
+	}
+
+	payloads := make([]*[]byte, 0, len(msgs))
+
+	for i := range msgs {
+		msgs[i].Host = hostname
+		encoded, err := proto.Marshal(&msgs[i])
+		if err != nil {
+			return log.Errorf("Unable to encode message: %+v", err)
+		}
+
+		payloads = append(payloads, &encoded)
+	}
+
+	bytesPayloads := transaction.NewBytesPayloadsWithoutMetaData(payloads)
+
+	extraHeaders := make(http.Header)
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.EVPOriginHeader, "agent")
+	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
+	extraHeaders.Set(headers.ContentTypeHeader, headers.ProtobufContentType)
+	extraHeaders.Set(payloadVersionHTTPHeader, AgentPayloadVersion)
+
+	if err := s.sbomForwarder.SubmitSBOM(bytesPayloads, extraHeaders); err != nil {
+		return log.Errorf("Unable to submit SBOM payload: %v", err)
+	}
+
+	log.Tracef("Send SBOM %+v", msgs)
 
 	return nil
 }

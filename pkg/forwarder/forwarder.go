@@ -76,6 +76,7 @@ type Forwarder interface {
 	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitContainerLifecycleEvents(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error
+	SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -641,6 +642,12 @@ func (f *DefaultForwarder) SubmitContainerLifecycleEvents(payload transaction.By
 // SubmitContainerImages sends container image
 func (f *DefaultForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(endpoints.ContainerImageEndpoint, payload, extra)
+	return f.sendHTTPTransactions(transactions)
+}
+
+// SubmitSBOM sends SBOM
+func (f *DefaultForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
+	transactions := f.createHTTPTransactions(endpoints.SBOMEndpoint, payload, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 

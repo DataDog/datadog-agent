@@ -211,3 +211,7 @@ func (m *MockSerializer) SendContainerLifecycleEvent(_ []serializer.ContainerLif
 func (m *MockSerializer) SendContainerImage(_ []serializer.ContainerImageMessage, _ string) error {
 	return nil
 }
+
+func (m *MockSerializer) SendSBOM(_ []serializer.SBOMMessage, _ string) error {
+	return nil
+}

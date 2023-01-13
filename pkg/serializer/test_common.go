@@ -76,8 +76,13 @@ func (s *MockSerializer) SendContainerLifecycleEvent(msgs []ContainerLifecycleMe
 	return s.Called(msgs, hostname).Error(0)
 }
 
-// SendContainerImage serializes | sends container image payloads
+// SendContainerImage serializes & sends container image payloads
 func (s *MockSerializer) SendContainerImage(msgs []ContainerImageMessage, hostname string) error {
+	return s.Called(msgs, hostname).Error(0)
+}
+
+// SendSBOM serializes & sends SBOM payloads
+func (s *MockSerializer) SendSBOM(msgs []SBOMMessage, hostname string) error {
 	return s.Called(msgs, hostname).Error(0)
 }
 

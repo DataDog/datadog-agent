@@ -19,7 +19,6 @@ import (
 )
 
 type FieldHandlers struct {
-	probe     *Probe
 	resolvers *Resolvers
 }
 

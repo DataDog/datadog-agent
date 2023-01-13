@@ -6,9 +6,8 @@
 package events
 
 import (
-	"encoding/json"
-
 	"github.com/mailru/easyjson"
+	"github.com/mailru/easyjson/jwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -86,16 +85,6 @@ func (ce *CustomEvent) GetEventType() model.EventType {
 	return ce.eventType
 }
 
-// MarshalJSON is the JSON marshaller function of the custom event
-func (ce *CustomEvent) MarshalJSON() ([]byte, error) {
-	return easyjson.Marshal(ce.marshaler)
-}
-
-// String returns the string representation of a custom event
-func (ce *CustomEvent) String() string {
-	d, err := json.Marshal(ce)
-	if err != nil {
-		return err.Error()
-	}
-	return string(d)
+func (ce *CustomEvent) MarshalEasyJSON(w *jwriter.Writer) {
+	ce.marshaler.MarshalEasyJSON(w)
 }

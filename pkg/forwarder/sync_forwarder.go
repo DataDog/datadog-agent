@@ -166,3 +166,8 @@ func (f *SyncForwarder) SubmitContainerLifecycleEvents(payload transaction.Bytes
 func (f *SyncForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitContainerImages(payload, extra)
 }
+
+// SubmitSBOM sends SBOM
+func (f *SyncForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
+	return f.defaultForwarder.SubmitSBOM(payload, extra)
+}

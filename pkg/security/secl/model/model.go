@@ -3,12 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -output accessors.go -field-handlers field_handlers.go -doc ../../../../docs/cloud-workload-security/secl.json
 
 package model
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -38,10 +37,11 @@ func (m *Model) NewEvent() eval.Event {
 	return &Event{}
 }
 
-// NewEventWithType returns a new Event for the given type
-func (m *Model) NewEventWithType(kind EventType) eval.Event {
+// NewDefaultEventWithType returns a new Event for the given type
+func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
 	return &Event{
-		Type: uint32(kind),
+		Type:          uint32(kind),
+		FieldHandlers: &DefaultFieldHandlers{},
 	}
 }
 
@@ -218,9 +218,6 @@ type Event struct {
 
 	// field resolution
 	FieldHandlers FieldHandlers `field:"-" json:"-"`
-
-	// Serializer
-	JSONMarshaler func(ev *Event) ([]byte, error) `field:"-" json:"-"`
 }
 
 func initMember(member reflect.Value, deja map[string]bool) {
@@ -284,22 +281,6 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
-}
-
-func (ev *Event) String() string {
-	d, err := ev.MarshalJSON()
-	if err != nil {
-		return err.Error()
-	}
-	return string(d)
-}
-
-// MarshalJSON returns the JSON encoding of the event
-func (ev *Event) MarshalJSON() ([]byte, error) {
-	if ev.JSONMarshaler != nil {
-		return ev.JSONMarshaler(ev)
-	}
-	return json.Marshal(ev)
 }
 
 // Retain the event

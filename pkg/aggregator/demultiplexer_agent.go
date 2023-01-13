@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -63,6 +64,7 @@ type AgentDemultiplexerOptions struct {
 	UseOrchestratorForwarder       bool
 	UseContainerLifecycleForwarder bool
 	UseContainerImageForwarder     bool
+	UseSBOMForwarder               bool
 	FlushInterval                  time.Duration
 
 	EnableNoAggregationPipeline bool
@@ -86,6 +88,7 @@ func DefaultAgentDemultiplexerOptions(options *forwarder.Options) AgentDemultipl
 		UseNoopOrchestratorForwarder:   false,
 		UseContainerLifecycleForwarder: false,
 		UseContainerImageForwarder:     false,
+		UseSBOMForwarder:               false,
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -112,6 +115,7 @@ type forwarders struct {
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
 	containerImage     *forwarder.DefaultForwarder
+	sbom               *forwarder.DefaultForwarder
 }
 
 type dataOutputs struct {
@@ -172,6 +176,12 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 		containerImageForwarder = containerimage.NewForwarder()
 	}
 
+	// setup the SBOM forwarder
+	var sbomForwarder *forwarder.DefaultForwarder
+	if options.UseSBOMForwarder {
+		sbomForwarder = sbom.NewForwarder()
+	}
+
 	var sharedForwarder forwarder.Forwarder
 	if options.UseNoopForwarder {
 		sharedForwarder = forwarder.NoopForwarder{}
@@ -182,7 +192,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder, sbomForwarder)
 
 	// prepare the embedded aggregator
 	// --
@@ -214,7 +224,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, containerLifecycleForwarder, containerImageForwarder, sbomForwarder)
 		noAggWorker = newNoAggregationStreamWorker(
 			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			noAggSerializer,
@@ -241,6 +251,7 @@ func initAgentDemultiplexer(options AgentDemultiplexerOptions, hostname string) 
 				eventPlatform:      eventPlatformForwarder,
 				containerLifecycle: containerLifecycleForwarder,
 				containerImage:     containerImageForwarder,
+				sbom:               sbomForwarder,
 			},
 
 			sharedSerializer: sharedSerializer,
@@ -326,7 +337,16 @@ func (d *AgentDemultiplexer) Run() {
 				log.Errorf("error starting container image forwarder: %v", err)
 			}
 		} else {
-			log.Debug("no starting the container image forwarder")
+			log.Debug("not starting the container image forwarder")
+		}
+
+		// sbom forwarder
+		if d.forwarders.sbom != nil {
+			if err := d.forwarders.sbom.Start(); err != nil {
+				log.Errorf("error starting SBOM forwarder: %v", err)
+			}
+		} else {
+			log.Debug("not starting the SBOM forwarder")
 		}
 
 		// shared forwarder
@@ -344,6 +364,10 @@ func (d *AgentDemultiplexer) Run() {
 
 	if d.options.UseContainerImageForwarder {
 		d.aggregator.contImageDequeueOnce.Do(func() { go d.aggregator.dequeueContainerImages() })
+	}
+
+	if d.options.UseSBOMForwarder {
+		d.aggregator.sbomDequeueOnce.Do(func() { go d.aggregator.dequeueSBOM() })
 	}
 
 	for _, w := range d.statsd.workers {
@@ -444,6 +468,10 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 		if d.dataOutputs.forwarders.containerImage != nil {
 			d.dataOutputs.forwarders.containerImage.Stop()
 			d.dataOutputs.forwarders.containerImage = nil
+		}
+		if d.dataOutputs.forwarders.sbom != nil {
+			d.dataOutputs.forwarders.sbom.Stop()
+			d.dataOutputs.forwarders.sbom = nil
 		}
 		if d.dataOutputs.forwarders.shared != nil {
 			d.dataOutputs.forwarders.shared.Stop()

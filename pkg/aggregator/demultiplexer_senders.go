@@ -75,6 +75,7 @@ func (s *senders) GetDefaultSender() (Sender, error) {
 			s.agg.eventPlatformIn,
 			s.agg.contLcycleIn,
 			s.agg.contImageIn,
+			s.agg.sbomIn,
 		)
 	})
 	return s.defaultSender, nil

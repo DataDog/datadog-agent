@@ -9,12 +9,10 @@
 package patch
 
 import (
-	"os"
-	"time"
+	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"gopkg.in/yaml.v3"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/remote"
 )
 
 type patchProvider interface {
@@ -22,94 +20,13 @@ type patchProvider interface {
 	subscribe(kind TargetObjKind) chan PatchRequest
 }
 
-// filePatchProvider this is a stub and will be replaced by a RC patch provider
-type filePatchProvider struct {
-	file                  string
-	pollInterval          time.Duration
-	isLeader              func() bool
-	subscribers           map[TargetObjKind]chan PatchRequest
-	lastSuccessfulRefresh time.Time
-	clusterName           string
-}
-
-var _ patchProvider = &filePatchProvider{}
-
-func newPatchProvider(isLeaderFunc func() bool, clusterName string) patchProvider {
-	// Only the file-based implementation is available at the moment.
-	return newfileProvider(isLeaderFunc, clusterName)
-}
-
-func newfileProvider(isLeaderFunc func() bool, clusterName string) *filePatchProvider {
-	return &filePatchProvider{
-		file:         "/etc/datadog-agent/auto-instru.yaml",
-		pollInterval: 15 * time.Second,
-		isLeader:     isLeaderFunc,
-		subscribers:  make(map[TargetObjKind]chan PatchRequest),
-		clusterName:  clusterName,
+func newPatchProvider(rcClient *remote.Client, clusterName string) (patchProvider, error) {
+	if config.Datadog.GetBool("remote_configuration.enabled") {
+		return newRemoteConfigProvider(rcClient, clusterName)
 	}
-}
-
-func (fpp *filePatchProvider) subscribe(kind TargetObjKind) chan PatchRequest {
-	ch := make(chan PatchRequest, 10)
-	fpp.subscribers[kind] = ch
-	return ch
-}
-
-func (fpp *filePatchProvider) start(stopCh <-chan struct{}) {
-	ticker := time.NewTicker(fpp.pollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if err := fpp.refresh(); err != nil {
-				log.Errorf(err.Error())
-			}
-		case <-stopCh:
-			log.Info("Shutting down patch provider")
-			return
-		}
+	if config.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider") {
+		// Use the file config provider for e2e testing only (it replaces RC as a source of configs)
+		return newfileProvider(clusterName), nil
 	}
-}
-
-func (fpp *filePatchProvider) refresh() error {
-	if !fpp.isLeader() {
-		log.Debug("Not leader, skipping")
-		return nil
-	}
-	requests, err := fpp.poll()
-	if err != nil {
-		return err
-	}
-	log.Debugf("Got %d new patch requests", len(requests))
-	for _, req := range requests {
-		if err := req.Validate(fpp.clusterName); err != nil {
-			log.Errorf("Skipping invalid patch request: %s", err)
-			continue
-		}
-		if ch, found := fpp.subscribers[req.K8sTarget.Kind]; found {
-			log.Infof("Publishing patch requests for target %s", req.K8sTarget)
-			ch <- req
-		}
-	}
-	fpp.lastSuccessfulRefresh = time.Now()
-	return nil
-}
-
-func (fpp *filePatchProvider) poll() ([]PatchRequest, error) {
-	info, err := os.Stat(fpp.file)
-	if err != nil {
-		return nil, err
-	}
-	modTime := info.ModTime()
-	if fpp.lastSuccessfulRefresh.After(modTime) {
-		log.Debugf("File %q hasn't changed since the last Successful refresh at %v", fpp.file, fpp.lastSuccessfulRefresh)
-		return []PatchRequest{}, nil
-	}
-	content, err := os.ReadFile(fpp.file)
-	if err != nil {
-		return nil, err
-	}
-	var requests []PatchRequest
-	err = yaml.Unmarshal(content, &requests)
-	return requests, err
+	return nil, errors.New("remote config is disabled")
 }

@@ -433,16 +433,25 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 }
 
 //nolint:deadcode,unused
-func validateProcessContextLineage(tb testing.TB, event *model.Event) bool {
+func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
+	eventJSON, err := sprobe.MarshalEvent(event, probe)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
 	var data interface{}
-	if err := json.Unmarshal([]byte(event.String()), &data); err != nil {
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
 		tb.Error(err)
+		tb.Error(eventJSON)
+		return
 	}
 
 	json, err := jsonpath.JsonPathLookup(data, "$.process.ancestors")
 	if err != nil {
 		tb.Errorf("should have a process context with ancestors, got %+v (%s)", json, spew.Sdump(data))
-		return false
+		tb.Error(eventJSON)
+		return
 	}
 
 	var prevPID, prevPPID float64
@@ -451,19 +460,22 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event) bool {
 		pce, ok := entry.(map[string]interface{})
 		if !ok {
 			tb.Errorf("invalid process cache entry, %+v", entry)
-			return false
+			tb.Error(eventJSON)
+			return
 		}
 
 		pid, ok := pce["pid"].(float64)
 		if !ok || pid == 0 {
 			tb.Errorf("invalid pid, %+v", pce)
-			return false
+			tb.Error(eventJSON)
+			return
 		}
 
 		// check lineage, exec should have the exact same pid, fork pid/ppid relationship
 		if prevPID != 0 && pid != prevPID && pid != prevPPID {
 			tb.Errorf("invalid process tree, parent/child broken (%f -> %f/%f), %+v", pid, prevPID, prevPPID, json)
-			return false
+			tb.Error(eventJSON)
+			return
 		}
 		prevPID = pid
 
@@ -471,7 +483,8 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event) bool {
 			ppid, ok := pce["ppid"].(float64)
 			if !ok {
 				tb.Errorf("invalid pid, %+v", pce)
-				return false
+				tb.Error(eventJSON)
+				return
 			}
 
 			prevPPID = ppid
@@ -480,13 +493,12 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event) bool {
 
 	if prevPID != 1 {
 		tb.Errorf("invalid process tree, last ancestor should be pid 1, %+v", json)
+		tb.Error(eventJSON)
 	}
-
-	return true
 }
 
 //nolint:deadcode,unused
-func validateProcessContextSECL(tb testing.TB, event *model.Event) bool {
+func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
 	// Process file name values cannot be blank
 	nameFields := []string{
 		"process.file.name",
@@ -508,7 +520,16 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) bool {
 		pathFieldValid, _ = checkProcessContextFieldsForBlankValues(tb, event, pathFields)
 	}
 
-	return nameFieldValid && pathFieldValid
+	valid := nameFieldValid && pathFieldValid
+
+	if !valid {
+		eventJSON, err := sprobe.MarshalEvent(event, probe)
+		if err != nil {
+			tb.Errorf("failed to marshal event: %v", err)
+			return
+		}
+		tb.Error(eventJSON)
+	}
 }
 
 func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, fieldNamesToCheck []string) (bool, bool) {
@@ -552,30 +573,25 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
-func validateProcessContext(tb testing.TB, event *model.Event) {
+func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
 	if event.ProcessContext.IsKworker {
 		return
 	}
 
-	if !validateProcessContextLineage(tb, event) {
-		tb.Error(event.String())
-	}
-
-	if !validateProcessContextSECL(tb, event) {
-		tb.Error(event.String())
-	}
+	validateProcessContextLineage(tb, event, probe)
+	validateProcessContextSECL(tb, event, probe)
 }
 
 //nolint:deadcode,unused
-func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
+func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule), probe *sprobe.Probe) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
-		validateProcessContext(tb, event)
+		validateProcessContext(tb, event, probe)
 		validate(event, rule)
 	}
 }
 
 //nolint:deadcode,unused
-func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
+func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *model.Event, rule *rules.Rule)) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
 		validate(event, rule)
 
@@ -584,9 +600,7 @@ func validateExecEvent(tb *testing.T, kind wrapperType, validate func(event *mod
 			assertFieldNotEmpty(tb, event, "process.container.id", "process container id not found")
 		}
 
-		if !validateExecSchema(tb, event) {
-			tb.Error(event.String())
-		}
+		tm.validateExecSchema(tb, event)
 	}
 }
 
@@ -985,6 +999,21 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 	}
 }
 
+//nolint:deadcode,unused
+func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
+	b, err := sprobe.MarshalEvent(ev, tm.probe)
+	return string(b), err
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) debugEvent(ev *model.Event) string {
+	b, err := tm.marshalEvent(ev)
+	if err != nil {
+		return err.Error()
+	}
+	return string(b)
+}
+
 // GetStatusMetrics returns a string representation of the perf buffer monitor metrics
 func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
@@ -1054,7 +1083,7 @@ func (err ErrSkipTest) Error() string {
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, validateEvent(tb, cb)); err != nil {
+	if err := tm.GetSignal(tb, action, validateEvent(tb, cb, tm.probe)); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {

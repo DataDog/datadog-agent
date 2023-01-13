@@ -188,3 +188,8 @@ func (tf *MockedForwarder) SubmitContainerLifecycleEvents(payload transaction.By
 func (tf *MockedForwarder) SubmitContainerImages(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)
 }
+
+// SubmitSBOM mock
+func (tf *MockedForwarder) SubmitSBOM(payload transaction.BytesPayloads, extra http.Header) error {
+	return tf.Called(payload, extra).Error(0)
+}

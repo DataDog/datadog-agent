@@ -42,6 +42,7 @@ type Sender interface {
 	OrchestratorManifest(msgs []serializer.ProcessMessageBody, clusterID string)
 	ContainerLifecycleEvent(msgs []serializer.ContainerLifecycleMessage)
 	ContainerImage(msgs []serializer.ContainerImageMessage)
+	SBOM(msgs []serializer.SBOMMessage)
 }
 
 // RawSender interface to submit samples to aggregator directly
@@ -66,6 +67,7 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	contlcycleOut           chan<- senderContainerLifecycleEvent
 	contimageOut            chan<- senderContainerImage
+	sbomOut                 chan<- senderSBOM
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
 	service                 string
@@ -115,6 +117,10 @@ type senderContainerImage struct {
 	msgs []serializer.ContainerImageMessage
 }
 
+type senderSBOM struct {
+	msgs []serializer.SBOMMessage
+}
+
 type senderOrchestratorManifest struct {
 	msgs      []serializer.ProcessMessageBody
 	clusterID string
@@ -137,6 +143,7 @@ func newCheckSender(
 	eventPlatformOut chan<- senderEventPlatformEvent,
 	contlcycleOut chan<- senderContainerLifecycleEvent,
 	contimageOut chan<- senderContainerImage,
+	sbomOut chan<- senderSBOM,
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
@@ -151,6 +158,7 @@ func newCheckSender(
 		eventPlatformOut:        eventPlatformOut,
 		contlcycleOut:           contlcycleOut,
 		contimageOut:            contimageOut,
+		sbomOut:                 sbomOut,
 	}
 }
 
@@ -451,6 +459,10 @@ func (s *checkSender) ContainerImage(msgs []serializer.ContainerImageMessage) {
 	s.contimageOut <- senderContainerImage{msgs: msgs}
 }
 
+func (s *checkSender) SBOM(msgs []serializer.SBOMMessage) {
+	s.sbomOut <- senderSBOM{msgs: msgs}
+}
+
 func (sp *checkSenderPool) getSender(id check.ID) (Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
@@ -477,6 +489,7 @@ func (sp *checkSenderPool) mkSender(id check.ID) (Sender, error) {
 		sp.agg.eventPlatformIn,
 		sp.agg.contLcycleIn,
 		sp.agg.contImageIn,
+		sp.agg.sbomIn,
 	)
 	sp.senders[id] = sender
 	return sender, err
