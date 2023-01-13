@@ -298,11 +298,12 @@ func start(log log.Component, config config.Component, cliParams *command.Global
 	if pkgconfig.Datadog.GetBool("admission_controller.enabled") {
 		if pkgconfig.Datadog.GetBool("admission_controller.auto_instrumentation.patcher.enabled") {
 			patchCtx := admissionpatch.ControllerContext{
-				IsLeaderFunc: le.IsLeader,
-				K8sClient:    apiCl.Cl,
-				RcClient:     rcClient,
-				ClusterName:  clusterName,
-				StopCh:       stopCh,
+				IsLeaderFunc:        le.IsLeader,
+				LeaderSubscribeFunc: le.Subscribe,
+				K8sClient:           apiCl.Cl,
+				RcClient:            rcClient,
+				ClusterName:         clusterName,
+				StopCh:              stopCh,
 			}
 			if err := admissionpatch.StartControllers(patchCtx); err != nil {
 				log.Errorf("Cannot start auto instrumentation patcher: %v", err)
