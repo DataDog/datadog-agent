@@ -32,7 +32,6 @@ type LibConfig struct {
 	TracingRateLimit    *int     `yaml:"tracing_rate_limit" json:"tracing_rate_limit,omitempty"`
 	TracingTags         []string `yaml:"tracing_tags" json:"tracing_tags,omitempty"`
 
-	// TODO: Implement the conversion of the following parameters in the ToEnvs() method
 	TracingServiceMapping          []TracingServiceMapEntry `yaml:"tracing_service_mapping" json:"tracing_service_mapping,omitempty"`
 	TracingAgentTimeout            *int                     `yaml:"tracing_agent_timeout" json:"tracing_agent_timeout,omitempty"`
 	TracingHeaderTags              []TracingHeaderTagEntry  `yaml:"tracing_header_tags" json:"tracing_header_tags,omitempty"`
@@ -111,6 +110,68 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TAGS",
 			Value: strings.Join(lc.TracingTags, ","),
+		})
+	}
+	if lc.TracingServiceMapping != nil {
+		pairs := make([]string, 0, len(lc.TracingServiceMapping))
+		for _, m := range lc.TracingServiceMapping {
+			pairs = append(pairs, fmt.Sprintf("%s:%s", m.FromKey, m.ToName))
+		}
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_SERVICE_MAPPING",
+			Value: strings.Join(pairs, ", "),
+		})
+	}
+	if val, defined := checkFormatVal(lc.TracingAgentTimeout); defined {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_AGENT_TIMEOUT",
+			Value: val,
+		})
+	}
+	if lc.TracingHeaderTags != nil {
+		pairs := make([]string, 0, len(lc.TracingHeaderTags))
+		for _, m := range lc.TracingHeaderTags {
+			pairs = append(pairs, fmt.Sprintf("%s:%s", m.Header, m.TagName))
+		}
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_HEADER_TAGS",
+			Value: strings.Join(pairs, ", "),
+		})
+	}
+	if val, defined := checkFormatVal(lc.TracingPartialFlushMinSpans); defined {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS",
+			Value: val,
+		})
+	}
+	if val, defined := checkFormatVal(lc.TracingDebug); defined {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_DEBUG",
+			Value: val,
+		})
+	}
+	if lc.TracingLogLevel != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_LOG_LEVEL",
+			Value: *lc.TracingLogLevel,
+		})
+	}
+	if lc.TracingMethods != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_TRACE_METHODS",
+			Value: strings.Join(lc.TracingMethods, ";"),
+		})
+	}
+	if lc.TracingPropagationStyleInject != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_PROPAGATION_STYLE_INJECT",
+			Value: strings.Join(lc.TracingPropagationStyleInject, ","),
+		})
+	}
+	if lc.TracingPropagationStyleExtract != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  "DD_PROPAGATION_STYLE_EXTRACT",
+			Value: strings.Join(lc.TracingPropagationStyleExtract, ","),
 		})
 	}
 	return envs
