@@ -183,6 +183,11 @@ profiles:
 				Value: []byte("RemoteDev1-Name"),
 			},
 			{
+				Name:  "1.0.8802.1.1.2.1.4.2.1.3.0.101.1.1.4.10.250.0.6",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
+			},
+			{
 				Name:  "1.3.6.1.2.1.2.2.1.13.1",
 				Type:  gosnmp.Integer,
 				Value: 131,
@@ -275,6 +280,11 @@ profiles:
 			},
 			{
 				Name:  "1.0.8802.1.1.2.1.4.1.1.9.0.102.2",
+				Type:  gosnmp.OctetString,
+				Value: []byte("RemoteDev2-Name"),
+			},
+			{
+				Name:  "1.0.8802.1.1.2.1.4.2.1.3.0.102.2.1.4.10.250.0.7",
 				Type:  gosnmp.OctetString,
 				Value: []byte("RemoteDev2-Name"),
 			},
@@ -429,6 +439,11 @@ profiles:
 				Type:  gosnmp.Integer,
 				Value: 999,
 			},
+			{
+				Name:  "9", // exit table
+				Type:  gosnmp.Integer,
+				Value: 999,
+			},
 		},
 	}
 
@@ -458,6 +473,7 @@ profiles:
 		"1.0.8802.1.1.2.1.4.1.1.7",
 		"1.0.8802.1.1.2.1.4.1.1.8",
 		"1.0.8802.1.1.2.1.4.1.1.9",
+		"1.0.8802.1.1.2.1.4.2.1.3",
 		"1.3.6.1.2.1.2.2.1.13",
 		"1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
@@ -563,7 +579,8 @@ profiles:
                     "id": "01:00:00:00:01:02",
                     "id_type": "mac_address",
                     "name": "RemoteDev1-Name",
-                    "description": "RemoteDev1-Description"
+                    "description": "RemoteDev1-Description",
+                    "ip_address": "10.250.0.6"
                 },
                 "interface": {
                     "id": "01:00:00:00:01:01",
@@ -588,7 +605,8 @@ profiles:
                     "id": "01:00:00:00:02:02",
                     "id_type": "mac_address",
                     "name": "RemoteDev2-Name",
-                    "description": "RemoteDev2-Description"
+                    "description": "RemoteDev2-Description",
+                    "ip_address": "10.250.0.7"
                 },
                 "interface": {
                     "id": "01:00:00:00:02:01",

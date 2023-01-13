@@ -93,6 +93,7 @@ type TopologyLinkDevice struct {
 	IDType      string `json:"id_type,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
+	IPAddress   string `json:"ip_address,omitempty"`
 }
 
 // TopologyLinkInterface contain interface link data
