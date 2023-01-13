@@ -263,6 +263,9 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		// in that case, we just return a nil slice.
 		return nil
 	}
+
+	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
+
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
@@ -282,6 +285,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		//       See https://www.rfc-editor.org/rfc/rfc2021
 
 		localPortNum := indexElems[1]
+		lldpRemIndex := indexElems[2]
 
 		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
 		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
@@ -299,6 +303,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
+					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -321,6 +326,34 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
+	remManAddrByRemIndex := make(map[string]string)
+	for _, fullIndex := range remManIndexes {
+		indexElems := strings.Split(fullIndex, ".")
+		if len(indexElems) < 9 {
+			// We expect the index to be at least 9 elements (IPv4)
+			// 1 lldpRemTimeMark
+			// 1 lldpRemLocalPortNum
+			// 1 lldpRemIndex
+			// 1 lldpRemManAddrSubtype (1 for IPv4, 2 for IPv6)
+			// 5|17 lldpRemManAddr (4 for IPv4 and 17 for IPv6)
+			//      the first elements is the IP type e.g. 4 for IPv4
+			continue
+		}
+		lldpRemIndex := indexElems[2]
+		lldpRemManAddrSubtype := indexElems[3]
+		ipAddrType := indexElems[4]
+		lldpRemManAddr := indexElems[5:]
+
+		// We only support IPv4 for the moment
+		// TODO: Support IPv6
+		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
+			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+		}
+	}
+	return remManAddrByRemIndex
 }
 
 func formatID(idType string, store *metadata.Store, field string, strIndex string) string {
