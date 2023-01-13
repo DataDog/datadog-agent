@@ -20,7 +20,6 @@ import (
 type filePatchProvider struct {
 	file                  string
 	pollInterval          time.Duration
-	isLeader              func() bool
 	subscribers           map[TargetObjKind]chan PatchRequest
 	lastSuccessfulRefresh time.Time
 	clusterName           string
@@ -28,11 +27,10 @@ type filePatchProvider struct {
 
 var _ patchProvider = &filePatchProvider{}
 
-func newfileProvider(isLeaderFunc func() bool, clusterName string) *filePatchProvider {
+func newfileProvider(clusterName string) *filePatchProvider {
 	return &filePatchProvider{
 		file:         "/etc/datadog-agent/auto-instru.json",
 		pollInterval: 15 * time.Second,
-		isLeader:     isLeaderFunc,
 		subscribers:  make(map[TargetObjKind]chan PatchRequest),
 		clusterName:  clusterName,
 	}
@@ -61,10 +59,6 @@ func (fpp *filePatchProvider) start(stopCh <-chan struct{}) {
 }
 
 func (fpp *filePatchProvider) refresh() error {
-	if !fpp.isLeader() {
-		log.Debug("Not leader, skipping")
-		return nil
-	}
 	requests, err := fpp.poll()
 	if err != nil {
 		return err

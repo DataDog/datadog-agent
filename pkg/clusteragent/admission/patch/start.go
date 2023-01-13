@@ -27,7 +27,7 @@ type ControllerContext struct {
 // StartControllers starts the patch controllers
 func StartControllers(ctx ControllerContext) error {
 	log.Info("Starting patch controllers")
-	provider, err := newPatchProvider(ctx.RcClient, ctx.IsLeaderFunc, ctx.ClusterName)
+	provider, err := newPatchProvider(ctx.RcClient, ctx.ClusterName)
 	if err != nil {
 		return err
 	}

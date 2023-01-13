@@ -20,20 +20,18 @@ import (
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
 	client      *remote.Client
-	isLeader    func() bool
 	subscribers map[TargetObjKind]chan PatchRequest
 	clusterName string
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, isLeaderFunc func() bool, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remote.Client, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
 		client:      client,
-		isLeader:    isLeaderFunc,
 		subscribers: make(map[TargetObjKind]chan PatchRequest),
 		clusterName: clusterName,
 	}, nil
