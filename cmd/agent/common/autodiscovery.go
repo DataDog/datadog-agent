@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	utilserror "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -271,13 +272,13 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	// add the scheduler in a goroutine, since it will schedule any "catch-up" immediately,
 	// placing items in configChan
 	go AC.AddScheduler("check-cmd", schedulerFunc(func(configs []integration.Config) {
+		var errors []error
 		for _, cfg := range configs {
 			if instanceFilter != "" {
-				instances, err := filterInstances(cfg.Instances, instanceFilter)
-				if err != nil {
-					returnErr = err
-					stopChan <- struct{}{}
-					break
+				instances, filterErrors := filterInstances(cfg.Instances, instanceFilter)
+				if len(filterErrors) > 0 {
+					errors = append(errors, filterErrors...)
+					continue
 				}
 				if len(instances) == 0 {
 					continue
@@ -288,6 +289,10 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 			if match(cfg) && waiting.Load() {
 				configChan <- cfg
 			}
+		}
+		if len(errors) > 0 {
+			returnErr = utilserror.NewAggregate(errors)
+			stopChan <- struct{}{}
 		}
 	}), true)
 
@@ -304,16 +309,18 @@ func waitForConfigsFromAD(ctx context.Context, wildcard bool, checkNames []strin
 	return
 }
 
-func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, error) {
+func filterInstances(instances []integration.Data, instanceFilter string) ([]integration.Data, []error) {
 	var newInstances []integration.Data
+	var errors []error
 	for _, instance := range instances {
 		exist, err := jsonquery.YAMLCheckExist(instance, instanceFilter)
 		if err != nil {
-			return nil, fmt.Errorf("instance filter error: %v", err)
+			errors = append(errors, fmt.Errorf("instance filter error: %v", err))
+			continue
 		}
 		if exist {
 			newInstances = append(newInstances, instance)
 		}
 	}
-	return newInstances, nil
+	return newInstances, errors
 }
