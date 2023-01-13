@@ -37,10 +37,6 @@ var (
 
 // Source provides some information about a logs source.
 type Source struct {
-	// AllTimeAvgLatency  int64 `json:"all_time_avg_latency"`
-	// AllTimePeakLatency int64 `json:"all_time_peak_latency"`
-	// RecentAvgLatency   int64 `json:"recent_avg_latency"`
-	// RecentPeakLatency  int64
 	Type          string                 `json:"type"`
 	Configuration map[string]interface{} `json:"configuration"`
 	Status        string                 `json:"status"`
