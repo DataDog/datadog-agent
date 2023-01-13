@@ -5,6 +5,7 @@
 
 #include "tracer.h"
 #include "ipv6.h"
+#include "netns.h"
 
 // source include/linux/socket.h
 #define __AF_INET   2
@@ -79,14 +80,6 @@ static __always_inline __u16 read_sport(struct sock* sk) {
     }
 
     return sport;
-}
-
-static __always_inline __u32 get_netns_from_sock(struct sock* sk) {
-    __u32 netns = 0;
-    possible_net_t pnet = {};
-    BPF_CORE_READ_INTO(&pnet, sk, sk_net);
-    BPF_CORE_READ_INTO(&netns, pnet.net, ns.inum);
-    return netns;
 }
 
 static __always_inline __u16 read_dport(struct sock *sk) {
