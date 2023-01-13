@@ -15,11 +15,14 @@ import (
 )
 
 // CheckWrapper cleans up the check sender after a check was
-// descheduled, taking care to postpone it until Run returns if it is
-// running.
+// descheduled, taking care that Run is not executing during or after
+// that.
 type CheckWrapper struct {
 	inner check.Check
-	wg    sync.WaitGroup
+	// done is true when the check was cancelled and must not run.
+	done  bool
+	// Locked while check is running.
+	runM  sync.Mutex
 }
 
 // NewCheckWrapper returns a wrapped check.
@@ -31,8 +34,11 @@ func NewCheckWrapper(inner check.Check) *CheckWrapper {
 
 // Run implements Check#Run
 func (c *CheckWrapper) Run() error {
-	c.wg.Add(1)
-	defer c.wg.Done()
+	c.runM.Lock()
+	defer c.runM.Unlock()
+	if c.done {
+		return nil
+	}
 	return c.inner.Run()
 }
 
@@ -43,7 +49,10 @@ func (c *CheckWrapper) Cancel() {
 }
 
 func (c *CheckWrapper) destroySender() {
-	c.wg.Wait()
+	// Done must happen before Wait
+	c.runM.Lock()
+	defer c.runM.Unlock()
+	c.done = true
 	aggregator.DestroySender(c.ID())
 }
 
