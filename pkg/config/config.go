@@ -1237,6 +1237,9 @@ func InitConfig(config Config) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
 
+	// Datadog Agent Manager System Tray
+	config.BindEnvAndSetDefault("system_tray.log_file", "")
+
 	setupAPM(config)
 	SetupOTLP(config)
 	setupProcesses(config)
