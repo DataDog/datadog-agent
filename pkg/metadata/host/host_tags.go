@@ -93,7 +93,7 @@ func GetHostTags(ctx context.Context, cached bool) *Tags {
 	}
 
 	hname, _ := hostname.Get(ctx)
-	clusterName := clustername.GetRFC1123CompliantClusterName(ctx, hname)
+	clusterName := clustername.GetClusterNameTagValue(ctx, hname)
 	if len(clusterName) != 0 {
 		clusterNameTags := []string{"kube_cluster_name:" + clusterName}
 		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
