@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
 	"github.com/DataDog/datadog-agent/pkg/compliance/checks"
 	"github.com/DataDog/datadog-agent/pkg/compliance/event"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -60,15 +59,6 @@ func StartCompliance(log log.Component, config config.Component, hostname string
 		checks.MayFail(checks.WithDocker()),
 		checks.MayFail(checks.WithAudit()),
 		checks.WithStatsd(statsdClient),
-	}
-
-	if pkgconfig.IsKubernetes() {
-		nodeLabels, err := agent.WaitGetNodeLabels()
-		if err != nil {
-			log.Error(err)
-		} else {
-			options = append(options, checks.WithNodeLabels(nodeLabels))
-		}
 	}
 
 	agent, err := agent.New(
