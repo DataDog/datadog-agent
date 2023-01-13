@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/input"
 )
 
-type flareCliParams struct {
+type cliParams struct {
 	*command.GlobalParams
 
 	customerEmail string
@@ -33,7 +33,7 @@ type flareCliParams struct {
 }
 
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &flareCliParams{
+	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -50,7 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(requestFlare,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewParams("", config.WithSecurityAgentConfigFilePaths(globalParams.ConfigFilePaths), config.WithConfigLoadSecurityAgent(true)),
+					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					LogParams:    log.LogForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
@@ -64,7 +64,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(log config.Component, config config.Component, params *flareCliParams) error {
+func requestFlare(log log.Component, config config.Component, params *cliParams) error {
 	if params.customerEmail == "" {
 		var err error
 		params.customerEmail, err = input.AskForEmail()

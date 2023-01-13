@@ -11,8 +11,6 @@ import (
 	"os"
 	"time"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/compliance/agent"
@@ -22,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func StartCompliance(hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client) (*agent.Agent, error) {
