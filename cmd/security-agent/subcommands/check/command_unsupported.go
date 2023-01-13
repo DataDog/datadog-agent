@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !kubeapiserver
-// +build !kubeapiserver
+//go:build windows || !kubeapiserver
 
-package config
+package check
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"

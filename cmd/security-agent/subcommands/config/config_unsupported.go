@@ -3,15 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows || !kubeapiserver
+//go:build !kubeapiserver
+// +build !kubeapiserver
 
-package check
+package config
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/spf13/cobra"
 )
 
-func SecAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }
