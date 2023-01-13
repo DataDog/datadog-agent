@@ -37,13 +37,12 @@ func InjectAgent(pid int, agent string, args string) error {
 		// if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
 		// SIGQUIT is sent as part of the hotspot protocol handshake
 		// JVM Threads : "VM Thread", "Reference Handl", "Finalizer", "Signal Dispatch"
-		// "Signal Dispatch" is thread number 19 (x86_64 openjdk 1.8.0_352), so a new magic number ;)
-		// Ubuntu 18.04 4.18.0-1018-aws 18 unnamed threads
+		// "Signal Dispatch" is thread number 6 (x86_64 1 core openjdk 1.8.0_352), so a new magic number ;)
 		nThreads, err = proc.NumThreads()
 		if err != nil {
 			return err
 		}
-		if nThreads >= 18 {
+		if nThreads > 6 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
