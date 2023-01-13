@@ -103,17 +103,19 @@ func TestInject(t *testing.T) {
 	}
 	t.Log(javaVersion)
 
-	t.Run("host", func(t *testing.T) {
-		testInject(t, "")
-	})
-	t.Run("PIDnamespace", func(t *testing.T) {
-		// running the tagert process in a new PID namespace
-		// and testing if the test/plaform give enough permission to do that
-		p := "unshare -p --fork "
-		_, err = testutil.RunCommand(p + "id")
-		if err != nil {
-			t.Skipf("unshare not supported on this platform %s", err)
-		}
-		testInject(t, p)
-	})
+	for i := 0; i < 900; i++ { // 10 tests 10.8s => 15+min
+		t.Run("host", func(t *testing.T) {
+			testInject(t, "")
+		})
+		t.Run("PIDnamespace", func(t *testing.T) {
+			// running the tagert process in a new PID namespace
+			// and testing if the test/plaform give enough permission to do that
+			p := "unshare -p --fork "
+			_, err = testutil.RunCommand(p + "id")
+			if err != nil {
+				t.Skipf("unshare not supported on this platform %s", err)
+			}
+			testInject(t, p)
+		})
+	}
 }
