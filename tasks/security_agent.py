@@ -576,16 +576,17 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
+    linux_version = "v6.1"
     single_run(
         ctx,
-        "https://raw.githubusercontent.com/torvalds/linux/v6.1/arch/x86/entry/syscalls/syscall_64.tbl",
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
         "pkg/security/secl/model/syscalls_linux_amd64.go",
         "pkg/security/secl/model/syscalls_string_linux_amd64.go",
         abis="common,64",
     )
     single_run(
         ctx,
-        "https://raw.githubusercontent.com/torvalds/linux/v6.1/include/uapi/asm-generic/unistd.h",
+        f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/include/uapi/asm-generic/unistd.h",
         "pkg/security/secl/model/syscalls_linux_arm64.go",
         "pkg/security/secl/model/syscalls_string_linux_arm64.go",
     )
