@@ -117,3 +117,15 @@ func RTName(checkName string) string {
 		return ""
 	}
 }
+
+// RTName returns the name of the corresponding realtime check
+func RTName(checkName string) string {
+	switch checkName {
+	case ProcessCheckName:
+		return RTProcessCheckName
+	case ContainerCheckName:
+		return RTContainerCheckName
+	default:
+		return ""
+	}
+}
