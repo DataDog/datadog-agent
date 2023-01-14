@@ -211,7 +211,6 @@ func TestCollectorRunCheckWithRealTime(t *testing.T) {
 		},
 	)
 
-	// check.On("SupportsRunOptions").Once().Return(true)
 	check.On("Run", mock.Anything, standardOption).Once().Return(result, nil)
 	check.On("Name").Return("foo")
 
@@ -249,7 +248,6 @@ func TestCollectorRunCheck(t *testing.T) {
 	result := checks.StandardRunResult([]model.MessageBody{
 		&model.CollectorProc{},
 	})
-	// check.On("SupportsRunOptions").Once().Return(false)
 	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
 	check.On("Name").Return("foo")
 	check.On("Realtime").Return(false)

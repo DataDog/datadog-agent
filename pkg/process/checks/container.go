@@ -55,11 +55,13 @@ func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
 func (c *ContainerCheck) IsEnabled() bool {
 	// TODO - move config check logic here
 	return true
 }
 
+// SupportsRunOptions returns true if the check supports RunOptions
 func (c *ContainerCheck) SupportsRunOptions() bool {
 	return false
 }

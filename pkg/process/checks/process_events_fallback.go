@@ -24,10 +24,12 @@ func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
 func (e *ProcessEventsCheck) IsEnabled() bool {
 	return false
 }
 
+// SupportsRunOptions returns true if the check supports RunOptions
 func (e *ProcessEventsCheck) SupportsRunOptions() bool {
 	return false
 }

@@ -24,10 +24,12 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
 func (c *PodCheck) IsEnabled() bool {
 	return false
 }
 
+// SupportsRunOptions returns true if the check supports RunOptions
 func (c *PodCheck) SupportsRunOptions() bool {
 	return false
 }

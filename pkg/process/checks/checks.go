@@ -34,21 +34,31 @@ type SysProbeConfig struct {
 // processed in another way (e.g. printed for debugging).
 // Before checks are used you must called Init.
 type Check interface {
+	// Name returns the name of the check
 	Name() string
+	// IsEnabled returns true if the check is enabled by configuration
 	IsEnabled() bool
+	// Realtime indicates if this check only runs in real-time mode
 	Realtime() bool
+	// Init initializes the check
 	Init(syscfg *SysProbeConfig, info *HostInfo) error
+	// SupportsRunOptions returns true if the check supports RunOptions
 	SupportsRunOptions() bool
+	// Run runs the check
 	Run(nextGroupID func() int32, options *RunOptions) (RunResult, error)
+	// Cleanup performs resource cleanup after check is no longer running
 	Cleanup()
+	// ShouldSaveLastRun saves results of the last run
 	ShouldSaveLastRun() bool
 }
 
+// RunOptions provides run options for checks
 type RunOptions struct {
 	RunStandard bool
 	RunRealtime bool
 }
 
+// RunResult is a result for a check run
 type RunResult interface {
 	Payloads() []model.MessageBody
 	RealtimePayloads() []model.MessageBody
@@ -92,7 +102,7 @@ var All = []Check{
 	ProcessEvents,
 }
 
-// RTName returns the name of corresponding realtime check
+// RTName returns the name of the corresponding realtime check
 func RTName(checkName string) string {
 	switch checkName {
 	case ProcessCheckName:

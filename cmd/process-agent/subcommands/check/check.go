@@ -164,7 +164,7 @@ func runCheckCmd(cliParams *cliParams) error {
 		if err := checks.Process.Init(nil, hostInfo); err != nil {
 			return err
 		}
-		checks.Process.Run(nextGroupID(), nil) //nolint:errcheck
+		_, _ = checks.Process.Run(nextGroupID(), nil)
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
@@ -178,19 +178,7 @@ func runCheckCmd(cliParams *cliParams) error {
 			SystemProbeAddress: syscfg.SocketAddress,
 		}
 
-		var options *checks.RunOptions
-
-		if ch.SupportsRunOptions() {
-			options := checks.RunOptions{}
-
-			if ch.Name() == cliParams.checkName {
-				options.RunStandard = true
-			} else if checks.RTName(ch.Name()) == cliParams.checkName {
-				options.RunRealtime = true
-			} else {
-				continue
-			}
-		} else if ch.Name() != cliParams.checkName {
+		if !matchingCheck(cliParams.checkName, ch) {
 			continue
 		}
 
@@ -198,13 +186,28 @@ func runCheckCmd(cliParams *cliParams) error {
 			return err
 		}
 		cleanups = append(cleanups, ch.Cleanup)
-		return runCheck(cliParams, ch, options)
+		return runCheck(cliParams, ch)
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cliParams *cliParams, ch checks.Check, options *checks.RunOptions) error {
+func matchingCheck(checkName string, ch checks.Check) bool {
+	if ch.SupportsRunOptions() {
+		if checks.RTName(ch.Name()) == checkName {
+			return true
+		}
+	}
+
+	return ch.Name() == checkName
+}
+
+func runCheck(cliParams *cliParams, ch checks.Check) error {
 	nextGroupID := nextGroupID()
+
+	options := &checks.RunOptions{
+		RunStandard: true,
+		RunRealtime: true,
+	}
 
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints

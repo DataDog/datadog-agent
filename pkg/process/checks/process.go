@@ -136,11 +136,13 @@ func (c *ProcessCheck) getLastConnRates() ProcessConnRates {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
 func (p *ProcessCheck) IsEnabled() bool {
 	// TODO - move config check logic here
 	return true
 }
 
+// SupportsRunOptions returns true if the check supports RunOptions
 func (p *ProcessCheck) SupportsRunOptions() bool {
 	return true
 }
