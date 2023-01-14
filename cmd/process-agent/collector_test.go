@@ -177,15 +177,15 @@ func TestIgnoreResponseBody(t *testing.T) {
 		checkName string
 		ignore    bool
 	}{
-		{checkName: checks.Process.Name(), ignore: false},
-		{checkName: checks.Process.RealTimeName(), ignore: false},
+		{checkName: checks.ProcessCheckName, ignore: false},
+		{checkName: checks.RTProcessCheckName, ignore: false},
 		{checkName: checks.ProcessDiscovery.Name(), ignore: false},
-		{checkName: checks.Container.Name(), ignore: false},
-		{checkName: checks.RTContainer.Name(), ignore: false},
-		{checkName: checks.Pod.Name(), ignore: true},
+		{checkName: checks.ContainerCheckName, ignore: false},
+		{checkName: checks.RTContainerCheckName, ignore: false},
+		{checkName: checks.PodCheckName, ignore: true},
 		{checkName: checks.PodCheckManifestName, ignore: true},
-		{checkName: checks.Connections.Name(), ignore: false},
-		{checkName: checks.ProcessEvents.Name(), ignore: true},
+		{checkName: checks.ConnectionsCheckName, ignore: false},
+		{checkName: checks.ProcessEventsCheckName, ignore: true},
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
 			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))
@@ -194,43 +194,42 @@ func TestIgnoreResponseBody(t *testing.T) {
 }
 
 func TestCollectorRunCheckWithRealTime(t *testing.T) {
-	check := checkmocks.NewCheckWithRealTime(t)
+	check := checkmocks.NewCheck(t)
 
 	c, err := NewCollector(nil, &checks.HostInfo{}, []checks.Check{})
 	assert.NoError(t, err)
 	submitter := processmocks.NewSubmitter(t)
 	c.submitter = submitter
 
-	standardOption := checks.RunOptions{
+	standardOption := &checks.RunOptions{
 		RunStandard: true,
 	}
 
-	result := &checks.RunResult{
-		Standard: []model.MessageBody{
+	result := checks.StandardRunResult(
+		[]model.MessageBody{
 			&model.CollectorProc{},
 		},
-	}
+	)
 
-	check.On("RunWithOptions", mock.Anything, standardOption).Once().Return(result, nil)
+	check.On("Run", mock.Anything, standardOption).Once().Return(result, nil)
 	check.On("Name").Return("foo")
-	check.On("RealTimeName").Return("bar")
 
 	submitStandard := submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
-	submitter.On("Submit", mock.Anything, check.RealTimeName(), mock.Anything).Return(nil).NotBefore(submitStandard)
+	submitter.On("Submit", mock.Anything, checks.RTName(check.Name()), mock.Anything).Return(nil).NotBefore(submitStandard)
 
 	c.runCheckWithRealTime(check, standardOption)
 
-	rtResult := &checks.RunResult{
-		RealTime: []model.MessageBody{
+	rtResult := checks.CombinedRunResult{
+		Realtime: []model.MessageBody{
 			&model.CollectorProc{},
 		},
 	}
 
-	rtOption := checks.RunOptions{
-		RunRealTime: true,
+	rtOption := &checks.RunOptions{
+		RunRealtime: true,
 	}
 
-	check.On("RunWithOptions", mock.Anything, rtOption).Once().Return(rtResult, nil)
+	check.On("Run", mock.Anything, rtOption).Once().Return(rtResult, nil)
 
 	c.runCheckWithRealTime(check, rtOption)
 }
@@ -246,13 +245,12 @@ func TestCollectorRunCheck(t *testing.T) {
 	require.NoError(t, err)
 	c.submitter = submitter
 
-	result := []model.MessageBody{
+	result := checks.StandardRunResult([]model.MessageBody{
 		&model.CollectorProc{},
-	}
-
+	})
 	check.On("Run", mock.Anything, mock.Anything).Return(result, nil)
 	check.On("Name").Return("foo")
-	check.On("RealTime").Return(false)
+	check.On("Realtime").Return(false)
 	check.On("ShouldSaveLastRun").Return(true)
 	submitter.On("Submit", mock.Anything, check.Name(), mock.Anything).Return(nil)
 

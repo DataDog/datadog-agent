@@ -200,7 +200,6 @@ func (s *checkSubmitter) Submit(start time.Time, name string, messages []model.M
 	}
 
 	s.messagesToResultsQueue(start, name, messages, results)
-	return
 }
 
 func (s *checkSubmitter) Start() error {
@@ -338,23 +337,23 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 			}
 
 			switch result.name {
-			case checks.Process.Name():
+			case checks.ProcessCheckName:
 				updateRTStatus = true
 				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
-			case checks.Process.RealTimeName():
+			case checks.RTProcessCheckName:
 				updateRTStatus = true
 				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
-			case checks.Container.Name():
+			case checks.ContainerCheckName:
 				updateRTStatus = true
 				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
-			case checks.RTContainer.Name():
+			case checks.RTContainerCheckName:
 				updateRTStatus = true
 				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
-			case checks.Connections.Name():
+			case checks.ConnectionsCheckName:
 				updateRTStatus = true
 				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
 			// Pod check metadata
-			case checks.Pod.Name():
+			case checks.PodCheckName:
 				responses, err = fwd.SubmitOrchestratorChecks(forwarderPayload, payload.headers, int(orchestrator.K8sPod))
 			// Pod check manifest data
 			case checks.PodCheckManifestName:
@@ -362,7 +361,7 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 			case checks.ProcessDiscovery.Name():
 				// A Process Discovery check does not change the RT mode
 				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
-			case checks.ProcessEvents.Name():
+			case checks.ProcessEventsCheckName:
 				responses, err = fwd.SubmitProcessEventChecks(forwarderPayload, payload.headers)
 			default:
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
@@ -384,13 +383,13 @@ func (s *checkSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 
 func (s *checkSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
 	switch name {
-	case checks.Pod.Name():
+	case checks.PodCheckName:
 		return s.podResults
-	case checks.Process.RealTimeName(), checks.RTContainer.Name():
+	case checks.RTProcessCheckName, checks.RTContainerCheckName:
 		return s.rtProcessResults
-	case checks.Connections.Name():
+	case checks.ConnectionsCheckName:
 		return s.connectionsResults
-	case checks.ProcessEvents.Name():
+	case checks.ProcessEventsCheckName:
 		return s.eventResults
 	}
 	return s.processResults
