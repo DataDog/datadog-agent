@@ -184,7 +184,7 @@ func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 
 	}
 
-	// if we get here, either it wasn't in either map, or the process
+	// if we get here, the process
 	// is newer than the service map.
 	if err = scm.refreshCache(); err != nil {
 		return nil, err
