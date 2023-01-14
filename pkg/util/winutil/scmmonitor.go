@@ -93,13 +93,7 @@ func (scm *SCMMonitor) refreshCache() error {
 		return nil
 	}
 
-	//var services []windows.ENUM_SERVICE_STATUS_PROCESS
-	//services := (*[1<<29 - 1]windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0]))[:servicesReturned]
 	services := unsafe.Slice((*windows.ENUM_SERVICE_STATUS_PROCESS)(unsafe.Pointer(&buf[0])), servicesReturned)
-
-	//hdr.Data = unsafe.Pointer(&buf[0])
-	//hdr.Len = int(servicesReturned)
-	//hdr.Cap = int(servicesReturned)
 
 	newmap := make(map[uint64]*Service)
 	for idx, svc := range services {
@@ -178,8 +172,11 @@ func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 		// so it's been around longer than our last check of the service
 		// table.  so if it's in there it's probably good.
 		si, err := scm.getServiceFromCache(pid, pidstart)
-		if (si == nil && err != nil) || (si != nil && err == nil) {
-			return si, err
+		if err != nil {
+			return nil, err
+		}
+		if si != nil {
+			return si, nil
 		}
 		// else
 		scm.nonServicePid[pid] = pidstart
@@ -194,8 +191,11 @@ func (scm *SCMMonitor) GetServiceInfo(pid uint64) (*ServiceInfo, error) {
 	}
 	// now check the service map
 	si, err := scm.getServiceFromCache(pid, pidstart)
-	if (si == nil && err != nil) || (si != nil && err == nil) {
-		return si, err
+	if err != nil {
+		return nil, err
+	}
+	if si != nil {
+		return si, nil
 	}
 	// otherwise put this pid as a known, non service
 	scm.nonServicePid[pid] = pidstart
