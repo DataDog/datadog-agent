@@ -12,6 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func testGroupId(groupID int32) func() int32 {
+	return func() int32 {
+		return groupID
+	}
+}
+
 func TestProcessDiscoveryCheck(t *testing.T) {
 	prev := getMaxBatchSize
 	defer func() {
@@ -32,11 +38,11 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 	)
 
 	// Test check runs without error
-	result, err := ProcessDiscovery.Run(0)
+	result, err := ProcessDiscovery.Run(testGroupId(0), nil)
 	assert.NoError(t, err)
 
 	// Test that result has the proper number of chunks, and that those chunks are of the correct type
-	for _, elem := range result {
+	for _, elem := range result.Payloads() {
 		assert.IsType(t, &model.CollectorProcDiscovery{}, elem)
 		collectorProcDiscovery := elem.(*model.CollectorProcDiscovery)
 		for _, proc := range collectorProcDiscovery.ProcessDiscoveries {

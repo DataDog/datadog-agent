@@ -38,18 +38,29 @@ func (d *ProcessDiscoveryCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (d *ProcessDiscoveryCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (d *ProcessDiscoveryCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessDiscoveryCheck.
 func (d *ProcessDiscoveryCheck) Name() string { return DiscoveryCheckName }
 
-// RealTime returns a value that says whether this check should be run in real time.
-func (d *ProcessDiscoveryCheck) RealTime() bool { return false }
+// Realtime returns a value that says whether this check should be run in real time.
+func (d *ProcessDiscoveryCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 
 // Run collects process metadata, and packages it into a CollectorProcessDiscovery payload to be sent.
 // It is a runtime error to call Run without first having called Init.
-func (d *ProcessDiscoveryCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	if !d.initCalled {
 		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
 	}
@@ -67,6 +78,8 @@ func (d *ProcessDiscoveryCheck) Run(groupID int32) ([]model.MessageBody, error) 
 	}
 	procDiscoveryChunks := chunkProcessDiscoveries(pidMapToProcDiscoveries(procs), d.maxBatchSize)
 	payload := make([]model.MessageBody, len(procDiscoveryChunks))
+
+	groupID := nextGroupID()
 	for i, procDiscoveryChunk := range procDiscoveryChunks {
 		payload[i] = &model.CollectorProcDiscovery{
 			HostName:           d.info.HostName,
@@ -77,7 +90,7 @@ func (d *ProcessDiscoveryCheck) Run(groupID int32) ([]model.MessageBody, error) 
 		}
 	}
 
-	return payload, nil
+	return StandardRunResult(payload), nil
 }
 
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
