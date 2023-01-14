@@ -178,7 +178,7 @@ func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
 	}
 	n := copy(buffer, b[:j])
 	// indicate if we knowingly captured the entire path
-	fullPath := n < len(b)
+	fullPath := n <= len(b)
 	return buffer[:n], fullPath
 
 }

@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -221,20 +220,11 @@ func (p *Probe) VerifyEnvironment() *multierror.Error {
 	return err
 }
 
-func isSyscallWrapperRequired() (bool, error) {
-	openSyscall, err := manager.GetSyscallFnName("open")
-	if err != nil {
-		return false, err
-	}
-
-	return !strings.HasPrefix(openSyscall, "SyS_") && !strings.HasPrefix(openSyscall, "sys_"), nil
-}
-
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 
-	useSyscallWrapper, err := isSyscallWrapperRequired()
+	useSyscallWrapper, err := ebpf.IsSyscallWrapperRequired()
 	if err != nil {
 		return err
 	}

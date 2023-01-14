@@ -11,7 +11,7 @@ package app
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/check"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -34,6 +34,7 @@ func init() {
 		LogParams: log.LogForOneShot(string(loggerName), "off", true),
 	}
 
-	complianceCmd.AddCommand(check.Commands(bundleParams)...)
+	// TODO: The SecAgent Check package should be a component
+	complianceCmd.AddCommand(check.CommandsWrapped(bundleParams)...)
 	ClusterAgentCmd.AddCommand(complianceCmd)
 }
