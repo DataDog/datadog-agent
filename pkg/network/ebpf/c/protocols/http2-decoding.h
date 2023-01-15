@@ -69,12 +69,10 @@ static __always_inline void http2_update_seen_before(http2_transaction_t *http2,
 
 
 static __always_inline void http2_begin_request(http2_transaction_t *http2, http2_method_t method, char *buffer) {
-    http2->request_method = method;
+//    http2->request_method = method;
     http2->request_started = bpf_ktime_get_ns();
     http2->response_last_seen = 0;
-    http2->response_status_code = 0;
     bpf_memcpy(&http2->request_fragment, buffer, HTTP2_BUFFER_SIZE);
-    log_debug("http_begin_request: htx=%llx method=%d start=%llx\n", http2, http2->request_method, http2->request_started);
 }
 
 static __always_inline int http2_responding(http2_transaction_t *http2) {
@@ -147,88 +145,68 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
     }
 
     if (packet_type != 0){
-        log_debug("[tasik2] ----------------------------------");
-        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The method is %d", method);
-        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The packet_type is %d", packet_type);
-        log_debug("[tasik2] XXXXXXXXXXXXXXXXXXXXXXXXXX The schema is %d", schema);
-        log_debug("[tasik2] ----------------------------------");
-    }
+        log_debug("[slavin4] ----------------------------------");
+        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The method is %d", method);
+        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The packet_type is %d", packet_type);
+        log_debug("[slavin4] XXXXXXXXXXXXXXXXXXXXXXXXXX The schema is %d", schema);
+        log_debug("[slavin4] ----------------------------------");
+        log_debug("[slavin4] the response status code is %d", http2_stack->response_status_code);
+        log_debug("[slavin4] the end of stream is %d", http2_stack->end_of_stream);
 
-    if (packet_type == 2) {
-        packet_type = HTTP2_REQUEST;
-             log_debug("[tasik2] ------------ first char of the path bla in 0 spot is %c", http2_stack->path[0]);
-             log_debug("[tasik2] ------------ first char of the path bla in 1 spot is %c", http2_stack->path[1]);
-             log_debug("[tasik2] ------------ first char of the path bla in 2 spot is %c", http2_stack->path[2]);
-             log_debug("[tasik] ------------ first char of the path bla in 3 spot is %c", http2_stack->path[3]);
-             log_debug("[tasik] ------------ first char of the path bla in 4 spot is %c", http2_stack->path[4]);
-             log_debug("[tasik] ------------ first char of the path bla in 5 spot is %c", http2_stack->path[5]);
-             log_debug("[tasik] ----------------------------------");
-
-             log_debug("[tasik2] ------------ first char of the authority bla in 0 spot is %c", http2_stack->authority[0]);
-             log_debug("[tasik2] ------------ first char of the authority bla in 1 spot is %c", http2_stack->authority[1]);
-             log_debug("[tasik2] ------------ first char of the authority bla in 2 spot is %c", http2_stack->authority[2]);
-             log_debug("[tasik] ------------ first char of the authority bla in 3 spot is %c", http2_stack->authority[3]);
-             log_debug("[tasik] ------------ first char of the authority bla in 4 spot is %c", http2_stack->authority[4]);
-             log_debug("[tasik] ------------ first char of the authority bla in 5 spot is %c", http2_stack->authority[5]);
     }
 
     if (packet_type == 3) {
         packet_type = HTTP2_RESPONSE;
     }
 
+    if (packet_type == 2) {
+        packet_type = HTTP2_REQUEST;
+    }
+
     http2_transaction_t *http2 = http2_fetch_state(http2_stack, packet_type);
     if (!http2 || http2_seen_before(http2, skb_info)) {
-        log_debug("[tasik2] the http2 have been seens before!");
+        log_debug("[tasik2] the http2 have been seen before!");
         return 0;
     }
 
-    log_debug("[tasik] http2_process: type=%d method=%d\n", packet_type, method);
     if (packet_type == HTTP2_REQUEST) {
+        log_debug("[slavin4] http2_process request: type=%d method=%d\n", packet_type, method);
         http2_begin_request(http2, method, buffer);
         http2_update_seen_before(http2, skb_info);
     }
    else if (packet_type == HTTP2_RESPONSE) {
-//        http2->response_status_code = status_code;
         log_debug("[tasik] http2_begin_response: htx=%llx status=%d\n", http2, http2->response_status_code);
         http2_update_seen_before(http2, skb_info);
     }
 
     http2->tags |= tags;
 
-    if (http2_responding(http2)) {
-        http2->response_last_seen = bpf_ktime_get_ns();
-    }
 
-    if (http2_stack->end_of_stream) {
+    if ((http2_stack->response_status_code > 0 )) {
         http_transaction_t http;
-        bpf_memset(&http, 0, sizeof(http));
-        bpf_memcpy(&http.tup, &http2_stack->tup, sizeof(conn_tuple_t));
 
-        dynamic_table_index dynamic_index = {};
-        dynamic_index.index = 1;
-        dynamic_index.old_tup = http2_stack->tup;
-
-        // todo: fix the issue with the path size
         http2_transaction_t *trans = bpf_map_lookup_elem(&http2_in_flight, &http2->old_tup);
         if (trans != NULL) {
+            bpf_memset(&http, 0, sizeof(http));
+            bpf_memcpy(&http.tup, &trans->tup, sizeof(conn_tuple_t));
+
             http.request_fragment[0] = 'z';
             http.request_fragment[1] = http2->path_size;
             bpf_memcpy(&http.request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
+
+            http.response_status_code = http2_stack->response_status_code;
+            http.request_started = trans->request_started;
+            http.request_method = trans->request_method;
+            http.response_last_seen = bpf_ktime_get_ns();
+            http.owned_by_src_port = trans->owned_by_src_port;
+            http.tcp_seq = trans->tcp_seq;
+            http.tags = trans->tags;
+
+            http_enqueue(&http);
+//            bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
         }
-
-        http.request_started = http2->request_started;
-        http.request_method = http2->request_method;
-        http.response_status_code = k200;
-        http.response_last_seen = http2-> response_last_seen;
-        http.owned_by_src_port = http2->owned_by_src_port;
-        http.tcp_seq = http2->tcp_seq;
-        http.tags = http2->tags;
-
-        http_enqueue(&http);
-        bpf_map_delete_elem(&http2_in_flight, &http2_stack->tup);
     }
 
-    log_debug("[tasik] we are here! 3");
     return 0;
 }
 
@@ -279,6 +257,7 @@ static __always_inline bool classify_static_value(http2_transaction_t* http2_tra
      }
      if ((value <= k500) && (value >= k200)) {
         http2_transaction->packet_type = 3; // this will be response type
+        http2_transaction->response_status_code = value;
         return true;
      }
 
