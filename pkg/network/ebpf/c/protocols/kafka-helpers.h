@@ -47,13 +47,14 @@ static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
     }
     offset += sizeof(client_id_size);
 
+    const char* client_id_starting_offset = buf + offset;
     char ch = 0;
 #pragma unroll(CLIENT_ID_SIZE_TO_VALIDATE)
-    for (int i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
+    for (uint32_t i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
         if (i == client_id_size - 1) {
             break;
         }
-        ch = buf[i];
+        ch = client_id_starting_offset[i];
         if (ch == 0) {
             return false;
         }

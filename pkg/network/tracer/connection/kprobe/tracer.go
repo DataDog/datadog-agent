@@ -231,6 +231,14 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 	err = m.InitWithOptions(buf, mgrOptions)
+	err2 := errors.Unwrap(err)
+	err3 := errors.Unwrap(err2)
+	err4, ok := errors.Unwrap(err3).(*ebpf.VerifierError)
+	if ok {
+		for _, l := range err4.Log {
+			fmt.Println(l)
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ebpf manager: %v", err)
 	}
