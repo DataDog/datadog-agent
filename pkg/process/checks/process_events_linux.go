@@ -78,17 +78,28 @@ func (e *ProcessEventsCheck) start() {
 	e.listener.Run()
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (e *ProcessEventsCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (e *ProcessEventsCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ProcessEventsCheck.
 func (e *ProcessEventsCheck) Name() string { return ProcessEventsCheckName }
 
-// RealTime returns a value that says whether this check should be run in real time.
-func (e *ProcessEventsCheck) RealTime() bool { return false }
+// Realtime returns a value that says whether this check should be run in real time.
+func (e *ProcessEventsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (e *ProcessEventsCheck) ShouldSaveLastRun() bool { return true }
 
 // Run fetches process lifecycle events that have been stored in-memory since the last check run
-func (e *ProcessEventsCheck) Run(groupID int32) ([]payload.MessageBody, error) {
+func (e *ProcessEventsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	if !e.isCheckCorrectlySetup() {
 		return nil, errors.New("the process_events check hasn't been correctly initialized")
 	}
@@ -103,6 +114,7 @@ func (e *ProcessEventsCheck) Run(groupID int32) ([]payload.MessageBody, error) {
 	chunks := chunkProcessEvents(payloadEvents, e.maxBatchSize)
 
 	messages := make([]payload.MessageBody, len(chunks))
+	groupID := nextGroupID()
 	for c, chunk := range chunks {
 		messages[c] = &payload.CollectorProcEvent{
 			Hostname:  e.hostInfo.HostName,
@@ -113,7 +125,7 @@ func (e *ProcessEventsCheck) Run(groupID int32) ([]payload.MessageBody, error) {
 		}
 	}
 
-	return messages, nil
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ProcessEventsCheck before the agent exits

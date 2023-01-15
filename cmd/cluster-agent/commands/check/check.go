@@ -43,6 +43,7 @@ var (
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
 	formatTable               bool
@@ -72,6 +73,7 @@ func setupCmd(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
 	cmd.Flags().StringVarP(&logLevel, "log-level", "l", "", "set the log level (default 'off') (deprecated, use the env var DD_LOG_LEVEL instead)")
 	cmd.Flags().IntVarP(&checkDelay, "delay", "d", 100, "delay between running the check and grabbing the metrics in milliseconds")
+	cmd.Flags().StringVarP(&instanceFilter, "instance-filter", "", "", "filter instances using jq style syntax, example: --instance-filter '.ip_address == \"127.0.0.51\"'")
 	cmd.Flags().BoolVarP(&formatJSON, "json", "", false, "format aggregator and check runner output as json")
 	cmd.Flags().BoolVarP(&formatTable, "table", "", false, "format aggregator and check runner output as an ascii table")
 	cmd.Flags().StringVarP(&breakPoint, "breakpoint", "b", "", "set a breakpoint at a particular line number (Python checks only)")
@@ -164,8 +166,11 @@ func Check(loggerName config.LoggerName, confFilePath *string, flagNoColor *bool
 
 			waitCtx, cancelTimeout := context.WithTimeout(
 				context.Background(), time.Duration(discoveryTimeout)*time.Second)
-			allConfigs := common.WaitForConfigsFromAD(waitCtx, []string{checkName}, int(discoveryMinInstances))
+			allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{checkName}, int(discoveryMinInstances), instanceFilter)
 			cancelTimeout()
+			if err != nil {
+				return err
+			}
 
 			// make sure the checks in cs are not JMX checks
 			for idx := range allConfigs {

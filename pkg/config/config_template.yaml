@@ -3450,3 +3450,18 @@ api_key:
     #
     # verbosity: normal
 {{end -}}
+{{- if (eq .OS "windows")}}
+#####################################################
+## Datadog Agent Manager System Tray Configuration ##
+#####################################################
+
+## @param system_tray - custom object - optional
+## This section configures the Datadog Agent Manager System Tray
+#
+# system_tray:
+  ## @param log_file - string - optional - default: %ProgramData%\Datadog\logs\ddtray.log
+  ## @env DD_TRAY_LOG_FILE - string - optional
+  ## The full path to the file where Datadog Agent Manager System Tray logs are written.
+  #
+  # log_file: <TRAY_LOG_FILE_PATH>
+{{end -}}

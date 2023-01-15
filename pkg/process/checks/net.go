@@ -95,11 +95,22 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) erro
 	return nil
 }
 
+// IsEnabled returns true if the check is enabled by configuration
+func (c *ConnectionsCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
+
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *ConnectionsCheck) SupportsRunOptions() bool {
+	return false
+}
+
 // Name returns the name of the ConnectionsCheck.
 func (c *ConnectionsCheck) Name() string { return ConnectionsCheckName }
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *ConnectionsCheck) RealTime() bool { return false }
+// Realtime indicates if this check only runs in real-time mode.
+func (c *ConnectionsCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
@@ -109,7 +120,7 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 // For each connection we'll return a `model.Connection`
 // that will be bundled up into a `CollectorConnections`.
 // See agent.proto for the schema of the message and models.
-func (c *ConnectionsCheck) Run(groupID int32) ([]model.MessageBody, error) {
+func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
 	conns, err := c.getConnections()
@@ -134,7 +145,10 @@ func (c *ConnectionsCheck) Run(groupID int32) ([]model.MessageBody, error) {
 	c.notifyProcessConnRates(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
-	return batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor), nil
+
+	groupID := nextGroupID()
+	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
+	return StandardRunResult(messages), nil
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits

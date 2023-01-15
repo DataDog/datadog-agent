@@ -177,6 +177,7 @@
 /comp @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/process @DataDog/processes
+/comp/systray @DataDog/windows-agent
 # END COMPONENTS
 
 # pkg
@@ -212,6 +213,7 @@
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
 /pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
+/pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
 /pkg/collector/corechecks/ebpf/         @DataDog/container-integrations
 /pkg/collector/corechecks/embed/        @Datadog/agent-platform
