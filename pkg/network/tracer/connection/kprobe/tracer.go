@@ -126,6 +126,14 @@ func New(config *config.Config, constants []manager.ConstantEditor, bpfTelemetry
 		},
 		ConstantEditors:           constants,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
+		VerifierOptions: ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				// LogSize is the size of the log buffer given to the verifier. Give it a big enough
+				// value so that all our programs fit. If the verifier ever outputs a `no space left on device` error,
+				// we'll need to increase this value.
+				LogSize: 10 * 1024 * 1024,
+			},
+		},
 	}
 
 	runtimeTracer := false
