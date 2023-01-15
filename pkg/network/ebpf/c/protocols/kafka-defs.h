@@ -7,6 +7,6 @@
 // Reference: https://kafka.apache.org/protocol.html#protocol_messages
 #define KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION 13
 
-#define CLIENT_ID_SIZE_TO_VALIDATE 10
+#define CLIENT_ID_SIZE_TO_VALIDATE 20
 
 #endif

@@ -5,53 +5,56 @@
 #include "kafka-types.h"
 #include "bpf_endian.h"
 
+typedef struct {
+    uint32_t message_size;
+    uint16_t api_key;
+    uint16_t api_version;
+    uint32_t correlation_id;
+    uint16_t client_id_size;
+} kafka_hdr;
+
 static __always_inline bool is_kafka(const char* buf, __u32 buf_size) {
     if (buf_size <= 0) {
         return false;
     }
-    uint32_t offset = 0;
 
-    int32_t message_size = bpf_ntohl(*(int32_t*)buf);
+    kafka_hdr *hdr = (kafka_hdr *)buf;
+    uint32_t message_size = bpf_ntohl(hdr->message_size);
+    uint16_t api_key = bpf_ntohs(hdr->api_key);
+    uint16_t api_version = bpf_ntohs(hdr->api_version);
+    uint32_t correlation_id = bpf_ntohl(hdr->correlation_id);
+    uint32_t client_id_size = bpf_ntohs(hdr->client_id_size);
     if (message_size <= 0) {
         return false;
     }
-    offset += sizeof(message_size);
 
-    int16_t request_api_key = bpf_ntohs(*(int16_t*)(buf + offset));
-    if (request_api_key != KAFKA_FETCH && request_api_key != KAFKA_PRODUCE) {
+    if (api_key != KAFKA_FETCH && api_key != KAFKA_PRODUCE) {
         // We are only interested in fetch and produce requests
         return false;
     }
-    offset += sizeof(request_api_key);
 
-    int16_t request_api_version = bpf_ntohs(*(int16_t*)(buf + offset));
-    if (request_api_version < 0 || request_api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
+    if (api_version < 0 || api_version > KAFKA_MAX_SUPPORTED_REQUEST_API_VERSION) {
         return false;
     }
-    if ((request_api_version == 0) && (request_api_key == KAFKA_PRODUCE)) {
+    if ((api_version == 0) && (api_key == KAFKA_PRODUCE)) {
         // We have seen some false positives when both request_api_version and request_api_key are 0,
         // so dropping support for this case
         return false;
     }
-    offset += sizeof(request_api_version);
 
-    int32_t correlation_id = bpf_ntohl(*(int32_t*)(buf + offset));
     if (correlation_id < 0) {
         return false;
     }
-    offset += sizeof(correlation_id);
 
-    int16_t client_id_size = bpf_ntohs(*(int16_t*)(buf + offset));
     if (client_id_size < 0) {
          return false;
     }
-    offset += sizeof(client_id_size);
 
-    const char* client_id_starting_offset = buf + offset;
+    const char* client_id_starting_offset = buf + sizeof(kafka_hdr);
     char ch = 0;
 #pragma unroll(CLIENT_ID_SIZE_TO_VALIDATE)
-    for (uint32_t i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
-        if (i == client_id_size - 1) {
+    for (unsigned i = 0; i < CLIENT_ID_SIZE_TO_VALIDATE; i++) {
+        if (i >= client_id_size) {
             break;
         }
         ch = client_id_starting_offset[i];
