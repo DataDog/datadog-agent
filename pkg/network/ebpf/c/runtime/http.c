@@ -841,6 +841,15 @@ int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kprobe/do_vfs_ioctl")
+int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+    if (is_usm_erpc_request(ctx)) {
+        return handle_erpc_request(ctx);
+    }
+
+    return 0;
+}
+
 static __always_inline void* get_tls_base(struct task_struct* task) {
     u32 key = 0;
     struct thread_struct *t = bpf_map_lookup_elem(&task_thread, &key);
