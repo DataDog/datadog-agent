@@ -108,7 +108,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // (and NewTracer above)
 func newTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
-	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
+	if mounted, err := kernel.IsDebugFSOrTraceFSMounted(); !mounted {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
 
