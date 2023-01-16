@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
@@ -423,7 +423,7 @@ func TestReceiverDecodingError(t *testing.T) {
 		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
 		assert.NoError(err)
 		traceCount := 10
-		req.Header.Set(shared.HeaderTraceCount, strconv.Itoa(traceCount))
+		req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, err := client.Do(req)
@@ -454,7 +454,7 @@ func TestReceiverUnexpectedEOF(t *testing.T) {
 	assert.NoError(err)
 	req.Header.Set("Content-Type", "application/msgpack")
 	req.Header.Set("Content-Length", "270")
-	req.Header.Set(shared.HeaderTraceCount, strconv.Itoa(traceCount))
+	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
 
 	resp, err := client.Do(req)
 	assert.NoError(err)
@@ -473,23 +473,23 @@ func TestTraceCount(t *testing.T) {
 			delete(req.Header, k)
 		}
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", shared.HeaderTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-empty", func(t *testing.T) {
-		req.Header.Set(shared.HeaderTraceCount, "")
+		req.Header.Set(header.TraceCount, "")
 		_, err := traceCount(req)
-		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", shared.HeaderTraceCount))
+		assert.EqualError(t, err, fmt.Sprintf("HTTP header %q not found", header.TraceCount))
 	})
 
 	t.Run("value-bad", func(t *testing.T) {
-		req.Header.Set(shared.HeaderTraceCount, "qwe")
+		req.Header.Set(header.TraceCount, "qwe")
 		_, err := traceCount(req)
 		assert.Equal(t, err, errInvalidHeaderTraceCountValue)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		req.Header.Set(shared.HeaderTraceCount, "123")
+		req.Header.Set(header.TraceCount, "123")
 		count, err := traceCount(req)
 		assert.NoError(t, err)
 		assert.Equal(t, count, int64(123))
@@ -526,7 +526,7 @@ func TestDecodeV05(t *testing.T) {
 	assert.NoError(err)
 	req, err := http.NewRequest("POST", "/v0.5/traces", bytes.NewReader(b))
 	assert.NoError(err)
-	req.Header.Set(shared.HeaderContainerID, "abcdef123789456")
+	req.Header.Set(header.ContainerID, "abcdef123789456")
 	tp, _, err := decodeTracerPayload(v05, req, &info.TagStats{
 		Tags: info.Tags{
 			Lang:          "python",
@@ -629,8 +629,8 @@ func TestHandleStats(t *testing.T) {
 		}
 		req, _ := http.NewRequest("POST", server.URL+"/v0.6/stats", &buf)
 		req.Header.Set("Content-Type", "application/msgpack")
-		req.Header.Set(shared.HeaderLang, "lang1")
-		req.Header.Set(shared.HeaderTracerVersion, "0.1.0")
+		req.Header.Set(header.Lang, "lang1")
+		req.Header.Set(header.TracerVersion, "0.1.0")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -662,9 +662,9 @@ func TestClientComputedStatsHeader(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(shared.HeaderLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(shared.HeaderComputedStats, "yes")
+				req.Header.Set(header.ComputedStats, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -775,9 +775,9 @@ func TestClientComputedTopLevel(t *testing.T) {
 
 			req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(shared.HeaderLang, "lang1")
+			req.Header.Set(header.Lang, "lang1")
 			if on {
-				req.Header.Set(shared.HeaderComputedTopLevel, "yes")
+				req.Header.Set(header.ComputedTopLevel, "yes")
 			}
 			var wg sync.WaitGroup
 			wg.Add(1)
@@ -823,9 +823,9 @@ func TestClientDropP0s(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", server.URL+"/v0.4/traces", bytes.NewReader(bts))
 	req.Header.Set("Content-Type", "application/msgpack")
-	req.Header.Set(shared.HeaderLang, "lang1")
-	req.Header.Set(shared.HeaderDroppedP0Traces, "153")
-	req.Header.Set(shared.HeaderDroppedP0Spans, "2331")
+	req.Header.Set(header.Lang, "lang1")
+	req.Header.Set(header.DroppedP0Traces, "153")
+	req.Header.Set(header.DroppedP0Spans, "2331")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -867,7 +867,7 @@ func TestReceiverRateLimiterCancel(t *testing.T) {
 				reader := &chunkedReader{reader: bytes.NewReader(bts)}
 				req, err := http.NewRequest("POST", url, reader)
 				req.Header.Set("Content-Type", "application/msgpack")
-				req.Header.Set(shared.HeaderTraceCount, strconv.Itoa(n))
+				req.Header.Set(header.TraceCount, strconv.Itoa(n))
 				assert.Nil(err)
 
 				resp, err := client.Do(req)
@@ -1110,7 +1110,7 @@ func TestWatchdog(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.Header.Set("Content-Type", "application/msgpack")
-			req.Header.Set(shared.HeaderTraceCount, "3")
+			req.Header.Set(header.TraceCount, "3")
 			resp, err = http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatal(err)

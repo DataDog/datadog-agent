@@ -17,7 +17,7 @@ import (
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/otlp/model/source"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -501,8 +501,8 @@ func TestOTLPReceiver(t *testing.T) {
 		out := make(chan *Payload, 5)
 		o := NewOTLPReceiver(out, config.New())
 		o.processRequest(context.Background(), http.Header(map[string][]string{
-			shared.HeaderLang:        {"go"},
-			shared.HeaderContainerID: {"containerdID"},
+			header.Lang:        {"go"},
+			header.ContainerID: {"containerdID"},
 		}), otlpTestTracesRequest)
 		ps := make([]*Payload, 2)
 		timeout := time.After(time.Second / 2)
@@ -733,10 +733,10 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("tagsFromHeaders", func(t *testing.T) {
 		out := tagsFromHeaders(http.Header(map[string][]string{
-			shared.HeaderLang:                  {"go"},
-			shared.HeaderLangVersion:           {"1.14"},
-			shared.HeaderLangInterpreter:       {"x"},
-			shared.HeaderLangInterpreterVendor: {"y"},
+			header.Lang:                  {"go"},
+			header.LangVersion:           {"1.14"},
+			header.LangInterpreter:       {"x"},
+			header.LangInterpreterVendor: {"y"},
 		}))
 		assert.Equal(t, []string{"endpoint_version:opentelemetry_grpc_v1", "lang:go", "lang_version:1.14", "interpreter:x", "lang_vendor:y"}, out)
 	})
@@ -1235,8 +1235,8 @@ func trimSpaces(str string) string {
 
 func BenchmarkProcessRequest(b *testing.B) {
 	metadata := http.Header(map[string][]string{
-		shared.HeaderLang:        {"go"},
-		shared.HeaderContainerID: {"containerdID"},
+		header.Lang:        {"go"},
+		header.ContainerID: {"containerdID"},
 	})
 	out := make(chan *Payload, 100)
 	end := make(chan struct{})

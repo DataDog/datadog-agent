@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
@@ -72,7 +72,7 @@ func evpProxyErrorHandler(message string) http.Handler {
 
 // evpProxyForwarder creates an http.ReverseProxy which can forward payloads to
 // one or more endpoints, based on the request received and the Agent configuration.
-// Headers are not proxied, instead we add our own known set of headers.
+// Headers are not proxied, instead we add our own known set of header.
 // See also evpProxyTransport below.
 func evpProxyForwarder(conf *config.AgentConfig) http.Handler {
 	endpoints := evpProxyEndpointsFromConfig(conf)
@@ -159,14 +159,14 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Set Datadog headers, except API key which is set per-endpoint
 	if containerID != "" {
-		req.Header.Set(shared.HeaderContainerID, containerID)
+		req.Header.Set(header.ContainerID, containerID)
 		if ctags := getContainerTags(t.conf.ContainerTags, containerID); ctags != "" {
 			req.Header.Set("X-Datadog-Container-Tags", ctags)
 		}
 	}
 	req.Header.Set("X-Datadog-Hostname", t.conf.Hostname)
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
-	req.Header.Set(shared.HeaderContainerID, containerID)
+	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
 	}

@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +61,7 @@ type IDProvider interface {
 type noCgroupsProvider struct{}
 
 func (i *noCgroupsProvider) GetContainerID(_ context.Context, h http.Header) string {
-	return h.Get(shared.HeaderContainerID)
+	return h.Get(header.ContainerID)
 }
 
 // NewIDProvider initializes an IDProvider instance using the provided procRoot to perform cgroups lookups in linux environments.
@@ -92,7 +92,7 @@ type cgroupIDProvider struct {
 // GetContainerID returns the container ID in the http.Header,
 // otherwise looks for a PID in the ctx which is used to search cgroups for a container ID.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
-	if id := h.Get(shared.HeaderContainerID); id != "" {
+	if id := h.Get(header.ContainerID); id != "" {
 		return id
 	}
 	ucred, ok := ctx.Value(ucredKey{}).(*syscall.Ucred)

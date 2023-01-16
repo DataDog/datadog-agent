@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/shared"
+	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +93,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		req.Header.Add(shared.HeaderContainerID, containerID)
+		req.Header.Add(header.ContainerID, containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 
@@ -103,7 +103,7 @@ func TestGetContainerID(t *testing.T) {
 		if !assert.NoError(t, err) {
 			t.Fail()
 		}
-		req.Header.Add(shared.HeaderContainerID, containerID)
+		req.Header.Add(header.ContainerID, containerID)
 		assert.Equal(t, containerID, provider.GetContainerID(req.Context(), req.Header))
 	})
 

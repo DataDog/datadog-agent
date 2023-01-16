@@ -89,7 +89,7 @@ func newDebuggerProxy(conf *config.AgentConfig, target *url.URL, key string, tag
 	}
 }
 
-// measuringDebuggerTransport sends HTTP requests to a defined target url. It also sets the API keys in the headers.
+// measuringDebuggerTransport sends HTTP requests to a defined target url. It also sets the API keys in the header.
 type measuringDebuggerTransport struct {
 	rt http.RoundTripper
 }

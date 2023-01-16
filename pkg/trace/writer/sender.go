@@ -389,7 +389,7 @@ var ppool = &sync.Pool{
 	},
 }
 
-// newPayload returns a new payload with the given headers. The payload should not
+// newPayload returns a new payload with the given header. The payload should not
 // be used anymore after it has been given to the sender.
 func newPayload(headers map[string]string) *payload {
 	p := ppool.Get().(*payload)
