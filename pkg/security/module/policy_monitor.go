@@ -189,17 +189,15 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 	var policyState *PolicyState
 	var exists bool
 
-	for _, policy := range rs.GetPolicies() {
-		// rule successfully loaded
-		for _, ruleDef := range policy.Rules {
-			policyName := ruleDef.Policy.Name
+	for _, rule := range rs.GetRules() {
+		ruleDef := rule.Definition
+		policyName := ruleDef.Policy.Name
 
-			if policyState, exists = mp[policyName]; !exists {
-				policyState = PolicyStateFromRuleDefinition(ruleDef)
-				mp[policyName] = policyState
-			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
+		if policyState, exists = mp[policyName]; !exists {
+			policyState = PolicyStateFromRuleDefinition(ruleDef)
+			mp[policyName] = policyState
 		}
+		policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(ruleDef, "loaded", ""))
 	}
 
 	// rules ignored due to errors
@@ -211,6 +209,8 @@ func NewRuleSetLoadedEvent(rs *rules.RuleSet, err *multierror.Error) (*rules.Rul
 				if _, exists := mp[policyName]; !exists {
 					policyState = PolicyStateFromRuleDefinition(rerr.Definition)
 					mp[policyName] = policyState
+				} else {
+					policyState = mp[policyName]
 				}
 				policyState.Rules = append(policyState.Rules, RuleStateFromDefinition(rerr.Definition, string(rerr.Type()), rerr.Err.Error()))
 			}
