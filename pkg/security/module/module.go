@@ -491,9 +491,7 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
@@ -517,8 +515,9 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) 
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 
-	// prepare the event
-	m.probe.OnRuleMatch(rule, ev)
+	// ensure that all the fields are resolved before sending
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
