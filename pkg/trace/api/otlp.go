@@ -265,14 +265,14 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	if ctags := getContainerTags(o.conf.ContainerTags, containerID); ctags != "" {
 		p.TracerPayload.Tags = map[string]string{
-			shared.TagContainersTags: ctags,
+			tagContainersTags: ctags,
 		}
 	} else {
 		// we couldn't obtain any container tags
 		if src.Kind == source.AWSECSFargateKind {
 			// but we have some information from the source provider that we can add
 			p.TracerPayload.Tags = map[string]string{
-				shared.TagContainersTags: src.Tag(),
+				tagContainersTags: src.Tag(),
 			}
 		}
 	}

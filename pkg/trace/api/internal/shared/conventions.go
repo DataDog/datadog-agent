@@ -54,8 +54,4 @@ const (
 	// HeaderRatesPayloadVersion contains the version of sampling rates.
 	// If both agent and client have the same version, the agent won't return rates in API response.
 	HeaderRatesPayloadVersion = "Datadog-Rates-Payload-Version"
-
-	// TagContainersTags specifies the name of the tag which holds key/value
-	// pairs representing information about the container (Docker, EC2, etc).
-	TagContainersTags = "_dd.tags.container"
 )

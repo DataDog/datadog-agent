@@ -333,6 +333,12 @@ func traceCount(req *http.Request) (int64, error) {
 	return int64(n), nil
 }
 
+const (
+	// tagContainersTags specifies the name of the tag which holds key/value
+	// pairs representing information about the container (Docker, EC2, etc).
+	tagContainersTags = "_dd.tags.container"
+)
+
 // TagStats returns the stats and tags coinciding with the information found in header.
 // For more information, check the "Datadog-Meta-*" HTTP headers defined in this file.
 func (r *HTTPReceiver) TagStats(v Version, header http.Header) *info.TagStats {
@@ -522,7 +528,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
-		tp.Tags[shared.TagContainersTags] = ctags
+		tp.Tags[tagContainersTags] = ctags
 	}
 
 	payload := &Payload{

@@ -1045,8 +1045,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 					assert.Equal(wante, gote)
 				case "_dd.container_tags":
 					// order not guaranteed, so we need to unpack and sort to compare
-					gott := strings.Split(got.Meta[shared.TagContainersTags], ",")
-					wantt := strings.Split(want.Meta[shared.TagContainersTags], ",")
+					gott := strings.Split(got.Meta[tagContainersTags], ",")
+					wantt := strings.Split(want.Meta[tagContainersTags], ",")
 					sort.Strings(gott)
 					sort.Strings(wantt)
 					assert.Equal(wantt, gott)
