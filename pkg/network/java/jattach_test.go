@@ -104,6 +104,8 @@ func TestInject(t *testing.T) {
 	t.Log(javaVersion)
 
 	for i := 0; i < 120; i++ {
+		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+
 		t.Run("host", func(t *testing.T) {
 			testInject(t, "")
 		})
@@ -119,6 +121,8 @@ func TestInject(t *testing.T) {
 	}
 
 	for i := 0; i < 120; i++ {
+		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
+
 		t.Run("PIDnamespace", func(t *testing.T) {
 			// running the tagert process in a new PID namespace
 			// and testing if the test/plaform give enough permission to do that
