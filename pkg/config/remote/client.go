@@ -315,6 +315,13 @@ func (c *Client) RegisterAPMTracing(fn func(update map[string]state.APMTracingCo
 	fn(c.state.APMTracingConfigs())
 }
 
+// APMTracingConfigs returns the current set of valid APM Tracing configs
+func (c *Client) APMTracingConfigs() map[string]state.APMTracingConfig {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.state.APMTracingConfigs()
+}
+
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {
 	fileMap := make(map[string][]byte, len(pbUpdate.TargetFiles))
 	for _, f := range pbUpdate.TargetFiles {
