@@ -28,8 +28,6 @@ namespace WixSetup.Datadog
 
         public ManagedAction ConfigureUser { get; }
 
-        public ManagedAction StartServices { get; }
-
         public ManagedAction OpenMsiLog { get; }
 
         public AgentCustomActions()
@@ -119,7 +117,7 @@ namespace WixSetup.Datadog
             CleanupOnRollback = new CustomAction<CleanUpFilesCustomAction>(
                 new Id(nameof(CleanupOnRollback)),
                 CleanUpFilesCustomAction.CleanupFiles,
-                Return.ignore,
+                Return.check,
                 When.After,
                 new Step(WriteConfig.Id),
                 (Condition.NOT_Installed & Condition.NOT_BeingRemoved) | Being_Reinstalled
@@ -146,9 +144,7 @@ namespace WixSetup.Datadog
             CleanupOnUninstall = new CustomAction<CleanUpFilesCustomAction>(
                 new Id(nameof(CleanupOnUninstall)),
                 CleanUpFilesCustomAction.CleanupFiles,
-                // Never fail a cleanup task or we risk leaving the Agent in an
-                // uninstallable state on the target computer.
-                Return.ignore,
+                Return.check,
                 When.Before,
                 Step.RemoveFiles,
                 Condition.Installed
@@ -187,27 +183,6 @@ namespace WixSetup.Datadog
             )
             .SetProperties("DDAGENTUSER_NAME=[DDAGENTUSER_NAME], DDAGENTUSER_PASSWORD=[DDAGENTUSER_PASSWORD]")
             .HideTarget(true);
-
-            // We do our own start services custom action instead of using the
-            // Wix built in one, because we want to start the datadogagent service,
-            // wait for it to start, but not check that it succeeded or not.
-            //
-            // The problem with Wix is that if we tell it to not wait for the datadogagent
-            // service to start, the kitchen test can fail because the installer finished,
-            // while the datadogagent is still in the "pending start" state.
-            //
-            // If we tell Wix to wait for the service to start, the Wix start services custom action fails
-            // with error 1920 "ERROR_CANT_ACCESS_FILE"
-            StartServices = new CustomAction<ServicesCustomAction>(
-                new Id("startservices"),
-                ServicesCustomAction.StartServices,
-                Return.ignore,
-                When.After,
-                Step.StartServices
-            )
-            {
-                Execute = Execute.deferred
-            };
 
             OpenMsiLog = new CustomAction<UserCustomActions>(
                 new Id(nameof(OpenMsiLog)),

@@ -273,7 +273,7 @@ namespace WixSetup.Datadog
                 Name = name,
                 DisplayName = displayName,
                 Description = description,
-                StartOn = null,
+                StartOn = SvcEvent.Install_Wait,
                 Start = SvcStartType.auto,
                 DelayedAutoStart = false,
                 RemoveOn = SvcEvent.Uninstall_Wait,
