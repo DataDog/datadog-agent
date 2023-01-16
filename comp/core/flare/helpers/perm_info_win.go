@@ -9,113 +9,260 @@
 package helpers
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"path"
+	"strings"
+	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
 )
 
 // filePermsInfo represents file rights on windows.
-type filePermsInfo struct{}
-
-func runCmd(cmd *exec.Cmd) string {
-	stdout := bytes.Buffer{}
-	stderr := bytes.Buffer{}
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Sprintf("Error calling '%s': %s", cmd.String(), err)
-	}
-
-	output := fmt.Sprintf("Cmd: %s\n%s", cmd.String(), stdout.String())
-	if stderr.Len() != 0 {
-		output += fmt.Sprintf("\n%s", stderr.String())
-	}
-
-	return output
+type aclInfo struct {
+	userName      string
+	deny          string
+	aceFlags      string
+	accessMask    string
+	aceFlagsNum   uint8
+	accessMaskNum uint32
+	err           error
 }
 
-// Get Datadog bin directory
-func getDatadogProgramFilesBinPath() (string, error) {
-	// By default C:\Program Files\Datadog\Datadog Agent
+type filePermsInfo struct {
+	path string
+	mode string
+	acls []*aclInfo
+	err  error
+}
+
+const (
+	DD_FILE_READ            = (windows.FILE_READ_DATA | windows.FILE_READ_ATTRIBUTES | windows.FILE_READ_EA)
+	DD_FILE_WRITE           = (windows.FILE_WRITE_DATA | windows.FILE_WRITE_ATTRIBUTES | windows.FILE_WRITE_EA | windows.FILE_APPEND_DATA)
+	DD_FILE_READ_EXEC       = (DD_FILE_READ | windows.FILE_EXECUTE)
+	DD_FILE_READ_EXEC_WRITE = (DD_FILE_READ_EXEC | DD_FILE_WRITE)
+	DD_FILE_MODIFY          = (DD_FILE_READ_EXEC_WRITE | windows.DELETE)
+	DD_FILE_FULL            = (windows.STANDARD_RIGHTS_REQUIRED | windows.SYNCHRONIZE | 0x1FF)
+)
+
+func getFileDacl(fileName string) (*winutil.Acl, winutil.AclSizeInformation, error) {
+	var aclInfo winutil.AclSizeInformation
+	var fileDacl *winutil.Acl
+	err := winutil.GetNamedSecurityInfo(fileName,
+		winutil.SE_FILE_OBJECT,
+		winutil.DACL_SECURITY_INFORMATION,
+		nil,
+		nil,
+		&fileDacl,
+		nil,
+		nil)
+	if err != nil {
+		return nil, aclInfo, fmt.Errorf("cannot get security info for file '%s', error `%s`", fileName, err)
+	}
+
+	err = winutil.GetAclInformation(fileDacl, &aclInfo, winutil.AclSizeInformationEnum)
+	if err != nil {
+		return nil, aclInfo, fmt.Errorf("cannot get acl info for file '%s', error `%s`", fileName, err)
+	}
+
+	return fileDacl, aclInfo, err
+}
+
+// Currently we are supporting most common ACE types (denied and allowed)
+// more could be added in the future
+//   https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-ace_header
+//   https://learn.microsoft.com/en-us/windows/win32/secauthz/ace
+// ACCESS_ALLOWED_ACE and ACCESS_DENIED_ACE are the same and we can use winutil.AccessAllowedAce
+// and quickly bailout if other ACE type is used. We may extend it in the future
+func getAce(fileName string, acl *winutil.Acl, idx uint32) (*winutil.AccessAllowedAce, error) {
+	var ace *winutil.AccessAllowedAce
+	if err := winutil.GetAce(acl, idx, &ace); err != nil {
+		return nil, fmt.Errorf("could not query a ACE on '%s': %s", fileName, err)
+	}
+
+	if ace.AceType != winutil.ACCESS_DENIED_ACE_TYPE &&
+		ace.AceType != winutil.ACCESS_ALLOWED_ACE_TYPE {
+		return nil, fmt.Errorf("unsupported AceType '%s': %x", fileName, ace.AceType)
+	}
+
+	return ace, nil
+}
+
+func sidToUserName(sid *windows.SID) string {
+	user, domain, _, err := sid.LookupAccount("")
+	if err == nil {
+		if len(domain) > 0 {
+			return fmt.Sprintf("%s\\%s", domain, user)
+		}
+
+		return user
+	}
+
+	return sid.String()
+}
+
+// This function attempts to generate the same rights abbreviation as built-in icacls.exe (when
+// icacls.exe runs without arguments it will generate abbreviations legend). Compatibility is
+// not complete, e.g. no attempts to interpret directory rights, however numeric values of mask
+// are reported. More details can be found here
+//     https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+func accessMaskToStr(m uint32) string {
+	if (m & DD_FILE_FULL) == DD_FILE_FULL {
+		return "(F)"
+	}
+	if (m & DD_FILE_MODIFY) == DD_FILE_MODIFY {
+		return "(M)"
+	}
+	if (m & DD_FILE_READ_EXEC_WRITE) == DD_FILE_READ_EXEC_WRITE {
+		return "(RX,W)"
+	}
+	if (m & DD_FILE_READ_EXEC) == DD_FILE_READ_EXEC {
+		return "(RX)"
+	}
+	if (m & DD_FILE_WRITE) == DD_FILE_WRITE {
+		return "(W)"
+	}
+	if m == windows.GENERIC_ALL {
+		return "(F)"
+	}
+	if m&(windows.GENERIC_READ|windows.GENERIC_WRITE|windows.GENERIC_EXECUTE) != 0 {
+		rights := make([]string, 0, 3)
+		if (m & windows.GENERIC_READ) == windows.GENERIC_READ {
+			rights = append(rights, "GR")
+		}
+		if (m & windows.GENERIC_WRITE) == windows.GENERIC_WRITE {
+			rights = append(rights, "GW")
+		}
+		if (m & windows.GENERIC_EXECUTE) == windows.GENERIC_EXECUTE {
+			rights = append(rights, "GE")
+		}
+		return fmt.Sprintf("(%s)", strings.Join(rights, ","))
+	}
+
+	return ""
+}
+
+// This function attempts to generate the same rights abbreviation as built-in icacls.exe (when
+// icacls.exe runs without arguments it will generate abbreviations legend). Numeric values of flags
+// are reported. More details can be found here
+//     https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+func accessFlagToStr(f uint8) string {
+	if (f & windows.OBJECT_INHERIT_ACE) == windows.OBJECT_INHERIT_ACE {
+		return "(OI)"
+	}
+	if (f & windows.CONTAINER_INHERIT_ACE) == windows.CONTAINER_INHERIT_ACE {
+		return "(CI)"
+	}
+	if (f & windows.NO_PROPAGATE_INHERIT_ACE) == windows.NO_PROPAGATE_INHERIT_ACE {
+		return "(NP)"
+	}
+	if (f & windows.INHERIT_ONLY_ACE) == windows.INHERIT_ONLY_ACE {
+		return "(IO)"
+	}
+	if (f & windows.INHERITED_ACE) == windows.INHERITED_ACE {
+		return "(I)"
+	}
+
+	return ""
+}
+
+func denyToStr(aceType uint8) string {
+	if aceType == winutil.ACCESS_DENIED_ACE_TYPE {
+		return "(DENY)"
+	}
+
+	return ""
+}
+
+func (p permissionsInfos) addAgetExeFiles() {
+	// Get Datadog bin directory (optional if err)
 	installDir, err := winutil.GetProgramFilesDirForProduct("DataDog Agent")
-	if err != nil {
-		return "", err
+	if err == nil {
+		p.add(path.Join(installDir, "bin", "agent.exe"))
+		p.add(path.Join(installDir, "bin", "Agent", "ddtray.exe"))
+		p.add(path.Join(installDir, "bin", "Agent", "process-agent.exe"))
+		p.add(path.Join(installDir, "bin", "Agent", "system-probe.exe"))
+		p.add(path.Join(installDir, "bin", "Agent", "trace-agent.exe"))
 	}
-
-	// By default C:\Program Files\Datadog\Datadog Agent\bin
-	return filepath.Join(installDir, "bin"), nil
-}
-
-// Virtually all files whose permissions we are trying to collect come from
-// the Datadog configuration directory (at least the one we care about). It
-// may change in the future.
-func getDatadogProgramDatatPath() string {
-	// By default C:\ProgramData\Datadog
-	dir := filepath.Dir(config.Datadog.ConfigFileUsed())
-
-	// Handle unit test run
-	if dir == "." {
-		dir, _ = os.Getwd()
-	}
-
-	return dir
-}
-
-func getPermExeFilePath() string {
-	sysDir, _ := windows.GetSystemDirectory()
-	return fmt.Sprintf("%s\\icacls.exe", sysDir)
 }
 
 func (p permissionsInfos) add(filePath string) {
-	// Instead of tracking permissions for an individual file we currently capture
-	// permissions for all the files in the configuration directory in the commit
-	// method below. Because icacls.exe is used for permission collection, it runs
-	// much faster for even large directories than for dozens of individual files.
-	// In the future it is still more efficient to use Windows API to collect
-	// permissions in binary format and translate it to human readable form but
-	// for now it is relatively performance with 0.4 seconds on collecting
-	// permissions for 400 files and saving 150 Kb of output compressed to 7 kb of
-	// the zip file. In contrast, permission collection via icacls.exe for 142
-	// files individually took 5-12 seconds and generated 90 kb of output
-	// compressed to 5 kb.
+	info := filePermsInfo{
+		path: filePath,
+	}
+	p[filePath] = &info
+
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		info.err = fmt.Errorf("could not stat file %s. error: %s", filePath, err)
+		return
+	}
+	info.mode = fi.Mode().String()
+
+	fileDacl, aclSizeInfo, err := getFileDacl(info.path)
+	if err != nil {
+		info.err = err
+		return
+	}
+
+	info.acls = make([]*aclInfo, 0, aclSizeInfo.AceCount)
+	for i := uint32(0); i < aclSizeInfo.AceCount; i++ {
+		acl := aclInfo{}
+		info.acls = append(info.acls, &acl)
+
+		ace, err := getAce(info.path, fileDacl, i)
+		if err != nil {
+			info.err = err
+			continue
+		}
+
+		acl.userName = sidToUserName((*windows.SID)(unsafe.Pointer(&ace.SidStart)))
+		acl.deny = denyToStr(ace.AceType)
+		acl.aceFlags = accessFlagToStr(ace.AceFlags)
+		acl.aceFlagsNum = ace.AceFlags
+		acl.accessMask = accessMaskToStr(ace.AccessMask)
+		acl.accessMaskNum = ace.AccessMask
+	}
 }
 
 // Commit resolves the infos of every stacked files in the map
 // and then writes the permissions.log file on the filesystem.
 func (p permissionsInfos) commit() ([]byte, error) {
-	f := &bytes.Buffer{}
 
-	var err error
+	var sb strings.Builder
 
-	execPath := getPermExeFilePath()
+	// These files are not explicitly copied but their privileges are "interesting"
+	p.addAgetExeFiles()
 
-	// Get Datadog configuration directory
-	dir := getDatadogProgramDatatPath()
-	cmdOut := runCmd(exec.Command(execPath, dir, "/T"))
-	_, err = f.Write([]byte(cmdOut))
-	if err != nil {
-		return f.Bytes(), err
-	}
-
-	// Get Datadog bin directory (optional if err)
-	dir, err = getDatadogProgramFilesBinPath()
-	if err == nil {
-		// Collect privileges for Agent executables
-		agentExeFilePathPattern := filepath.Join(dir, "*.exe")
-		cmdOut := runCmd(exec.Command(execPath, agentExeFilePathPattern, "/T"))
-		_, err = f.Write([]byte(cmdOut))
-		if err != nil {
-			return f.Bytes(), err
+	for _, info := range p {
+		sb.WriteString("File: ")
+		sb.WriteString(info.path)
+		sb.WriteString("\n------------------\n")
+		if info.err != nil {
+			sb.WriteString(info.err.Error())
+			sb.WriteString("\n\n")
+			continue
 		}
+
+		sb.WriteString("Mode: ")
+		sb.WriteString(info.mode)
+		sb.WriteString("\n")
+
+		for _, acl := range info.acls {
+			if acl.err != nil {
+				sb.WriteString(acl.err.Error())
+				sb.WriteString("\n")
+				continue
+			}
+
+			sb.WriteString(fmt.Sprintf("%s: %s%s%s [flags:0x%x, mask:0x%x]\n",
+				acl.userName, acl.deny, acl.aceFlags, acl.accessMask,
+				acl.aceFlagsNum, acl.accessMaskNum))
+		}
+
+		sb.WriteString("\n")
 	}
 
-	return f.Bytes(), nil
+	return []byte(sb.String()), nil
 }
