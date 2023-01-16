@@ -249,7 +249,7 @@ func (c *Client) verify() error {
 	return nil
 }
 
-func (c *Client) storedOrgUUID() (string, error) {
+func (c *Client) StoredOrgUUID() (string, error) {
 	// This is an important block of code : to avoid being locked out
 	// of the agent in case of a wrong uuid being stored, we link an
 	// org UUID storage to a root version. What this means in practice
@@ -289,7 +289,7 @@ func (c *Client) verifyOrg() error {
 	// we can remove the orgUUID from the snapshot and they'll work
 	// again. This being said, this is last resort.
 	if custom.OrgUUID != nil {
-		orgUUID, err := c.storedOrgUUID()
+		orgUUID, err := c.StoredOrgUUID()
 		if err != nil {
 			return fmt.Errorf("could not obtain stored/remote orgUUID: %v", err)
 		}
