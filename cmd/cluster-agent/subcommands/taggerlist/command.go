@@ -6,20 +6,20 @@
 //go:build !windows && kubeapiserver
 // +build !windows,kubeapiserver
 
-// Package check implements 'cluster-agent check'.
-package check
+// Package taggerlist implements 'cluster-agent taggerlist'.
+package taggerlist
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
+	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/taggerlist"
 
 	"github.com/spf13/cobra"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cmd := check.MakeCommand(func() check.GlobalParams {
-		return check.GlobalParams{
+	cmd := taggerlist.MakeCommand(func() taggerlist.GlobalParams {
+		return taggerlist.GlobalParams{
 			ConfFilePath: globalParams.ConfFilePath,
 			ConfigName:   command.ConfigName,
 			LoggerName:   command.LoggerName,
