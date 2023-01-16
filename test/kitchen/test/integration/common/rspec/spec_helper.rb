@@ -427,7 +427,7 @@ shared_examples_for 'Agent behavior' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
-  if os != :windows
+  if os != :windows && get_agent_flavor == 'datadog-agent'
     it_behaves_like 'a running Agent with CWS enabled'
   end
 end
