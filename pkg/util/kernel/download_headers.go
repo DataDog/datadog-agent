@@ -13,8 +13,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/avast/retry-go/v4"
 
 	"github.com/DataDog/nikos/apt"
 	"github.com/DataDog/nikos/cos"
@@ -77,11 +79,14 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	}
 	defer backend.Close()
 
-	if err = backend.GetKernelHeaders(outputDir); err != nil {
-		return fmt.Errorf("failed to download kernel headers: %s", err)
-	}
-
-	return nil
+	return retry.Do(func() error {
+		if err := backend.GetKernelHeaders(outputDir); err != nil {
+			return fmt.Errorf("failed to download kernel headers: %s", err)
+		}
+		return nil
+	}, retry.Attempts(2), retry.Delay(5 * time.Second), retry.OnRetry(func(_ uint, err error) {
+		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
+	}))
 }
 
 func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
