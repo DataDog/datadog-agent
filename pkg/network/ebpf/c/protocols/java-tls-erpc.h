@@ -3,7 +3,7 @@
 
 #include "bpf_helpers.h"
 #include "tracer.h"
-#include "tags-types"
+#include "tags-types.h"
 
 #define USM_IOCTL_ID 0xda7ad09
 
@@ -13,12 +13,13 @@ enum erpc_message_type {
 };
 
 
-int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void *data,) {
+int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void *data) {
     //read the actual length of the message (limited by HTTP_BUFFER_SIZE)
     u32 bytes_read = 0;
-    if (0 != bpf_probe_user_read(&bytes_read, sizeof(bytes_read), data)){
+    if (0 != bpf_probe_read_user(&bytes_read, sizeof(bytes_read), data)){
         u64 pid_tgid = bpf_get_current_pid_tgid();
-        u64 pid = pid_tgid >> 32;
+        u64 pid = pid_tgid >> 32;\
+        if (pid){}
         log_debug("[java-tls-handle_request] failed reading message length location for pid %d\n", pid);
         return 1;
     }
@@ -48,17 +49,18 @@ int __attribute__((always_inline)) is_usm_erpc_request(struct pt_regs *ctx) {
 int __attribute__((always_inline)) handle_erpc_request(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
+    if (pid){}
     void *req = (void *)PT_REGS_PARM4(ctx);
 
     u8 op = 0;
-    if (0 != bpf_probe_user_read(&op, sizeof(op), req)){
+    if (0 != bpf_probe_read_user(&op, sizeof(op), req)){
         log_debug("[java-tls-handle_erpc_request] failed to parse opcode of java tls erpc request for: pid %d\n", pid);
         return 1;
     }
 
     //get connection tuple
     conn_tuple_t connection = {0};
-    if (0 != bpf_probe_user_read(&connection, sizeof(conn_tuple_t), req+sizeof(op))){
+    if (0 != bpf_probe_read_user(&connection, sizeof(conn_tuple_t), req+sizeof(op))){
         log_debug("[java-tls-handle_erpc_request] failed to parse connection info of java tls erpc request %x for: pid %d\n",op, pid);
         return 1;
     }

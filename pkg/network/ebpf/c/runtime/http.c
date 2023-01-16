@@ -16,6 +16,7 @@
 #include "protocols/go-tls-goid.h"
 #include "protocols/go-tls-location.h"
 #include "protocols/go-tls-conn.h"
+#include "protocols/java-tls-erpc.h"
 #include "protocols/tags-types.h"
 #include "protocols/protocol-dispatcher-helpers.h"
 
