@@ -12,6 +12,6 @@ import "github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 func convertField(s *uint64, t **float64) {
 	if s != nil {
-		*t = pointer.Float64Ptr(float64(*s))
+		*t = pointer.Ptr(float64(*s))
 	}
 }

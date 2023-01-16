@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
@@ -156,10 +157,6 @@ func makePoints(ts int, val float64) datadog.DataPoint {
 	}
 	tsPtr := float64(ts)
 	return datadog.DataPoint{&tsPtr, &val}
-}
-
-func makePtr(val string) *string {
-	return &val
 }
 
 func makeAnnotations(metricName string, labels map[string]string) map[string]string {
@@ -309,7 +306,7 @@ func TestAutoscalerController(t *testing.T) {
 				makePoints(penTime, 14.123),
 				makePoints(0, 25.12),
 			},
-			Scope: makePtr("foo:bar"),
+			Scope: pointer.Ptr("foo:bar"),
 		},
 	}
 	d := &fakeDatadogClient{
@@ -406,7 +403,7 @@ func TestAutoscalerController(t *testing.T) {
 				makePoints(penTime, 1.01),
 				makePoints(0, 0.902),
 			},
-			Scope: makePtr("dcos_version:2.1.9"),
+			Scope: pointer.Ptr("dcos_version:2.1.9"),
 		},
 	}
 	mockedHPA.Annotations = makeAnnotations("nginx.net.request_per_s", map[string]string{"dcos_version": "2.1.9"})

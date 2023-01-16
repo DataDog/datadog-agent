@@ -11,6 +11,7 @@ package common
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -47,14 +48,14 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 		{
 			name: "all",
 			fields: fields{
-				ServiceName:         ptr("svc"),
-				Env:                 ptr("dev"),
-				Tracing:             ptr(true),
-				LogInjection:        ptr(true),
-				HealthMetrics:       ptr(true),
-				RuntimeMetrics:      ptr(true),
-				TracingSamplingRate: ptr(0.5),
-				TracingRateLimit:    ptr(50),
+				ServiceName:         pointer.Ptr("svc"),
+				Env:                 pointer.Ptr("dev"),
+				Tracing:             pointer.Ptr(true),
+				LogInjection:        pointer.Ptr(true),
+				HealthMetrics:       pointer.Ptr(true),
+				RuntimeMetrics:      pointer.Ptr(true),
+				TracingSamplingRate: pointer.Ptr(0.5),
+				TracingRateLimit:    pointer.Ptr(50),
 				TracingTags:         []string{"k1:v1", "k2:v2"},
 			},
 			want: []corev1.EnvVar{
@@ -99,8 +100,8 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 		{
 			name: "only service and env",
 			fields: fields{
-				ServiceName: ptr("svc"),
-				Env:         ptr("dev"),
+				ServiceName: pointer.Ptr("svc"),
+				Env:         pointer.Ptr("dev"),
 			},
 			want: []corev1.EnvVar{
 				{
@@ -147,8 +148,4 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 			require.EqualValues(t, tt.want, lc.ToEnvs())
 		})
 	}
-}
-
-func ptr[T int | bool | string | float64](val T) *T {
-	return &val
 }

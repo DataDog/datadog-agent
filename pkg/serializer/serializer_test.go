@@ -33,6 +33,7 @@ import (
 	metricsserializer "github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -429,10 +430,6 @@ func TestSendContainerImage(t *testing.T) {
 	f.AssertExpectations(t)
 }
 
-func makePtr(val string) *string {
-	return &val
-}
-
 func TestSendSBOM(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\x08\x01\x12\x08hostname\x1a\x05agent")
@@ -449,7 +446,7 @@ func TestSendSBOM(t *testing.T) {
 		{
 			Version:  1,
 			Host:     "hostname",
-			Source:   makePtr("agent"),
+			Source:   pointer.Ptr("agent"),
 			Entities: []*sbom.SBOMEntity{},
 		},
 	}

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,14 +63,6 @@ func makePartialPoints(ts int) datadog.DataPoint {
 	return datadog.DataPoint{&tsPtr, nil}
 }
 
-func makePtr(val string) *string {
-	return &val
-}
-
-func makePtrInt(val int) *int {
-	return &val
-}
-
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	penTime := (int(time.Now().Unix()) - int(maxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"
@@ -96,7 +89,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -130,7 +123,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -165,7 +158,7 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 						makePoints(1431492453000, 14), // Force the point to be considered outdated at all time(> externalMaxAge)
 						makePoints(0, 1000),           // Force the point to be considered fresh at all time(< externalMaxAge)
 					},
-					Scope: makePtr("2foo:bar"),
+					Scope: pointer.Ptr("2foo:bar"),
 				},
 			},
 			map[string]custommetrics.ExternalMetricValue{
@@ -265,7 +258,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 1,
@@ -285,7 +278,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 5,
@@ -305,7 +298,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 21,
@@ -325,7 +318,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 0,
@@ -345,7 +338,7 @@ func TestValidateExternalMetricsBatching(t *testing.T) {
 						makePoints(penTime, 14), // Force the penultimate point to be considered fresh at all time(< externalMaxAge)
 						makePoints(0, 27),
 					},
-					Scope: makePtr("foo:bar"),
+					Scope: pointer.Ptr("foo:bar"),
 				},
 			},
 			batchCalls: 5,
