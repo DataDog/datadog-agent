@@ -947,22 +947,30 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
 func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
+	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, ruleEventTypes...)
-	for eventType := range p.eventHandlers {
-		kind := model.EventType(eventType)
-		if kind != model.UnknownEventType && kind != model.MaxAllEventType {
-			eventTypes = append(eventTypes, kind.String())
+	for eventType, handlers := range p.eventHandlers {
+		if eventType == int(model.MaxKernelEventType) {
+			break
+		}
+		if len(handlers) == 0 {
+			continue
+		}
+		if eventType != int(model.UnknownEventType) && eventType != int(model.MaxAllEventType) {
+			eventTypes = append(eventTypes, model.EventType(eventType).String())
 		}
 	}
 
 	var activatedProbes []manager.ProbesSelector
 
+	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
 		if eventType == "*" || slices.Contains(eventTypes, eventType) || p.isNeededForActivityDump(eventType) {
 			activatedProbes = append(activatedProbes, selectors...)
 		}
 	}
 
+	// network related probes
 	if p.Config.NetworkEnabled {
 		activatedProbes = append(activatedProbes, probes.NetworkSelectors...)
 
@@ -977,7 +985,6 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 			}
 		}
 	}
-
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
 	// Add syscall monitor probes

@@ -65,6 +65,11 @@ type CWS struct {
 
 // Init initializes the module
 func NewCWS(module *Module) (EventModule, error) {
+	return NewCWSWithOpts(module)
+}
+
+// Init initializes the module with options
+func NewCWSWithOpts(module *Module, opts ...Opts) (EventModule, error) {
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
@@ -90,18 +95,19 @@ func NewCWS(module *Module) (EventModule, error) {
 	}
 	c.apiServer.cws = c
 
-	/*if len(opts) > 0 && opts[0].EventSender != nil {
+	// set sender
+	if len(opts) > 0 && opts[0].EventSender != nil {
 		c.eventSender = opts[0].EventSender
 	} else {
 		c.eventSender = c
-	}*/
+	}
 
 	seclog.SetPatterns(module.Config.LogPatterns...)
 	seclog.SetTags(module.Config.LogTags...)
 
 	sapi.RegisterSecurityModuleServer(module.GRPCServer, c.apiServer)
 
-	module.Probe.AddEventHandler(model.UnknownEventType, c)
+	// Activity dumps related
 	module.Probe.AddActivityDumpHandler(c)
 
 	// policy loader

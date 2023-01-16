@@ -199,8 +199,9 @@ func NewModule(cfg *sconfig.Config, opts ...Opts) (*Module, error) {
 	}
 
 	return &Module{
-		Config:     cfg,
-		Probe:      probe,
-		GRPCServer: grpc.NewServer(),
+		Config:       cfg,
+		Probe:        probe,
+		StatsdClient: statsdClient,
+		GRPCServer:   grpc.NewServer(),
 	}, nil
 }
