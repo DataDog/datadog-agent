@@ -77,12 +77,13 @@ class TestE2EKubernetes(unittest.TestCase):
             wait_agent_log("system-probe", self.kubernetes_helper, SYS_PROBE_START_LOG)
 
         with Step(msg="copy default policies", emoji=":delivery_truck:"):
+            self.kubernetes_helper.exec_command("security-agent", command=["mkdir", "-p", "/tmp/runtime-security.d"])
             command = [
                 "cp",
                 "/etc/datadog-agent/runtime-security.d/default.policy",
                 "/tmp/runtime-security.d/default.policy",
             ]
-            self.kubernetes_helper.exec_command("system-probe", command=command)
+            self.kubernetes_helper.exec_command("security-agent", command=command)
 
         with Step(msg="reload policies", emoji=":rocket:"):
             self.kubernetes_helper.reload_policies()
