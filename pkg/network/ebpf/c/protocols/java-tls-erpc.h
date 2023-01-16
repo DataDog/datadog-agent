@@ -14,8 +14,10 @@ enum erpc_message_type {
 
 
 int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void *data) {
-    //read the actual length of the message (limited by HTTP_BUFFER_SIZE)
+    const bool val = true;
     u32 bytes_read = 0;
+
+    //read the actual length of the message (limited by HTTP_BUFFER_SIZE)
     if (0 != bpf_probe_read_user(&bytes_read, sizeof(bytes_read), data)){
         u64 pid_tgid = bpf_get_current_pid_tgid();
         u64 pid = pid_tgid >> 32;\
@@ -23,6 +25,7 @@ int __attribute__((always_inline)) handle_request(conn_tuple_t* connection, void
         log_debug("[java-tls-handle_request] failed reading message length location for pid %d\n", pid);
         return 1;
     }
+    bpf_map_update_elem(&java_tls_connections, &connection, &val, BPF_ANY);
     https_process(connection, data+sizeof(bytes_read), bytes_read, JAVA_TLS);
     return 0;
 }
