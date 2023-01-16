@@ -56,6 +56,7 @@
     <Compile Include="PythonDistributionCustomAction.cs" />
     <Compile Include="Extensions\SessionExtensions.cs" />
     <Compile Include="ISession.cs" />
+    <Compile Include="ServicesCustomAction.cs" />
     <Compile Include="SessionWrapper.cs" />
     <Compile Include="UserCustomActions.cs" />
     <Compile Include="Native\NativeMethods.cs" />
