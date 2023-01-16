@@ -81,6 +81,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
+	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk"
@@ -376,6 +377,7 @@ func startAgent(cliParams *cliParams, flare flare.Component) error {
 	opts.EnableNoAggregationPipeline = pkgconfig.Datadog.GetBool("dogstatsd_no_aggregation_pipeline")
 	opts.UseContainerLifecycleForwarder = pkgconfig.Datadog.GetBool("container_lifecycle.enabled")
 	opts.UseContainerImageForwarder = pkgconfig.Datadog.GetBool("container_image.enabled")
+	opts.UseSBOMForwarder = pkgconfig.Datadog.GetBool("sbom.enabled")
 	demux = aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
 
 	// Setup stats telemetry handler

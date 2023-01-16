@@ -19,31 +19,41 @@ import (
 
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
-	client      *remote.Client
-	subscribers map[TargetObjKind]chan PatchRequest
-	clusterName string
+	client        *remote.Client
+	isLeaderNotif <-chan struct{}
+	subscribers   map[TargetObjKind]chan PatchRequest
+	clusterName   string
 }
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
 	return &remoteConfigProvider{
-		client:      client,
-		subscribers: make(map[TargetObjKind]chan PatchRequest),
-		clusterName: clusterName,
+		client:        client,
+		isLeaderNotif: isLeaderNotif,
+		subscribers:   make(map[TargetObjKind]chan PatchRequest),
+		clusterName:   clusterName,
 	}, nil
 }
 
 func (rcp *remoteConfigProvider) start(stopCh <-chan struct{}) {
-	log.Info("Starting RC patch provider")
+	log.Info("Starting remote-config patch provider")
 	rcp.client.RegisterAPMTracing(rcp.process)
 	rcp.client.Start()
-	<-stopCh
-	log.Info("Shutting down RC patch provider")
-	rcp.client.Close()
+	for {
+		select {
+		case <-rcp.isLeaderNotif:
+			log.Info("Got a leader notification, polling from remote-config")
+			rcp.process(rcp.client.APMTracingConfigs())
+		case <-stopCh:
+			log.Info("Shutting down remote-config patch provider")
+			rcp.client.Close()
+			return
+		}
+	}
 }
 
 func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest {
@@ -54,9 +64,9 @@ func (rcp *remoteConfigProvider) subscribe(kind TargetObjKind) chan PatchRequest
 
 // process is the event handler called by the RC client on config updates
 func (rcp *remoteConfigProvider) process(update map[string]state.APMTracingConfig) {
-	log.Infof("Got %d updates from RC", len(update))
+	log.Infof("Got %d updates from remote-config", len(update))
 	for path, config := range update {
-		log.Debugf("Parsing config %s with metadata %+v from path %s", config.Config, config.Metadata, path)
+		log.Debugf("Parsing config %s from path %s", config.Config, path)
 		var req PatchRequest
 		err := json.Unmarshal(config.Config, &req)
 		if err != nil {
