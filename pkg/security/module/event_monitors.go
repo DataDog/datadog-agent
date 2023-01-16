@@ -19,7 +19,7 @@ func InitEventMonitors(module *Module) {
 
 func initProcessMonitor(module *Module) {
 	pm := NewProcessMonitoring(module)
-	module.probe.AddEventHandler(model.ForkEventType, pm)
-	module.probe.AddEventHandler(model.ExecEventType, pm)
-	module.probe.AddEventHandler(model.ExitEventType, pm)
+	module.Probe.AddEventHandler(model.ForkEventType, pm)
+	module.Probe.AddEventHandler(model.ExecEventType, pm)
+	module.Probe.AddEventHandler(model.ExitEventType, pm)
 }

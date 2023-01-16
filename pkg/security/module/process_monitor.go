@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessMonitoring describes a process monitoring object
@@ -56,13 +55,19 @@ func (p *ProcessMonitoring) HandleEvent(event *smodel.Event) {
 		ExitCode:       event.Exit.Code,
 	}
 
-	data, err := e.MarshalMsg(nil)
-	if err != nil {
-		log.Error("Failed to marshal Process Lifecycle Event: ", err)
-		return
-	}
+	_ = e
 
-	p.module.SendProcessEvent(data)
+	// TODO
+
+	/*
+		data, err := e.MarshalMsg(nil)
+		if err != nil {
+			log.Error("Failed to marshal Process Lifecycle Event: ", err)
+			return
+		}
+
+
+		p.module.SendProcessEvent(data)*/
 }
 
 // HandleCustomEvent implement the EventHandler interface

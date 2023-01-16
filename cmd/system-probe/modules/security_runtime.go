@@ -38,6 +38,9 @@ var SecurityRuntime = module.Factory{
 			log.Info("Datadog runtime security agent is only supported on Linux")
 			return nil, module.ErrNotEnabled
 		}
+
+		m.RegisterEventModule(secmodule.NewCWS)
+
 		return m, err
 	},
 }

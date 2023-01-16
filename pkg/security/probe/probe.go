@@ -87,7 +87,7 @@ type Probe struct {
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
 	// Events section
-	handlers      [model.MaxAllEventType][]EventHandler
+	eventHandlers [model.MaxAllEventType][]EventHandler
 	monitor       *Monitor
 	resolvers     *Resolvers
 	event         *model.Event
@@ -300,7 +300,13 @@ func (p *Probe) Setup() error {
 
 // Start processing events
 func (p *Probe) Start() error {
-	return p.eventStream.Start(&p.wg)
+	if err := p.eventStream.Start(&p.wg); err != nil {
+		return err
+	}
+
+	p.updateProbes([]eval.EventType{})
+
+	return nil
 }
 
 // AddActivityDumpHandler set the probe activity dump handler
@@ -309,8 +315,14 @@ func (p *Probe) AddActivityDumpHandler(handler ActivityDumpHandler) {
 }
 
 // AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) {
-	p.handlers[eventType] = append(p.handlers[eventType], handler)
+func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.eventHandlers[eventType] = append(p.eventHandlers[eventType], handler)
+
+	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -321,12 +333,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 	})
 
 	// send wildcard first
-	for _, handler := range p.handlers[model.UnknownEventType] {
+	for _, handler := range p.eventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 
 	// send specific event
-	for _, handler := range p.handlers[event.GetEventType()] {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(event)
 	}
 
@@ -351,12 +363,12 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
 		// send wildcard first
-		for _, handler := range p.handlers[model.UnknownEventType] {
+		for _, handler := range p.eventHandlers[model.UnknownEventType] {
 			handler.HandleCustomEvent(rule, event)
 		}
 
 		// send specific event
-		for _, handler := range p.handlers[event.GetEventType()] {
+		for _, handler := range p.eventHandlers[event.GetEventType()] {
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
@@ -932,9 +944,17 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 	return false
 }
 
-// SelectProbes applies the loaded set of rules and returns a report
+// updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) SelectProbes(eventTypes []eval.EventType) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
+	eventTypes := append([]eval.EventType{}, ruleEventTypes...)
+	for eventType := range p.eventHandlers {
+		kind := model.EventType(eventType)
+		if kind != model.UnknownEventType && kind != model.MaxAllEventType {
+			eventTypes = append(eventTypes, kind.String())
+		}
+	}
+
 	var activatedProbes []manager.ProbesSelector
 
 	for eventType, selectors := range probes.GetSelectorsPerEventType() {
