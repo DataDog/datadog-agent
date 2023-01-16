@@ -287,7 +287,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 					ServerAddress: ctx.serverAddress,
 				})
 				require.NoError(t, err)
-				defer client.Terminate()
+				ctx.extras["client"] = client
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				client.Terminate()
 			},
 			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			validation: validateProtocolConnection,
@@ -312,9 +316,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
 				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				client.Terminate()
 			},
 			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			validation: validateProtocolConnection,
@@ -340,9 +346,11 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
 				require.NoError(t, client.Publish("test", "my msg"))
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				client.Terminate()
 			},
 			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			validation: validateProtocolConnection,
@@ -370,11 +378,13 @@ func testProtocolClassification(t *testing.T, cfg *config.Config, clientHost, ta
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*amqp.Client)
-				defer client.Terminate()
-
 				res, err := client.Consume("test", 1)
 				require.NoError(t, err)
 				require.Equal(t, []string{"my msg"}, res)
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				client := ctx.extras["client"].(*amqp.Client)
+				client.Terminate()
 			},
 			shouldSkip: composeSkips(skipIfNotLinux, skipIfUsingNAT),
 			validation: validateProtocolConnection,
