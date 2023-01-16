@@ -47,9 +47,15 @@ func InjectAgent(pid int, agent string, args string) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if time.Now().After(end) {
-		ctime, _ := proc.CreateTime()
-		return fmt.Errorf("java process %d (nThreads %d) didn't start in time (created %d ms ago), can't inject the agent : timeout", pid, nThreads, time.Now().UnixMilli()-ctime)
+
+	ctime, _ := proc.CreateTime()
+	age_ms := time.Now().UnixMilli() - ctime
+	if age_ms < 5000 {
+		time.Sleep(time.Duration(5000-age_ms) * time.Millisecond)
+	} else {
+		if time.Now().After(end) {
+			return fmt.Errorf("java process %d (nThreads %d) didn't start in time (created %d ms ago), can't inject the agent : timeout", pid, nThreads, time.Now().UnixMilli()-ctime)
+		}
 	}
 
 	// attach
