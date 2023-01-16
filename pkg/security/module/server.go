@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
+	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
@@ -439,7 +440,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 		ruleEvent.AgentContext.PolicyVersion = policy.Version
 	}
 
-	probeJSON, err := json.Marshal(event)
+	probeJSON, err := marshalEvent(event, a.probe)
 	if err != nil {
 		seclog.Errorf("failed to marshal event: %v", err)
 		return
@@ -475,6 +476,22 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []
 	}
 
 	a.enqueue(msg)
+}
+
+func marshalEvent(event Event, probe *sprobe.Probe) ([]byte, error) {
+	if ev, ok := event.(*model.Event); ok {
+		return sprobe.MarshalEvent(ev, probe)
+	}
+
+	if m, ok := event.(easyjson.Marshaler); ok {
+		w := &jwriter.Writer{
+			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
+		}
+		m.MarshalEasyJSON(w)
+		return w.BuildBytes()
+	}
+
+	return json.Marshal(event)
 }
 
 // expireEvent updates the count of expired messages for the appropriate rule

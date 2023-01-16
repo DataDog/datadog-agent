@@ -84,7 +84,7 @@ func (lc *LoadController) SendStats() error {
 }
 
 // Count processes the provided events and ensures the load of the provided event type is within the configured limits
-func (lc *LoadController) Count(event *Event) {
+func (lc *LoadController) Count(event *model.Event) {
 	switch event.GetEventType() {
 	case model.ExecEventType, model.InvalidateDentryEventType, model.ForkEventType:
 	case model.ExitEventType:
@@ -95,7 +95,7 @@ func (lc *LoadController) Count(event *Event) {
 }
 
 // GenericCount increments the event counter of the provided event type and pid
-func (lc *LoadController) GenericCount(event *Event) {
+func (lc *LoadController) GenericCount(event *model.Event) {
 	lc.Lock()
 	defer lc.Unlock()
 

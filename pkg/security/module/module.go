@@ -349,14 +349,13 @@ func (m *Module) getApproverRuleset(policyProviders []rules.PolicyProvider) (*ru
 	opts.WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 		"process": func() rules.VariableProvider {
 			return eval.NewScopedVariables(func(ctx *eval.Context) unsafe.Pointer {
-				return unsafe.Pointer(&(*model.Event)(ctx.Object).ProcessContext)
+				return unsafe.Pointer(&ctx.Event.(*model.Event).ProcessContext)
 			}, nil)
 		},
 	})
 
 	// approver ruleset
-	model := &model.Model{}
-	approverRuleSet := rules.NewRuleSet(model, model.NewEvent, &opts, &evalOpts)
+	approverRuleSet := rules.NewRuleSet(&model.Model{}, model.NewDefaultEvent, &opts, &evalOpts)
 
 	// load policies
 	loadApproversErrs := approverRuleSet.LoadPolicies(m.policyLoader, m.policyOpts)
@@ -395,7 +394,7 @@ func (m *Module) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoaded
 		WithStateScopes(map[rules.Scope]rules.VariableProviderFactory{
 			"process": func() rules.VariableProvider {
 				scoper := func(ctx *eval.Context) unsafe.Pointer {
-					return unsafe.Pointer((*sprobe.Event)(ctx.Object).ProcessCacheEntry)
+					return unsafe.Pointer(ctx.Event.(*model.Event).ProcessCacheEntry)
 				}
 				return m.probe.GetResolvers().ProcessResolver.NewProcessVariables(scoper)
 			},
@@ -492,13 +491,11 @@ func (m *Module) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field 
 		return
 	}
 
-	if err := m.probe.OnNewDiscarder(rs, event.(*sprobe.Event), field, eventType); err != nil {
-		seclog.Trace(err)
-	}
+	m.probe.OnNewDiscarder(rs, event.(*model.Event), field, eventType)
 }
 
 // HandleEvent is called by the probe when an event arrives from the kernel
-func (m *Module) HandleEvent(event *sprobe.Event) {
+func (m *Module) HandleEvent(event *model.Event) {
 	// if the event should have been discarded in kernel space, we don't need to evaluate it
 	if event.SavedByActivityDumps {
 		return
@@ -516,14 +513,17 @@ func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) 
 
 // RuleMatch is called by the ruleset when a rule matches
 func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
-	// prepare the event
-	m.probe.OnRuleMatch(rule, event.(*sprobe.Event))
+	ev := event.(*model.Event)
+
+	// ensure that all the fields are resolved before sending
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ContainerContext)
 
 	// needs to be resolved here, outside of the callback as using process tree
 	// which can be modified during queuing
-	service := event.(*sprobe.Event).GetProcessServiceTag()
+	service := ev.FieldHandlers.GetProcessServiceTag(ev)
 
-	id := event.(*sprobe.Event).ContainerContext.ID
+	id := ev.ContainerContext.ID
 
 	extTagsCb := func() []string {
 		var tags []string
@@ -541,7 +541,7 @@ func (m *Module) RuleMatch(rule *rules.Rule, event eval.Event) {
 	}
 
 	// send if not selftest related events
-	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event) {
+	if m.selfTester == nil || !m.selfTester.IsExpectedEvent(rule, event, m.probe) {
 		m.eventSender.SendEvent(rule, event, extTagsCb, service)
 	}
 }
@@ -553,6 +553,16 @@ func (m *Module) SendEvent(rule *rules.Rule, event Event, extTagsCb func() []str
 	} else {
 		seclog.Tracef("Event on rule %s was dropped due to rate limiting", rule.ID)
 	}
+}
+
+// SendProcessEvent sends a process event using the provided EventSender interface
+func (m *Module) SendProcessEvent(data []byte) {
+	m.eventSender.SendProcessEventData(data)
+}
+
+// SendProcessEventData implements the EventSender interface forwarding a process event to the APIServer
+func (m *Module) SendProcessEventData(data []byte) {
+	m.apiServer.SendProcessEvent(data)
 }
 
 // HandleActivityDump sends an activity dump to the backend

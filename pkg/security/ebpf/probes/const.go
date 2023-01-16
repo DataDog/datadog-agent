@@ -81,3 +81,12 @@ const (
 	// TCDNSRequestParserKey is the key to DNS request parser program
 	TCDNSRequestParserKey
 )
+
+const (
+	// ExecGetEnvsOffsetKey is the key to the program that computes the environment variables offset
+	ExecGetEnvsOffsetKey uint32 = iota
+	// ExecParseArgsEnvsSplitKey is the key to the program that splits the parsing of arguments and environment variables between tailcalls
+	ExecParseArgsEnvsSplitKey
+	// ExecParseArgsEnvsKey is the key to the program that parses arguments and then environment variables
+	ExecParseArgsEnvsKey
+)

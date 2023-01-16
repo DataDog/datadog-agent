@@ -66,9 +66,9 @@ def ninja_define_windows_resources(ctx, nw, major_version):
     )
 
 
-def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None):
+def ninja_define_ebpf_compiler(nw, strip_object_files=False, kernel_release=None, with_unit_test=False):
     nw.variable("target", "-emit-llvm")
-    nw.variable("ebpfflags", get_ebpf_build_flags())
+    nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test))
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release))
 
     nw.rule(
@@ -212,7 +212,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 
     network_flags = "-Ipkg/network/ebpf/c -g"
     network_co_re_flags = f"-I{network_co_re_dir}"
-    network_programs = ["dns", "offset-guess", "tracer", "http"]
+    network_programs = ["dns", "offset-guess", "tracer", "http", "usm_events_test"]
     network_co_re_programs = []
 
     for prog in network_programs:
@@ -229,7 +229,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
 def ninja_container_integrations_ebpf_programs(nw, co_re_build_dir):
     container_integrations_co_re_dir = os.path.join("pkg", "collector", "corechecks", "ebpf", "c", "runtime")
     container_integrations_co_re_flags = f"-I{container_integrations_co_re_dir}"
-    container_integrations_co_re_programs = ["oom-kill"]
+    container_integrations_co_re_programs = ["oom-kill", "tcp-queue-length"]
 
     for prog in container_integrations_co_re_programs:
         infile = os.path.join(container_integrations_co_re_dir, f"{prog}-kern.c")
@@ -311,6 +311,9 @@ def ninja_cgo_type_files(nw, windows):
             "pkg/network/telemetry/telemetry_types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],
+            "pkg/network/protocols/events/types.go": [
+                "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
         }
         nw.rule(
             name="godefs",
@@ -350,6 +353,7 @@ def ninja_generate(
     debug=False,
     strip_object_files=False,
     kernel_release=None,
+    with_unit_test=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
     co_re_build_dir = os.path.join(build_dir, "co-re")
@@ -368,7 +372,7 @@ def ninja_generate(
             nw.build(inputs=[in_path], outputs=[rcout], rule="windmc", variables={"rcdir": in_dir})
             nw.build(inputs=[rcout], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
-            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release)
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test)
             ninja_define_co_re_compiler(nw)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release)
@@ -394,6 +398,7 @@ def build(
     debug=False,
     strip_object_files=False,
     strip_binary=False,
+    with_unit_test=False,
 ):
     """
     Build the system-probe
@@ -406,6 +411,7 @@ def build(
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
+        with_unit_test=with_unit_test,
     )
 
     build_sysprobe_binary(
@@ -890,7 +896,7 @@ def get_linux_header_dirs(kernel_release=None, minimal_kernel_release=None):
     return dirs
 
 
-def get_ebpf_build_flags():
+def get_ebpf_build_flags(unit_test=False):
     flags = []
     flags.extend(
         [
@@ -901,6 +907,8 @@ def get_ebpf_build_flags():
             '-DCOMPILE_PREBUILT',
         ]
     )
+    if unit_test:
+        flags.extend(['-D__BALOUM__'])
     flags.extend(
         [
             '-Wno-unused-value',
@@ -979,10 +987,13 @@ def run_ninja(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    with_unit_test=False,
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release)
+    ninja_generate(
+        ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test
+    )
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1039,6 +1050,7 @@ def build_object_files(
     kernel_release=None,
     debug=False,
     strip_object_files=False,
+    with_unit_test=False,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
 
@@ -1066,6 +1078,7 @@ def build_object_files(
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
+        with_unit_test=with_unit_test,
     )
 
     if not windows:
@@ -1077,7 +1090,13 @@ def build_object_files(
 
 
 def build_cws_object_files(
-    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
+    ctx,
+    major_version='7',
+    arch=CURRENT_ARCH,
+    kernel_release=None,
+    debug=False,
+    strip_object_files=False,
+    with_unit_test=False,
 ):
     run_ninja(
         ctx,
@@ -1087,12 +1106,13 @@ def build_cws_object_files(
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
+        with_unit_test=with_unit_test,
     )
 
 
 @task
-def object_files(ctx, kernel_release=None):
-    build_object_files(ctx, kernel_release=kernel_release)
+def object_files(ctx, kernel_release=None, with_unit_test=False):
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
 
 
 def clean_object_files(
@@ -1219,28 +1239,60 @@ def generate_minimized_btfs(
         return
 
     ctx.run(f"mkdir -p {output_dir}")
-    for root, dirs, files in os.walk(source_dir):
-        path_from_root = os.path.relpath(root, source_dir)
 
-        for dir in dirs:
-            output_subdir = os.path.join(output_dir, path_from_root, dir)
-            ctx.run(f"mkdir -p {output_subdir}")
+    check_for_ninja(ctx)
 
-        for file in files:
-            if not file.endswith(".tar.xz"):
-                continue
+    ninja_file_path = os.path.join(ctx.cwd, 'generate-minimized-btfs.ninja')
+    with open(ninja_file_path, 'w') as ninja_file:
+        nw = NinjaWriter(ninja_file, width=180)
 
-            btf_filename = file[: -len(".tar.xz")]
-            compressed_source_btf_path = os.path.join(root, file)
-            output_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
-            compressed_output_btf_path = output_btf_path + ".tar.xz"
+        nw.rule(name="decompress_btf", command="tar -xf $in -C $target_directory")
+        nw.rule(name="minimize_btf", command="bpftool gen min_core_btf $in $out $input_bpf_programs")
+        nw.rule(name="compress_minimized_btf", command="tar -cJf $out -C $tar_working_directory $rel_in && rm $in")
 
-            ctx.run(f"tar -xf {compressed_source_btf_path}")
-            ctx.run(f"bpftool gen min_core_btf {btf_filename} {output_btf_path} {input_bpf_programs}")
+        for root, dirs, files in os.walk(source_dir):
+            path_from_root = os.path.relpath(root, source_dir)
 
-            tar_working_directory = os.path.join(output_dir, path_from_root)
-            ctx.run(f"tar -C {tar_working_directory} -cJf {compressed_output_btf_path} {btf_filename}")
-            ctx.run(f"rm {output_btf_path}")
+            for d in dirs:
+                output_subdir = os.path.join(output_dir, path_from_root, d)
+                ctx.run(f"mkdir -p {output_subdir}")
+
+            for file in files:
+                if not file.endswith(".tar.xz"):
+                    continue
+
+                btf_filename = file[: -len(".tar.xz")]
+                minimized_btf_path = os.path.join(output_dir, path_from_root, btf_filename)
+
+                nw.build(
+                    rule="decompress_btf",
+                    inputs=[os.path.join(root, file)],
+                    outputs=[os.path.join(root, btf_filename)],
+                    variables={
+                        "target_directory": root,
+                    },
+                )
+
+                nw.build(
+                    rule="minimize_btf",
+                    inputs=[os.path.join(root, btf_filename)],
+                    outputs=[minimized_btf_path],
+                    variables={
+                        "input_bpf_programs": input_bpf_programs,
+                    },
+                )
+
+                nw.build(
+                    rule="compress_minimized_btf",
+                    inputs=[minimized_btf_path],
+                    outputs=[f"{minimized_btf_path}.tar.xz"],
+                    variables={
+                        "tar_working_directory": os.path.join(output_dir, path_from_root),
+                        "rel_in": btf_filename,
+                    },
+                )
+
+    ctx.run(f"ninja -f {ninja_file_path}")
 
 
 @task

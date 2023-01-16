@@ -40,9 +40,9 @@ type ActivityDumpManager struct {
 	sync.RWMutex
 	config        *config.Config
 	statsdClient  statsd.ClientInterface
+	fieldHandlers *FieldHandlers
 	resolvers     *Resolvers
 	kernelVersion *kernel.Version
-	scrubber      *procutil.DataScrubber
 	manager       *manager.Manager
 
 	tracedPIDsMap          *ebpf.Map
@@ -202,9 +202,9 @@ func NewActivityDumpManager(p *Probe, config *config.Config, statsdClient statsd
 	adm := &ActivityDumpManager{
 		config:                 config,
 		statsdClient:           statsdClient,
+		fieldHandlers:          p.fieldHandlers,
 		resolvers:              resolvers,
 		kernelVersion:          kernelVersion,
-		scrubber:               scrubber,
 		manager:                manager,
 		tracedPIDsMap:          tracedPIDs,
 		tracedCommsMap:         tracedComms,
@@ -423,7 +423,7 @@ func (adm *ActivityDumpManager) StopActivityDump(params *api.ActivityDumpStopPar
 }
 
 // ProcessEvent processes a new event and insert it in an activity dump if applicable
-func (adm *ActivityDumpManager) ProcessEvent(event *Event) {
+func (adm *ActivityDumpManager) ProcessEvent(event *model.Event) {
 	// is this event sampled for activity dumps ?
 	if !event.IsActivityDumpSample {
 		return

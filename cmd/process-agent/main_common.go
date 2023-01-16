@@ -259,6 +259,13 @@ func runAgent(globalParams *command.GlobalParams, exit chan struct{}) {
 		cleanupAndExit(1)
 		return
 	}
+	cl.submitter, err = NewSubmitter(hostInfo.HostName, cl.UpdateRTStatus)
+	if err != nil {
+		log.Criticalf("Error creating checkSubmitter: %s", err)
+		cleanupAndExit(1)
+		return
+	}
+
 	if err := cl.run(exit); err != nil {
 		log.Criticalf("Error starting collector: %s", err)
 		os.Exit(1)
@@ -292,6 +299,10 @@ func initRuntimeSettings() {
 	// NOTE: Any settings you want to register should simply be added here
 	processRuntimeSettings := []settings.RuntimeSetting{
 		settings.LogLevelRuntimeSetting{},
+		settings.RuntimeMutexProfileFraction("runtime_mutex_profile_fraction"),
+		settings.RuntimeBlockProfileRate("runtime_block_profile_rate"),
+		settings.ProfilingGoroutines("internal_profiling_goroutines"),
+		settings.ProfilingRuntimeSetting{SettingName: "internal_profiling", Service: "process-agent"},
 	}
 
 	// Before we begin listening, register runtime settings

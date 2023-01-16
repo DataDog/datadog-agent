@@ -11,10 +11,8 @@ package http
 import (
 	"fmt"
 	"math"
-	"os"
 
 	"github.com/cilium/ebpf"
-	"github.com/iovisor/gobpf/pkg/cpupossible"
 	"golang.org/x/sys/unix"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -24,15 +22,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	httpInFlightMap   = "http_in_flight"
-	httpBatchesMap    = "http_batches"
-	httpBatchStateMap = "http_batch_state"
-	httpBatchEvents   = "http_batch_events"
+	httpInFlightMap = "http_in_flight"
 
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to classify protocols and dispatch the correct handlers.
@@ -47,11 +43,7 @@ const (
 	// enough for typical workloads (e.g. some amount of processes blocked on
 	// the accept syscall).
 	maxActive = 128
-
-	// size of the channel containing completed http_notification_objects
-	batchNotificationsChanSize = 100
-
-	probeUID = "http"
+	probeUID  = "http"
 )
 
 type ebpfProgram struct {
@@ -62,8 +54,6 @@ type ebpfProgram struct {
 	subprograms     []subprogram
 	probesResolvers []probeResolver
 	mapCleaner      *ddebpf.MapCleaner
-
-	batchCompletionHandler *ddebpf.PerfHandler
 }
 
 type probeResolver interface {
@@ -116,30 +106,15 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 		return nil, err
 	}
 
-	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
-			{Name: httpBatchesMap},
-			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},
 			{Name: protocolDispatcherProgramsMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
 			{Name: "fd_by_ssl_bio"},
 			{Name: "ssl_ctx_by_pid_tgid"},
-		},
-		PerfMaps: []*manager.PerfMap{
-			{
-				Map: manager.Map{Name: httpBatchEvents},
-				PerfMapOptions: manager.PerfMapOptions{
-					PerfRingBufferSize: 256 * os.Getpagesize(),
-					Watermark:          1,
-					RecordHandler:      batchCompletionHandler.RecordHandler,
-					LostHandler:        batchCompletionHandler.LostHandler,
-					RecordGetter:       batchCompletionHandler.RecordGetter,
-				},
-			},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -182,13 +157,12 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	}
 
 	program := &ebpfProgram{
-		Manager:                errtelemetry.NewManager(mgr, bpfTelemetry),
-		bytecode:               bc,
-		cfg:                    c,
-		offsets:                offsets,
-		batchCompletionHandler: batchCompletionHandler,
-		subprograms:            subprograms,
-		probesResolvers:        subprogramProbesResolvers,
+		Manager:         errtelemetry.NewManager(mgr, bpfTelemetry),
+		bytecode:        bc,
+		cfg:             c,
+		offsets:         offsets,
+		subprograms:     subprograms,
+		probesResolvers: subprogramProbesResolvers,
 	}
 
 	return program, nil
@@ -215,11 +189,6 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	onlineCPUs, err := cpupossible.Get()
-	if err != nil {
-		return fmt.Errorf("couldn't determine number of CPUs: %w", err)
-	}
-
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
@@ -234,11 +203,6 @@ func (e *ebpfProgram) Init() error {
 			httpInFlightMap: {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
-				EditorFlag: manager.EditMaxEntries,
-			},
-			httpBatchesMap: {
-				Type:       ebpf.Hash,
-				MaxEntries: uint32(len(onlineCPUs) * HTTPBatchPages),
 				EditorFlag: manager.EditMaxEntries,
 			},
 		},
@@ -274,7 +238,10 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureOptions(&options)
 	}
 
-	err = e.InitWithOptions(e.bytecode, options)
+	// configure event stream
+	events.Configure("http", e.Manager.Manager, &options)
+
+	err := e.InitWithOptions(e.bytecode, options)
 	if err != nil {
 		return err
 	}
@@ -300,7 +267,6 @@ func (e *ebpfProgram) Start() error {
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
 	err := e.Stop(manager.CleanAll)
-	e.batchCompletionHandler.Stop()
 	for _, s := range e.subprograms {
 		s.Stop()
 	}

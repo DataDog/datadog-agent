@@ -1136,13 +1136,17 @@ profiles:
 		"static_tag:from_profile_root", "some_tag:some_tag_value", "prefix:f", "suffix:oo_sys_name"}
 
 	sender.AssertServiceCheck(t, "snmp.can_check", metrics.ServiceCheckOK, "", snmpTags, "")
+	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 1., "", snmpTags)
+	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 	assert.Equal(t, false, deviceCk.config.AutodetectProfile)
-
+	sender.ResetCalls()
 	sess.ConnectErr = fmt.Errorf("some error")
 	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", metrics.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
+	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 1., "", snmpTags)
+	sender.AssertMetric(t, "Gauge", deviceReachableMetric, 0., "", snmpTags)
 }
 
 func TestRun_sessionCloseError(t *testing.T) {

@@ -31,7 +31,8 @@ type MockedContainerdClient struct {
 	MockEnvVars               func(namespace string, ctn containerd.Container) (map[string]string, error)
 	MockMetadata              func() (containerd.Version, error)
 	MockListImages            func(namespace string) ([]containerd.Image, error)
-	MockImage                 func(namespace string, ctn containerd.Container) (containerd.Image, error)
+	MockImage                 func(namespace string, name string) (containerd.Image, error)
+	MockImageOfContainer      func(namespace string, ctn containerd.Container) (containerd.Image, error)
 	MockImageSize             func(namespace string, ctn containerd.Container) (int64, error)
 	MockTaskMetrics           func(namespace string, ctn containerd.Container) (*types.Metric, error)
 	MockTaskPids              func(namespace string, ctn containerd.Container) ([]containerd.ProcessInfo, error)
@@ -63,8 +64,13 @@ func (client *MockedContainerdClient) ListImages(namespace string) ([]containerd
 }
 
 // Image is a mock method
-func (client *MockedContainerdClient) Image(namespace string, ctn containerd.Container) (containerd.Image, error) {
-	return client.MockImage(namespace, ctn)
+func (client *MockedContainerdClient) Image(namespace string, name string) (containerd.Image, error) {
+	return client.MockImage(namespace, name)
+}
+
+// ImageOfContainer is a mock method
+func (client *MockedContainerdClient) ImageOfContainer(namespace string, ctn containerd.Container) (containerd.Image, error) {
+	return client.MockImageOfContainer(namespace, ctn)
 }
 
 // ImageSize is a mock method

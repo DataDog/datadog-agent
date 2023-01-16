@@ -7,11 +7,12 @@ package report
 
 import (
 	json "encoding/json"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -22,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
+
+const interfaceStatusMetric = "snmp.interface.status"
 
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus metadata.DeviceStatus) {
@@ -46,6 +49,42 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		}
 		ms.sender.EventPlatformEvent(string(payloadBytes), epforwarder.EventTypeNetworkDevicesMetadata)
 	}
+
+	// Telemetry
+	for _, interfaceStatus := range interfaces {
+		status := string(computeInterfaceStatus(interfaceStatus.AdminStatus, interfaceStatus.OperStatus))
+		interfaceTags := []string{"status:" + status, "interface:" + interfaceStatus.Name, "interface_alias:" + interfaceStatus.Alias, "interface_index:" + strconv.Itoa(int(interfaceStatus.Index))}
+		interfaceTags = append(interfaceTags, tags...)
+		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
+	}
+}
+
+func computeInterfaceStatus(adminStatus common.IfAdminStatus, operStatus common.IfOperStatus) common.InterfaceStatus {
+	if adminStatus == common.AdminStatus_Up {
+		switch {
+		case operStatus == common.OperStatus_Up:
+			return common.InterfaceStatus_Up
+		case operStatus == common.OperStatus_Down:
+			return common.InterfaceStatus_Down
+		}
+		return common.InterfaceStatus_Warning
+	}
+	if adminStatus == common.AdminStatus_Down {
+		switch {
+		case operStatus == common.OperStatus_Up:
+			return common.InterfaceStatus_Down
+		case operStatus == common.OperStatus_Down:
+			return common.InterfaceStatus_Off
+		}
+		return common.InterfaceStatus_Warning
+	}
+	if adminStatus == common.AdminStatus_Testing {
+		switch {
+		case operStatus != common.OperStatus_Down:
+			return common.InterfaceStatus_Warning
+		}
+	}
+	return common.InterfaceStatus_Down
 }
 
 func buildMetadataStore(metadataConfigs checkconfig.MetadataConfig, values *valuestore.ResultValueStore) *metadata.Store {
@@ -183,8 +222,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []me
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: int32(store.GetColumnAsFloat("interface.admin_status", strIndex)),
-			OperStatus:  int32(store.GetColumnAsFloat("interface.oper_status", strIndex)),
+			AdminStatus: common.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
+			OperStatus:  common.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
@@ -224,6 +263,9 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		// in that case, we just return a nil slice.
 		return nil
 	}
+
+	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
+
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
 		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
@@ -243,6 +285,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		//       See https://www.rfc-editor.org/rfc/rfc2021
 
 		localPortNum := indexElems[1]
+		lldpRemIndex := indexElems[2]
 
 		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
 		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
@@ -260,6 +303,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
+					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
 				},
 				Interface: &metadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -282,6 +326,34 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store) []meta
 		links = append(links, newLink)
 	}
 	return links
+}
+
+func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
+	remManAddrByRemIndex := make(map[string]string)
+	for _, fullIndex := range remManIndexes {
+		indexElems := strings.Split(fullIndex, ".")
+		if len(indexElems) < 9 {
+			// We expect the index to be at least 9 elements (IPv4)
+			// 1 lldpRemTimeMark
+			// 1 lldpRemLocalPortNum
+			// 1 lldpRemIndex
+			// 1 lldpRemManAddrSubtype (1 for IPv4, 2 for IPv6)
+			// 5|17 lldpRemManAddr (4 for IPv4 and 17 for IPv6)
+			//      the first elements is the IP type e.g. 4 for IPv4
+			continue
+		}
+		lldpRemIndex := indexElems[2]
+		lldpRemManAddrSubtype := indexElems[3]
+		ipAddrType := indexElems[4]
+		lldpRemManAddr := indexElems[5:]
+
+		// We only support IPv4 for the moment
+		// TODO: Support IPv6
+		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
+			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+		}
+	}
+	return remManAddrByRemIndex
 }
 
 func formatID(idType string, store *metadata.Store, field string, strIndex string) string {

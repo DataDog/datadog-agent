@@ -103,10 +103,10 @@ type AbnormalPathEvent struct {
 }
 
 // NewAbnormalPathEvent returns the rule and a populated custom event for a abnormal_path event
-func NewAbnormalPathEvent(event *Event, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
-	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.GetPathResolutionError()), AbnormalPathEvent{
-		Timestamp:           event.ResolveEventTimestamp(),
-		Event:               NewEventSerializer(event),
+func NewAbnormalPathEvent(event *model.Event, probe *Probe, pathResolutionError error) (*rules.Rule, *events.CustomEvent) {
+	return events.NewCustomRule(events.AbnormalPathRuleID), events.NewCustomEvent(resolutionErrorToEventType(event.PathResolutionError), AbnormalPathEvent{
+		Timestamp:           event.FieldHandlers.ResolveEventTimestamp(event),
+		Event:               NewEventSerializer(event, probe),
 		PathResolutionError: pathResolutionError.Error(),
 	})
 }
