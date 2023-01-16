@@ -340,7 +340,7 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 	if localInterfaceIDType == "" {
 		// "smart resolution" by multiple types when localInterfaceIDType is not provided (which is often the case)
 		// CAVEAT: in case the smart resolution returns false positives, the solution is to configure the device to provide a proper localInterfaceIDType
-		typesToTry = []string{"interface_name", "mac_address", "interface_name", "interface_alias", "interface_index"}
+		typesToTry = []string{"mac_address", "interface_name", "interface_alias", "interface_index"}
 	} else {
 		typesToTry = []string{localInterfaceIDType}
 	}
