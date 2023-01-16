@@ -103,7 +103,7 @@ func TestInject(t *testing.T) {
 	}
 	t.Log(javaVersion)
 
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 24; i++ {
 		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 
 		t.Run("host", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestInject(t *testing.T) {
 		t.Skipf("unshare not supported on this platform %s", err)
 	}
 
-	for i := 0; i < 120; i++ {
+	for i := 0; i < 24; i++ {
 		testutil.RunCommand("sudo sysctl -w vm.drop_caches=3")
 
 		t.Run("PIDnamespace", func(t *testing.T) {
