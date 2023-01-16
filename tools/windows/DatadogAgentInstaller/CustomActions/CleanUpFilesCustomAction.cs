@@ -36,7 +36,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static void CleanupFiles(ISession session)
+        private static ActionResult CleanupFiles(ISession session)
         {
             var projectLocation = session.Property("PROJECTLOCATION");
             var applicationDataLocation = session.Property("APPLICATIONDATADIRECTORY");
@@ -58,16 +58,16 @@ namespace Datadog.CustomActions
             catch (Exception e)
             {
                 session.Log($"Error while deleting file: {e}");
+                return ActionResult.Failure;
             }
+
+            return ActionResult.Success;
         }
 
         [CustomAction]
         public static ActionResult CleanupFiles(Session session)
         {
-            CleanupFiles(new SessionWrapper(session));
-            // Never fail a cleanup task or we risk leaving the Agent in an
-            // uninstallable state on the target computer.
-            return ActionResult.Success;
+            return CleanupFiles(new SessionWrapper(session));
         }
     }
 }
