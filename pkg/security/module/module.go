@@ -19,8 +19,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
@@ -36,19 +38,40 @@ type Module struct {
 	StatsdClient statsd.ClientInterface
 	GRPCServer   *grpc.Server
 
-	// internalls
-	eventModules []EventModule
-	netListener  net.Listener
-	wg           sync.WaitGroup
+	// handlers
+	eventTypeHandlers       []EventTypeHandler
+	customEventTypeHandlers []CustomEventTypeHandler
+	ruleEventHandlers       []RuleEventHandler
+
+	// internals
+	netListener net.Listener
+	wg          sync.WaitGroup
 }
 
-// EventModuleCtor constructor of an event module
-type EventModuleCtor func(_ *Module) (EventModule, error)
+// EventHandler generic event handler
+type EventHandler interface {
+	// ID return an unique ID for this handler
+	ID() string
+}
 
-type EventModule interface {
-	Start() error
-	Stop()
-	EventHanlders() map[model.EventType]sprobe.EventHandler
+// EventTypeHandler event type based handler
+type EventTypeHandler interface {
+	EventHandler
+	EventTypes() []model.EventType
+	HandleEvent(event *model.Event)
+}
+
+// CustomEventTypeHandler custom event type based handler
+type CustomEventTypeHandler interface {
+	EventHandler
+	CustomEventTypes() []model.EventType
+	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
+}
+
+// RuleEventHandler rule event based handler
+type RuleEventHandler interface {
+	EventHandler
+	HandleRuleEvent(rule *rules.Rule, event *model.Event)
 }
 
 // Register the runtime security agent module
@@ -60,15 +83,45 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// RegisterEventModule register an event module, has to be called before start
-func (m *Module) RegisterEventModule(ctor EventModuleCtor) error {
-	em, err := ctor(m)
-	if err != nil {
-		return err
+func (m *Module) AddEventTypeHandler(handler EventTypeHandler) {
+	m.eventTypeHandlers = append(m.eventTypeHandlers, handler)
+}
+
+func (m *Module) AddCustomEventTypeHandler(handler CustomEventTypeHandler) {
+	m.customEventTypeHandlers = append(m.customEventTypeHandlers, handler)
+}
+
+func (m *Module) AddRuleEventHandler(handler RuleEventHandler) {
+	m.ruleEventHandlers = append(m.ruleEventHandlers, handler)
+}
+
+// HandleEvent implements probe events
+func (m *Module) HandleEvent(event *model.Event) {
+	for _, handler := range m.eventTypeHandlers {
+		kind := event.GetEventType()
+		for _, evt := range handler.EventTypes() {
+			if kind == evt {
+				handler.HandleEvent(event)
+			}
+		}
 	}
+}
 
-	m.eventModules = append(m.eventModules, em)
+// HandleEvent implements probe events
+func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
+	for _, handler := range m.customEventTypeHandlers {
+		kind := event.GetEventType()
+		for _, evt := range handler.CustomEventTypes() {
+			if kind == evt {
+				handler.HandleCustomEvent(rule, event)
+			}
+		}
+	}
+}
 
+// AddRule add a rule
+func (m *Module) AddRule(handler RuleEventHandler, ruleDef *rules.RuleDefinition) error {
+	// TODO check that the handler has been already registered
 	return nil
 }
 
@@ -83,13 +136,9 @@ func (m *Module) Init() error {
 		return fmt.Errorf("failed to init probe: %w", err)
 	}
 
-	// init handlers
-	for _, module := range m.eventModules {
-		handlers := module.EventHanlders()
-		for eventType, handler := range handlers {
-			m.Probe.AddEventHandler(eventType, handler)
-		}
-	}
+	// init event type handlers
+	m.Probe.AddEventHandler(model.UnknownEventType, m)
+	m.Probe.AddCustomEventHandler(model.UnknownEventType, m)
 
 	return nil
 }
@@ -128,11 +177,6 @@ func (m *Module) Start() error {
 
 	if err := m.Probe.Start(); err != nil {
 		return err
-	}
-
-	// start all the event modules
-	for _, em := range m.eventModules {
-		em.Start()
 	}
 
 	return nil

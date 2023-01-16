@@ -64,12 +64,12 @@ type CWS struct {
 }
 
 // Init initializes the module
-func NewCWS(module *Module) (EventModule, error) {
+func NewCWS(module *Module) (*CWS, error) {
 	return NewCWSWithOpts(module)
 }
 
 // Init initializes the module with options
-func NewCWSWithOpts(module *Module, opts ...Opts) (EventModule, error) {
+func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
@@ -110,16 +110,25 @@ func NewCWSWithOpts(module *Module, opts ...Opts) (EventModule, error) {
 	// Activity dumps related
 	module.Probe.AddActivityDumpHandler(c)
 
+	// register as event handler
+	module.AddCustomEventTypeHandler(c)
+
 	// policy loader
 	c.policyLoader = rules.NewPolicyLoader()
 
 	return c, nil
 }
 
-func (c *CWS) EventHanlders() map[model.EventType]sprobe.EventHandler {
-	return map[model.EventType]sprobe.EventHandler{
-		model.UnknownEventType: c,
-	}
+func (c *CWS) ID() string {
+	return "CWS"
+}
+
+func (c *CWS) EventTypes() []model.EventType {
+	return []model.EventType{}
+}
+
+func (c *CWS) CustomEventTypes() []model.EventType {
+	return []model.EventType{model.UnknownEventType}
 }
 
 // Start the module
@@ -224,7 +233,7 @@ func (c *CWS) Start() error {
 	return nil
 }
 
-func (c *CWS) displayReport(report *sprobe.Report) {
+func (c *CWS) displayReport(report *probe.Report) {
 	content, _ := json.Marshal(report)
 	seclog.Debugf("Policy report: %s", content)
 }
@@ -294,7 +303,7 @@ func (c *CWS) ReloadPolicies() error {
 
 func (c *CWS) newRuleOpts() (opts rules.Opts) {
 	opts.
-		WithSupportedDiscarders(sprobe.SupportedDiscarders).
+		WithSupportedDiscarders(probe.SupportedDiscarders).
 		WithEventTypeEnabled(c.getEventTypeEnabled()).
 		WithReservedRuleIDs(events.AllCustomRuleIDs()).
 		WithLogger(seclog.DefaultLogger)
@@ -340,7 +349,7 @@ func (c *CWS) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedRep
 	c.reloading.Store(true)
 	defer c.reloading.Store(false)
 
-	rsa := sprobe.NewRuleSetApplier(c.config, c.probe)
+	rsa := probe.NewRuleSetApplier(c.config, c.probe)
 
 	// load policies
 	c.policyLoader.SetProviders(policyProviders)
@@ -351,7 +360,7 @@ func (c *CWS) LoadPolicies(policyProviders []rules.PolicyProvider, sendLoadedRep
 		logLoadingErrors("error while loading policies for approvers: %+v", loadApproversErrs)
 	}
 
-	approvers, err := approverRuleSet.GetApprovers(sprobe.GetCapababilities())
+	approvers, err := approverRuleSet.GetApprovers(probe.GetCapababilities())
 	if err != nil {
 		return err
 	}

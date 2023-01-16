@@ -57,6 +57,10 @@ type ActivityDumpHandler interface {
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface {
 	HandleEvent(event *model.Event)
+}
+
+// CustomEventHandler represents an handler for the custom events sent by the probe
+type CustomEventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
@@ -67,6 +71,11 @@ type EventStream interface {
 	Start(*sync.WaitGroup) error
 	Pause() error
 	Resume() error
+}
+
+// RuleEventHandler defines handler called when there is a rule event
+type RuleEventHandler interface {
+	RuleMatch(rule *rules.Rule, event eval.Event)
 }
 
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
@@ -86,8 +95,12 @@ type Probe struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	wg             sync.WaitGroup
+
 	// Events section
-	eventHandlers [model.MaxAllEventType][]EventHandler
+	eventHandlers       [model.MaxAllEventType][]EventHandler
+	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+
+	// internals
 	monitor       *Monitor
 	resolvers     *Resolvers
 	event         *model.Event
@@ -325,6 +338,17 @@ func (p *Probe) AddEventHandler(eventType model.EventType, handler EventHandler)
 	return nil
 }
 
+// AddCustomEventHandler set the probe event handler
+func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
+	if eventType >= model.MaxAllEventType {
+		return errors.New("unsupported event type")
+	}
+
+	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+
+	return nil
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
@@ -363,12 +387,12 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	// send specific event
 	if p.Config.AgentMonitoringEvents {
 		// send wildcard first
-		for _, handler := range p.eventHandlers[model.UnknownEventType] {
+		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
 			handler.HandleCustomEvent(rule, event)
 		}
 
 		// send specific event
-		for _, handler := range p.eventHandlers[event.GetEventType()] {
+		for _, handler := range p.customEventHandlers[event.GetEventType()] {
 			handler.HandleCustomEvent(rule, event)
 		}
 	}
@@ -1146,6 +1170,8 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 }
 
 // NewRuleSet returns a new rule set
+// TODO(safchain) all the options should be passed in the constructor and this function should return a singleton.
+// The current approach is incorrect as we can generate multiple ruleset meaning multiple discarders conflicting.
 func (p *Probe) NewRuleSet(opts *rules.Opts, evalOpts *eval.Opts) *rules.RuleSet {
 	opts.WithLogger(seclog.DefaultLogger)
 

@@ -39,7 +39,9 @@ var SecurityRuntime = module.Factory{
 			return nil, module.ErrNotEnabled
 		}
 
-		m.RegisterEventModule(secmodule.NewCWS)
+		if _, err := secmodule.NewCWS(m); err != nil {
+			return nil, err
+		}
 
 		return m, err
 	},
