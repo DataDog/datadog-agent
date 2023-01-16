@@ -55,7 +55,7 @@ func testInject(t *testing.T, prefix string) {
 		}
 		t.Log(o)
 	}()
-	time.Sleep(100 * time.Millisecond) // give a chance to spawn java
+	time.Sleep(MINIMUM_JAVA_AGE_TO_ATTACH_MS * time.Millisecond) // give a chance to spawn java and to be old enough
 
 	pid := findJustWait(t)
 	require.NotEqual(t, pid, 0, "Can't find java JustWait process")

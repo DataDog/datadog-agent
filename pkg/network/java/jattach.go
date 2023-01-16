@@ -9,11 +9,30 @@
 package java
 
 import (
-	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/gopsutil/process"
 )
+
+// MINIMUM_JAVA_AGE_MS is the minimum age of a java process to be able to attach it
+// else the java process would crash if he receive the SIGQUIT too early ("Signal Dispatch" thread is not ready)
+// In other words that the only reliable safety thing we could check to assume a java process started (System.main execution)
+// Looking a proc/pid/status.Thread numbers is not reliable as it depend on numbers of cores and JRE version/implementation
+//
+// The issue is describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
+// if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
+// SIGQUIT is sent as part of the hotspot protocol handshake
+const MINIMUM_JAVA_AGE_TO_ATTACH_MS = 10000
+
+func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGid int) error {
+	h, err := NewHotspot(pid, nsPid)
+	if err != nil {
+		return err
+	}
+
+	return h.Attach(agent, args, fsUid, fsGid)
+}
 
 func InjectAgent(pid int, agent string, args string) error {
 	proc, err := process.NewProcess(int32(pid))
@@ -28,44 +47,24 @@ func InjectAgent(pid int, agent string, args string) error {
 	if err != nil {
 		return err
 	}
-
-	var nThreads int32
-	end := time.Now().Add(3 * time.Second)
-	for end.After(time.Now()) {
-		// wait the java process start the JVM
-		// issue describe here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
-		// if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
-		// SIGQUIT is sent as part of the hotspot protocol handshake
-		// JVM Threads : "VM Thread", "Reference Handl", "Finalizer", "Signal Dispatch"
-		// "Signal Dispatch" is thread number 6 (x86_64 1 core openjdk 1.8.0_352), so a new magic number ;)
-		nThreads, err = proc.NumThreads()
-		if err != nil {
-			return err
-		}
-		if nThreads > 6 {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	ctime, _ := proc.CreateTime()
-	age_ms := time.Now().UnixMilli() - ctime
-	if age_ms < 5000 {
-		time.Sleep(time.Duration(5000-age_ms) * time.Millisecond)
-	} else {
-		if time.Now().After(end) {
-			return fmt.Errorf("java process %d (nThreads %d) didn't start in time (created %d ms ago), can't inject the agent : timeout", pid, nThreads, time.Now().UnixMilli()-ctime)
-		}
-	}
-
-	// attach
-	h, err := NewHotspot(pid, int(proc.NsPid))
-	if err != nil {
-		return err
-	}
-
 	// we return the process uid and gid from the filesystem point of view
 	// as attach file need to be created with uid/gid accessible from the java hotspot
 	// index 3 here point to the 4th columns of /proc/pid/status Uid/Gid => filesystem uid/gid
-	return h.Attach(agent, args, int(uids[3]), int(gids[3]))
+	fsUID, fsGID := int(uids[3]), int(gids[3])
+
+	ctime, _ := proc.CreateTime()
+	age_ms := time.Now().UnixMilli() - ctime
+	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
+		log.Debug("java attach pid %d will be delayed by %s ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)
+		// wait and inject the agent asynchronously
+		go func() {
+			time.Sleep(time.Duration(MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms) * time.Millisecond)
+			if err := injectAttach(pid, agent, args, int(proc.NsPid), fsUID, fsGID); err != nil {
+				log.Errorf("java attach pid %d failed %s", pid, err)
+			}
+		}()
+		return nil
+	}
+
+	return injectAttach(pid, agent, args, int(proc.NsPid), fsUID, fsGID)
 }
