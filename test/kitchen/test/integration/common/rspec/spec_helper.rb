@@ -18,13 +18,17 @@ os_cache = nil
 # We retrieve the value defined in kitchen.yml because there is no simple way
 # to set env variables on the target machine or via parameters in Kitchen/Busser
 # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
-def get_agent_flavor
+def parse_dna
   if os == :windows
     dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
   else
     dna_json_path = "/tmp/kitchen/dna.json"
   end
-  JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('agent_flavor')
+  JSON.parse(IO.read(dna_json_path))
+end
+
+def get_agent_flavor
+  parse_dna().fetch('dd-agent-rspec').fetch('agent_flavor')
 end
 
 def get_service_name(flavor)
@@ -328,6 +332,12 @@ def dogstatsd_processes_running?
   false
 end
 
+def deploy_cws?
+  os != :windows &&
+  get_agent_flavor == 'datadog-agent' &&
+  parse_dna().fetch('dd-agent-rspec').fetch('enable_cws') == true
+end
+
 def read_agent_file(path, commit_hash)
   open("https://raw.githubusercontent.com/DataDog/datadog-agent/#{commit_hash}/#{path}").read()
 end
@@ -427,7 +437,7 @@ shared_examples_for 'Agent behavior' do
   it_behaves_like 'an Agent with integrations'
   it_behaves_like 'an Agent that stops'
   it_behaves_like 'an Agent that restarts'
-  if os != :windows && get_agent_flavor == 'datadog-agent'
+  if deploy_cws?
     it_behaves_like 'a running Agent with CWS enabled'
   end
 end
@@ -455,12 +465,7 @@ shared_examples_for "an installed Agent" do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:skip_windows_signing_check) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
-    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
+    parse_dna().fetch('dd-agent-rspec').fetch('skip_windows_signing_test')
   }
 
   it 'is properly signed' do
@@ -936,12 +941,7 @@ shared_examples_for 'an upgraded Agent with the expected version' do
   # to set env variables on the target machine or via parameters in Kitchen/Busser
   # See https://github.com/test-kitchen/test-kitchen/issues/662 for reference
   let(:agent_expected_version) {
-    if os == :windows
-      dna_json_path = "#{ENV['USERPROFILE']}\\AppData\\Local\\Temp\\kitchen\\dna.json"
-    else
-      dna_json_path = "/tmp/kitchen/dna.json"
-    end
-    JSON.parse(IO.read(dna_json_path)).fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
+    parse_dna().fetch('dd-agent-upgrade-rspec').fetch('agent_expected_version')
   }
 
   it 'runs with the expected version (based on the `info` command output)' do
