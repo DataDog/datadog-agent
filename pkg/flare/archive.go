@@ -157,7 +157,10 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath())
 
-	fb.RegisterDirPerm(config.Datadog.GetString("system_probe_config.bpf_dir"))
+	systemProbeConfigBPFDir := config.Datadog.GetString("system_probe_config.bpf_dir")
+	if systemProbeConfigBPFDir != "" {
+		fb.RegisterDirPerm(systemProbeConfigBPFDir)
+	}
 	addSystemProbePlatformSpecificEntries(fb)
 
 	if config.Datadog.GetBool("system_probe_config.enabled") {
@@ -204,7 +207,7 @@ func createArchive(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths, lo
 }
 
 func getVersionHistory(fb flarehelpers.FlareBuilder) {
-	fb.CopyFileTo(config.Datadog.GetString("run_path"), "version-history.json")
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("run_path"), "version-history.json"))
 }
 
 func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
@@ -214,7 +217,7 @@ func getPerformanceProfile(fb flarehelpers.FlareBuilder, pdata ProfileData) {
 }
 
 func getRegistryJSON(fb flarehelpers.FlareBuilder) {
-	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path")))
+	fb.CopyFile(filepath.Join(config.Datadog.GetString("logs_config.run_path"), "registry.json"))
 }
 
 func getMetadataV5() ([]byte, error) {
@@ -317,7 +320,7 @@ func getProcessAgentFullConfig() ([]byte, error) {
 
 func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 	for prefix, filePath := range confSearchPaths {
-		fb.CopyDirTo(filePath, prefix, func(path string) bool {
+		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
 			// ignore .example file
 			if filepath.Ext(path) == ".example" {
 				return false
@@ -337,7 +340,7 @@ func getConfigFiles(fb flarehelpers.FlareBuilder, confSearchPaths SearchPaths) {
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
-		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog-agent.yaml"))
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml"))
 
 		// figure out system-probe file path based on main config path, and use best effort to include
 		// system-probe.yaml to the flare

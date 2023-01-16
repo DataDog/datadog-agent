@@ -90,6 +90,21 @@ type Tracer struct {
 
 // NewTracer creates a Tracer
 func NewTracer(config *config.Config) (*Tracer, error) {
+	tr, err := newTracer(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tr.start(); err != nil {
+		return nil, err
+	}
+
+	return tr, nil
+}
+
+// newTracer is an internal function used by tests primarily
+// (and NewTracer above)
+func newTracer(config *config.Config) (*Tracer, error) {
 	// make sure debugfs is mounted
 	if mounted, err := kernel.IsDebugFSMounted(); !mounted {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
@@ -190,17 +205,23 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		bpfTelemetry:     bpfTelemetry,
 	}
 
-	err = ebpfTracer.Start(tr.storeClosedConnections)
+	return tr, nil
+}
+
+// start starts the tracer. This function is present to separate
+// the creation from the start of the tracer for tests
+func (tr *Tracer) start() error {
+	err := tr.ebpfTracer.Start(tr.storeClosedConnections)
 	if err != nil {
 		tr.Stop()
-		return nil, fmt.Errorf("could not start ebpf manager: %s", err)
+		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 
 	if err = tr.reverseDNS.Start(); err != nil {
-		return nil, fmt.Errorf("could not start reverse dns monitor: %w", err)
+		return fmt.Errorf("could not start reverse dns monitor: %w", err)
 	}
 
-	return tr, nil
+	return nil
 }
 
 func newConntracker(cfg *config.Config, bpfTelemetry *telemetry.EBPFTelemetry) (netlink.Conntracker, error) {

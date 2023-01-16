@@ -3,9 +3,13 @@
 
 #include <linux/types.h>
 
-#include "protocol-dispatcher-maps.h"
-#include "protocol-classification-helpers.h"
+#include "http-classification-helpers.h"
+#include "http2-helpers.h"
 #include "ip.h"
+#include "protocol-classification-defs.h"
+#include "protocol-classification-maps.h"
+#include "protocol-classification-structs.h"
+#include "protocol-dispatcher-maps.h"
 
 // Returns true if the payload represents a TCP termination by checking if the tcp flags contains TCPHDR_FIN or TCPHDR_RST.
 static __always_inline bool is_tcp_termination(skb_info_t *skb_info) {
@@ -33,6 +37,24 @@ static __always_inline bool has_sequence_seen_before(conn_tuple_t *tup, skb_info
 
     bpf_map_update_elem(&connection_states, tup, &skb_info->tcp_seq, BPF_ANY);
     return false;
+}
+
+// Determines the protocols of the given buffer. If we already classified the payload (a.k.a protocol out param
+// has a known protocol), then we do nothing.
+static __always_inline void classify_protocol_for_dispatcher(protocol_t *protocol, conn_tuple_t *tup, const char *buf, __u32 size) {
+    if (protocol == NULL || *protocol != PROTOCOL_UNKNOWN) {
+        return;
+    }
+
+    if (is_http(buf, size)) {
+        *protocol = PROTOCOL_HTTP;
+    } else if (is_http2(buf, size)) {
+        *protocol = PROTOCOL_HTTP2;
+    } else {
+        *protocol = PROTOCOL_UNKNOWN;
+    }
+
+    log_debug("[protocol_dispatcher_classifier]: Classified protocol as %d %d; %s\n", *protocol, size, buf);
 }
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies & dispatches the protocols of the connections.
@@ -66,7 +88,7 @@ static __always_inline void protocol_dispatcher_entrypoint(struct __sk_buff *skb
         read_into_buffer_for_classification((char *)request_fragment, skb, &skb_info);
         const size_t payload_length = skb->len - skb_info.data_off;
         const size_t final_fragment_size = payload_length < CLASSIFICATION_MAX_BUFFER ? payload_length : CLASSIFICATION_MAX_BUFFER;
-        classify_protocol(&cur_fragment_protocol, request_fragment, final_fragment_size);
+        classify_protocol_for_dispatcher(&cur_fragment_protocol, &skb_tup, request_fragment, final_fragment_size);
         log_debug("[protocol_dispatcher_entrypoint]: %p Classifying protocol as: %d\n", skb, cur_fragment_protocol);
         // If there has been a change in the classification, save the new protocol.
         if (cur_fragment_protocol != PROTOCOL_UNKNOWN) {

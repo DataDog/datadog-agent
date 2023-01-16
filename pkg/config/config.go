@@ -264,6 +264,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
+	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
 	config.BindEnvAndSetDefault("integration_profiling", false)
 	config.BindEnvAndSetDefault("enable_metadata_collection", true)
 	config.BindEnvAndSetDefault("enable_gohai", true)
@@ -372,7 +373,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
-	config.BindEnvAndSetDefault("secret_backend_command_sha256", "")
 
 	// Use to output logs in JSON format
 	config.BindEnvAndSetDefault("log_format_json", false)
@@ -820,6 +820,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("internal_profiling.block_profile_rate", 0)
 	config.BindEnvAndSetDefault("internal_profiling.mutex_profile_fraction", 0)
 	config.BindEnvAndSetDefault("internal_profiling.enable_goroutine_stacktraces", false)
+	config.BindEnvAndSetDefault("internal_profiling.delta_profiles", true)
 
 	config.BindEnvAndSetDefault("internal_profiling.capture_all_allocations", false)
 
@@ -934,9 +935,6 @@ func InitConfig(config Config) {
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
 
-	// temporary feature flag until this becomes the only option
-	config.BindEnvAndSetDefault("logs_config.cca_in_ad", true)
-
 	// The cardinality of tags to send for checks and dogstatsd respectively.
 	// Choices are: low, orchestrator, high.
 	// WARNING: sending orchestrator, or high tags for dogstatsd metrics may create more metrics
@@ -1017,12 +1015,15 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false) // to be enabled only in e2e tests
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
 	// This create a lot of billable custom metrics.
 	config.BindEnvAndSetDefault("telemetry.enabled", false)
 	config.BindEnvAndSetDefault("telemetry.dogstatsd_origin", false)
+	config.BindEnvAndSetDefault("telemetry.python_memory", true)
 	config.BindEnv("telemetry.checks")
 	// We're using []string as a default instead of []float64 because viper can only parse list of string from the environment
 	//
@@ -1052,8 +1053,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.collector_discovery.enabled", true)
 	config.BindEnv("orchestrator_explorer.max_per_message")
 	config.BindEnv("orchestrator_explorer.max_message_bytes")
-	config.BindEnv("orchestrator_explorer.orchestrator_dd_url")
-	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints")
+	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")
+	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
@@ -1063,6 +1064,16 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
 	config.BindEnv("container_lifecycle.dd_url")
 	config.BindEnv("container_lifecycle.additional_endpoints")
+
+	// Container image configuration
+	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnv("container_image.dd_url")
+	config.BindEnv("container_image.additional_endpoints")
+
+	// SBOM configuration
+	config.BindEnvAndSetDefault("sbom.enabled", false)
+	config.BindEnv("sbom.dd_url")
+	config.BindEnv("sbom.additional_endpoints")
 
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
@@ -1082,6 +1093,9 @@ func InitConfig(config Config) {
 	// when updating the default here also update pkg/metadata/inventories/README.md
 	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
 	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+
+	// workloadmeta
+	config.BindEnvAndSetDefault("workloadmeta.image_metadata_collection.enabled", false)
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -1109,7 +1123,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.run_path", defaultRunPath)
 	config.BindEnv("compliance_config.run_commands_as")
 	bindEnvAndSetLogsConfigKeys(config, "compliance_config.endpoints.")
-	config.BindEnvAndSetDefault("compliance_config.ignore_host_selectors", true)
 	config.BindEnvAndSetDefault("compliance_config.opa.metrics.enabled", false)
 
 	// Datadog security agent (runtime)
@@ -1224,6 +1237,9 @@ func InitConfig(config Config) {
 	// Vector integration
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
+
+	// Datadog Agent Manager System Tray
+	config.BindEnvAndSetDefault("system_tray.log_file", "")
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -1601,7 +1617,8 @@ func setupFipsEndpoints(config Config) error {
 
 	// APM
 	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles))
+	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
 	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
 
 	// Processes
@@ -1638,8 +1655,6 @@ func ResolveSecrets(config Config, origin string) error {
 		config.GetInt("secret_backend_timeout"),
 		config.GetInt("secret_backend_output_max_size"),
 		config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		config.GetString("secret_backend_command_sha256"),
-		config.ConfigFileUsed(),
 	)
 
 	if config.GetString("secret_backend_command") != "" {

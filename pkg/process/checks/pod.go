@@ -13,13 +13,10 @@ import (
 	"fmt"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -32,31 +29,42 @@ var Pod = &PodCheck{
 
 // PodCheck is a check that returns container metadata and stats.
 type PodCheck struct {
-	sysInfo                 *model.SystemInfo
+	hostInfo                *HostInfo
 	containerFailedLogLimit *util.LogLimit
 	processor               *processors.Processor
 	config                  *oconfig.OrchestratorConfig
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *config.AgentConfig, info *model.SystemInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+	c.hostInfo = hostInfo
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
-	c.sysInfo = info
 	return c.config.Load()
 }
 
-// Name returns the name of the ProcessCheck.
-func (c *PodCheck) Name() string { return config.PodCheckName }
+// IsEnabled returns true if the check is enabled by configuration
+func (c *PodCheck) IsEnabled() bool {
+	// TODO - move config check logic here
+	return true
+}
 
-// RealTime indicates if this check only runs in real-time mode.
-func (c *PodCheck) RealTime() bool { return false }
+// SupportsRunOptions returns true if the check supports RunOptions
+func (c *PodCheck) SupportsRunOptions() bool {
+	return false
+}
+
+// Name returns the name of the ProcessCheck.
+func (c *PodCheck) Name() string { return PodCheckName }
+
+// Realtime indicates if this check only runs in real-time mode.
+func (c *PodCheck) Realtime() bool { return false }
 
 // ShouldSaveLastRun indicates if the output from the last run should be saved for use in flares
 func (c *PodCheck) ShouldSaveLastRun() bool { return true }
 
 // Run runs the PodCheck to collect a list of running pods
-func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	kubeUtil, err := kubelet.GetKubeUtil()
 	if err != nil {
 		return nil, err
@@ -72,10 +80,11 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 		return nil, err
 	}
 
+	groupID := nextGroupID()
 	ctx := &processors.ProcessorContext{
 		ClusterID:          clusterID,
 		Cfg:                c.config,
-		HostName:           cfg.HostName,
+		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
 		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
@@ -93,7 +102,7 @@ func (c *PodCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageB
 
 	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
 
-	return metadataMessages, nil
+	return StandardRunResult(metadataMessages), nil
 }
 
 // Cleanup frees any resource held by the PodCheck before the agent exits

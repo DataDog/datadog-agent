@@ -481,10 +481,20 @@ func TestTCPConnsReported(t *testing.T) {
 
 func TestUDPSendAndReceive(t *testing.T) {
 	t.Run("v4", func(t *testing.T) {
-		testUDPSendAndReceive(t, "127.0.0.1:8001")
+		t.Run("fixed port", func(t *testing.T) {
+			testUDPSendAndReceive(t, "127.0.0.1:8081")
+		})
+		t.Run("random port", func(t *testing.T) {
+			testUDPSendAndReceive(t, "127.0.0.1:0")
+		})
 	})
 	t.Run("v6", func(t *testing.T) {
-		testUDPSendAndReceive(t, "[::1]:8001")
+		t.Run("fixed port", func(t *testing.T) {
+			testUDPSendAndReceive(t, "[::1]:8081")
+		})
+		t.Run("random port", func(t *testing.T) {
+			testUDPSendAndReceive(t, "[::1]:0")
+		})
 	})
 }
 

@@ -23,7 +23,6 @@ import (
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/process/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
@@ -41,6 +40,14 @@ type cliParams struct {
 	checkName       string
 	checkOutputJSON bool
 	waitInterval    time.Duration
+}
+
+func nextGroupID() func() int32 {
+	var groupID int32
+	return func() int32 {
+		groupID++
+		return groupID
+	}
 }
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
@@ -82,7 +89,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	// "Unknown environment variable" warning will show up whenever valid system probe environment variables are defined.
 	ddconfig.InitSystemProbeConfig(ddconfig.Datadog)
 
-	if err := config.LoadConfigIfExists(cliParams.ConfFilePath); err != nil {
+	if err := command.BootstrapConfig(cliParams.GlobalParams.ConfFilePath, true); err != nil {
 		return log.Criticalf("Error parsing config: %s", err)
 	}
 
@@ -92,17 +99,12 @@ func runCheckCmd(cliParams *cliParams) error {
 		return log.Critical(err)
 	}
 
-	cfg, err := config.NewAgentConfig(command.LoggerName, cliParams.ConfFilePath, syscfg)
-	if err != nil {
-		return log.Criticalf("Error parsing config: %s", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Now that the logger is configured log host info
-	hostInfo := host.GetStatusInformation()
-	log.Infof("running on platform: %s", hostInfo.Platform)
+	hostStatus := host.GetStatusInformation()
+	log.Infof("running on platform: %s", hostStatus.Platform)
 	agentVersion, _ := version.Agent()
 	log.Infof("running version: %s", agentVersion.GetNumberAndPre())
 
@@ -136,7 +138,7 @@ func runCheckCmd(cliParams *cliParams) error {
 	}
 	defer tagger.Stop() //nolint:errcheck
 
-	sysInfo, err := checks.CollectSystemInfo(cfg)
+	hostInfo, err := checks.CollectHostInfo()
 	if err != nil {
 		log.Errorf("failed to collect system info: %s", err)
 	}
@@ -152,17 +154,17 @@ func runCheckCmd(cliParams *cliParams) error {
 	_, checks.Process.SysprobeProcessModuleEnabled = syscfg.EnabledModules[sysconfig.ProcessModule]
 
 	if checks.Process.SysprobeProcessModuleEnabled {
-		net.SetSystemProbePath(cfg.SystemProbeAddress)
+		net.SetSystemProbePath(syscfg.SocketAddress)
 	}
 
 	// Connections check requires process-check to have occurred first (for process creation ts),
 	if cliParams.checkName == checks.Connections.Name() {
 		// use a different client ID to prevent destructive querying of connections data
 		checks.ProcessAgentClientID = "process-agent-cli-check-id"
-		if err := checks.Process.Init(cfg, sysInfo); err != nil {
+		if err := checks.Process.Init(nil, hostInfo); err != nil {
 			return err
 		}
-		checks.Process.Run(cfg, 0) //nolint:errcheck
+		_, _ = checks.Process.Run(nextGroupID(), nil)
 		// Clean up the process check state only after the connections check is executed
 		cleanups = append(cleanups, checks.Process.Cleanup)
 	}
@@ -171,62 +173,48 @@ func runCheckCmd(cliParams *cliParams) error {
 	for _, ch := range checks.All {
 		names = append(names, ch.Name())
 
-		if ch.Name() == cliParams.checkName {
-			if err = ch.Init(cfg, sysInfo); err != nil {
-				return err
-			}
-			cleanups = append(cleanups, ch.Cleanup)
-			return runCheck(cliParams, cfg, ch)
+		cfg := &checks.SysProbeConfig{
+			MaxConnsPerMessage: syscfg.MaxConnsPerMessage,
+			SystemProbeAddress: syscfg.SocketAddress,
 		}
 
-		withRealTime, ok := ch.(checks.CheckWithRealTime)
-		if ok && withRealTime.RealTimeName() == cliParams.checkName {
-			if err = withRealTime.Init(cfg, sysInfo); err != nil {
-				return err
-			}
-			cleanups = append(cleanups, withRealTime.Cleanup)
-			return runCheckAsRealTime(cliParams, cfg, withRealTime)
+		if !matchingCheck(cliParams.checkName, ch) {
+			continue
 		}
+
+		if err = ch.Init(cfg, hostInfo); err != nil {
+			return err
+		}
+		cleanups = append(cleanups, ch.Cleanup)
+		return runCheck(cliParams, ch)
 	}
 	return log.Errorf("invalid check '%s', choose from: %v", cliParams.checkName, names)
 }
 
-func runCheck(cliParams *cliParams, cfg *config.AgentConfig, ch checks.Check) error {
-	// Run the check once to prime the cache.
-	if _, err := ch.Run(cfg, 0); err != nil {
-		return fmt.Errorf("collection error: %s", err)
+func matchingCheck(checkName string, ch checks.Check) bool {
+	if ch.SupportsRunOptions() {
+		if checks.RTName(ch.Name()) == checkName {
+			return true
+		}
 	}
 
-	log.Infof("Waiting %s before running the check", cliParams.waitInterval.String())
-	time.Sleep(cliParams.waitInterval)
-
-	if !cliParams.checkOutputJSON {
-		printResultsBanner(ch.Name())
-	}
-
-	msgs, err := ch.Run(cfg, 1)
-	if err != nil {
-		return fmt.Errorf("collection error: %s", err)
-	}
-	return printResults(ch.Name(), msgs, cliParams.checkOutputJSON)
+	return ch.Name() == checkName
 }
 
-func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks.CheckWithRealTime) error {
-	options := checks.RunOptions{
+func runCheck(cliParams *cliParams, ch checks.Check) error {
+	nextGroupID := nextGroupID()
+
+	options := &checks.RunOptions{
 		RunStandard: true,
-		RunRealTime: true,
 	}
-	var (
-		groupID     int32
-		nextGroupID = func() int32 {
-			groupID++
-			return groupID
-		}
-	)
+
+	if cliParams.checkName == checks.RTName(ch.Name()) {
+		options.RunRealtime = true
+	}
 
 	// We need to run the check twice in order to initialize the stats
 	// Rate calculations rely on having two datapoints
-	if _, err := ch.RunWithOptions(cfg, nextGroupID, options); err != nil {
+	if _, err := ch.Run(nextGroupID, options); err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
@@ -234,15 +222,20 @@ func runCheckAsRealTime(cliParams *cliParams, cfg *config.AgentConfig, ch checks
 	time.Sleep(cliParams.waitInterval)
 
 	if !cliParams.checkOutputJSON {
-		printResultsBanner(ch.RealTimeName())
+		printResultsBanner(cliParams.checkName)
 	}
 
-	run, err := ch.RunWithOptions(cfg, nextGroupID, options)
+	result, err := ch.Run(nextGroupID, options)
 	if err != nil {
 		return fmt.Errorf("collection error: %s", err)
 	}
 
-	return printResults(ch.RealTimeName(), run.RealTime, cliParams.checkOutputJSON)
+	msgs := result.Payloads()
+	if options != nil && options.RunRealtime {
+		msgs = result.RealtimePayloads()
+	}
+
+	return printResults(cliParams.checkName, msgs, cliParams.checkOutputJSON)
 }
 
 func printResultsBanner(name string) {

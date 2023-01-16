@@ -29,6 +29,7 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-syscall-wrapper.o $S3_ARTIFACTS_URI/runtime-security-syscall-wrapper.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime-security-offset-guesser.o $S3_ARTIFACTS_URI/runtime-security-offset-guesser.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/oom-kill.o $S3_ARTIFACTS_URI/oom-kill-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/http.c $S3_ARTIFACTS_URI/http.c.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/runtime-security.c $S3_ARTIFACTS_URI/runtime-security.c.$ARCH

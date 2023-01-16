@@ -321,13 +321,7 @@ func applyDatadogConfig(c *config.AgentConfig) error {
 		}
 	}
 
-	// undocumented
-	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
-		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
-	}
-	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
-		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
-	}
+	setMaxMemCPU(c, coreconfig.IsContainerized())
 
 	// undocumented writers
 	for key, cfg := range map[string]*config.WriterConfig{
@@ -663,4 +657,21 @@ func SetHandler() http.Handler {
 
 func httpError(w http.ResponseWriter, status int, err error) {
 	http.Error(w, fmt.Sprintf(`{"error": %q}`, err.Error()), status)
+}
+
+// setMaxMemCPU sets watchdog's max_memory and max_cpu_percent parameters.
+// If the agent is containerized, max_memory and max_cpu_percent are disabled by default.
+// Resource limits are better handled by container runtimes and orchestrators.
+func setMaxMemCPU(c *config.AgentConfig, isContainerized bool) {
+	if coreconfig.Datadog.IsSet("apm_config.max_cpu_percent") {
+		c.MaxCPU = coreconfig.Datadog.GetFloat64("apm_config.max_cpu_percent") / 100
+	} else if isContainerized {
+		c.MaxCPU = 0
+	}
+
+	if coreconfig.Datadog.IsSet("apm_config.max_memory") {
+		c.MaxMemory = coreconfig.Datadog.GetFloat64("apm_config.max_memory")
+	} else if isContainerized {
+		c.MaxMemory = 0
+	}
 }

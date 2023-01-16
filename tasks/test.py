@@ -5,11 +5,13 @@ High level testing tasks
 # Recent versions of Python should be able to use dict and list directly in type hints,
 # so we only need to check that we don't run this code with old Python versions.
 
+import json
 import operator
 import os
 import platform
 import re
 import sys
+from collections import defaultdict
 from contextlib import contextmanager
 from typing import Dict, List
 
@@ -22,6 +24,7 @@ from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
 from .go import golangci_lint
+from .libs.common.color import color_message
 from .libs.copyright import CopyrightLinter
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
@@ -29,7 +32,7 @@ from .trace_agent import integration_tests as trace_integration_tests
 from .utils import DEFAULT_BRANCH, get_build_flags
 
 PROFILE_COV = "profile.cov"
-GO_TEST_RESULT_TMP_JSON = 'tmp.json'
+GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 
 
 class TestProfiler:
@@ -141,6 +144,18 @@ def lint_flavor(
             golangci_lint(ctx, targets=module.targets, rtloader_root=rtloader_root, build_tags=build_tags, arch=arch)
 
 
+class ModuleTestResult:
+    def __init__(self, path):
+        # The full path of the module
+        self.path = path
+        # Whether the gotestsum command failed for that module
+        self.failed = False
+        # Path to the result.json file output by gotestsum (should always be present)
+        self.result_json_path = None
+        # Path to the junit file output by gotestsum (only present if specified in inv test)
+        self.junit_file_path = None
+
+
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
@@ -158,8 +173,7 @@ def test_flavor(
     """
     print(f"--- Flavor {flavor.name}: unit tests")
 
-    failed_modules = []
-    junit_files = []
+    modules_test_results = []
 
     args["go_build_tags"] = " ".join(build_tags)
 
@@ -170,6 +184,8 @@ def test_flavor(
     args["junit_file_flag"] = junit_file_flag
 
     for module in modules:
+        module_test_result = ModuleTestResult(path=module.full_path())
+
         print(f"----- Module '{module.full_path()}'")
         if not module.condition():
             print("----- Skipped")
@@ -185,21 +201,24 @@ def test_flavor(
                 warn=True,
             )
 
+        module_test_result.result_json_path = os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON)
+
         if res.exited is None or res.exited > 0:
-            failed_modules.append(module.full_path())
+            module_test_result.failed = True
 
         if save_result_json:
             with open(save_result_json, 'ab') as json_file, open(
-                os.path.join(module.full_path(), GO_TEST_RESULT_TMP_JSON), 'rb'
+                module_test_result.result_json_path, 'rb'
             ) as module_file:
                 json_file.write(module_file.read())
 
         if junit_tar:
-            junit_file_path = os.path.join(module.full_path(), junit_file)
-            add_flavor_to_junitxml(junit_file_path, flavor)
-            junit_files.append(junit_file_path)
+            module_test_result.junit_file_path = os.path.join(module.full_path(), junit_file)
+            add_flavor_to_junitxml(module_test_result.junit_file_path, flavor)
 
-    return junit_files, failed_modules
+        modules_test_results.append(module_test_result)
+
+    return modules_test_results
 
 
 def coverage_flavor(
@@ -420,16 +439,15 @@ def test(
         "timeout": timeout,
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
-        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ' if save_result_json else "",
+        # Used to print failed tests at the end of the go test command
+        "json_flag": f'--jsonfile "{GO_TEST_RESULT_TMP_JSON}" ',
         "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
     }
 
     # Test
-
-    failed_modules = {}
-    junit_files = []
+    modules_test_results_per_flavor = {}
     for flavor, build_tags in unit_tests_tags.items():
-        junit_files_for_flavor, failed_modules_for_flavor = test_flavor(
+        modules_test_results_per_flavor[flavor] = test_flavor(
             ctx,
             flavor=flavor,
             build_tags=build_tags,
@@ -442,33 +460,87 @@ def test(
             test_profiler=test_profiler,
         )
 
-        if failed_modules_for_flavor:
-            failed_modules[flavor] = failed_modules_for_flavor
-        if junit_files_for_flavor:
-            junit_files.extend(junit_files_for_flavor)
-
     # Output
-
     if junit_tar:
+        junit_files = []
+        for flavor in flavors:
+            for module_test_result in modules_test_results_per_flavor[flavor]:
+                if module_test_result.junit_file_path:
+                    junit_files.append(module_test_result.junit_file_path)
+
         produce_junit_tar(junit_files, junit_tar)
 
     if coverage and print_coverage:
         for flavor in flavors:
             coverage_flavor(ctx, flavor, modules)
 
+    # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
+    # in the meantime to avoid confusion
     if profile:
-        print("\n--- Top 15 packages sorted by run time:")
+        # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    if failed_modules:
-        failure_string = '\n'.join(
-            [
-                f"{', '.join(failed_modules_for_flavor)} ({flavor.name} flavor)"
-                for flavor, failed_modules_for_flavor in failed_modules.items()
-            ]
-        )
+    should_fail = False
+    for flavor in flavors:
+        for module_test_result in modules_test_results_per_flavor[flavor]:
+            if module_test_result.failed:
+                should_fail = True
+                failure_string = color_message(
+                    f"Module {module_test_result.path} failed ({flavor.name} flavor)\n", "red"
+                )
+                failed_packages = set()
+                failed_tests = defaultdict(set)
+
+                # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
+                # here, in system-probe.py, and in libs/pipeline_notifications.py
+                # We should have some common result.json parsing lib.
+                with open(module_test_result.result_json_path) as tf:
+                    for line in tf:
+                        json_test = json.loads(line.strip())
+                        # This logic assumes that the lines in result.json are "in order", i.e. that retries
+                        # are logged after the initial test run.
+
+                        # The line is a "Package" line, but not a "Test" line.
+                        # We take these into account, because in some cases (panics, race conditions),
+                        # individual test failures are not reported, only a package-level failure is.
+                        if 'Package' in json_test and 'Test' not in json_test:
+                            package = json_test['Package']
+                            action = json_test["Action"]
+
+                            if action == "fail":
+                                failed_packages.add(package)
+                            elif action == "pass" and package in failed_tests.keys():
+                                # The package was retried and fully succeeded, removing from the list of packages to report
+                                failed_packages.remove(package)
+
+                        # The line is a "Test" line.
+                        elif 'Package' in json_test and 'Test' in json_test:
+                            name = json_test['Test']
+                            package = json_test['Package']
+                            action = json_test["Action"]
+                            if action == "fail":
+                                failed_tests[package].add(name)
+                            elif action == "pass" and name in failed_tests.get(package, set()):
+                                # The test was retried and succeeded, removing from the list of tests to report
+                                failed_tests[package].remove(name)
+
+                if failed_packages:
+                    failure_string += "Failed tests:\n"
+                    for package in sorted(failed_packages):
+                        tests = failed_tests.get(package, set())
+                        if not tests:
+                            failure_string += f"- {package} package failed due to panic / race condition\n"
+                        else:
+                            for name in sorted(tests):
+                                failure_string += f"- {package} {name}\n"
+                else:
+                    failure_string += "The test command failed, but no test failures detected in the result json."
+
+                print(failure_string)
+
+    if should_fail:
         # Exit if any of the modules failed
-        raise Exit(code=1, message=f"Unit tests failed in the following modules:\n{failure_string}")
+        raise Exit(code=1)
 
 
 @task(iterable=['flavors'])

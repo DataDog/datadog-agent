@@ -176,7 +176,16 @@ func (c *collector) parsePodContainers(
 
 		image, err := workloadmeta.NewContainerImage(container.Image)
 		if err != nil {
-			log.Debugf("cannot split image name %q: %s", container.Image, err)
+			if err == containers.ErrImageIsSha256 {
+				// try the resolved image ID if the image name in the container
+				// status is a SHA256. this seems to happen sometimes when
+				// pinning the image to a SHA256
+				image, err = workloadmeta.NewContainerImage(container.ImageID)
+			}
+
+			if err != nil {
+				log.Debugf("cannot split image name %q nor %q: %s", container.Image, container.ImageID, err)
+			}
 		}
 
 		image.ID = container.ImageID

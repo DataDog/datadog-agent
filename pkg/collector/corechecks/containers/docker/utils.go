@@ -42,7 +42,7 @@ func getImageTagsFromContainer(taggerEntityID string, resolvedImageName string, 
 }
 
 func getImageTags(imageName string) ([]string, error) {
-	long, short, tag, err := containers.SplitImageName(imageName)
+	long, _, short, tag, err := containers.SplitImageName(imageName)
 	if err != nil {
 		return nil, err
 	}
