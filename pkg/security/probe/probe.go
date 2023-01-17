@@ -709,7 +709,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve tracee process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0)
 		if cacheEntry != nil {
 			event.PTrace.Tracee = &cacheEntry.ProcessContext
 		}
@@ -750,7 +750,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			return
 		}
 		// resolve target process context
-		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID)
+		cacheEntry := p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0)
 		if cacheEntry != nil {
 			event.Signal.Target = &cacheEntry.ProcessContext
 		}
