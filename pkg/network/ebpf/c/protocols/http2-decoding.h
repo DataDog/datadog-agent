@@ -63,10 +63,7 @@ static __always_inline int http2_responding(http2_transaction_t *http2) {
 static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_info_t *skb_info,__u64 tags) {
     http2_packet_t packet_type = HTTP2_PACKET_UNKNOWN;
     http2_method_t method = HTTP2_METHOD_UNKNOWN;
-
-    if (http2_stack->request_method > 0) {
-        method = http2_stack->request_method;
-    }
+    __u64 response_code;
 
     if (http2_stack->packet_type > 0) {
         packet_type = http2_stack->packet_type;
@@ -117,9 +114,35 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
             http->request_fragment[1] = http2->path_size;
             bpf_memcpy(&http->request_fragment[8], trans->path, HTTP2_MAX_PATH_LEN);
 
-            http->response_status_code = http2_stack->response_status_code;
+            // todo: take it out to a function?!
+            if (trans->request_method == 2) {
+                log_debug("[slavin] found http2 get");
+                method = HTTP2_GET;
+            } else if (trans->request_method == 3) {
+                log_debug("[slavin] found http2 post");
+                method = HTTP2_POST;
+            }
+
+            // todo: take it out to a function and add all the other options as well.
+            if (http2_stack->response_status_code == 8) {
+                response_code = 200;
+            }
+            if (http2_stack->response_status_code == 9){
+                response_code = 204;
+            }
+            if (http2_stack->response_status_code == 10){
+                response_code = 206;
+            }
+            if (http2_stack->response_status_code == 12){
+                response_code = 400;
+            }
+            if (http2_stack->response_status_code == 14){
+                response_code = 500;
+            }
+
+            http->response_status_code = response_code;
             http->request_started = trans->request_started;
-            http->request_method = trans->request_method;
+            http->request_method = method;
             http->response_last_seen = bpf_ktime_get_ns();
             http->owned_by_src_port = trans->owned_by_src_port;
             http->tcp_seq = trans->tcp_seq;
