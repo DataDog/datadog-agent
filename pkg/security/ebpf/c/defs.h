@@ -220,6 +220,7 @@ enum event_type
     EVENT_NET_DEVICE,
     EVENT_VETH_PAIR,
     EVENT_BIND,
+    EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
     EVENT_MAX, // has to be the last one
 
@@ -250,6 +251,7 @@ struct process_context_t {
     u32 tid;
     u32 netns;
     u32 is_kworker;
+    u64 inode;
 };
 
 struct container_context_t {

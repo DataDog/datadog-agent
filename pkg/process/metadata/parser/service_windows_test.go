@@ -28,14 +28,28 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"C:\\Windows\\system32\\svchost.exe", "-k", "LocalService", "-p", "-s", "CDPSvc",
 			},
-			expectedServiceTag: "service:svchost",
+			expectedServiceTag: "process_context:svchost",
 		},
 		{
 			name: "nginx",
 			cmdline: []string{
 				"C:\\nginx-1.23.2\\nginx.exe",
 			},
-			expectedServiceTag: "service:nginx",
+			expectedServiceTag: "process_context:nginx",
+		},
+		{
+			name: "java using the -jar flag",
+			cmdline: []string{
+				"\"C:\\Program Files\\Java\\jdk-17.0.1\\bin\\java\"", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "myService.jar",
+			},
+			expectedServiceTag: "process_context:myService",
+		},
+		{
+			name: "java with exe extension",
+			cmdline: []string{
+				"C:\\Program Files\\Java\\jdk-17.0.1\\bin\\java.exe", "com.dog.myService",
+			},
+			expectedServiceTag: "process_context:myService",
 		},
 	}
 
@@ -52,7 +66,7 @@ func TestWindowsExtractServiceMetadata(t *testing.T) {
 
 			se := NewServiceExtractor()
 			se.Extract(procsByPid)
-			assert.Equal(t, tt.expectedServiceTag, se.GetServiceTag(proc.Pid))
+			assert.Equal(t, tt.expectedServiceTag, se.GetServiceContext(proc.Pid))
 		})
 	}
 }

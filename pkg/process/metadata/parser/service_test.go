@@ -35,49 +35,87 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"./my-server.sh",
 			},
-			expectedServiceTag: "service:my-server",
+			expectedServiceTag: "process_context:my-server",
 		},
 		{
 			name: "sudo",
 			cmdline: []string{
 				"sudo", "-E", "-u", "dog", "/usr/local/bin/myApp", "-items=0,1,2,3", "-foo=bar",
 			},
-			expectedServiceTag: "service:myApp",
+			expectedServiceTag: "process_context:myApp",
 		},
 		{
 			name: "python flask argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
-			expectedServiceTag: "service:flask",
+			expectedServiceTag: "process_context:flask",
 		},
 		{
 			name: "python - flask argument in path",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "/opt/dogweb/bin/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
-			expectedServiceTag: "service:flask",
+			expectedServiceTag: "process_context:flask",
 		},
 		{
 			name: "python flask in single argument",
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
-			expectedServiceTag: "service:flask",
+			expectedServiceTag: "process_context:flask",
 		},
 		{
 			name: "python - module hello",
 			cmdline: []string{
 				"python3", "-m", "hello",
 			},
-			expectedServiceTag: "service:hello",
+			expectedServiceTag: "process_context:hello",
 		},
 		{
 			name: "ruby - td-agent",
 			cmdline: []string{
 				"ruby", "/usr/sbin/td-agent", "--log", "/var/log/td-agent/td-agent.log", "--daemon", "/var/run/td-agent/td-agent.pid",
 			},
-			expectedServiceTag: "service:td-agent",
+			expectedServiceTag: "process_context:td-agent",
+		},
+		{
+			name: "java using the -jar flag to define the service",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "-jar", "/opt/sheepdog/bin/myservice.jar",
+			},
+			expectedServiceTag: "process_context:myservice",
+		},
+		{
+			name: "java class name as service",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "com.datadog.example.HelloWorld",
+			},
+			expectedServiceTag: "process_context:HelloWorld",
+		},
+		{
+			name: "java kafka",
+			cmdline: []string{
+				"java", "-Xmx4000m", "-Xms4000m", "-XX:ReservedCodeCacheSize=256m", "kafka.Kafka",
+			},
+			expectedServiceTag: "process_context:Kafka",
+		},
+		{
+			name: "java parsing for org.apache projects with cassandra as the service",
+			cmdline: []string{
+				"/usr/bin/java", "-Xloggc:/usr/share/cassandra/logs/gc.log", "-ea", "-XX:+HeapDumpOnOutOfMemoryError", "-Xss256k", "-Dlogback.configurationFile=logback.xml",
+				"-Dcassandra.logdir=/var/log/cassandra", "-Dcassandra.storagedir=/data/cassandra",
+				"-cp", "/etc/cassandra:/usr/share/cassandra/lib/HdrHistogram-2.1.9.jar:/usr/share/cassandra/lib/cassandra-driver-core-3.0.1-shaded.jar",
+				"org.apache.cassandra.service.CassandraDaemon",
+			},
+			expectedServiceTag: "process_context:cassandra",
+		},
+		{
+			name: "java space in java executable path",
+			cmdline: []string{
+				"/home/dd/my java dir/java", "com.dog.cat",
+			},
+			expectedServiceTag: "process_context:cat",
 		},
 	}
 
@@ -94,7 +132,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 			se := NewServiceExtractor()
 			se.Extract(procsByPid)
-			assert.Equal(t, tt.expectedServiceTag, se.GetServiceTag(proc.Pid))
+			assert.Equal(t, tt.expectedServiceTag, se.GetServiceContext(proc.Pid))
 		})
 	}
 }
@@ -110,5 +148,5 @@ func TestExtractServiceMetadataDisabled(t *testing.T) {
 	procsByPid := map[int32]*procutil.Process{proc.Pid: &proc}
 	se := NewServiceExtractor()
 	se.Extract(procsByPid)
-	assert.Empty(t, se.GetServiceTag(proc.Pid))
+	assert.Empty(t, se.GetServiceContext(proc.Pid))
 }

@@ -80,6 +80,20 @@ func TestUnmarshalMsgDictionary(t *testing.T) {
 	})
 }
 
+func TestUnmarshalMsgDictionaryLimitsSize(t *testing.T) {
+	ps := [][]byte{
+		[]byte("\x9e\xdd\xff\xff\xff\xff"),
+		[]byte("\x96\x97\xa40000\xa6000000\xa6000000\xa6000000\xa6000000\xa6000000\xa6000000\x96\x94\x9c\x00\x00\x0000\xd100000\xdf0000"),
+	}
+	for _, p := range ps {
+		t.Run("", func(t *testing.T) {
+			var traces Traces
+			err := traces.UnmarshalMsgDictionary(p)
+			assert.EqualError(t, err, "too long payload")
+		})
+	}
+}
+
 var benchOut Traces
 
 func BenchmarkUnmarshalMsgDictionary(b *testing.B) {

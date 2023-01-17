@@ -9,11 +9,13 @@
 package mutate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -158,11 +160,11 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 		var err error
 		switch lib.lang {
 		case java:
-			err = injectLibConfig(pod, lib.ctrName, javaToolOptionsKey, javaEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, javaToolOptionsKey, javaEnvValFunc)
 		case js:
-			err = injectLibConfig(pod, lib.ctrName, nodeOptionsKey, jsEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, nodeOptionsKey, jsEnvValFunc)
 		case python:
-			err = injectLibConfig(pod, lib.ctrName, pythonPathKey, pythonEnvValFunc)
+			err = injectLibRequirements(pod, lib.ctrName, pythonPathKey, pythonEnvValFunc)
 		default:
 			metrics.LibInjectionErrors.Inc(langStr)
 			lastError = fmt.Errorf("language %q is not supported. Supported languages are %v", lib.lang, supportedLanguages)
@@ -181,6 +183,11 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo) error {
 
 	for lang, image := range initContainerToInject {
 		injectLibInitContainer(pod, image, lang)
+		err := injectLibConfig(pod, lang)
+		if err != nil {
+			metrics.LibInjectionErrors.Inc(string(lang))
+			lastError = err
+		}
 	}
 
 	injectLibVolume(pod)
@@ -206,7 +213,8 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) {
 	}, pod.Spec.InitContainers...)
 }
 
-func injectLibConfig(pod *corev1.Pod, ctrName string, envKey string, envVal envValFunc) error {
+// injectLibRequirements injects the minimal config requirements to enable instrumentation
+func injectLibRequirements(pod *corev1.Pod, ctrName string, envKey string, envVal envValFunc) error {
 	for i, ctr := range pod.Spec.Containers {
 		if ctrName != "" && ctrName != ctr.Name {
 			continue
@@ -238,6 +246,26 @@ func injectLibConfig(pod *corev1.Pod, ctrName string, envKey string, envVal envV
 		}
 	}
 
+	return nil
+}
+
+// injectLibConfig injects additional library configuration extracted from pod annotations
+func injectLibConfig(pod *corev1.Pod, lang language) error {
+	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, lang)
+	confString, found := pod.GetAnnotations()[configAnnotKey]
+	if !found {
+		log.Debugf("Config annotation key %q not found on pod %s, skipping config injection", configAnnotKey, podString(pod))
+		return nil
+	}
+	log.Infof("Config annotation key %q found on pod %s, config: %q", configAnnotKey, podString(pod), confString)
+	var libConfig common.LibConfig
+	err := json.Unmarshal([]byte(confString), &libConfig)
+	if err != nil {
+		return fmt.Errorf("invalid json config in annotation %s=%s: %w", configAnnotKey, confString, err)
+	}
+	for _, env := range libConfig.ToEnvs() {
+		_ = injectEnv(pod, env)
+	}
 	return nil
 }
 

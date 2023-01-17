@@ -11,13 +11,14 @@ package module
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
-	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -30,7 +31,8 @@ var (
 	defaultBurst int = 40
 
 	defaultPerRuleLimiters = map[eval.RuleID]*Limiter{
-		probe.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.RulesetLoadedRuleID: NewLimiter(rate.Inf, 1), // No limit on ruleset loaded
+		events.AbnormalPathRuleID:  NewLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 

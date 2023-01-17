@@ -87,10 +87,13 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 }
 
 func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Event) error {
-	containerID := evt.Entity.GetID().ID
-
+	entity := evt.Entity
+	containerID := entity.GetID().ID
 	if evt.Type == workloadmeta.EventTypeSet {
-		storeContainer := evt.Entity.(*workloadmeta.Container)
+		eventTimestamp := time.Now().UnixNano()
+		storeContainer := entity.(*workloadmeta.Container)
+		eventID := fmt.Sprintf("%s-%d", containerID, eventTimestamp)
+		log.Debugf("Processing Event (id %s): %+v", eventID, storeContainer)
 
 		// extract tags
 		hostTags := host.GetHostTags(ctx, true)
@@ -121,13 +124,14 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 		go func() {
 			var exitCode int
 			var err error
-			for retry := 0; retry < c.retryCount; retry++ {
-				log.Infof("Updating tags in container `%s` retry #%d", containerID, retry)
+			for attempt := 1; attempt <= c.retryCount; attempt++ {
+				log.Infof("Updating tags in container `%s` attempt #%d", containerID, attempt)
+				log.Debugf("Update attempt #%d for event %s", attempt, eventID)
 				exitCode, err = updateTagsInContainer(container, tags)
 				if err != nil {
 					log.Warnf("Error running a process inside container `%s`: %v", containerID, err)
 				} else if exitCode == 0 {
-					log.Debugf("Successfully updated tags in container `%s`", containerID)
+					log.Infof("Successfully updated tags in container `%s`", containerID)
 					return
 				}
 				log.Debugf("Process for container '%s' exited with code: %d", containerID, exitCode)

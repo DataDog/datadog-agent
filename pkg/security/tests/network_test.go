@@ -19,7 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
@@ -60,13 +60,11 @@ func TestNetworkCIDR(t *testing.T) {
 				return err
 			}
 			return nil
-		}, func(event *sprobe.Event, rule *rules.Rule) {
+		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
 			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
 
-			if !validateDNSSchema(t, event) {
-				t.Error(event.String())
-			}
+			test.validateDNSSchema(t, event)
 		})
 	})
 }

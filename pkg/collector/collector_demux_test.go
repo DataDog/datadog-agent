@@ -6,7 +6,6 @@
 //go:build test
 // +build test
 
-
 package collector
 
 import (

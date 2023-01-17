@@ -724,6 +724,58 @@ func TestListImages(t *testing.T) {
 	}
 }
 
+func TestGetImage(t *testing.T) {
+	image := &ContainerImageMetadata{
+		EntityID: EntityID{
+			Kind: KindContainerImageMetadata,
+			ID:   "abc",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		imageID       string
+		preEvents     []CollectorEvent
+		expectedImage *ContainerImageMetadata
+		expectsError  bool
+	}{
+		{
+			name:    "image exists",
+			imageID: image.ID,
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: image,
+				},
+			},
+			expectedImage: image,
+		},
+		{
+			name:         "image does not exist",
+			imageID:      "non_existing_ID",
+			preEvents:    nil,
+			expectsError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			testStore.handleEvents(test.preEvents)
+
+			actualImage, err := testStore.GetImage(test.imageID)
+
+			if test.expectsError {
+				assert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
+			} else {
+				assert.NilError(t, err)
+				assert.DeepEqual(t, test.expectedImage, actualImage)
+			}
+		})
+	}
+}
+
 func TestReset(t *testing.T) {
 	fooContainer := &Container{
 		EntityID: EntityID{

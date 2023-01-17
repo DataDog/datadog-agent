@@ -21,20 +21,20 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	commonagent "github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/common"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/compliance"
-	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/config"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/flare"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/runtime"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/status"
-	subversion "github.com/DataDog/datadog-agent/cmd/security-agent/app/subcommands/version"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
+	subconfig "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/flare"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/status"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/version"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
@@ -48,15 +48,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	// loggerName is the name of the security agent logger
-	loggerName coreconfig.LoggerName = common.LoggerName
+	loggerName coreconfig.LoggerName = command.LoggerName
 )
 
 var (
@@ -66,7 +65,7 @@ var (
 )
 
 func CreateSecurityAgentCmd() *cobra.Command {
-	globalParams := common.GlobalParams{}
+	globalParams := command.GlobalParams{}
 	var flagNoColor bool
 
 	SecurityAgentCmd := &cobra.Command{
@@ -81,7 +80,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			// TODO(paulcacheux): remove this once all subcommands have been converted to use config component
-			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfPathArray, cmd.Flags().Lookup("cfgpath").Changed)
+			_, err := compconfig.MergeConfigurationFiles("datadog", globalParams.ConfigFilePaths, cmd.Flags().Lookup(flags.CfgPath).Changed)
 			return err
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
@@ -89,20 +88,20 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 		},
 	}
 
-	defaultConfPathArray := []string{
+	defaultConfigFilePaths := []string{
 		path.Join(commonagent.DefaultConfPath, "datadog.yaml"),
 		path.Join(commonagent.DefaultConfPath, "security-agent.yaml"),
 	}
-	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfPathArray, "cfgpath", "c", defaultConfPathArray, "path to a yaml configuration file")
-	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, "no-color", "n", false, "disable color output")
+	SecurityAgentCmd.PersistentFlags().StringArrayVarP(&globalParams.ConfigFilePaths, flags.CfgPath, "c", defaultConfigFilePaths, "path to a yaml configuration file")
+	SecurityAgentCmd.PersistentFlags().BoolVarP(&flagNoColor, flags.NoColor, "n", false, "disable color output")
 
-	factories := []common.SubcommandFactory{
+	factories := []command.SubcommandFactory{
 		status.Commands,
 		flare.Commands,
 		subconfig.Commands,
 		compliance.Commands,
 		runtime.Commands,
-		subversion.Commands,
+		version.Commands,
 		StartCommands,
 	}
 
@@ -167,7 +166,12 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 
 	if !coreconfig.Datadog.IsSet("api_key") {
 		log.Critical("no API key configured, exiting")
-		return nil
+
+		// A sleep is necessary so that sysV doesn't think the agent has failed
+		// to startup because of an error. Only applies on Debian 7.
+		time.Sleep(5 * time.Second)
+
+		return errAllComponentsDisabled
 	}
 
 	err = manager.ConfigureAutoExit(ctx)
@@ -213,7 +217,7 @@ func RunAgent(ctx context.Context, pidfilePath string) (err error) {
 	opts.UseOrchestratorForwarder = false
 	opts.UseContainerLifecycleForwarder = false
 	demux := aggregator.InitAndStartAgentDemultiplexer(opts, hostnameDetected)
-	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", version.AgentVersion))
+	demux.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Security Agent", pkgversion.AgentVersion))
 
 	stopper = startstop.NewSerialStopper()
 
@@ -327,7 +331,7 @@ func StopAgent(cancel context.CancelFunc) {
 func setupInternalProfiling() error {
 	cfg := coreconfig.Datadog
 	if cfg.GetBool(secAgentKey("internal_profiling.enabled")) {
-		v, _ := version.Agent()
+		v, _ := pkgversion.Agent()
 
 		cfgSite := cfg.GetString(secAgentKey("internal_profiling.site"))
 		cfgURL := cfg.GetString(secAgentKey("security_agent.internal_profiling.profile_dd_url"))

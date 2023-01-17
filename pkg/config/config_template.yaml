@@ -895,17 +895,6 @@ api_key:
     #
     # oid_batch_size: 5
 
-{{- if (eq .OS "windows")}}
-  ## @param windows_counter_refresh_interval - number - optional - default: 60
-  ## This controls the interval in seconds for which windows performance counters are refreshed by the agent.
-  ## Refreshes are necessary for the discovery of new counters/countersets and instances for integrations that
-  ## rely on performance counters. Checks include active_directory, aspdotnet, dotnetclr, exchange_server, hyperv,
-  ## iis and windows_performance_counters.
-  ## Refresh can be disabled by setting the interval to 0.
-  #
-  # windows_counter_refresh_interval: 60
-{{ end }}
-
 
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
@@ -1183,7 +1172,7 @@ api_key:
   #     repl: "<PATTERN_TO_INLINE>"
 
   ## @param ignore_resources - list of strings - optional
-  ## @env DD_APM_IGNORE_RESOURCES - space separated list of strings - optional
+  ## @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional
   ## An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
   ## all entries must be surrounded by double quotes and separated by commas.
   #
@@ -1536,6 +1525,20 @@ api_key:
   ## Set to true to enable the Network Module of the System Probe
   #
   # enabled: false
+
+{{ end -}}
+
+{{- if .UniversalServiceMonitoringModule }}
+
+#############################################################
+## System Probe Universal Service monitoring Configuration ##
+#############################################################
+
+# service_monitoring_config:
+## @param enabled - boolean - optional - default: false
+## Set to true to enable the Universal Service Monitoring Module of the System Probe
+#
+# enabled: false
 
 {{ end -}}
 
@@ -3446,4 +3449,19 @@ api_key:
     ## Valid values are basic, normal, detailed.
     #
     # verbosity: normal
+{{end -}}
+{{- if (eq .OS "windows")}}
+#####################################################
+## Datadog Agent Manager System Tray Configuration ##
+#####################################################
+
+## @param system_tray - custom object - optional
+## This section configures the Datadog Agent Manager System Tray
+#
+# system_tray:
+  ## @param log_file - string - optional - default: %ProgramData%\Datadog\logs\ddtray.log
+  ## @env DD_TRAY_LOG_FILE - string - optional
+  ## The full path to the file where Datadog Agent Manager System Tray logs are written.
+  #
+  # log_file: <TRAY_LOG_FILE_PATH>
 {{end -}}

@@ -9,6 +9,7 @@
 package secrets
 
 import (
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -37,10 +38,18 @@ func TestWrongPath(t *testing.T) {
 	require.NotNil(t, checkRights("does not exists", false))
 }
 
-func TestCheckRights(t *testing.T) {
-	_, err := os.CreateTemp("", "agent-collector-test")
+func TestSpaceInPath(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "super temp")
 	require.Nil(t, err)
+	defer os.Remove(tmpDir)
+	tmpFile, err := os.CreateTemp(tmpDir, "agent-collector-test")
+	require.Nil(t, err)
+	defer os.Remove(tmpFile.Name())
+	require.Nil(t, os.Chmod(tmpFile.Name(), 0700))
+	require.Nil(t, checkRights(tmpFile.Name(), false))
+}
 
+func TestCheckRights(t *testing.T) {
 	// default options
 	allowGroupExec := false
 
