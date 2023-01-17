@@ -249,6 +249,7 @@ func (c *Client) verify() error {
 	return nil
 }
 
+// StoredOrgUUID returns the org UUID given by the backend
 func (c *Client) StoredOrgUUID() (string, error) {
 	// This is an important block of code : to avoid being locked out
 	// of the agent in case of a wrong uuid being stored, we link an
