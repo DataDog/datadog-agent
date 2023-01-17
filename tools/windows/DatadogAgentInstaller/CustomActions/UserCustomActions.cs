@@ -212,7 +212,7 @@ namespace Datadog.CustomActions
 
                 var ddAgentUserPassword = session["DDAGENTUSER_PASSWORD"];
 
-                if (!userFound && string.IsNullOrEmpty(ddAgentUserPassword) && !isServiceAccount)
+                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
                 {
                     ddAgentUserPassword = GetRandomPassword(128);
                 }

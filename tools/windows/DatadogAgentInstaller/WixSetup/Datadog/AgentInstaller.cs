@@ -51,7 +51,7 @@ namespace WixSetup.Datadog
         public Project ConfigureProject()
         {
             var project = new Project("Datadog Agent",
-                new User()
+                new User
                 {
                     // CreateUser fails with ERROR_BAD_USERNAME if Name is a fully qualified user name
                     Name = "[DDAGENTUSER_PROCESSED_NAME]",
@@ -60,6 +60,8 @@ namespace WixSetup.Datadog
                     PasswordNeverExpires = true,
                     RemoveOnUninstall = true,
                     FailIfExists = false,
+                    UpdateIfExists = true,
+                    CreateUser = true
                 },
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("APIKEY")
