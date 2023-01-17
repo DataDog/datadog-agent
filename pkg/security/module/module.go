@@ -9,69 +9,60 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/events"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	statsdPoolSize = 64
 )
 
+var (
+	// allowedEventTypes defines allowed event type for subscribers
+	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExecEventType}
+)
+
 // Module represents the system-probe module for runtime monitoring
 type Module struct {
 	sync.RWMutex
-	Probe        *sprobe.Probe
-	Config       *sconfig.Config
+	Probe *probe.Probe
+
+	Config       *sysconfig.Config
 	StatsdClient statsd.ClientInterface
 	GRPCServer   *grpc.Server
 
-	// handlers
-	eventTypeHandlers       []EventTypeHandler
-	customEventTypeHandlers []CustomEventTypeHandler
-	ruleEventHandlers       []RuleEventHandler
-
 	// internals
-	netListener net.Listener
-	wg          sync.WaitGroup
+	eventModules []EventModule
+	netListener  net.Listener
+	wg           sync.WaitGroup
+	// TODO should be remove after migration to a common section
+	secconfig *config.Config
 }
 
-// EventHandler generic event handler
-type EventHandler interface {
-	// ID return an unique ID for this handler
+type EventModule interface {
 	ID() string
+	Start() error
+	Stop()
 }
 
 // EventTypeHandler event type based handler
 type EventTypeHandler interface {
-	EventHandler
-	EventTypes() []model.EventType
-	HandleEvent(event *model.Event)
-}
-
-// CustomEventTypeHandler custom event type based handler
-type CustomEventTypeHandler interface {
-	EventHandler
-	CustomEventTypes() []model.EventType
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
-}
-
-// RuleEventHandler rule event based handler
-type RuleEventHandler interface {
-	EventHandler
-	HandleRuleEvent(rule *rules.Rule, event *model.Event)
+	probe.EventHandler
 }
 
 // Register the runtime security agent module
@@ -83,52 +74,26 @@ func (m *Module) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-func (m *Module) AddEventTypeHandler(handler EventTypeHandler) {
-	m.eventTypeHandlers = append(m.eventTypeHandlers, handler)
-}
-
-func (m *Module) AddCustomEventTypeHandler(handler CustomEventTypeHandler) {
-	m.customEventTypeHandlers = append(m.customEventTypeHandlers, handler)
-}
-
-func (m *Module) AddRuleEventHandler(handler RuleEventHandler) {
-	m.ruleEventHandlers = append(m.ruleEventHandlers, handler)
-}
-
-// HandleEvent implements probe events
-func (m *Module) HandleEvent(event *model.Event) {
-	for _, handler := range m.eventTypeHandlers {
-		kind := event.GetEventType()
-		for _, evt := range handler.EventTypes() {
-			if kind == evt {
-				handler.HandleEvent(event)
-			}
-		}
+// AddEventTypeHandler register an event handler
+func (m *Module) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
+	if !slices.Contains(allowedEventTypes, eventType) {
+		return errors.New("event type not allowed")
 	}
-}
 
-// HandleEvent implements probe events
-func (m *Module) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	for _, handler := range m.customEventTypeHandlers {
-		kind := event.GetEventType()
-		for _, evt := range handler.CustomEventTypes() {
-			if kind == evt {
-				handler.HandleCustomEvent(rule, event)
-			}
-		}
-	}
-}
+	m.Probe.AddEventHandler(eventType, handler)
 
-// AddRule add a rule
-func (m *Module) AddRule(handler RuleEventHandler, ruleDef *rules.RuleDefinition) error {
-	// TODO check that the handler has been already registered
 	return nil
+}
+
+// RegisterEventModule register an event module
+func (m *Module) RegisterEventModule(em EventModule) {
+	m.eventModules = append(m.eventModules, em)
 }
 
 // Init initializes the module
 func (m *Module) Init() error {
 	// force socket cleanup of previous socket not cleanup
-	os.Remove(m.Config.SocketPath)
+	os.Remove(m.secconfig.SocketPath)
 
 	// initialize the eBPF manager and load the programs and maps in the kernel. At this stage, the probes are not
 	// running yet.
@@ -136,20 +101,16 @@ func (m *Module) Init() error {
 		return fmt.Errorf("failed to init probe: %w", err)
 	}
 
-	// init event type handlers
-	m.Probe.AddEventHandler(model.UnknownEventType, m)
-	m.Probe.AddCustomEventHandler(model.UnknownEventType, m)
-
 	return nil
 }
 
 // Start the module
 func (m *Module) Start() error {
-	ln, err := net.Listen("unix", m.Config.SocketPath)
+	ln, err := net.Listen("unix", m.secconfig.SocketPath)
 	if err != nil {
 		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
-	if err := os.Chmod(m.Config.SocketPath, 0700); err != nil {
+	if err := os.Chmod(m.secconfig.SocketPath, 0700); err != nil {
 		return fmt.Errorf("unable to register security runtime module: %w", err)
 	}
 
@@ -179,18 +140,30 @@ func (m *Module) Start() error {
 		return err
 	}
 
+	// start event modules
+	for _, em := range m.eventModules {
+		if err := em.Start(); err != nil {
+			log.Errorf("unable to start %s : %v", em.ID(), err)
+		}
+	}
+
 	return nil
 }
 
 // Close the module
 func (m *Module) Close() {
+	// stop event modules
+	for _, em := range m.eventModules {
+		em.Stop()
+	}
+
 	if m.GRPCServer != nil {
 		m.GRPCServer.Stop()
 	}
 
 	if m.netListener != nil {
 		m.netListener.Close()
-		os.Remove(m.Config.SocketPath)
+		os.Remove(m.secconfig.SocketPath)
 	}
 
 	m.wg.Wait()
@@ -217,35 +190,42 @@ func (m *Module) GetStats() map[string]interface{} {
 	return debug
 }
 
-func getStatdClient(cfg *sconfig.Config, opts ...Opts) (statsd.ClientInterface, error) {
+func getStatdClient(config *config.Config, opts ...Opts) (statsd.ClientInterface, error) {
 	if len(opts) != 0 && opts[0].StatsdClient != nil {
 		return opts[0].StatsdClient, nil
 	}
 
 	statsdAddr := os.Getenv("STATSD_URL")
 	if statsdAddr == "" {
-		statsdAddr = cfg.StatsdAddr
+		statsdAddr = config.StatsdAddr
 	}
 
 	return statsd.New(statsdAddr, statsd.WithBufferPoolSize(statsdPoolSize))
 }
 
 // NewModule instantiates a runtime security system-probe module
-func NewModule(cfg *sconfig.Config, opts ...Opts) (*Module, error) {
-	statsdClient, err := getStatdClient(cfg, opts...)
+func NewModule(sysProbeConfig *sysconfig.Config, opts ...Opts) (*Module, error) {
+	// TODO move probe config parameter to a common place
+	config, err := config.NewConfig(sysProbeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("invalid event monitoring configuration: %w", err)
+	}
+
+	statsdClient, err := getStatdClient(config, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	probe, err := sprobe.NewProbe(cfg, statsdClient)
+	probe, err := probe.NewProbe(config, statsdClient)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Module{
-		Config:       cfg,
+		Config:       sysProbeConfig,
 		Probe:        probe,
 		StatsdClient: statsdClient,
 		GRPCServer:   grpc.NewServer(),
+		secconfig:    config,
 	}, nil
 }

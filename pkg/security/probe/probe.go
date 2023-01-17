@@ -73,13 +73,17 @@ type EventStream interface {
 	Resume() error
 }
 
-// RuleEventHandler defines handler called when there is a rule event
-type RuleEventHandler interface {
-	RuleMatch(rule *rules.Rule, event eval.Event)
-}
-
 // NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
+
+var (
+	// defaultEventTypes event types used whatever the event handlers or the rules
+	defaultEventTypes = []eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	}
+)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -317,7 +321,11 @@ func (p *Probe) Start() error {
 		return err
 	}
 
-	p.updateProbes([]eval.EventType{})
+	p.updateProbes([]eval.EventType{
+		model.ForkEventType.String(),
+		model.ExecEventType.String(),
+		model.ExecEventType.String(),
+	})
 
 	return nil
 }
@@ -972,7 +980,8 @@ func (p *Probe) isNeededForActivityDump(eventType eval.EventType) bool {
 // of the applied approvers for it.
 func (p *Probe) updateProbes(ruleEventTypes []eval.EventType) error {
 	// event types enabled either by event handlers or by rules
-	eventTypes := append([]eval.EventType{}, ruleEventTypes...)
+	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
+	eventTypes = append(eventTypes, ruleEventTypes...)
 	for eventType, handlers := range p.eventHandlers {
 		if eventType == int(model.MaxKernelEventType) {
 			break

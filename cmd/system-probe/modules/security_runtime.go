@@ -8,12 +8,9 @@
 package modules
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,21 +24,18 @@ const (
 var SecurityRuntime = module.Factory{
 	Name:             config.SecurityRuntimeModule,
 	ConfigNamespaces: []string{"runtime_security_config"},
-	Fn: func(agentConfig *config.Config) (module.Module, error) {
-		config, err := sconfig.NewConfig(agentConfig)
-		if err != nil {
-			return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
-		}
-
-		m, err := secmodule.NewModule(config)
+	Fn: func(sysProbeConfig *config.Config) (module.Module, error) {
+		m, err := secmodule.NewModule(sysProbeConfig)
 		if err == ebpf.ErrNotImplemented {
 			log.Info("Datadog runtime security agent is only supported on Linux")
 			return nil, module.ErrNotEnabled
 		}
 
-		if _, err := secmodule.NewCWS(m); err != nil {
+		cws, err := secmodule.NewCWS(m)
+		if err != nil {
 			return nil, err
 		}
+		m.RegisterEventModule(cws)
 
 		return m, err
 	},

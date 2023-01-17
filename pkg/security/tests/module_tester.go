@@ -240,6 +240,7 @@ type testModule struct {
 	st            *simpleTest
 	t             testing.TB
 	module        *module.Module
+	cws           *module.CWS
 	probe         *sprobe.Probe
 	eventHandlers eventHandlers
 	cmdWrapper    cmdWrapper
@@ -640,10 +641,10 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
+func genTestConfig(dir string, opts testOpts) (*sysconfig.Config, *config.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if opts.eventsCountThreshold == 0 {
@@ -706,33 +707,33 @@ func genTestConfig(dir string, opts testOpts) (*config.Config, error) {
 		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
 		"EventMonitoringEnabled":              opts.enableEventMonitoring,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	sysprobeConfig, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
+	sysProbeConfigPath, err := os.Create(path.Join(opts.testDir, "system-probe.yaml"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer sysprobeConfig.Close()
+	defer sysProbeConfigPath.Close()
 
-	_, err = io.Copy(sysprobeConfig, buffer)
+	_, err = io.Copy(sysProbeConfigPath, buffer)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	agentConfig, err := sysconfig.New(sysprobeConfig.Name())
+	sysProbeConfig, err := sysconfig.New(sysProbeConfigPath.Name())
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
-	config, err := config.NewConfig(agentConfig)
+	config, err := config.NewConfig(sysProbeConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	config.ERPCDentryResolutionEnabled = !opts.disableERPCDentryResolution
 	config.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
-	return config, nil
+	return sysProbeConfig, config, nil
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
@@ -764,7 +765,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	config, err := genTestConfig(st.root, opts)
+	sysProbeConfig, config, err := genTestConfig(st.root, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -822,22 +823,35 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		eventHandlers: eventHandlers{},
 	}
 
-	mod, err := module.NewModule(config, module.Opts{StatsdClient: statsdClient, EventSender: testMod})
+	probe, err := sprobe.NewProbe(config, statsdClient)
+	if err != nil {
+		return nil, err
+	}
+
+	testMod.module, err = module.NewModule(sysProbeConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	cws, err := module.NewCWS(testMod.module)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
+	testMod.module.RegisterEventModule(cws)
 
-	testMod.module = mod.(*module.Module)
-	testMod.probe = testMod.module.GetProbe()
+	testMod.cws = cws
+	testMod.probe = probe
 
 	var loadErr *multierror.Error
-	testMod.module.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+	testMod.cws.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
 		loadErr = err
 		log.Infof("Adding test module as listener")
 		rs.AddListener(testMod)
 	})
 
-	testMod.probe.AddEventHandler(model.UnknownEventType, testMod)
+	if err := testMod.probe.AddEventHandler(model.UnknownEventType, cws); err != nil {
+		return nil, fmt.Errorf("failed to create module: %w", err)
+	}
 	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
 	if err := testMod.module.Init(); err != nil {
@@ -846,7 +860,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !testMod.module.GetProbe().IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && config.RuntimeCompilationEnabled && !probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
@@ -912,7 +926,7 @@ func (tm *testModule) reloadConfiguration() error {
 		return err
 	}
 
-	if err := tm.module.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
+	if err := tm.cws.LoadPolicies([]rules.PolicyProvider{provider}, true); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 

@@ -12,20 +12,24 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
-	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/security/api"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -33,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // CWS represents the system-probe module for the runtime security agent
@@ -63,13 +67,13 @@ type CWS struct {
 	eventSender      EventSender
 }
 
-// Init initializes the module
-func NewCWS(module *Module) (*CWS, error) {
-	return NewCWSWithOpts(module)
-}
-
 // Init initializes the module with options
-func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
+func NewCWS(module *Module, opts ...Opts) (*CWS, error) {
+	config, err := config.NewConfig(module.Config)
+	if err != nil {
+		return nil, fmt.Errorf("invalid security runtime module configuration: %w", err)
+	}
+
 	selfTester, err := selftests.NewSelfTester()
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
@@ -78,7 +82,7 @@ func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	c := &CWS{
-		config:       module.Config,
+		config:       config,
 		probe:        module.Probe,
 		statsdClient: module.StatsdClient,
 		// internals
@@ -86,7 +90,7 @@ func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
 		cancelFnc:      cancelFnc,
 		currentRuleSet: new(atomic.Value),
 		reloading:      atomic.NewBool(false),
-		apiServer:      NewAPIServer(module.Config, module.Probe, module.StatsdClient),
+		apiServer:      NewAPIServer(config, module.Probe, module.StatsdClient),
 		rateLimiter:    NewRateLimiter(module.StatsdClient),
 		sigupChan:      make(chan os.Signal, 1),
 		selfTester:     selfTester,
@@ -102,16 +106,17 @@ func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
 		c.eventSender = c
 	}
 
-	seclog.SetPatterns(module.Config.LogPatterns...)
-	seclog.SetTags(module.Config.LogTags...)
+	seclog.SetPatterns(config.LogPatterns...)
+	seclog.SetTags(config.LogTags...)
 
-	sapi.RegisterSecurityModuleServer(module.GRPCServer, c.apiServer)
+	api.RegisterSecurityModuleServer(module.GRPCServer, c.apiServer)
+
+	// register as event handler
+	module.Probe.AddEventHandler(model.UnknownEventType, c)
+	module.Probe.AddCustomEventHandler(model.UnknownEventType, c)
 
 	// Activity dumps related
 	module.Probe.AddActivityDumpHandler(c)
-
-	// register as event handler
-	module.AddCustomEventTypeHandler(c)
 
 	// policy loader
 	c.policyLoader = rules.NewPolicyLoader()
@@ -119,22 +124,15 @@ func NewCWSWithOpts(module *Module, opts ...Opts) (*CWS, error) {
 	return c, nil
 }
 
+// ID returns id for CWS
 func (c *CWS) ID() string {
 	return "CWS"
-}
-
-func (c *CWS) EventTypes() []model.EventType {
-	return []model.EventType{}
-}
-
-func (c *CWS) CustomEventTypes() []model.EventType {
-	return []model.EventType{model.UnknownEventType}
 }
 
 // Start the module
 func (c *CWS) Start() error {
 	// start api server
-	sapi.RegisterVTCodec()
+	api.RegisterVTCodec()
 	c.apiServer.Start(c.ctx)
 
 	// monitor policies
@@ -530,7 +528,7 @@ func (c *CWS) SendProcessEventData(data []byte) {
 }
 
 // HandleActivityDump sends an activity dump to the backend
-func (c *CWS) HandleActivityDump(dump *sapi.ActivityDumpStreamMessage) {
+func (c *CWS) HandleActivityDump(dump *api.ActivityDumpStreamMessage) {
 	c.apiServer.SendActivityDump(dump)
 }
 
@@ -554,7 +552,7 @@ func (c *CWS) sendStats() {
 }
 
 func (c *CWS) statsSender() {
-	/*defer c.wg.Done()
+	defer c.wg.Done()
 
 	statsTicker := time.NewTicker(c.config.StatsPollingInterval)
 	defer statsTicker.Stop()
@@ -591,24 +589,11 @@ func (c *CWS) statsSender() {
 		case <-c.ctx.Done():
 			return
 		}
-	}*/
-}
-
-// GetStats returns statistics about the module
-func (c *CWS) GetStats() map[string]interface{} {
-	debug := map[string]interface{}{}
-
-	if c.probe != nil {
-		debug["probe"] = c.probe.GetDebugStats()
-	} else {
-		debug["probe"] = "not_running"
 	}
-
-	return debug
 }
 
 // GetProbe returns the module's probe
-func (c *CWS) GetProbe() *sprobe.Probe {
+func (c *CWS) GetProbe() *probe.Probe {
 	return c.probe
 }
 
