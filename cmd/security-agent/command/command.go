@@ -6,6 +6,7 @@
 package command
 
 import (
+	"fmt"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"path"
@@ -39,10 +40,15 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Long: `
 Datadog Security Agent takes care of running compliance and security checks.`,
 		SilenceUsage: true, // don't print usage on errors
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if flagNoColor {
 				color.NoColor = true
 			}
+
+			if len(globalParams.ConfigFilePaths) == 1 && globalParams.ConfigFilePaths[0] == "" {
+				return fmt.Errorf("no Security Agent config files to load, exiting.")
+			}
+			return nil
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
 			log.Flush()
