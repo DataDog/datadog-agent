@@ -319,7 +319,7 @@ static __always_inline bool process_headers(http2_transaction_t* http2_transacti
 static __always_inline void process_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
     struct http2_frame current_frame = {};
     bool is_end_of_stream;
-    bool is_data_frame;
+    bool is_supported_frame;
     __s64 remaining_length = 0;
 
 #pragma unroll
@@ -344,8 +344,8 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         log_debug("[http2] ----------\n");
 
         is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
-        is_data_frame = current_frame.type == kDataFrame;
-        if (is_data_frame && is_end_of_stream){
+        is_supported_frame = current_frame.type == kDataFrame || current_frame.type == kHeadersFrame;
+        if (is_supported_frame && is_end_of_stream){
             log_debug("[http2] found end of stream %d\n", current_frame.stream_id);
             //TODO: handle_end_of_stream();
             http2_transaction->end_of_stream = true;
