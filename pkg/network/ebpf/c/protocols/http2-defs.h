@@ -5,7 +5,7 @@
 
 // A limit of max frames we will upload from a single connection to the user mode.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES 5
+#define HTTP2_MAX_FRAMES 3
 
 // A limit of max headers frames which we except to see in the request/response.
 // NOTE: we may need to change the max size.

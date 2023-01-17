@@ -79,12 +79,12 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-//    // src_port represents the source port number *before* normalization
-//    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-//    http2->owned_by_src_port = http2->tup.sport;
-//    // todo: need to understand what to do with this function.
-//    http2->old_tup = http2->tup;
-//    normalize_tuple(&http2->tup);
+    // src_port represents the source port number *before* normalization
+    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+    http2_conn->owned_by_src_port = http2_conn->tup.sport;
+    // todo: need to understand what to do with this function.
+    http2_conn->old_tup = http2_conn->tup;
+    normalize_tuple(&http2_conn->tup);
 
     read_into_buffer_skb((char *)http2_conn->request_fragment, skb, &skb_info);
     const __u32 payload_length = skb->len - skb_info.data_off;
