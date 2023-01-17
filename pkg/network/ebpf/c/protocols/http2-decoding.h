@@ -124,20 +124,12 @@ static __always_inline int http2_process(http2_transaction_t* http2_stack,  skb_
             }
 
             // todo: take it out to a function and add all the other options as well.
-            if (http2_stack->response_status_code == 8) {
-                response_code = 200;
-            }
-            if (http2_stack->response_status_code == 9){
-                response_code = 204;
-            }
-            if (http2_stack->response_status_code == 10){
-                response_code = 206;
-            }
-            if (http2_stack->response_status_code == 12){
-                response_code = 400;
-            }
-            if (http2_stack->response_status_code == 14){
-                response_code = 500;
+            switch(http2_stack->response_status_code) {
+            case k200: response_code = 200;
+            case k204: response_code = 204;
+            case k206: response_code = 206;
+            case k400: response_code = 400;
+            case k500: response_code = 500;
             }
 
             http->response_status_code = response_code;
@@ -276,7 +268,7 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
         dynamic_value.index = static_value->name;
     }
 
-    __u64 str_len = read_var_int(http2_transaction, 6, current_char_as_number);
+    __u64 str_len = read_var_int(http2_transaction, 7, current_char_as_number);
     if (str_len == -1 || str_len == 0){
         return;
     }
@@ -288,6 +280,8 @@ static __always_inline void parse_field_literal(http2_transaction_t* http2_trans
     char *beginning = http2_transaction->request_fragment + http2_transaction->current_offset_in_request_fragment;
     // create the new dynamic value which will be added to the internal table.
     bpf_memcpy(dynamic_value.value.buffer, beginning, HTTP2_MAX_PATH_LEN);
+
+
     dynamic_value.value.string_len = str_len;
     dynamic_value.index = index;
 
