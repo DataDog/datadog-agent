@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
+	"github.com/benbjohnson/clock"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -371,16 +371,18 @@ func TestSendProcessesMetadata(t *testing.T) {
 }
 
 func TestSendContainerLifecycleEvents(t *testing.T) {
+	clock := clock.NewMock()
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\x0a\x02v1\x12\x08hostname\x18\x01")
 	payloads, _ := mkPayloads(payload, false)
 	extraHeaders := protobufExtraHeaders.Clone()
 	extraHeaders.Set(headers.EVPOriginHeader, "agent")
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
 	f.On("SubmitContainerLifecycleEvents", payloads, extraHeaders).Return(nil).Times(1)
 
 	s := NewSerializer(nil, nil, f, nil, nil)
+	s.clock = clock
 
 	msg := []ContainerLifecycleMessage{
 		{
@@ -401,16 +403,18 @@ func TestSendContainerLifecycleEvents(t *testing.T) {
 }
 
 func TestSendContainerImage(t *testing.T) {
+	clock := clock.NewMock()
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\x0a\x02v1\x12\x08hostname")
 	payloads, _ := mkPayloads(payload, false)
 	extraHeaders := protobufExtraHeaders.Clone()
 	extraHeaders.Set(headers.EVPOriginHeader, "agent")
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
 	f.On("SubmitContainerImages", payloads, extraHeaders).Return(nil).Times(1)
 
 	s := NewSerializer(nil, nil, nil, f, nil)
+	s.clock = clock
 
 	msg := []ContainerImageMessage{
 		{
@@ -434,16 +438,18 @@ func makePtr(val string) *string {
 }
 
 func TestSendSBOM(t *testing.T) {
+	clock := clock.NewMock()
 	f := &forwarder.MockedForwarder{}
 	payload := []byte("\x08\x01\x12\x08hostname\x1a\x05agent")
 	payloads, _ := mkPayloads(payload, false)
 	extraHeaders := protobufExtraHeaders.Clone()
 	extraHeaders.Set(headers.EVPOriginHeader, "agent")
 	extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
-	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(time.Now().Unix())))
+	extraHeaders.Set(headers.TimestampHeader, strconv.Itoa(int(clock.Now().Unix())))
 	f.On("SubmitSBOM", payloads, extraHeaders).Return(nil).Times(1)
 
 	s := NewSerializer(nil, nil, nil, nil, f)
+	s.clock = clock
 
 	msg := []SBOMMessage{
 		{
