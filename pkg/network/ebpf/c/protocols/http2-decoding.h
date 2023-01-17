@@ -333,7 +333,7 @@ static __always_inline bool process_headers(http2_transaction_t* http2_transacti
 
 #define HTTP2_END_OF_STREAM 0x1
 
-static __always_inline void process_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
+static __always_inline void process_frames(http2_transaction_t* http2_transaction) {
     struct http2_frame current_frame = {};
     bool is_end_of_stream;
     bool is_supported_frame;
@@ -385,6 +385,27 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         // TODO: Remove when process_headers is completed.
         http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
     }
+}
+
+static __always_inline void http2_entrypoint(struct __sk_buff *skb, skb_info_t *skb_info, http2_transaction_t *http2_conn) {
+    // src_port represents the source port number *before* normalization
+    // for more context please refer to http-types.h comment on `owned_by_src_port` field
+    http2_conn->owned_by_src_port = http2_conn->tup.sport;
+    // todo: need to understand what to do with this function.
+    http2_conn->old_tup = http2_conn->tup;
+    normalize_tuple(&http2_conn->tup);
+
+    read_into_buffer_skb((char *)http2_conn->request_fragment, skb, skb_info);
+    const __u32 payload_length = skb->len - skb_info->data_off;
+    const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
+    if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
+        log_debug("[http2] http2 magic was found, aborting");
+        return;
+    }
+
+    process_frames(http2_conn);
+    http2_process(http2_conn, NULL, NO_TAGS);
+    return;
 }
 
 #endif

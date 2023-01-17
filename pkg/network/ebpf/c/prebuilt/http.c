@@ -14,8 +14,6 @@
 #include "protocols/http-buffer.h"
 #include "protocols/tags-types.h"
 #include "protocols/protocol-dispatcher-helpers.h"
-#include "protocols/http2.h"
-#include "protocols/http2-defs.h"
 #include "protocols/http2-decoding.h"
 
 #define SO_SUFFIX_SIZE 3
@@ -56,34 +54,15 @@ SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     const __u32 zero = 0;
-    // TODO: replace http2_transaction_t with http2_connection_t
     http2_transaction_t *http2_conn = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
     if (http2_conn == NULL) {
         return 0;
     }
     bpf_memset(http2_conn, 0, sizeof(http2_transaction_t));
-
     if (!read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
-        return 0;
+        http2_entrypoint(skb, &skb_info, http2_conn);
     }
 
-    // src_port represents the source port number *before* normalization
-    // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http2_conn->owned_by_src_port = http2_conn->tup.sport;
-    // todo: need to understand what to do with this function.
-    http2_conn->old_tup = http2_conn->tup;
-    normalize_tuple(&http2_conn->tup);
-
-    read_into_buffer_skb((char *)http2_conn->request_fragment, skb, &skb_info);
-    const __u32 payload_length = skb->len - skb_info.data_off;
-    const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
-    if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
-        log_debug("[http2] http2 magic was found, aborting");
-        return 0;
-    }
-
-    process_frames(http2_conn, skb);
-    http2_process(http2_conn, NULL, NO_TAGS);
     return 0;
 }
 
