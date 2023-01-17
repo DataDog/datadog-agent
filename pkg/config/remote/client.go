@@ -33,7 +33,7 @@ const (
 	minBackoffFactor      = 2.0
 	recoveryInterval      = 2
 
-	maxMessageSize = 1024 * 1024 * 500 // 500MB, current backend limit
+	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
 )
 
 // ConfigUpdater defines the interface that an agent client uses to get config updates
