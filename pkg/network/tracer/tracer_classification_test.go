@@ -32,6 +32,7 @@ import (
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 )
 
@@ -61,6 +62,10 @@ func setupTracer(t *testing.T, cfg *config.Config) *Tracer {
 	t.Cleanup(func() {
 		tr.Stop()
 	})
+
+	if tr.ebpfTracer.Type() == connection.EBPFFentry {
+		t.Skip("protocol classification not supported for fentry tracer")
+	}
 
 	initTracerState(t, tr)
 	require.NoError(t, err)
