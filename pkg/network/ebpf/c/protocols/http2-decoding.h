@@ -430,6 +430,7 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         if (is_data_frame && is_end_of_stream){
             log_debug("[http2] found end of stream %d\n", current_frame.stream_id);
             //TODO: handle_end_of_stream();
+            http2_transaction->end_of_stream = true;
         }
 
         if (current_frame.type != kHeadersFrame) {

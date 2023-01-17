@@ -55,60 +55,38 @@ int socket__http_filter(struct __sk_buff *skb) {
     return 0;
 }
 
-// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
-// We check that the given buffer is not empty and its size is at least 24 bytes.
-static __always_inline bool http2_marker_prefix(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, 9)
-
-#define HTTP2_PREFIX "PRI * HTT"
-
-    bool match = !bpf_memcmp(buf, HTTP2_PREFIX, sizeof(HTTP2_PREFIX)-1);
-
-    return match;
-}
-
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
     const __u32 zero = 0;
-    http2_transaction_t *http2 = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
-    if (http2 == NULL) {
+    // TODO: replace http2_transaction_t with http2_connection_t
+    http2_transaction_t *http2_conn = bpf_map_lookup_elem(&http2_trans_alloc, &zero);
+    if (http2_conn == NULL) {
         return 0;
     }
+    bpf_memset(http2_conn, 0, sizeof(http2_transaction_t));
 
-    bpf_memset(http2, 0, sizeof(http2_transaction_t));
-
-    if (!read_conn_tuple_skb(skb, &skb_info, &http2->tup)) {
+    if (!read_conn_tuple_skb(skb, &skb_info, &http2_conn->tup)) {
         return 0;
     }
 
     // src_port represents the source port number *before* normalization
     // for more context please refer to http-types.h comment on `owned_by_src_port` field
-    http2->owned_by_src_port = http2->tup.sport;
+    http2_conn->owned_by_src_port = http2_conn->tup.sport;
     // todo: need to understand what to do with this function.
-    http2->old_tup = http2->tup;
-    normalize_tuple(&http2->tup);
+    http2_conn->old_tup = http2_conn->tup;
+    normalize_tuple(&http2_conn->tup);
 
-    read_into_buffer_skb((char *)http2->request_fragment, skb, &skb_info);
-
-    // Check if the current buf is the http2 magic (* HTTP/2.0\r\n\r\nSM\r\n\r\n) prefix
-    if (http2_marker_prefix(http2->request_fragment, HTTP2_MARKER_SIZE-HTTP2_FRAME_HEADER_SIZE)) {
-        // Validate that the extra 15 bytes after the prefix is the suffix of the magic.
-        if (is_http2_preface(http2->request_fragment,  skb->len)) {
-            log_debug("[http2 - logs] http2 magic was found");
-        }
-        // Validate that there are more frames after the magic.
-        if (skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > skb->len) {
-          return 0;
-        }
-
-        // Update the position to be after the magic.
-        http2->current_offset_in_request_fragment += HTTP2_MARKER_SIZE;
+    read_into_buffer_skb((char *)http2_conn->request_fragment, skb, &skb_info);
+    const __u32 payload_length = skb->len - skb_info.data_off;
+    const __u32 final_payload_length = HTTP2_BUFFER_SIZE < payload_length ? HTTP2_BUFFER_SIZE : payload_length;
+    if (is_http2_preface(http2_conn->request_fragment, final_payload_length)) {
+        log_debug("[http2] http2 magic was found, aborting");
+        return 0;
     }
 
-
-    process_http2_frames(http2, skb);
-    http2_process(http2, NULL, NO_TAGS);
+    process_frames(http2_conn, skb);
+    http2_process(http2_conn, NULL, NO_TAGS);
     return 0;
 }
 

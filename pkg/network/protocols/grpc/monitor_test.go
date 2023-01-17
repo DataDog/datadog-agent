@@ -467,7 +467,7 @@ func TestGRPCScenarios(t *testing.T) {
 	cfg := config.New()
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableRuntimeCompiler = true
-	cfg.BPFDebug = true
+	//cfg.BPFDebug = true
 	for _, tt := range tests {
 		for _, val := range []bool{false, true} {
 			testNameSuffix := fmt.Sprintf("different clients - %v", val)
@@ -486,6 +486,9 @@ func TestGRPCScenarios(t *testing.T) {
 				res := make(map[http.Key]int)
 				require.Eventually(t, func() bool {
 					stats := monitor.GetHTTPStats()
+					if len(stats) > 0 {
+						fmt.Println(stats)
+					}
 					for key, stat := range stats {
 						if key.DstPort == 5050 || key.SrcPort == 5050 {
 							count := 0
@@ -506,6 +509,9 @@ func TestGRPCScenarios(t *testing.T) {
 						}
 					}
 
+					if len(res) > 0 {
+						fmt.Println(res)
+					}
 					if len(res) != len(tt.expectedEndpoints) {
 						return false
 					}
@@ -519,6 +525,7 @@ func TestGRPCScenarios(t *testing.T) {
 							return false
 						}
 					}
+
 					return true
 				}, time.Second*3, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			})

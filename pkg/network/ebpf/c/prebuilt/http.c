@@ -52,18 +52,6 @@ int socket__http_filter(struct __sk_buff* skb) {
     return 0;
 }
 
-// The method checks if the given buffer starts with the HTTP2 marker as defined in https://datatracker.ietf.org/doc/html/rfc7540.
-// We check that the given buffer is not empty and its size is at least 24 bytes.
-static __always_inline bool http2_marker_prefix(const char* buf, __u32 buf_size) {
-    CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, 9)
-
-#define HTTP2_PREFIX "PRI * HTT"
-
-    bool match = !bpf_memcmp(buf, HTTP2_PREFIX, sizeof(HTTP2_PREFIX)-1);
-
-    return match;
-}
-
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     skb_info_t skb_info;
