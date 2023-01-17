@@ -17,6 +17,7 @@ spec:
           - name: ci_commit_short_sha
           - name: ci_pipeline_id
           - name: ci_job_id
+          - name: remote_configuration_enabled
       script:
         image: alpine/k8s:1.25.4
         envFrom:
@@ -120,7 +121,7 @@ spec:
                   - name:  DD_USE_V2_API_SERIES
                     value: "false"
                   - name: DD_REMOTE_CONFIGURATION_ENABLED
-                    value: "true"
+                    value: "{{inputs.parameters.remote_configuration_enabled}}"
                   - name: DD_REMOTE_CONFIGURATION_KEY
                     value: $DD_RC_KEY
                   - name: DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL
@@ -133,7 +134,7 @@ spec:
                   - name: DD_RUNTIME_SECURITY_CONFIG_POLICIES_DIR
                     value: "/tmp/runtime-security.d"
                   - name: DD_RUNTIME_SECURITY_CONFIG_REMOTE_CONFIGURATION_ENABLED
-                    value: "true"
+                    value: "{{inputs.parameters.remote_configuration_enabled}}"
                 securityContext:
                   capabilities:
                     drop:
