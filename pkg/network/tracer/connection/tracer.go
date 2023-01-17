@@ -34,6 +34,14 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 )
 
+// TracerType is the type of the underlying tracer
+type TracerType int
+
+const (
+	EBPFKProbe TracerType = iota
+	EBPFFentry
+)
+
 // Tracer is the common interface implemented by all connection tracers.
 type Tracer interface {
 	// Start begins collecting network connection data.
@@ -55,6 +63,8 @@ type Tracer interface {
 	GetMap(string) *ebpf.Map
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 	DumpMaps(maps ...string) (string, error)
+	// Type returns the type of the underlying ebpf tracer that is currently loaded
+	Type() TracerType
 }
 
 const (
@@ -78,6 +88,8 @@ type tracer struct {
 
 	closeTracer func()
 	stopOnce    sync.Once
+
+	ebpfTracerType TracerType
 }
 
 type telemetry struct {
@@ -137,6 +149,7 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 	telemetryMapKeys := errtelemetry.BuildTelemetryKeys(m)
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors, telemetryMapKeys...)
 
+	var tracerType TracerType = EBPFFentry
 	var closeTracerFn func()
 	closeTracerFn, err = fentry.LoadTracer(c, m, mgrOptions, perfHandlerTCP)
 	if err != nil && !errors.Is(err, fentry.ErrorNotSupported) {
@@ -151,6 +164,7 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 		if err != nil {
 			return nil, err
 		}
+		tracerType = EBPFKProbe
 	}
 
 	batchMgr, err := newConnBatchManager(m)
@@ -164,13 +178,14 @@ func NewTracer(c *config.Config, constants []manager.ConstantEditor, bpfTelemetr
 	}
 
 	tr := &tracer{
-		m:             m,
-		config:        c,
-		closeConsumer: closeConsumer,
-		pidCollisions: atomic.NewInt64(0),
-		removeTuple:   &netebpf.ConnTuple{},
-		telemetry:     newTelemetry(),
-		closeTracer:   closeTracerFn,
+		m:              m,
+		config:         c,
+		closeConsumer:  closeConsumer,
+		pidCollisions:  atomic.NewInt64(0),
+		removeTuple:    &netebpf.ConnTuple{},
+		telemetry:      newTelemetry(),
+		closeTracer:    closeTracerFn,
+		ebpfTracerType: tracerType,
 	}
 
 	tr.conns, _, err = m.GetMap(string(probes.ConnMap))
@@ -410,6 +425,11 @@ func (t *tracer) GetTelemetry() map[string]int64 {
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 func (t *tracer) DumpMaps(maps ...string) (string, error) {
 	return t.m.DumpMaps(maps...)
+}
+
+// Type returns the type of the underlying ebpf tracer that is currently loaded
+func (t *tracer) Type() TracerType {
+	return t.ebpfTracerType
 }
 
 func initializePortBindingMaps(config *config.Config, m *manager.Manager) error {

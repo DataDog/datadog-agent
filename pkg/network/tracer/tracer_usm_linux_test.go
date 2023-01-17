@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -534,6 +535,10 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 		}
 		defer tr.Stop()
 
+		if tr.ebpfTracer.Type() == connection.EBPFFentry {
+			t.Skip("protocol classification not supported for fentry tracer")
+		}
+
 		initTracerState(t, tr)
 		require.NoError(t, err)
 		done := make(chan struct{})
@@ -589,6 +594,11 @@ func testProtocolClassificationMapCleanup(t *testing.T, cfg *config.Config, clie
 // GoTLS test
 
 func TestHTTPGoTLSAttachProbes(t *testing.T) {
+	cfg := testConfig()
+	if !cfg.EnableRuntimeCompiler {
+		t.Skip("GoTLS not supported when runtime compiler is disabled")
+	}
+
 	clientBin := buildGoTLSClientBin(t)
 
 	if !goTLSSupported() {
@@ -626,7 +636,6 @@ func testHTTPGoTLSCaptureNewProcess(clientBin string) func(t *testing.T) {
 		cfg.EnableGoTLSSupport = true
 		cfg.EnableHTTPMonitoring = true
 		cfg.EnableHTTPSMonitoring = true
-		cfg.EnableRuntimeCompiler = true
 
 		tr, err := NewTracer(cfg)
 		require.NoError(t, err)
