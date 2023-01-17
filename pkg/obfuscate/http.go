@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// obfuscateUserInfo ensures there is no userinfo field in a given URL.
+// obfuscateUserInfo returns a URL string that obfuscates any userinfo by setting url.User to nil.
 func obfuscateUserInfo(val string) string {
 	u, err := url.Parse(val)
 	if err != nil {
