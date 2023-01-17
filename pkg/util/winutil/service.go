@@ -35,7 +35,7 @@ type enumServiceState uint32
 
 func OpenSCManager(desiredAccess uint32) (*mgr.Mgr, error) {
 	h, err := windows.OpenSCManager(nil, nil, desiredAccess)
-	if err != nil {
+	if h == 0 {
 		return nil, err
 	}
 	return &mgr.Mgr{Handle: h}, err
@@ -188,10 +188,17 @@ func enumDependentServices(h windows.Handle, state enumServiceState) (services [
 		uintptr(unsafe.Pointer(&bufsz)),
 		uintptr(unsafe.Pointer(&count)))
 
-	if err != error(windows.ERROR_MORE_DATA) {
-		log.Warnf("Error getting buffer %v", err)
+	// success with a 0 buffer means no dependent services
+	if err == error(windows.ERROR_SUCCESS) {
+		err = nil
 		return
+	} else {
+		if err != error(windows.ERROR_MORE_DATA) {
+			log.Warnf("Error getting buffer %v", err)
+			return
+		}
 	}
+
 	servicearray := make([]uint8, bufsz) // TODO convert to uint16 and bufsz/2 to allow windows.UTF16toString call
 	ret, _, err := procEnumDependentServices.Call(uintptr(h),
 		uintptr(state),
