@@ -441,9 +441,12 @@ static __always_inline bool decode_http2_headers_frame(http2_transaction_t* http
     return true;
 }
 
+#define HTTP2_END_OF_STREAM 0x1
+
 static __always_inline void process_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
     struct http2_frame current_frame = {};
-
+    bool is_end_of_stream;
+    bool is_data_frame;
     __s64 remaining_length = 0;
 #pragma unroll
     for (uint32_t i = 0; i < HTTP2_MAX_FRAMES; i++) {
@@ -462,15 +465,28 @@ static __always_inline void process_frames(http2_transaction_t* http2_transactio
         remaining_length -= HTTP2_FRAME_HEADER_SIZE;
 
         log_debug("[http2] ----------\n");
-        log_debug("[http2] flags are %d; type is %d\n", current_frame.flags, current_frame.type);
-        log_debug("[http2] length is %lu; stream id is %lu\n", current_frame.length, current_frame.stream_id);
+        log_debug("[http2] length is %lu; type is %d\n", current_frame.length, current_frame.type);
+        log_debug("[http2] flags are %d; stream id is %lu\n", current_frame.flags, current_frame.stream_id);
         log_debug("[http2] ----------\n");
 
-        // Skipping the frame payload.
+        is_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM;
+        is_data_frame = current_frame.type == kDataFrame;
+        if (is_data_frame && is_end_of_stream){
+            log_debug("[http2] found end of stream %d\n", current_frame.stream_id);
+            //TODO: handle_end_of_stream();
+        }
+
+        if (current_frame.type != kHeadersFrame) {
+            log_debug("[http2] frame is not headers, thus skipping it\n");
+            // Skipping the frame payload.
+            http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
+            continue;
+        }
+
+        // Process headers.
         http2_transaction->current_offset_in_request_fragment += (__u32)current_frame.length;
     }
 }
-
 
 // This function filters the needed frames from the http2 session.
 static __always_inline void process_http2_frames(http2_transaction_t* http2_transaction, struct __sk_buff *skb) {
