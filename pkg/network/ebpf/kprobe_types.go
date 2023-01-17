@@ -33,7 +33,7 @@ type _Ctype_struct_msghdr uint64
 
 type TCPState uint8
 
-type StaticTableEnumKey = C.header_key
+type StaticTableEnumKey = C.static_table_key_t
 
 const (
 	MethodKey StaticTableEnumKey = C.kMethod
@@ -41,7 +41,7 @@ const (
 	StatusKey StaticTableEnumKey = C.kStatus
 )
 
-type StaticTableEnumValue = C.header_value
+type StaticTableEnumValue = C.static_table_key_t
 
 const (
 	GetValue       StaticTableEnumValue = C.kGET
@@ -57,11 +57,7 @@ const (
 	K500Value      StaticTableEnumValue = C.k500
 )
 
-type StaticTableValue C.static_table_value
-
-type DynamicTableEnumKey = C.header_key
-
-type DynamicTableEnumValue = C.dynamic_string_value
+type StaticTableValue = C.static_table_entry_t
 
 const (
 	Established TCPState = C.TCP_ESTABLISHED

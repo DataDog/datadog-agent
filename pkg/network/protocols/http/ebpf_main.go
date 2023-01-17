@@ -306,77 +306,77 @@ func (e *ebpfProgram) Init() error {
 			{
 				Index: 2,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.MethodKey,
+					Key:   netebpf.MethodKey,
 					Value: netebpf.GetValue,
 				},
 			},
 			{
 				Index: 3,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.MethodKey,
+					Key:   netebpf.MethodKey,
 					Value: netebpf.PostValue,
 				},
 			},
 			{
 				Index: 4,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.PathKey,
+					Key:   netebpf.PathKey,
 					Value: netebpf.EmptyPathValue,
 				},
 			},
 			{
 				Index: 5,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.PathKey,
+					Key:   netebpf.PathKey,
 					Value: netebpf.IndexPathValue,
 				},
 			},
 			{
 				Index: 8,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K200Value,
 				},
 			},
 			{
 				Index: 9,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K204Value,
 				},
 			},
 			{
 				Index: 10,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K206Value,
 				},
 			},
 			{
 				Index: 11,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K304Value,
 				},
 			},
 			{
 				Index: 12,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K400Value,
 				},
 			},
 			{
 				Index: 13,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K404Value,
 				},
 			},
 			{
 				Index: 14,
 				Value: netebpf.StaticTableValue{
-					Name:  netebpf.StatusKey,
+					Key:   netebpf.StatusKey,
 					Value: netebpf.K500Value,
 				},
 			},
